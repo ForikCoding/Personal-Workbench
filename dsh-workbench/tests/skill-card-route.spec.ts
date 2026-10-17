@@ -1,0 +1,464 @@
+/** Request fencing, method handling, and payload validation of the skill card route. */
+
+import { describe, expect, it, vi } from 'vitest'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import {
+  createWorkbenchSkillCardCatalogHandler,
+  createWorkbenchSkillCardHandler,
+  createWorkbenchSkillCardRunHandler,
+} from '../src/skill-card-route.ts'
+import type { SkillCardRouteFence } from '../src/skill-card-route.ts'
+import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
+import type { WorkbenchCardSelection } from '../src/skill-card-runner.ts'
+import { WorkbenchSkillCardStore } from '../src/skill-card-store.ts'
+import { FakeRequest, run } from './support/fake-http.ts'
+import { fakeSkillCardTables } from './support/fake-skill-card-tables.ts'
+import type { FakeSkillCardSeed, FakeSkillCardTables } from './support/fake-skill-card-tables.ts'
+import { fakeHost } from './support/fake-skill-card-host.ts'
+import type { FakeHostOptions } from './support/fake-skill-card-host.ts'
+
+/** Fence double with a configurable rejection. */
+function fence(rejection: 401 | 403 | undefined): SkillCardRouteFence {
+  return { requestRejection: () => rejection }
+}
+
+/** Tables that fail the spec if the route reaches storage at all. */
+function forbiddenTables(): FakeSkillCardTables {
+  const tables = fakeSkillCardTables()
+  const boom = (): never => { throw new Error('storage was reached') }
+  tables.card.entries = boom
+  tables.card.get = boom
+  tables.template.entries = boom
+  tables.result.entries = boom
+  return tables
+}
+
+/** Everything a spec needs to drive one handler. */
+interface Setup {
+  readonly handle: (request: IncomingMessage, response: ServerResponse) => void
+  readonly tables: FakeSkillCardTables
+  readonly warn: ReturnType<typeof vi.fn>
+  readonly store: WorkbenchSkillCardStore
+}
+
+/**
+ * Build a handler plus its tables.
+ * @param options - fence rejection, seed records, table override, and template budget.
+ * @returns the handler, tables, logger spy, and store.
+ */
+function setup(options: {
+  rejection?: 401 | 403
+  seed?: FakeSkillCardSeed
+  tables?: FakeSkillCardTables
+  maxTemplateBytes?: number
+} = {}): Setup {
+  const tables = options.tables ?? fakeSkillCardTables(options.seed)
+  const store = new WorkbenchSkillCardStore({
+    domainName: 'workbench_skill_card',
+    card: tables.card,
+    template: tables.template,
+    result: tables.result,
+    events: { on: () => () => {} },
+    maxTemplateBytes: options.maxTemplateBytes ?? 1024,
+    maxTemplatesPerCard: 4,
+    maxResultBytes: 512,
+    bootStamp: 7,
+  })
+  const warn = vi.fn()
+  const handle = createWorkbenchSkillCardHandler({
+    store,
+    fence: fence(options.rejection),
+    maxTemplateBytes: options.maxTemplateBytes ?? 1024,
+    warn,
+  })
+  return { handle, tables, warn, store }
+}
+
+/** A patch body that would be accepted. */
+function patch(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { baseRevision: '7:0', cardId: 'skill-card', skill: 'git-repo', ...overrides }
+}
+
+describe('workbench skill card route', () => {
+  it('answers a fenced request without touching storage', async () => {
+    const { handle, tables } = setup({ rejection: 401, tables: forbiddenTables() })
+    const response = await run(handle, new FakeRequest('GET'))
+    expect(response.statusCode).toBe(401)
+    expect(JSON.parse(response.body)).toEqual({ error: { code: 'unauthorized', message: 'request rejected' } })
+    expect(tables.operations).toEqual([])
+  })
+
+  it('reports a forbidden request as such', async () => {
+    const { handle } = setup({ rejection: 403 })
+    const response = await run(handle, new FakeRequest('GET'))
+    expect(response.statusCode).toBe(403)
+    expect(JSON.parse(response.body).error.code).toBe('forbidden')
+  })
+
+  it('reads configuration and results', async () => {
+    const { handle } = setup({
+      seed: {
+        card: { 'skill-card': { skill: 'git-repo' } },
+        template: { 'skill-card_git-repo': { html: '<b>{{branch}}</b>' } },
+        result: { 'skill-card': { skill: 'git-repo', executedAt: 12, stopReason: 'completed' } },
+      },
+    })
+    const response = await run(handle, new FakeRequest('GET'))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toEqual({
+      apiVersion: 1,
+      revision: '7:0',
+      cards: [{ cardId: 'skill-card', skill: 'git-repo', templateSkills: ['git-repo'], template: '<b>{{branch}}</b>' }],
+      results: [{ cardId: 'skill-card', skill: 'git-repo', executedAt: 12, stopReason: 'completed' }],
+    })
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('writes a configuration patch and echoes the new state', async () => {
+    const { handle, tables } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', patch({ template: { skill: 'git-repo', html: '<i>x</i>' } })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([{
+      cardId: 'skill-card',
+      skill: 'git-repo',
+      templateSkills: ['git-repo'],
+      template: '<i>x</i>',
+    }])
+    expect(tables.operations.map(operation => `${operation.table}:${operation.kind}`)).toEqual(['template:put', 'card:put'])
+  })
+
+  it('answers a stale revision with the current state and writes nothing', async () => {
+    const { handle, tables } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', patch({ baseRevision: '0:9' })))
+    expect(response.statusCode).toBe(409)
+    expect(JSON.parse(response.body)).toMatchObject({ revision: '7:0', cards: [] })
+    expect(tables.operations).toEqual([])
+  })
+
+  it('rejects a patch the store cannot accept', async () => {
+    const { handle, tables } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', patch({ skill: 'Git-Repo' })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body)).toEqual({
+      error: { code: 'invalid-request', message: 'skill must be null or a kebab-case skill name' },
+    })
+    expect(tables.operations).toEqual([])
+  })
+
+  it('refuses a template above the wire limit with the size code', async () => {
+    const { handle, tables } = setup()
+    const oversized = 'x'.repeat(1025)
+    const response = await run(handle, new FakeRequest('PATCH', patch({ template: { skill: 'git-repo', html: oversized } })))
+    expect(response.statusCode).toBe(413)
+    expect(JSON.parse(response.body).error.code).toBe('too-large')
+    expect(tables.operations).toEqual([])
+  })
+
+  it('refuses a body above the request cap', async () => {
+    const { handle } = setup()
+    const huge = patch({ template: { skill: 'git-repo', html: 'x'.repeat(200_000) } })
+    const response = await run(handle, new FakeRequest('PATCH', huge))
+    expect(response.statusCode).toBe(413)
+    expect(JSON.parse(response.body).error.code).toBe('too-large')
+  })
+
+  it('refuses an unreadable body', async () => {
+    const { handle } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', undefined))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).error.message).toBe('request body is empty')
+
+    const malformed = await run(handle, FakeRequest.raw('PATCH', '{'))
+    expect(malformed.statusCode).toBe(400)
+    expect(JSON.parse(malformed.body).error.message).toBe('request body is not JSON')
+  })
+
+  it('rejects a body that is not an object', async () => {
+    const { handle } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', []))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).error.message).toBe('body must be an object')
+  })
+
+  it('rejects a non-string base revision and an unknown card id', async () => {
+    const { handle } = setup()
+    const noRevision = await run(handle, new FakeRequest('PATCH', { baseRevision: 1, cardId: 'skill-card' }))
+    expect(JSON.parse(noRevision.body).error.message).toBe('baseRevision must be a string')
+
+    const badCard = await run(handle, new FakeRequest('PATCH', patch({ cardId: 'Skill-Card' })))
+    expect(JSON.parse(badCard.body).error.message).toBe('cardId must be a namespaced card id')
+  })
+
+  it('rejects a malformed template field', async () => {
+    const { handle } = setup()
+    const notObject = await run(handle, new FakeRequest('PATCH', patch({ template: 'x' })))
+    expect(JSON.parse(notObject.body).error.message).toBe('template must be an object')
+
+    const badSkill = await run(handle, new FakeRequest('PATCH', patch({ template: { skill: 'Git-Repo', html: 'x' } })))
+    expect(JSON.parse(badSkill.body).error.message).toBe('template.skill must be a kebab-case skill name')
+
+    const badHtml = await run(handle, new FakeRequest('PATCH', patch({ template: { skill: 'git-repo', html: 1 } })))
+    expect(JSON.parse(badHtml.body).error.message).toBe('template.html must be a string')
+  })
+
+  it('names the allowed methods on anything else', async () => {
+    const { handle } = setup()
+    const response = await run(handle, new FakeRequest('DELETE'))
+    expect(response.statusCode).toBe(405)
+    expect(response.headers.get('allow')).toBe('GET, PATCH')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('reports a storage failure without echoing the request', async () => {
+    const tables = fakeSkillCardTables()
+    tables.card.failPuts(new Error('disk on fire'))
+    const { handle, warn } = setup({ tables })
+    const response = await run(handle, new FakeRequest('PATCH', patch()))
+    expect(response.statusCode).toBe(500)
+    expect(JSON.parse(response.body)).toEqual({
+      error: { code: 'storage-failure', message: 'skill card storage failed' },
+    })
+    expect(response.body).not.toContain('disk on fire')
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0]?.[0])).toContain('disk on fire')
+  })
+})
+
+/** Options the catalog and run route specs vary on. */
+interface RuntimeOptions extends FakeHostOptions {
+  readonly rejection?: 401 | 403
+  readonly selection?: WorkbenchCardSelection
+}
+
+/**
+ * Build the catalog and run handlers over one fake host.
+ * @param options - fence rejection, host behaviour, and card selection.
+ * @returns both handlers plus what the spec asserts about.
+ */
+function runtime(options: RuntimeOptions = {}): {
+  catalog: (request: IncomingMessage, response: ServerResponse) => void
+  run: (request: IncomingMessage, response: ServerResponse) => void
+  runner: WorkbenchSkillCardRunner
+  fake: ReturnType<typeof fakeHost>
+  warn: ReturnType<typeof vi.fn>
+} {
+  const fake = fakeHost(options)
+  const warn = vi.fn()
+  const runner = new WorkbenchSkillCardRunner({
+    host: fake.host,
+    workingDirectory: fake.workingDirectory,
+    subagentProvider: 'spawn',
+    runTimeoutMs: 5_000,
+    maxConcurrentRuns: 1,
+    selection: () => options.selection ?? { skill: 'git-repo', template: '<b>{{branch}}</b>' },
+    saveResult: async () => undefined,
+    warn,
+    now: () => 42,
+  })
+  return {
+    catalog: createWorkbenchSkillCardCatalogHandler({ runner, fence: fence(options.rejection), warn }),
+    run: createWorkbenchSkillCardRunHandler({ runner, fence: fence(options.rejection), warn }),
+    runner,
+    fake,
+    warn,
+  }
+}
+
+/**
+ * Build a request carrying a URL, for routes that read query parameters.
+ * @param path - request path with its query string.
+ * @param method - HTTP method.
+ * @param body - JSON body to stream.
+ * @returns the request double.
+ */
+function at(path: string, method = 'GET', body?: unknown): FakeRequest {
+  const request = new FakeRequest(method, body)
+  request.url = path
+  return request
+}
+
+/** A run body that passes every precondition. */
+function runBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    cardId: 'skill-card',
+    sessionId: 'session-1',
+    outputSchema: { type: 'object', properties: {} },
+    ...overrides,
+  }
+}
+
+const CATALOG_PATH = '/api/workbench/skill-card/catalog?sessionId=session-1'
+const RUN_PATH = '/api/workbench/skill-card/run'
+
+describe('workbench skill card catalog route', () => {
+  it('answers a fenced request before reaching the runner', async () => {
+    const { catalog, fake } = runtime({ rejection: 401 })
+    const response = await run(catalog, at(CATALOG_PATH))
+    expect(response.statusCode).toBe(401)
+    expect(fake.lookups).toEqual([])
+  })
+
+  it('names the method it serves', async () => {
+    const { catalog } = runtime()
+    const response = await run(catalog, at('/api/workbench/skill-card/catalog', 'POST'))
+    expect(response.statusCode).toBe(405)
+    expect(response.headers.get('allow')).toBe('GET')
+  })
+
+  it('lists the installed skills with no session to run in yet', async () => {
+    // A card is configured before it is ever run, so the catalog must not wait for
+    // the session the run will use.
+    const { catalog } = runtime()
+    const response = await run(catalog, at('/api/workbench/skill-card/catalog'))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).skills.map((skill: { name: string }) => skill.name))
+      .toEqual(['git-repo', 'hidden'])
+  })
+
+  it('lists the installed skills when no session is live at all', async () => {
+    // A booted profile has no live agent, so there is no scope to read through.
+    // The Desktop layer mounts a host-plane skill provider for exactly this case;
+    // the route has to read the global layer rather than refuse.
+    const { catalog } = runtime({ live: false })
+    const response = await run(catalog, at('/api/workbench/skill-card/catalog'))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).skills.map((skill: { name: string }) => skill.name))
+      .toEqual(['git-repo', 'hidden'])
+  })
+
+  it('returns the catalog', async () => {
+    const { catalog } = runtime()
+    const response = await run(catalog, at(CATALOG_PATH))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toEqual({
+      apiVersion: 1,
+      skills: [
+        { name: 'git-repo', description: 'git-repo description', userInvocable: true },
+        { name: 'hidden', description: 'hidden description', userInvocable: false },
+      ],
+    })
+  })
+
+  it('reports an upstream failure as such', async () => {
+    const { catalog } = runtime({ throwsOn: 'list' })
+    const response = await run(catalog, at(CATALOG_PATH))
+    expect(response.statusCode).toBe(500)
+    expect(JSON.parse(response.body).error.code).toBe('catalog-failed')
+  })
+})
+
+describe('workbench skill card run route', () => {
+  it('answers a fenced request before reaching the runner', async () => {
+    const { run: handle, fake } = runtime({ rejection: 403 })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody()))
+    expect(response.statusCode).toBe(403)
+    expect(fake.activations).toEqual([])
+  })
+
+  it('names the methods it serves', async () => {
+    const { run: handle } = runtime()
+    const response = await run(handle, at(RUN_PATH, 'PATCH'))
+    expect(response.statusCode).toBe(405)
+    expect(response.headers.get('allow')).toBe('POST, GET, DELETE')
+  })
+
+  it('accepts a run and reports it as running', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody()))
+    // Accepted rather than OK: the run continues past this response.
+    expect(response.statusCode).toBe(202)
+    expect(JSON.parse(response.body)).toEqual({
+      apiVersion: 1,
+      state: { cardId: 'skill-card', phase: 'running', startedAt: 42, retried: false },
+    })
+    runner.cancel('skill-card')
+  })
+
+  it('maps each refusal onto its status without starting a child', async () => {
+    const cases: readonly {
+      readonly options: RuntimeOptions
+      readonly body?: Record<string, unknown>
+      readonly status: number
+      readonly code: string
+    }[] = [
+      { options: {}, body: runBody({ outputSchema: undefined }), status: 400, code: 'schema-rejected' },
+      { options: { selection: {} }, status: 400, code: 'not-configured' },
+      { options: { selection: { skill: 'git-repo' } }, status: 400, code: 'template-missing' },
+      { options: { live: false }, status: 409, code: 'session-not-live' },
+      { options: { providers: {} }, status: 500, code: 'provider-unavailable' },
+    ]
+    for (const item of cases) {
+      const { run: handle, fake } = runtime(item.options)
+      const response = await run(handle, at(RUN_PATH, 'POST', item.body ?? runBody()))
+      expect(response.statusCode, item.code).toBe(item.status)
+      expect(JSON.parse(response.body).error.code).toBe(item.code)
+      expect(fake.activations).toEqual([])
+    }
+  })
+
+  it('refuses a second run while one is in flight', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang'] })
+    await run(handle, at(RUN_PATH, 'POST', runBody()))
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody()))
+    expect(response.statusCode).toBe(409)
+    expect(JSON.parse(response.body).error.code).toBe('run-in-progress')
+    runner.cancel('skill-card')
+  })
+
+  it('rejects a run body outside the contract', async () => {
+    const { run: handle } = runtime()
+    const notObject = await run(handle, at(RUN_PATH, 'POST', []))
+    expect(notObject.statusCode).toBe(400)
+    expect(JSON.parse(notObject.body).error.message).toBe('body must be an object')
+
+    const badCard = await run(handle, at(RUN_PATH, 'POST', runBody({ cardId: 'Skill-Card' })))
+    expect(JSON.parse(badCard.body).error.message).toBe('cardId must be a namespaced card id')
+
+    const noSession = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: '' })))
+    expect(JSON.parse(noSession.body).error.message).toBe('sessionId must be a non-empty string')
+
+    const empty = await run(handle, at(RUN_PATH, 'POST'))
+    expect(empty.statusCode).toBe(400)
+    expect(JSON.parse(empty.body).error.message).toBe('request body is empty')
+  })
+
+  it('reports the run state once the child settles', async () => {
+    const { run: handle, runner } = runtime({
+      outcomes: [{ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed', structured: { branch: 'main' } }],
+    })
+    await run(handle, at(RUN_PATH, 'POST', runBody()))
+    await vi.waitFor(() => { expect(runner.state('skill-card')?.phase).toBe('settled') })
+
+    const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card`))
+    expect(response.statusCode).toBe(200)
+    const body = JSON.parse(response.body)
+    expect(body.apiVersion).toBe(1)
+    expect(body.state.phase).toBe('settled')
+    expect(body.state.result.structured).toEqual({ branch: 'main' })
+  })
+
+  it('rejects an unknown card id and reports an unstarted run', async () => {
+    const { run: handle } = runtime()
+    const badCard = await run(handle, at(`${RUN_PATH}?cardId=Bad`))
+    expect(badCard.statusCode).toBe(400)
+
+    const none = await run(handle, at(`${RUN_PATH}?cardId=skill-card`))
+    expect(none.statusCode).toBe(404)
+    expect(JSON.parse(none.body).error.code).toBe('not-found')
+  })
+
+  it('cancels an in-flight run', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang'] })
+    await run(handle, at(RUN_PATH, 'POST', runBody()))
+    const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card`, 'DELETE'))
+    expect(response.statusCode).toBe(200)
+    await vi.waitFor(() => { expect(runner.state('skill-card')?.phase).toBe('cancelled') })
+  })
+
+  it('reports a cancel with nothing in flight', async () => {
+    const { run: handle } = runtime()
+    const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card`, 'DELETE'))
+    expect(response.statusCode).toBe(404)
+    expect(JSON.parse(response.body).error.message).toBe('no run is in flight for this card')
+  })
+})

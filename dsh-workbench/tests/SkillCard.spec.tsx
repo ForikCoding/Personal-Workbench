@@ -1,0 +1,99 @@
+/** @vitest-environment jsdom */
+/** What the skill card body shows in each state. */
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { primitivesMock } from './support/primitives-mock.tsx'
+import { SkillCardBody } from '../src/client/skill-card/SkillCard.tsx'
+import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
+
+// Vitest runs without globals, so the library's own auto-cleanup never registers.
+afterEach(cleanup)
+
+/**
+ * Translator that echoes the key, so a spec asserts which key was chosen rather
+ * than what the copy currently says.
+ * @param key - dictionary key.
+ * @returns the key.
+ */
+const t = (key: string): string => key
+
+/**
+ * Build a card view.
+ * @param overrides - fields the case varies.
+ * @returns the view.
+ */
+function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
+  return {
+    status: 'ready',
+    runnable: false,
+    catalog: [],
+    catalogStatus: 'idle',
+    catalogFailure: undefined,
+    ...overrides,
+  }
+}
+
+/** One stored result: the region content a run produced. */
+const RESULT = { skill: 'git-repo', executedAt: 1, stopReason: 'completed', structured: { html: '<p>v</p>' } }
+
+/** A template whose region is the only part a run fills. */
+const TEMPLATE = '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->'
+
+/**
+ * Read what one body rendered into a shadow root.
+ * @param container - the render container.
+ * @returns the shadow root's text, or undefined when no shadow host rendered.
+ */
+function shadowText(container: HTMLElement): string | undefined {
+  for (const element of container.querySelectorAll('div')) {
+    if (element.shadowRoot !== null) return element.shadowRoot.textContent ?? ''
+  }
+  return undefined
+}
+
+describe('skill card body', () => {
+  it('says it is loading while the configuration is read', () => {
+    const { container } = render(<SkillCardBody view={view({ status: 'loading' })} t={t} />)
+    expect(container.textContent).toContain('skillCardLoading')
+  })
+
+  it('asks for a template when none is stored', () => {
+    const { container } = render(<SkillCardBody view={view()} t={t} />)
+    expect(container.textContent).toContain('skillCardNoTemplateTitle')
+  })
+
+  it('says the card has not run yet', () => {
+    const { container } = render(<SkillCardBody view={view({ template: TEMPLATE })} t={t} />)
+    expect(container.textContent).toContain('skillCardNotRunTitle')
+  })
+
+  it('fills the template region once a result exists', () => {
+    const { container } = render(
+      <SkillCardBody
+        view={view({ template: TEMPLATE, result: RESULT })}
+        t={t}
+      />,
+    )
+    expect(shadowText(container)).toBe('Tasksv')
+  })
+
+  it('reads as not run when a result carries no region content', () => {
+    // A result stored before the region language existed carries named values instead
+    // of HTML. Showing an empty frame would look like a run that returned nothing.
+    const stale = { ...RESULT, structured: { a: 'v' } } as unknown as typeof RESULT
+    const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: stale })} t={t} />)
+    expect(container.textContent).toContain('skillCardNotRunTitle')
+  })
+
+  it('carries the permission level on every state', () => {
+    // The run inherits the session's full tool permissions, so the card has to
+    // say so whichever state it is in.
+    for (const state of [view({ status: 'loading' }), view(), view({ template: TEMPLATE, result: RESULT })]) {
+      const { container } = render(<SkillCardBody view={state} t={t} />)
+      expect(container.textContent).toContain('skillCardPermission')
+    }
+  })
+})

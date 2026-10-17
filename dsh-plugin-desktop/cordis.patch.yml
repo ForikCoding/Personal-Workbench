@@ -18,6 +18,19 @@
       name: dsh-plugin-desktop/profiles
     - id: desktop-updates
       name: dsh-plugin-desktop/updates
+    - id: workbench
+      name: dsh-workbench
+      config:
+        enabled: true
+    # The Web bundle disables the host skill provider so each agent preset owns
+    # local discovery, which leaves the global skill layer empty. A skill card is
+    # configured before any session exists, and with no session there is no agent
+    # scope to read through either — so without this row the card's picker has no
+    # installed skills to offer at all. A distinct id keeps this row independent of
+    # the disabled bundle row, and a same-name skill still resolves to the nearest
+    # layer, so presets keep their own entries.
+    - id: desktop-installed-skills
+      name: '@deepseek-ai/dsh-skill-filesystem'
 
 # A desktop launch has no terminal operator waiting for the Web readiness line.
 - id: web-runtime

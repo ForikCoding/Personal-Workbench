@@ -1,0 +1,5 @@
+# Desktop-owned Host composition: the workbench contributes its storage domain,
+# layout service, and private layout route on top of the official Web bundle.
+- insert:
+    - id: workbench
+      name: dsh-workbench

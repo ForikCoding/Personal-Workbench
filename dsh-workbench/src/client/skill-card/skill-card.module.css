@@ -1,0 +1,222 @@
+/* Skill card content. The frame and the reorder/removal controls belong to the
+   shared shell, so this sheet styles only the body and the card's own actions. */
+
+.template {
+  display: block;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cardActions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* One full-panel view: the card's result or its configuration, in the whole
+   display column rather than a grid cell. */
+
+.pageView {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.pageViewHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pageViewTitle {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.pageViewSubtitle {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* What the run is doing, stated at every moment. */
+
+.runStatus {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.runStatus[data-run-status='running'] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.runProblem {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-focus);
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.runOutput {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  padding-top: 8px;
+}
+
+.runOutputSummary {
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.runOutputLabel {
+  margin: 8px 0 4px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.runFacts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.runFacts dt {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.runFacts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.runPre {
+  max-height: 320px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  overflow: auto;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.noticeTitle {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.noticeBody {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* The editor opens in place of the body, so it inherits the card's width. */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.select,
+.editor {
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+}
+
+.select {
+  height: 28px;
+  padding: 0 6px;
+}
+
+.editor {
+  min-height: 120px;
+  padding: 6px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.editor:focus-visible,
+.select:focus-visible {
+  border-color: var(--dsw-alias-border-focus);
+  outline: none;
+}
+
+.violations {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.previewPane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview {
+  border: 1px dashed var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  padding: 6px;
+}
+
+.settingsActions {
+  display: flex;
+  gap: 6px;
+}
+
+.permission {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}

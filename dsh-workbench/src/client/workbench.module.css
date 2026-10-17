@@ -1,0 +1,167 @@
+/* Workbench page: a centred column with its head row and the card grid. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 0 clamp(24px, 4vw, 48px) 48px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.page > * {
+  width: 100%;
+  max-width: 1100px;
+}
+
+.pageHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  /* The page's top inset lives here so the strip above the content drags the window. */
+  padding-top: 28px;
+}
+
+:global([data-platform='darwin']) .pageHead {
+  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.pageIntro {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.control:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--dsw-alias-border-focus);
+  outline-offset: 1px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 64px 16px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.emptyBody {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  align-content: start;
+}
+
+/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex
+   container would size the child to its content along the main axis, which left the
+   cards narrow and the columns wide. */
+.cell {
+  display: grid;
+  min-width: 0;
+}
+
+.createRoot {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The creation entry is a grid tile, so it reads as the place cards come from
+   rather than as a toolbar action detached from the grid. */
+
+.createTile {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 132px;
+  padding: 14px 16px;
+  border: 1px dashed var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.createTile:hover {
+  border-color: var(--dsw-alias-border-focus);
+  color: var(--dsw-alias-label-primary);
+}
+
+.createTile:focus-visible {
+  outline: 2px solid var(--dsw-alias-border-focus);
+  outline-offset: 1px;
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

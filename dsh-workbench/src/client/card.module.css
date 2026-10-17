@@ -1,0 +1,155 @@
+/* Workbench card shell: the frame every card renders inside. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 132px;
+  padding: 14px 16px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.spanWide {
+  grid-column: span 2;
+}
+
+/* A card that opens something in full. The region is focusable, so it carries the
+   pointer and focus affordances a button would; it cannot BE a button, because the
+   card hosts its own controls in the head action area. */
+.activatable {
+  cursor: pointer;
+}
+
+.activatable:hover {
+  border-color: var(--dsw-alias-border-focus);
+}
+
+.activatable:focus-visible {
+  outline: 2px solid var(--dsw-alias-border-focus);
+  outline-offset: 1px;
+}
+
+.spanTall {
+  grid-row: span 2;
+}
+
+.spanLarge {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The title, the status, and the card's own controls share one line. Centring that
+   line is what puts them on a single baseline: the three boxes have different
+   heights, so top-aligning them left the status text and the button labels at
+   different offsets from the title. The subtitle sits below this line rather than
+   inside it, so a wrapping subtitle cannot drag the controls out of place. */
+.headRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.headActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.card:hover .iconButton,
+.card:focus-within .iconButton,
+.handle {
+  opacity: 1;
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-border-focus);
+  outline-offset: 1px;
+}
+
+.handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.handle:active {
+  cursor: grabbing;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.dragging {
+  opacity: 0.6;
+}

@@ -1,0 +1,1839 @@
+import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
+import { z } from "zod";
+import z$1 from "@deepseek-ai/schemastery";
+//#region src/layout-contract.ts
+/**
+* Wire contract shared by the workbench's Host and Client halves: the private
+* layout route, its payload schemas, and the limits both sides enforce. The
+* module carries no runtime dependency so the browser bundle can inline it.
+* @module dsh-workbench/layout-contract
+*/
+/** Private same-origin route serving the workbench card layout. */
+const WORKBENCH_LAYOUT_PATH = "/api/workbench/layout";
+/** Card identity: namespaced lowercase slug, also the storage record key. */
+const WORKBENCH_CARD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+/** Maximum request body bytes accepted by the layout route. */
+const WORKBENCH_LAYOUT_MAX_BODY_BYTES = 64 * 1024;
+/**
+* Whether a value is a usable card identity.
+* @param value - candidate identity.
+* @returns whether the value is a namespaced slug within the length limit.
+*/
+function isWorkbenchCardId(value) {
+	return value.length > 0 && value.length <= 64 && WORKBENCH_CARD_ID_PATTERN.test(value);
+}
+/**
+* Trim one wire entry to the fields that are actually present.
+*
+* Normalizing at the edges is what lets a reset delete a record: an entry with
+* no `position` produces a record with no fields, not one equal to the default.
+* @param entry - entry as received or as produced by the store.
+* @returns a record carrying only the present fields.
+*/
+function toLayoutRecord(entry) {
+	return { ...entry.position === void 0 ? {} : { position: entry.position } };
+}
+//#endregion
+//#region src/layout-spec.ts
+/**
+* The workbench layout storage domain.
+*
+* The layout is durable UI state, not user configuration: one record per card,
+* keyed by card identity, holding the user's position. A record the current
+* schema cannot read is moved aside and skipped rather than blocking startup,
+* so a bad document never costs the workbench.
+* @module dsh-workbench/layout-spec
+*/
+/** Table name holding one record per card. */
+const WORKBENCH_LAYOUT_TABLE = "layout";
+/**
+* Stored record schema.
+*
+* `position` is the whole record: hiding is not a capability of this product,
+* so a stored document that still carries a `hidden` field simply validates
+* into a record without it, and the card reads as visible.
+*/
+const workbenchCardLayoutSchema = z.object({ position: z.number().finite().nonnegative().optional() });
+/**
+* Layout domain declaration.
+*
+* `per-record` plus `backup-and-skip` is deliberate: the domain layer rejects
+* an unreadable `global` singleton unconditionally, so keeping the layout in a
+* table is what makes a single bad record survivable. The table's value type is
+* the contract's record, which the schema validates field by field.
+*/
+const WORKBENCH_LAYOUT_DOMAIN = defineDomain({
+	name: "workbench_layout",
+	version: 1,
+	layout: "per-record",
+	invalidRecords: "backup-and-skip",
+	tables: { [WORKBENCH_LAYOUT_TABLE]: domainTable(workbenchCardLayoutSchema) }
+});
+//#endregion
+//#region src/route-io.ts
+/**
+* Read a bounded JSON body.
+* @param request - the request to drain.
+* @param maxBytes - cap on the body's byte length.
+* @returns the decoded value, or why the body was refused.
+*/
+async function readJsonBody(request, maxBytes) {
+	const chunks = [];
+	let size = 0;
+	for await (const chunk of request) {
+		const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+		size += buffer.length;
+		if (size > maxBytes) return { status: "too-large" };
+		chunks.push(buffer);
+	}
+	if (size === 0) return {
+		status: "invalid",
+		reason: "request body is empty"
+	};
+	try {
+		return {
+			status: "ok",
+			value: JSON.parse(Buffer.concat(chunks).toString("utf8"))
+		};
+	} catch {
+		return {
+			status: "invalid",
+			reason: "request body is not JSON"
+		};
+	}
+}
+/**
+* Send one JSON body with the route family's no-store policy.
+* @param response - the response to write.
+* @param status - HTTP status.
+* @param body - JSON-serializable body.
+*/
+function sendJson(response, status, body) {
+	const payload = JSON.stringify(body);
+	response.statusCode = status;
+	response.setHeader("content-type", "application/json; charset=utf-8");
+	response.setHeader("cache-control", "no-store");
+	response.write(payload);
+	response.end();
+}
+/**
+* Send one JSON error.
+*
+* The message is an operator-facing reason and never echoes request data.
+* @param response - the response to write.
+* @param status - HTTP status.
+* @param code - the route family's error code.
+* @param message - reason to report.
+*/
+function sendError(response, status, code, message) {
+	sendJson(response, status, { error: {
+		code,
+		message
+	} });
+}
+//#endregion
+//#region src/layout-route.ts
+/** Failure carrying the response status a handler must send. */
+var LayoutRequestError = class extends Error {
+	status;
+	code;
+	/**
+	* @param status - HTTP status to send.
+	* @param code - error code in the response body.
+	* @param message - operator-facing reason.
+	*/
+	constructor(status, code, message) {
+		super(message);
+		this.status = status;
+		this.code = code;
+		this.name = "LayoutRequestError";
+	}
+};
+/**
+* Build the route handler for {@link WORKBENCH_LAYOUT_PATH}.
+* @param options - service, fence, caps, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchLayoutHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method === "GET") {
+			sendJson(response, 200, responseBody$1(options.service.read()));
+			return;
+		}
+		if (request.method === "PATCH") {
+			handlePatch$1(options, request, response);
+			return;
+		}
+		response.statusCode = 405;
+		response.setHeader("allow", "GET, PATCH");
+		response.setHeader("cache-control", "no-store");
+		response.end();
+	};
+}
+/**
+* Read, validate, and apply one patch.
+* @param options - route dependencies.
+* @param request - the PATCH request.
+* @param response - the response to own.
+*/
+async function handlePatch$1(options, request, response) {
+	try {
+		const body = await readJsonBody(request, WORKBENCH_LAYOUT_MAX_BODY_BYTES);
+		if (body.status === "too-large") throw new LayoutRequestError(413, "invalid-request", "request body is too large");
+		if (body.status === "invalid") throw new LayoutRequestError(400, "invalid-request", body.reason);
+		const patch = parsePatch$1(body.value, options.maxRecords);
+		const result = await options.service.write(patch);
+		if (result.status === "invalid") {
+			sendError(response, 400, "invalid-request", result.reason);
+			return;
+		}
+		if (result.status === "conflict") {
+			sendJson(response, 409, responseBody$1(result.snapshot));
+			return;
+		}
+		sendJson(response, 200, responseBody$1(result.snapshot));
+	} catch (error) {
+		if (error instanceof LayoutRequestError) {
+			sendError(response, error.status, error.code, error.message);
+			return;
+		}
+		const detail = error instanceof Error ? error.message : String(error);
+		options.warn(`workbench layout write failed: ${detail}`);
+		sendError(response, 500, "storage-failure", "layout storage failed");
+	}
+}
+/**
+* Validate a decoded patch against the wire contract.
+* @param value - decoded body.
+* @param maxRecords - deployment cap on entries.
+* @returns the validated patch.
+* @throws {LayoutRequestError} 400 on any field outside the contract.
+*/
+function parsePatch$1(value, maxRecords) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new LayoutRequestError(400, "invalid-request", "body must be an object");
+	const body = value;
+	if (typeof body.baseRevision !== "string") throw new LayoutRequestError(400, "invalid-request", "baseRevision must be a string");
+	if (!Array.isArray(body.entries)) throw new LayoutRequestError(400, "invalid-request", "entries must be an array");
+	if (body.entries.length > maxRecords) throw new LayoutRequestError(400, "invalid-request", "entries exceed the configured limit");
+	const entries = [];
+	for (const raw of body.entries) {
+		if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new LayoutRequestError(400, "invalid-request", "each entry must be an object");
+		const entry = raw;
+		if (typeof entry.id !== "string" || !isWorkbenchCardId(entry.id)) throw new LayoutRequestError(400, "invalid-request", "each entry needs a namespaced card id");
+		if (entry.position !== void 0 && (typeof entry.position !== "number" || !Number.isFinite(entry.position) || entry.position < 0)) throw new LayoutRequestError(400, "invalid-request", "position must be a finite non-negative number");
+		entries.push({
+			id: entry.id,
+			...entry.position === void 0 ? {} : { position: entry.position }
+		});
+	}
+	return {
+		baseRevision: body.baseRevision,
+		entries
+	};
+}
+/**
+* Project a snapshot onto the response body.
+* @param snapshot - service snapshot.
+* @returns the wire body.
+*/
+function responseBody$1(snapshot) {
+	return {
+		apiVersion: 1,
+		revision: snapshot.revision,
+		entries: snapshot.entries
+	};
+}
+//#endregion
+//#region src/layout-service.ts
+/** Errors raised while writing a layout, carrying the route's error code. */
+var WorkbenchLayoutStorageError = class extends Error {
+	operation;
+	/**
+	* @param operation - the storage operation that failed.
+	* @param cause - the underlying failure.
+	*/
+	constructor(operation, cause) {
+		super(`workbench layout ${operation} failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+		this.operation = operation;
+		this.name = "WorkbenchLayoutStorageError";
+	}
+};
+/** Layout read/write service over one storage domain table. */
+var WorkbenchLayoutService = class {
+	options;
+	changeCount = 0;
+	disposeChange;
+	/**
+	* @param options - domain name, table, event source, caps, and boot stamp.
+	*/
+	constructor(options) {
+		this.options = options;
+		this.disposeChange = options.events.on("domain/changed", (change) => {
+			if (change.domain !== options.domainName) return;
+			this.changeCount += 1;
+		});
+	}
+	/** Current revision: boot stamp plus the number of durable changes seen. */
+	get revision() {
+		return `${String(this.options.bootStamp)}:${String(this.changeCount)}`;
+	}
+	/**
+	* Read the complete stored layout.
+	* @returns entries sorted by card id, with the current revision.
+	*/
+	read() {
+		const entries = [];
+		for (const [id, record] of this.options.table.entries()) entries.push({
+			id,
+			...record.position === void 0 ? {} : { position: record.position }
+		});
+		entries.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+		return {
+			entries,
+			revision: this.revision
+		};
+	}
+	/**
+	* Apply one patch.
+	*
+	* A patch whose `baseRevision` is not current is refused without writing, and
+	* answered with the state the client has to reconcile against.
+	* @param patch - changed cards plus the revision they were based on.
+	* @returns the write outcome.
+	*/
+	async write(patch) {
+		if (patch.baseRevision !== this.revision) return {
+			status: "conflict",
+			snapshot: this.read()
+		};
+		const invalid = this.validate(patch);
+		if (invalid !== void 0) return {
+			status: "invalid",
+			reason: invalid
+		};
+		const ordered = [...patch.entries].sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+		for (const entry of ordered) {
+			const record = toLayoutRecord(entry);
+			if (record.position === void 0) {
+				await this.run("delete", () => this.options.table.delete(entry.id));
+				continue;
+			}
+			await this.run("put", () => this.options.table.put(entry.id, record));
+		}
+		return {
+			status: "written",
+			snapshot: this.read()
+		};
+	}
+	/** Stop observing domain changes. Idempotent. */
+	dispose() {
+		this.disposeChange();
+	}
+	/**
+	* Reject a patch that cannot be stored.
+	* @param patch - candidate patch.
+	* @returns a human-readable reason, or undefined when the patch is storable.
+	*/
+	validate(patch) {
+		const limit = Math.min(this.options.maxRecords, 256);
+		if (patch.entries.length > limit) return `patch carries ${String(patch.entries.length)} entries, above the ${String(limit)} limit`;
+		const seen = /* @__PURE__ */ new Set();
+		for (const entry of patch.entries) {
+			if (!isWorkbenchCardId(entry.id)) return `card id ${JSON.stringify(entry.id)} is not a namespaced slug`;
+			if (seen.has(entry.id)) return `card id ${JSON.stringify(entry.id)} appears twice in one patch`;
+			seen.add(entry.id);
+			if (entry.position !== void 0 && (!Number.isFinite(entry.position) || entry.position < 0)) return `card ${JSON.stringify(entry.id)} has a non-finite or negative position`;
+		}
+	}
+	/**
+	* Run one storage operation, naming the failing operation in the error.
+	* @param operation - operation discriminant.
+	* @param run - the storage call.
+	* @returns resolution after the call settles.
+	*/
+	async run(operation, run) {
+		try {
+			await run();
+		} catch (error) {
+			throw new WorkbenchLayoutStorageError(operation, error);
+		}
+	}
+};
+//#endregion
+//#region src/skill-card-contract.ts
+/**
+* Wire contract shared by the skill card's Host and Client halves: the private
+* routes, their payload types, the limits both sides enforce, and the closed
+* error-code set.
+*
+* Like the layout contract this module carries no runtime dependency, so the
+* browser bundle can inline it. Card identity reuses the workbench's existing
+* rule from the layout contract rather than restating it.
+* @module dsh-workbench/skill-card-contract
+*/
+/** Private same-origin route serving the skill card's configuration and results. */
+const WORKBENCH_SKILL_CARD_PATH = "/api/workbench/skill-card";
+/** Session-scoped skill catalog route. */
+const WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/catalog`;
+/** Run control route: `POST` starts, `GET` polls, `DELETE` cancels. */
+const WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`;
+/** Maximum bytes of one template. */
+const WORKBENCH_TEMPLATE_MAX_BYTES = 32 * 1024;
+/** Maximum bytes of one stored result, counted over the structured value and the text output. */
+const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024;
+/** Maximum request-body bytes accepted by the configuration route. */
+const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024;
+/**
+* Skill name grammar, matching the skill registry's own rule exactly: kebab
+* case, with no leading, trailing, or repeated hyphen.
+*/
+const WORKBENCH_SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/**
+* Whether a value is a usable card name.
+*
+* Whitespace is not part of the name, and a name that is only whitespace is no
+* name at all: the card falls back to its registered label instead.
+* @param value - candidate name.
+* @returns whether the value holds visible text within the length limit.
+*/
+function isWorkbenchCardName(value) {
+	return value.trim().length > 0 && value.length <= 60;
+}
+/**
+* Whether a value addresses a registered skill.
+* @param value - candidate skill name.
+* @returns whether the value is a kebab-case name within the length limit.
+*/
+function isWorkbenchSkillName(value) {
+	return value.length > 0 && value.length <= 64 && WORKBENCH_SKILL_NAME_PATTERN.test(value);
+}
+/**
+* Separator between the card and the skill in a composite template key.
+*
+* It has to be path-safe: the `per-record` storage layout encodes a record key as
+* a file-name segment and refuses anything outside `[a-zA-Z0-9_-]`. Neither card
+* ids nor skill names admit an underscore, so the first one always splits the two
+* halves.
+*/
+const TEMPLATE_KEY_SEPARATOR = "_";
+/**
+* Compose the storage key holding one card's template for one skill.
+* @param cardId - workbench card identity.
+* @param skill - skill name.
+* @returns the composite record key.
+*/
+function templateKey(cardId, skill) {
+	return `${cardId}${TEMPLATE_KEY_SEPARATOR}${skill}`;
+}
+/**
+* Split a composite template key.
+* @param key - a key produced by {@link templateKey}.
+* @returns the two halves, or undefined when the key is not composite.
+*/
+function parseTemplateKey(key) {
+	const separator = key.indexOf(TEMPLATE_KEY_SEPARATOR);
+	if (separator <= 0) return void 0;
+	const cardId = key.slice(0, separator);
+	const skill = key.slice(separator + 1);
+	if (!isWorkbenchCardId(cardId) || !isWorkbenchSkillName(skill)) return void 0;
+	return {
+		cardId,
+		skill
+	};
+}
+//#endregion
+//#region src/skill-card-spec.ts
+/**
+* The skill card storage domain.
+*
+* Three tables with three different lifetimes: `card` holds the user's skill
+* selection, `template` holds the user's HTML keyed by card and skill, and
+* `result` holds disposable execution output. Keeping them in one new domain
+* rather than extending the published layout domain lets a deployment drop the
+* cache without touching user assets.
+*
+* As in the layout domain, a record the current schema cannot read is moved
+* aside and skipped rather than blocking startup.
+* @module dsh-workbench/skill-card-spec
+*/
+/** Table holding one skill selection per card. */
+const WORKBENCH_CARD_TABLE = "card";
+/** Table holding one template per card and skill. */
+const WORKBENCH_TEMPLATE_TABLE = "template";
+/** Table holding one execution result per card. */
+const WORKBENCH_RESULT_TABLE = "result";
+/** Stored schema for one card's selection; absence means "not configured yet". */
+const workbenchCardConfigSchema = z.object({ skill: z.string().optional() });
+/** Stored schema for one template. */
+const workbenchTemplateSchema = z.object({ html: z.string() });
+/**
+* Stored schema for one result.
+*
+* `stopReason` stays a plain string because the upstream stop reasons are
+* merge-extensible; closing the union here would reject a value a future
+* provider legitimately reports.
+*/
+const workbenchResultSchema = z.object({
+	skill: z.string(),
+	executedAt: z.number().finite().nonnegative(),
+	stopReason: z.string(),
+	structured: z.unknown().optional(),
+	outputText: z.string().optional(),
+	diagnostic: z.string().optional()
+});
+/**
+* Present a zod schema as the domain table's schema type.
+*
+* The assertion is needed once because `exactOptionalPropertyTypes` distinguishes
+* an absent field from a field holding `undefined`, while zod's `.optional()`
+* produces the latter. The stored record type is what the table declares; the
+* schema validates presence at the durable boundary.
+* @param schema - the zod schema for one table's records.
+* @returns the same schema under the domain table's parameter type.
+*/
+function tableSchema(schema) {
+	return schema;
+}
+/**
+* Skill card domain declaration.
+*
+* `per-record` plus `backup-and-skip` is deliberate: the domain layer rejects an
+* unreadable `global` singleton unconditionally, so keeping every value in a
+* table is what makes a single bad record survivable.
+*/
+const WORKBENCH_SKILL_CARD_DOMAIN = defineDomain({
+	name: "workbench_skill_card",
+	version: 1,
+	layout: "per-record",
+	invalidRecords: "backup-and-skip",
+	tables: {
+		[WORKBENCH_CARD_TABLE]: domainTable(tableSchema(workbenchCardConfigSchema)),
+		[WORKBENCH_TEMPLATE_TABLE]: domainTable(tableSchema(workbenchTemplateSchema)),
+		[WORKBENCH_RESULT_TABLE]: domainTable(tableSchema(workbenchResultSchema))
+	}
+});
+//#endregion
+//#region src/skill-card-provider.ts
+/**
+* Refuse a subagent backend that cannot produce structured output.
+*
+* The check runs only once some provider has registered. A backend row that
+* applies later would otherwise turn a slow composition into a startup failure,
+* so while the list is still empty the decision is deferred to the first run —
+* the earliest point at which that answer is resolvable.
+* @param subagents - the subagent service.
+* @param providerName - configured backend name.
+* @throws {Error} when the registered backends do not satisfy the configuration.
+*/
+function assertSubagentProvider(subagents, providerName) {
+	if (subagents.list().length === 0) return;
+	const provider = subagents.getProvider(providerName);
+	if (provider === void 0) throw new Error(`workbench: subagent provider "${providerName}" is not registered`);
+	if (!provider.capabilities.outputSchema) throw new Error(`workbench: subagent provider "${providerName}" does not support structured output`);
+}
+//#endregion
+//#region src/skill-card-prompt.ts
+/**
+* What the child is asked to do beyond the skill's own instructions.
+*
+* The subagent seam already appends its own instruction telling the child to
+* report through the structured-output tool, so this text covers what only the
+* template can say: which values to produce and how a repeated element maps onto
+* a list. It carries no UI or transport vocabulary.
+*/
+const TASK_INSTRUCTION = [
+	"Apply the skill above to the current workspace now.",
+	"",
+	"Then fill in the part of the document below that sits between <!-- template-begin --> and",
+	"<!-- template-end -->, and report only that part through the structured-output tool as `html`.",
+	"",
+	"- The comments inside the document state what each part must contain. Read them and follow them.",
+	"- Everything outside that region is kept exactly as written, so do not restate or modify it.",
+	"- Report HTML, not a description of it.",
+	"- Build one entry per item the skill returned. Do not invent entries to fill the document out."
+].join("\n");
+/**
+* Render one skill, its task line, and the document the result has to fill.
+*
+* The whole document travels, comments included: the region's markers say what to fill,
+* and the comments around them say how. Only the region comes back, so the document is
+* carried verbatim rather than re-serialized — parsing it here would delete the
+* comments, which are the instruction. Its size is bounded by the byte budget enforced
+* when the template was stored.
+* @param skill - the loaded skill.
+* @param template - the card's own HTML for this skill.
+* @returns the complete model-facing prompt text.
+*/
+function renderWorkbenchSkillPrompt(skill, template) {
+	return [
+		`<skill_content name="${escapeAttr(skill.name)}">`,
+		"<skill_resources>",
+		...resourceHint(skill),
+		"</skill_resources>",
+		"",
+		"<skill_instructions>",
+		skill.content,
+		"</skill_instructions>",
+		"</skill_content>",
+		"",
+		"<output_document>",
+		template,
+		"</output_document>",
+		"",
+		TASK_INSTRUCTION
+	].join("\n");
+}
+/**
+* Name where the skill's relative resources resolve from.
+* @param skill - the loaded skill.
+* @returns the resource hint lines.
+*/
+function resourceHint(skill) {
+	const base = skill.resourceBase;
+	if (base === void 0) return [`Resources for this skill are managed by provider "${escapeText(skill.provider)}".`, "Load referenced resources only as needed."];
+	switch (base.kind) {
+		case "directory": return [`Base directory for this skill: ${escapeText(base.path)}`, "Resolve relative paths mentioned by this skill against the base directory before using them. Load referenced resources only as needed."];
+		case "url": return [`Base URL for this skill: ${escapeText(base.url)}`, "Resolve relative URLs mentioned by this skill against the base URL before using them. Load referenced resources only as needed."];
+		case "opaque": return [`Resources for this skill: ${escapeText(base.description)}`, "Load referenced resources only as needed."];
+	}
+}
+/**
+* Escape a value embedded in a skill markup attribute.
+* @param value - raw value.
+* @returns the escaped attribute text.
+*/
+function escapeAttr(value) {
+	return value.replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;");
+}
+/**
+* Escape provider-supplied prose so it cannot open or close the framing tags.
+* @param value - raw prose.
+* @returns the escaped text.
+*/
+function escapeText(value) {
+	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+//#endregion
+//#region src/skill-card-runner.ts
+/**
+* Run one card's skill and own the outcome.
+*
+* One run at a time per card, bounded globally by the deployment's concurrency
+* limit. A run that produces no usable structured value is retried exactly once;
+* a cancelled run never is.
+*/
+var WorkbenchSkillCardRunner = class {
+	options;
+	runs = /* @__PURE__ */ new Map();
+	inflight = /* @__PURE__ */ new Set();
+	now;
+	active = 0;
+	/**
+	* @param options - host services, budgets, and the two storage seams.
+	*/
+	constructor(options) {
+		this.options = options;
+		this.now = options.now ?? (() => Date.now());
+	}
+	/**
+	* Read the skill catalog a card can choose from.
+	*
+	* The read always goes through an agent scope. A scope-less read returns the
+	* global layer alone, and the shipped web composition disables the host's own
+	* skill provider there, so it would answer with an empty list instead of the
+	* installed skills.
+	*
+	* The named session's agent is preferred, because that is the agent the run will
+	* use. With no session yet the catalog falls back to any live agent: a card is
+	* configured before it is first run, and the installed skills are the same list
+	* whichever live agent supplies the scope.
+	* @param sessionId - the session to read through, when the card has one.
+	* @returns the catalog, or why it could not be read.
+	*/
+	async catalog(sessionId) {
+		const agent = this.catalogAgent(sessionId);
+		const controller = new AbortController();
+		try {
+			const cwd = agent === void 0 ? void 0 : await this.cwdFor(agent, controller.signal);
+			return {
+				status: "ok",
+				entries: (await this.options.host.skills.list(lookupFor(agent, cwd, controller.signal))).map(toCatalogEntry)
+			};
+		} catch (error) {
+			const detail = messageOf(error);
+			this.options.warn(`workbench skill card catalog failed: ${detail}`);
+			return {
+				status: "failed",
+				code: "catalog-failed",
+				detail
+			};
+		}
+	}
+	/**
+	* Choose the agent whose scope supplies the catalog.
+	* @param sessionId - the session to read through, when the card has one.
+	* @returns that agent, another live one, or undefined when none is live.
+	*/
+	catalogAgent(sessionId) {
+		if (sessionId !== void 0) {
+			const named = this.options.host.agents.get(sessionId);
+			if (named !== void 0) return named;
+		}
+		return this.options.host.agents.list()[0];
+	}
+	/**
+	* Start one card's run.
+	*
+	* Every precondition is answered before anything is started, so a rejected
+	* start never leaves a child behind and never costs a model call.
+	* @param request - card, session, and the client's output contract.
+	* @returns the started run's state, or why it was refused.
+	*/
+	start(request) {
+		if (!looksLikeContract(request.outputSchema)) return reject("schema-rejected", "the run carried no object-rooted output contract");
+		const selection = this.options.selection(request.cardId);
+		if (selection.skill === void 0) return reject("not-configured", "no skill is configured for this card");
+		if (selection.template === void 0) return reject("template-missing", `no template is stored for skill "${selection.skill}"`);
+		const agent = this.options.host.agents.get(request.sessionId);
+		if (agent === void 0) return reject("session-not-live", `session "${request.sessionId}" has no live agent`);
+		const providerName = this.options.subagentProvider;
+		const provider = this.options.host.subagents.getProvider(providerName);
+		if (provider === void 0 || !provider.capabilities.outputSchema) return reject("provider-unavailable", `subagent provider "${providerName}" cannot return structured output`);
+		if (this.runs.get(request.cardId)?.phase === "running" || this.active >= this.options.maxConcurrentRuns) return reject("run-in-progress", "another run is already in flight");
+		const run = {
+			cardId: request.cardId,
+			startedAt: this.now(),
+			controller: new AbortController(),
+			phase: "running",
+			retried: false
+		};
+		run.timer = setTimeout(() => {
+			run.controller.abort();
+		}, this.options.runTimeoutMs);
+		this.runs.set(request.cardId, run);
+		this.active += 1;
+		const execution = this.execute(run, {
+			agent,
+			skill: selection.skill,
+			template: selection.template,
+			outputSchema: request.outputSchema
+		});
+		this.inflight.add(execution);
+		execution.catch((error) => {
+			this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`);
+		}).finally(() => {
+			this.inflight.delete(execution);
+		});
+		return {
+			status: "started",
+			state: this.stateOf(run)
+		};
+	}
+	/**
+	* Record a child agent's failure against the run that started it.
+	*
+	* The subagent seam turns a faulted child into `stopReason: 'error'` and drops the
+	* error itself, so this bus reading is the only account of what went wrong. An
+	* agent this runner did not start is ignored.
+	* @param agentId - the failing agent's identity, which is its session id.
+	* @param error - the failure the agent reported.
+	*/
+	observeAgentError(agentId, error) {
+		for (const run of this.runs.values()) {
+			if (run.childId !== agentId || run.phase !== "running") continue;
+			run.childError = messageOf(error);
+		}
+	}
+	/**
+	* Read one card's run state.
+	* @param cardId - the card.
+	* @returns the state, or undefined when no run has been started for it.
+	*/
+	state(cardId) {
+		const run = this.runs.get(cardId);
+		return run === void 0 ? void 0 : this.stateOf(run);
+	}
+	/**
+	* Cancel one card's in-flight run.
+	* @param cardId - the card.
+	* @returns whether a running run was signalled.
+	*/
+	cancel(cardId) {
+		const run = this.runs.get(cardId);
+		if (run === void 0 || run.phase !== "running") return false;
+		run.controller.abort();
+		return true;
+	}
+	/**
+	* Cancel every in-flight run and wait for them to settle.
+	* @returns resolution once no run is still executing.
+	*/
+	async dispose() {
+		for (const run of this.runs.values()) if (run.phase === "running") run.controller.abort();
+		await Promise.allSettled([...this.inflight]);
+		this.runs.clear();
+	}
+	/**
+	* Run one card's skill to a terminal state.
+	* @param run - the run record to settle.
+	* @param input - resolved agent, skill name, and output contract.
+	* @returns resolution after the run reaches a terminal phase.
+	*/
+	async execute(run, input) {
+		const signal = run.controller.signal;
+		try {
+			const cwd = await this.cwdFor(input.agent, signal);
+			const skill = await this.options.host.skills.get(input.skill, lookupFor(input.agent, cwd, signal));
+			if (skill === void 0) {
+				await this.finish(run, {
+					kind: "failed",
+					code: "skill-not-found",
+					failure: `skill "${input.skill}" is not available to this session`
+				});
+				return;
+			}
+			let outcome = await this.attempt(run, input, cwd, skill);
+			if (outcome.kind === "unusable" && outcome.retryable && !signal.aborted) {
+				run.retried = true;
+				outcome = await this.attempt(run, input, cwd, skill);
+			}
+			await this.finish(run, outcome);
+		} catch (error) {
+			if (signal.aborted) {
+				run.phase = "cancelled";
+				run.failure = "the run was cancelled";
+				return;
+			}
+			const detail = messageOf(error);
+			this.options.warn(`workbench skill card run failed: ${detail}`);
+			run.phase = "settled";
+			run.failure = detail;
+			run.failureCode = "run-failed";
+		} finally {
+			if (run.timer !== void 0) clearTimeout(run.timer);
+			this.active -= 1;
+		}
+	}
+	/**
+	* Run the child once.
+	* @param run - the run record owning cancellation.
+	* @param input - resolved agent, skill name, and output contract.
+	* @param cwd - the agent's working directory.
+	* @param skill - the loaded skill.
+	* @returns the attempt's outcome.
+	*/
+	async attempt(run, input, cwd, skill) {
+		const signal = run.controller.signal;
+		const activation = await this.options.host.subagents.startActivation({
+			provider: this.options.subagentProvider,
+			label: `workbench:${run.cardId}`,
+			signal,
+			delivery: "caller",
+			request: {
+				parent: input.agent,
+				prompt: [{
+					type: "text",
+					text: renderWorkbenchSkillPrompt(skill, input.template)
+				}],
+				...cwd === void 0 ? {} : { cwd },
+				outputSchema: input.outputSchema
+			}
+		});
+		run.childId = activation.childId;
+		run.childError = void 0;
+		try {
+			const result = await activation.result;
+			const stored = toResultRecord(input.skill, result, this.now());
+			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
+				...stored,
+				diagnostic: run.childError
+			} : stored;
+			if (signal.aborted || result.stopReason === "aborted") return {
+				kind: "cancelled",
+				record
+			};
+			return result.structured !== void 0 && result.stopReason === "completed" ? {
+				kind: "captured",
+				record
+			} : {
+				kind: "unusable",
+				record,
+				failure: describeFailure(result, record.diagnostic),
+				retryable: isRetryable(result)
+			};
+		} finally {
+			run.childId = void 0;
+			try {
+				await activation.dispose();
+			} catch (error) {
+				this.options.warn(`workbench skill card run teardown failed: ${messageOf(error)}`);
+			}
+		}
+	}
+	/**
+	* Settle one run from its last attempt.
+	*
+	* Both a captured and an unusable result are kept: the card renders the value
+	* when there is one, and the text output is what "view raw output" shows when
+	* there is not.
+	* @param run - the run record to settle.
+	* @param outcome - the last attempt's outcome.
+	* @returns resolution after the result is durable.
+	*/
+	async finish(run, outcome) {
+		if (outcome.kind === "cancelled") {
+			run.phase = "cancelled";
+			run.failure = "the run was cancelled";
+			return;
+		}
+		if (outcome.kind === "failed") {
+			run.phase = "settled";
+			run.failure = outcome.failure;
+			run.failureCode = outcome.code;
+			return;
+		}
+		run.result = outcome.record;
+		run.phase = "settled";
+		if (outcome.kind === "unusable") {
+			run.failure = outcome.failure;
+			run.failureCode = "run-failed";
+		}
+		try {
+			await this.options.saveResult(run.cardId, outcome.record);
+		} catch (error) {
+			this.options.warn(`workbench skill card result could not be stored: ${messageOf(error)}`);
+		}
+	}
+	/**
+	* Resolve the agent's effective working directory.
+	*
+	* The service is preferred when the deployment has it; otherwise the session
+	* header carries the same value, which is how the older channel resolves it.
+	* @param agent - the agent.
+	* @param signal - cancellation.
+	* @returns the directory, or undefined when neither source supplies one.
+	*/
+	async cwdFor(agent, signal) {
+		const service = this.options.workingDirectory;
+		if (service !== void 0) return await service.ensure(agent, signal);
+		return agent.session?.header?.cwd;
+	}
+	/**
+	* Project one run record onto the wire state.
+	* @param run - the run record.
+	* @returns the wire state.
+	*/
+	stateOf(run) {
+		return {
+			cardId: run.cardId,
+			phase: run.phase,
+			startedAt: run.startedAt,
+			retried: run.retried,
+			...run.result === void 0 ? {} : { result: run.result },
+			...run.failure === void 0 ? {} : { failure: run.failure },
+			...run.failureCode === void 0 ? {} : { failureCode: run.failureCode }
+		};
+	}
+};
+/**
+* Build one skill view, omitting a cwd that could not be resolved.
+* @param agent - the reading agent.
+* @param cwd - the resolved directory, when there is one.
+* @param signal - cancellation.
+* @returns the view options.
+*/
+function lookupFor(agent, cwd, signal) {
+	return {
+		...cwd === void 0 ? {} : { cwd },
+		...agent === void 0 ? {} : { scope: agent },
+		signal
+	};
+}
+/**
+* Build one rejected-start outcome.
+* @param code - machine-readable reason.
+* @param detail - readable reason.
+* @returns the rejected outcome.
+*/
+function reject(code, detail) {
+	return {
+		status: "rejected",
+		code,
+		detail
+	};
+}
+/**
+* Project one catalog summary onto the wire entry.
+* @param skill - the summary.
+* @returns the wire entry.
+*/
+function toCatalogEntry(skill) {
+	return {
+		name: skill.name,
+		description: skill.description,
+		...skill.whenToUse === void 0 ? {} : { whenToUse: skill.whenToUse },
+		userInvocable: skill.invocation.userInvocable
+	};
+}
+/**
+* Project one child result onto the stored record.
+* @param skill - the skill that ran.
+* @param result - the child's terminal result.
+* @param executedAt - completion time.
+* @returns the stored record.
+*/
+function toResultRecord(skill, result, executedAt) {
+	const text = textOf(result.output);
+	return {
+		skill,
+		executedAt,
+		stopReason: result.stopReason,
+		...result.structured === void 0 ? {} : { structured: result.structured },
+		...text === "" ? {} : { outputText: text },
+		...result.diagnostic === void 0 ? {} : { diagnostic: result.diagnostic }
+	};
+}
+/**
+* Join the text blocks of a child's final output.
+* @param output - the child's output blocks.
+* @returns the concatenated text.
+*/
+function textOf(output) {
+	return output.filter((block) => block.type === "text").map((block) => block.text ?? "").join("");
+}
+/**
+* Describe why a run produced nothing usable.
+*
+* A child that answered in prose and a child that genuinely faulted both arrive here
+* as `error`, because the seam rewrites a completed run that missed its structured
+* capture. The output tells them apart, and they call for different fixes: the first
+* needs a firmer instruction, the second needs its diagnostic read.
+* @param result - the child's terminal result.
+* @returns a readable reason.
+*/
+function describeFailure(result, diagnostic) {
+	const base = textOf(result.output) !== "" ? "the child answered without reporting a structured result" : result.stopReason === "completed" ? "the run finished without a value matching the contract" : `the run ended as ${result.stopReason}`;
+	const detail = diagnostic ?? result.diagnostic;
+	return detail === void 0 ? base : `${base}: ${detail}`;
+}
+/**
+* Whether a settled child result is worth one more attempt.
+*
+* The seam rewrites a normally completed run that missed its structured capture
+* into `error`, so `error` is retryable. A refusal, a token ceiling, or an abort
+* is the child's own answer: repeating it only spends another model call.
+* @param result - the child's terminal result.
+* @returns whether repeating the ask could plausibly help.
+*/
+function isRetryable(result) {
+	if (result.structured !== void 0) return false;
+	return result.stopReason === "completed" || result.stopReason === "error";
+}
+/**
+* Whether a value can be the object-rooted contract this feature sends.
+*
+* A cheap shape check rather than the upstream subset validation: the subagent
+* seam validates the full contract and rejects an unsupported one before any
+* child work. What this catches is a request carrying no usable contract at all,
+* which would otherwise spend a model call before failing.
+* @param value - the contract as received.
+* @returns whether it is a plain object declaring an object root.
+*/
+function looksLikeContract(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	return Reflect.get(value, "type") === "object";
+}
+/**
+* Render a failure for a log line.
+* @param error - the failure.
+* @returns a readable message.
+*/
+function messageOf(error) {
+	return error instanceof Error ? error.message : String(error);
+}
+//#endregion
+//#region src/skill-card-route.ts
+/** Failure carrying the response status a handler must send. */
+var SkillCardRequestError = class extends Error {
+	status;
+	code;
+	/**
+	* @param status - HTTP status to send.
+	* @param code - error code in the response body.
+	* @param message - operator-facing reason.
+	*/
+	constructor(status, code, message) {
+		super(message);
+		this.status = status;
+		this.code = code;
+		this.name = "SkillCardRequestError";
+	}
+};
+/**
+* Build the route handler for {@link WORKBENCH_SKILL_CARD_PATH}.
+* @param options - store, fence, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchSkillCardHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method === "GET") {
+			sendJson(response, 200, responseBody(options.store));
+			return;
+		}
+		if (request.method === "PATCH") {
+			handlePatch(options, request, response);
+			return;
+		}
+		sendMethodNotAllowed(response, "GET, PATCH");
+	};
+}
+/**
+* Read, validate, and apply one configuration patch.
+* @param options - route dependencies.
+* @param request - the PATCH request.
+* @param response - the response to own.
+*/
+async function handlePatch(options, request, response) {
+	try {
+		const body = await readJsonBody(request, WORKBENCH_SKILL_CARD_MAX_BODY_BYTES);
+		if (body.status === "too-large") throw new SkillCardRequestError(413, "too-large", "request body is too large");
+		if (body.status === "invalid") throw new SkillCardRequestError(400, "invalid-request", body.reason);
+		const result = await options.store.write(parsePatch(body.value, options.maxTemplateBytes));
+		if (result.status === "invalid") {
+			sendError(response, 400, "invalid-request", result.reason);
+			return;
+		}
+		if (result.status === "conflict") {
+			sendJson(response, 409, responseBody(options.store));
+			return;
+		}
+		sendJson(response, 200, responseBody(options.store));
+	} catch (error) {
+		if (error instanceof SkillCardRequestError) {
+			sendError(response, error.status, error.code, error.message);
+			return;
+		}
+		const detail = error instanceof Error ? error.message : String(error);
+		options.warn(`workbench skill card write failed: ${detail}`);
+		sendError(response, 500, "storage-failure", "skill card storage failed");
+	}
+}
+/**
+* Validate a decoded patch against the wire contract.
+* @param value - decoded body.
+* @param maxTemplateBytes - effective template byte budget.
+* @returns the validated patch.
+* @throws {SkillCardRequestError} 400 or 413 on any field outside the contract.
+*/
+function parsePatch(value, maxTemplateBytes) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new SkillCardRequestError(400, "invalid-request", "body must be an object");
+	const body = value;
+	if (typeof body.baseRevision !== "string") throw new SkillCardRequestError(400, "invalid-request", "baseRevision must be a string");
+	if (typeof body.cardId !== "string" || !isWorkbenchCardId(body.cardId)) throw new SkillCardRequestError(400, "invalid-request", "cardId must be a namespaced card id");
+	if (body.remove !== void 0 && body.remove !== true) throw new SkillCardRequestError(400, "invalid-request", "remove must be true when present");
+	let name;
+	if (body.name === void 0) name = void 0;
+	else if (body.name === null) name = null;
+	else if (typeof body.name === "string" && isWorkbenchCardName(body.name)) name = body.name;
+	else throw new SkillCardRequestError(400, "invalid-request", "name must be null or a non-empty card name");
+	let skill;
+	if (body.skill === void 0) skill = void 0;
+	else if (body.skill === null) skill = null;
+	else if (typeof body.skill === "string" && isWorkbenchSkillName(body.skill)) skill = body.skill;
+	else throw new SkillCardRequestError(400, "invalid-request", "skill must be null or a kebab-case skill name");
+	let template;
+	if (body.template !== void 0) {
+		const raw = body.template;
+		if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new SkillCardRequestError(400, "invalid-request", "template must be an object");
+		const entry = raw;
+		if (typeof entry.skill !== "string" || !isWorkbenchSkillName(entry.skill)) throw new SkillCardRequestError(400, "invalid-request", "template.skill must be a kebab-case skill name");
+		if (typeof entry.html !== "string") throw new SkillCardRequestError(400, "invalid-request", "template.html must be a string");
+		if (Buffer.byteLength(entry.html, "utf8") > maxTemplateBytes) throw new SkillCardRequestError(413, "too-large", "template exceeds the byte limit");
+		template = {
+			skill: entry.skill,
+			html: entry.html
+		};
+	}
+	return {
+		baseRevision: body.baseRevision,
+		cardId: body.cardId,
+		...body.remove === void 0 ? {} : { remove: true },
+		...name === void 0 ? {} : { name },
+		...skill === void 0 ? {} : { skill },
+		...template === void 0 ? {} : { template }
+	};
+}
+/**
+* Project the store's current state onto the response body.
+* @param store - the configuration store.
+* @returns the wire body.
+*/
+function responseBody(store) {
+	const snapshot = store.read();
+	return {
+		apiVersion: 1,
+		revision: snapshot.revision,
+		cards: snapshot.cards,
+		results: snapshot.results
+	};
+}
+/**
+* HTTP status each failure code is reported as.
+*
+* A record rather than a switch, so adding a code to the union without deciding
+* its status fails compilation.
+*/
+const STATUS_BY_CODE = {
+	unauthorized: 401,
+	forbidden: 403,
+	"invalid-request": 400,
+	"too-large": 413,
+	conflict: 409,
+	"not-found": 404,
+	"storage-failure": 500,
+	"run-failed": 500,
+	"not-configured": 400,
+	"session-not-live": 409,
+	"skill-not-found": 404,
+	"template-missing": 400,
+	"catalog-failed": 500,
+	"provider-unavailable": 500,
+	"schema-rejected": 400,
+	"run-in-progress": 409
+};
+/**
+* Build the route handler for the session-scoped skill catalog.
+* @param options - runner, fence, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchSkillCardCatalogHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method !== "GET") {
+			sendMethodNotAllowed(response, "GET");
+			return;
+		}
+		handleCatalog(options, request, response);
+	};
+}
+/**
+* Build the route handler for run control: start, poll, and cancel.
+* @param options - runner, fence, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchSkillCardRunHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method === "POST") {
+			handleStart(options, request, response);
+			return;
+		}
+		if (request.method === "GET") {
+			handleState(options, request, response);
+			return;
+		}
+		if (request.method === "DELETE") {
+			handleCancel(options, request, response);
+			return;
+		}
+		sendMethodNotAllowed(response, "POST, GET, DELETE");
+	};
+}
+/**
+* Read one session's skill catalog.
+* @param options - route dependencies.
+* @param request - the GET request.
+* @param response - the response to own.
+*/
+async function handleCatalog(options, request, response) {
+	const requested = queryParam(request, "sessionId");
+	const outcome = await options.runner.catalog(requested === void 0 || requested.length === 0 ? void 0 : requested);
+	if (outcome.status === "failed") {
+		sendError(response, STATUS_BY_CODE[outcome.code], outcome.code, outcome.detail);
+		return;
+	}
+	sendJson(response, 200, {
+		apiVersion: 1,
+		skills: outcome.entries
+	});
+}
+/**
+* Start one card's run.
+* @param options - route dependencies.
+* @param request - the POST request.
+* @param response - the response to own.
+*/
+async function handleStart(options, request, response) {
+	try {
+		const body = await readJsonBody(request, WORKBENCH_SKILL_CARD_MAX_BODY_BYTES);
+		if (body.status === "too-large") throw new SkillCardRequestError(413, "too-large", "request body is too large");
+		if (body.status === "invalid") throw new SkillCardRequestError(400, "invalid-request", body.reason);
+		const outcome = options.runner.start(parseRunRequest(body.value));
+		if (outcome.status === "rejected") {
+			sendError(response, STATUS_BY_CODE[outcome.code], outcome.code, outcome.detail);
+			return;
+		}
+		sendJson(response, 202, {
+			apiVersion: 1,
+			state: outcome.state
+		});
+	} catch (error) {
+		if (error instanceof SkillCardRequestError) {
+			sendError(response, error.status, error.code, error.message);
+			return;
+		}
+		const detail = error instanceof Error ? error.message : String(error);
+		options.warn(`workbench skill card run start failed: ${detail}`);
+		sendError(response, 500, "run-failed", "the run could not be started");
+	}
+}
+/**
+* Report one card's run state.
+* @param options - route dependencies.
+* @param request - the GET request.
+* @param response - the response to own.
+*/
+function handleState(options, request, response) {
+	const cardId = queryParam(request, "cardId");
+	if (cardId === void 0 || !isWorkbenchCardId(cardId)) {
+		sendError(response, 400, "invalid-request", "cardId must be a namespaced card id");
+		return;
+	}
+	const state = options.runner.state(cardId);
+	if (state === void 0) {
+		sendError(response, 404, "not-found", "no run has been started for this card");
+		return;
+	}
+	sendJson(response, 200, {
+		apiVersion: 1,
+		state
+	});
+}
+/**
+* Cancel one card's in-flight run.
+* @param options - route dependencies.
+* @param request - the DELETE request.
+* @param response - the response to own.
+*/
+function handleCancel(options, request, response) {
+	const cardId = queryParam(request, "cardId");
+	if (cardId === void 0 || !isWorkbenchCardId(cardId)) {
+		sendError(response, 400, "invalid-request", "cardId must be a namespaced card id");
+		return;
+	}
+	if (!options.runner.cancel(cardId)) {
+		sendError(response, 404, "not-found", "no run is in flight for this card");
+		return;
+	}
+	const state = options.runner.state(cardId);
+	if (state === void 0) {
+		sendError(response, 404, "not-found", "no run has been started for this card");
+		return;
+	}
+	sendJson(response, 200, {
+		apiVersion: 1,
+		state
+	});
+}
+/**
+* Validate a decoded run body against the wire contract.
+* @param value - decoded body.
+* @returns the validated request.
+* @throws {SkillCardRequestError} 400 on any field outside the contract.
+*/
+function parseRunRequest(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new SkillCardRequestError(400, "invalid-request", "body must be an object");
+	const body = value;
+	if (typeof body.cardId !== "string" || !isWorkbenchCardId(body.cardId)) throw new SkillCardRequestError(400, "invalid-request", "cardId must be a namespaced card id");
+	if (typeof body.sessionId !== "string" || body.sessionId.length === 0) throw new SkillCardRequestError(400, "invalid-request", "sessionId must be a non-empty string");
+	return {
+		cardId: body.cardId,
+		sessionId: body.sessionId,
+		outputSchema: body.outputSchema
+	};
+}
+/**
+* Read one query parameter.
+* @param request - the request whose URL to parse.
+* @param name - parameter name.
+* @returns the value, or undefined when absent.
+*/
+function queryParam(request, name) {
+	const url = request.url;
+	if (url === void 0) return void 0;
+	return new URL(url, "http://localhost").searchParams.get(name) ?? void 0;
+}
+/**
+* Answer an unsupported method with the ones this route serves.
+* @param response - the response to write.
+* @param allow - the `Allow` header value.
+*/
+function sendMethodNotAllowed(response, allow) {
+	response.statusCode = 405;
+	response.setHeader("allow", allow);
+	response.setHeader("cache-control", "no-store");
+	response.end();
+}
+//#endregion
+//#region src/skill-card-store.ts
+/** Errors raised while writing skill card storage, carrying the route's error code. */
+var WorkbenchSkillCardStorageError = class extends Error {
+	operation;
+	/**
+	* @param operation - the storage operation that failed.
+	* @param cause - the underlying failure.
+	*/
+	constructor(operation, cause) {
+		super(`workbench skill card ${operation} failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+		this.operation = operation;
+		this.name = "WorkbenchSkillCardStorageError";
+	}
+};
+/** Skill card configuration and result store over three storage domain tables. */
+var WorkbenchSkillCardStore = class {
+	options;
+	changeCount = 0;
+	disposeChange;
+	/**
+	* @param options - domain name, tables, event source, byte budgets, and boot stamp.
+	*/
+	constructor(options) {
+		this.options = options;
+		this.disposeChange = options.events.on("domain/changed", (change) => {
+			if (change.domain !== options.domainName) return;
+			this.changeCount += 1;
+		});
+	}
+	/** Current revision: boot stamp plus the number of durable changes seen. */
+	get revision() {
+		return `${String(this.options.bootStamp)}:${String(this.changeCount)}`;
+	}
+	/**
+	* Read the complete configuration and result state.
+	*
+	* A card appears when it has a selection, a template, or both, so a card
+	* holding templates for skills but no current selection still shows them.
+	* @returns cards and results ascending by card id, with the current revision.
+	*/
+	read() {
+		const templatesByCard = /* @__PURE__ */ new Map();
+		for (const [key, record] of this.options.template.entries()) {
+			const parsed = parseTemplateKey(key);
+			if (parsed === void 0) continue;
+			const bySkill = templatesByCard.get(parsed.cardId) ?? /* @__PURE__ */ new Map();
+			bySkill.set(parsed.skill, record.html);
+			templatesByCard.set(parsed.cardId, bySkill);
+		}
+		const cardIds = /* @__PURE__ */ new Set();
+		for (const [cardId] of this.options.card.entries()) cardIds.add(cardId);
+		for (const cardId of templatesByCard.keys()) cardIds.add(cardId);
+		const cards = [];
+		for (const cardId of [...cardIds].sort()) {
+			const record = this.options.card.get(cardId);
+			const selected = record?.skill;
+			const name = record?.name;
+			const bySkill = templatesByCard.get(cardId);
+			const template = selected === void 0 ? void 0 : bySkill?.get(selected);
+			cards.push({
+				cardId,
+				...name === void 0 ? {} : { name },
+				...selected === void 0 ? {} : { skill: selected },
+				templateSkills: bySkill === void 0 ? [] : [...bySkill.keys()].sort(),
+				...template === void 0 ? {} : { template }
+			});
+		}
+		const results = [];
+		for (const [cardId, record] of this.options.result.entries()) results.push({
+			cardId,
+			...record
+		});
+		results.sort((left, right) => left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : 0);
+		return {
+			cards,
+			results,
+			revision: this.revision
+		};
+	}
+	/**
+	* Apply one configuration patch.
+	*
+	* A patch whose `baseRevision` is not current is refused without writing, and
+	* answered with the state the client has to reconcile against.
+	* @param patch - card, selection, and optional template to store.
+	* @returns the write outcome.
+	*/
+	async write(patch) {
+		if (patch.baseRevision !== this.revision) return {
+			status: "conflict",
+			snapshot: this.read()
+		};
+		const invalid = this.validate(patch);
+		if (invalid !== void 0) return {
+			status: "invalid",
+			reason: invalid
+		};
+		if (patch.remove === true) {
+			await this.run("delete", () => this.options.card.delete(patch.cardId));
+			for (const [key] of [...this.options.template.entries()]) {
+				if (parseTemplateKey(key)?.cardId !== patch.cardId) continue;
+				await this.run("delete", () => this.options.template.delete(key));
+			}
+			if (this.options.result.get(patch.cardId) !== void 0) await this.run("delete", () => this.options.result.delete(patch.cardId));
+			return {
+				status: "written",
+				snapshot: this.read()
+			};
+		}
+		const template = patch.template;
+		if (template !== void 0) {
+			const key = templateKey(patch.cardId, template.skill);
+			await this.run("put", () => this.options.template.put(key, { html: template.html }));
+		}
+		const current = this.options.card.get(patch.cardId);
+		const patchedName = patch.name;
+		const name = patchedName === void 0 ? current?.name : patchedName === null ? void 0 : patchedName.trim();
+		const patchedSkill = patch.skill;
+		const skill = patchedSkill === void 0 ? current?.skill : patchedSkill === null ? void 0 : patchedSkill;
+		if (name === void 0 && skill === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
+		else await this.run("put", () => this.options.card.put(patch.cardId, {
+			...name === void 0 ? {} : { name },
+			...skill === void 0 ? {} : { skill }
+		}));
+		return {
+			status: "written",
+			snapshot: this.read()
+		};
+	}
+	/**
+	* Store one execution result, trimmed to the deployment's byte budget.
+	* @param cardId - card the result belongs to.
+	* @param record - the complete result.
+	* @returns resolution after durability.
+	*/
+	async putResult(cardId, record) {
+		const trimmed = trimResult(record, this.options.maxResultBytes);
+		await this.run("put", () => this.options.result.put(cardId, trimmed));
+	}
+	/** Stop observing domain changes. Idempotent. */
+	dispose() {
+		this.disposeChange();
+	}
+	/**
+	* Reject a patch that cannot be stored.
+	* @param patch - candidate patch.
+	* @returns a human-readable reason, or undefined when the patch is storable.
+	*/
+	validate(patch) {
+		if (!isWorkbenchCardId(patch.cardId)) return `card id ${JSON.stringify(patch.cardId)} is not a namespaced slug`;
+		const skill = patch.skill;
+		if (skill !== void 0 && skill !== null && !isWorkbenchSkillName(skill)) return `skill ${JSON.stringify(skill)} is not a kebab-case skill name`;
+		const name = patch.name;
+		if (name !== void 0 && name !== null && !isWorkbenchCardName(name)) return `card name must hold visible text within ${String(60)} characters`;
+		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, or a template";
+		const template = patch.template;
+		if (template === void 0) return void 0;
+		if (!isWorkbenchSkillName(template.skill)) return `template skill ${JSON.stringify(template.skill)} is not a kebab-case skill name`;
+		const bytes = utf8Bytes(template.html);
+		if (bytes > this.options.maxTemplateBytes) return `template is ${String(bytes)} bytes, above the ${String(this.options.maxTemplateBytes)} byte limit`;
+		const replacing = this.options.template.get(templateKey(patch.cardId, template.skill)) !== void 0;
+		const held = this.countTemplates(patch.cardId);
+		if (!replacing && held >= this.options.maxTemplatesPerCard) return `card already holds ${String(held)} templates, at the ${String(this.options.maxTemplatesPerCard)} limit`;
+	}
+	/**
+	* Count the templates one card holds.
+	* @param cardId - card identity.
+	* @returns the number of stored templates addressed to that card.
+	*/
+	countTemplates(cardId) {
+		let held = 0;
+		for (const [key] of this.options.template.entries()) if (parseTemplateKey(key)?.cardId === cardId) held += 1;
+		return held;
+	}
+	/**
+	* Run one storage operation, naming the failing operation in the error.
+	* @param operation - operation discriminant.
+	* @param run - the storage call.
+	* @returns resolution after the call settles.
+	*/
+	async run(operation, run) {
+		try {
+			await run();
+		} catch (error) {
+			throw new WorkbenchSkillCardStorageError(operation, error);
+		}
+	}
+};
+/**
+* Size one record as it will be stored.
+* @param record - the record to measure.
+* @returns its UTF-8 byte length, or infinity when it cannot be encoded.
+*/
+function byteSize(record) {
+	const encoded = JSON.stringify(record);
+	return encoded === void 0 ? Number.POSITIVE_INFINITY : Buffer.byteLength(encoded, "utf8");
+}
+/**
+* Byte length of a string in UTF-8.
+* @param value - the string to measure.
+* @returns its UTF-8 byte length.
+*/
+function utf8Bytes(value) {
+	return Buffer.byteLength(value, "utf8");
+}
+/**
+* Fit one result inside a byte budget.
+*
+* The structured value is what the card renders, so it is dropped only when it
+* cannot fit on its own; the text output and the provider diagnostic are then
+* attached in that order, each truncated to whatever budget remains. This keeps
+* one oversized run from growing the domain without bound while preserving the
+* value the card actually displays.
+* @param record - the complete result.
+* @param maxBytes - the deployment's budget for one record.
+* @returns a record no larger than the budget, when an empty record fits at all.
+*/
+function trimResult(record, maxBytes) {
+	if (byteSize(record) <= maxBytes) return record;
+	const base = {
+		skill: record.skill,
+		executedAt: record.executedAt,
+		stopReason: record.stopReason
+	};
+	const withStructured = record.structured === void 0 ? base : {
+		...base,
+		structured: record.structured
+	};
+	let current = byteSize(withStructured) <= maxBytes ? withStructured : base;
+	for (const field of ["outputText", "diagnostic"]) {
+		const value = record[field];
+		if (value === void 0) continue;
+		if (byteSize({
+			...current,
+			[field]: value
+		}) <= maxBytes) {
+			current = {
+				...current,
+				[field]: value
+			};
+			continue;
+		}
+		const points = Array.from(value);
+		let low = 0;
+		let high = points.length;
+		while (low < high) {
+			const mid = Math.ceil((low + high) / 2);
+			if (byteSize({
+				...current,
+				[field]: points.slice(0, mid).join("")
+			}) <= maxBytes) low = mid;
+			else high = mid - 1;
+		}
+		if (low > 0) current = {
+			...current,
+			[field]: points.slice(0, low).join("")
+		};
+	}
+	return current;
+}
+//#endregion
+//#region src/config.ts
+/**
+* Workbench Host plugin config.
+* @module dsh-workbench/config
+*/
+/**
+* Validated config.
+*
+* The byte and count ceilings equal the wire contract's limits rather than
+* exceeding them, so a deployment can only tighten what both halves already
+* enforce.
+*/
+const Config = z$1.object({
+	enabled: z$1.boolean().default(true),
+	maxRecords: z$1.number().step(1).min(1).max(4096).default(256),
+	subagentProvider: z$1.string().min(1).default("spawn"),
+	maxTemplateBytes: z$1.number().step(1).min(1024).max(WORKBENCH_TEMPLATE_MAX_BYTES).default(WORKBENCH_TEMPLATE_MAX_BYTES),
+	maxTemplatesPerCard: z$1.number().step(1).min(1).max(64).default(16),
+	maxResultBytes: z$1.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
+	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(12e4),
+	maxConcurrentRuns: z$1.number().step(1).min(1).max(8).default(1),
+	resultStaleAfterMs: z$1.number().step(1).min(6e4).default(864e5)
+});
+//#endregion
+//#region src/index.ts
+/** Stable Cordis plugin name. */
+const name = "workbench";
+/**
+* Required Host services.
+*
+* `storage` is named because the storage-domain form mounts over the hub, so
+* opening a domain before the hub exists would fail as a missing service rather
+* than as a startup error. The skill card names the three services its runner
+* reads: the context proxy refuses an undeclared member even when the read goes
+* through a narrowed type, and `subagents` also gates a composition without a
+* subagent plane at load instead of leaving a card that can never run.
+*
+* The working-directory service is deliberately NOT named: the stable channel's
+* pinned harness predates it, so requiring it would leave the whole plugin
+* pending there. The runner reads it optionally and falls back to the session
+* header.
+*/
+const inject = [
+	"storageDomain",
+	"webServer",
+	"connection",
+	"storage",
+	"agents",
+	"skills",
+	"subagents"
+];
+/**
+* Open the layout domain and register the layout route.
+* @param ctx - Host context.
+* @param config - validated workbench configuration.
+*/
+function apply(ctx, config) {
+	if (!config.enabled) return;
+	ctx.effect(async () => {
+		const host = ctx;
+		const domain = await ctx.storageDomain.open(WORKBENCH_LAYOUT_DOMAIN);
+		let service;
+		try {
+			service = new WorkbenchLayoutService({
+				domainName: domain.name,
+				table: domain.table(WORKBENCH_LAYOUT_TABLE),
+				events: { on: (_event, listener) => ctx.on("domain/changed", (change) => {
+					listener(change);
+				}) },
+				maxRecords: config.maxRecords,
+				bootStamp: Date.now()
+			});
+		} catch (error) {
+			await domain.close();
+			throw error;
+		}
+		const disposeRoute = ctx.effect(() => host.webServer.register({
+			kind: "exact",
+			path: WORKBENCH_LAYOUT_PATH,
+			handler: createWorkbenchLayoutHandler({
+				service,
+				fence: host.connection,
+				maxRecords: config.maxRecords,
+				warn: (message) => {
+					ctx.logger.warn(message);
+				}
+			})
+		}), "workbench: layout route");
+		return async () => {
+			disposeRoute();
+			service.dispose();
+			await domain.close();
+		};
+	}, "workbench: layout domain and route");
+	ctx.effect(async () => {
+		const host = ctx;
+		const runtime = ctx;
+		assertSubagentProvider(runtime.subagents, config.subagentProvider);
+		const domain = await ctx.storageDomain.open(WORKBENCH_SKILL_CARD_DOMAIN);
+		let store;
+		try {
+			store = new WorkbenchSkillCardStore({
+				domainName: domain.name,
+				card: domain.table(WORKBENCH_CARD_TABLE),
+				template: domain.table(WORKBENCH_TEMPLATE_TABLE),
+				result: domain.table(WORKBENCH_RESULT_TABLE),
+				events: { on: (_event, listener) => ctx.on("domain/changed", (change) => {
+					listener(change);
+				}) },
+				maxTemplateBytes: config.maxTemplateBytes,
+				maxTemplatesPerCard: config.maxTemplatesPerCard,
+				maxResultBytes: config.maxResultBytes,
+				bootStamp: Date.now()
+			});
+		} catch (error) {
+			await domain.close();
+			throw error;
+		}
+		const warn = (message) => {
+			ctx.logger.warn(message);
+		};
+		const workingDirectory = ctx.get("workingDirectory");
+		const runner = new WorkbenchSkillCardRunner({
+			host: runtime,
+			...workingDirectory === void 0 ? {} : { workingDirectory },
+			subagentProvider: config.subagentProvider,
+			runTimeoutMs: config.runTimeoutMs,
+			maxConcurrentRuns: config.maxConcurrentRuns,
+			selection: (cardId) => {
+				const card = store.read().cards.find((entry) => entry.cardId === cardId);
+				return {
+					...card?.skill === void 0 ? {} : { skill: card.skill },
+					...card?.template === void 0 ? {} : { template: card.template }
+				};
+			},
+			saveResult: (cardId, record) => store.putResult(cardId, record),
+			warn
+		});
+		const disposers = [
+			ctx.effect(() => ctx.on("agent/error", ({ agent, error }) => {
+				runner.observeAgentError(agent.id, error);
+			}), "workbench: child agent failures"),
+			ctx.effect(() => host.webServer.register({
+				kind: "exact",
+				path: WORKBENCH_SKILL_CARD_PATH,
+				handler: createWorkbenchSkillCardHandler({
+					store,
+					fence: host.connection,
+					maxTemplateBytes: config.maxTemplateBytes,
+					warn
+				})
+			}), "workbench: skill card route"),
+			ctx.effect(() => host.webServer.register({
+				kind: "exact",
+				path: WORKBENCH_SKILL_CARD_CATALOG_PATH,
+				handler: createWorkbenchSkillCardCatalogHandler({
+					runner,
+					fence: host.connection,
+					warn
+				})
+			}), "workbench: skill card catalog route"),
+			ctx.effect(() => host.webServer.register({
+				kind: "exact",
+				path: WORKBENCH_SKILL_CARD_RUN_PATH,
+				handler: createWorkbenchSkillCardRunHandler({
+					runner,
+					fence: host.connection,
+					warn
+				})
+			}), "workbench: skill card run route")
+		];
+		return async () => {
+			for (const dispose of disposers) dispose();
+			await runner.dispose();
+			store.dispose();
+			await domain.close();
+		};
+	}, "workbench: skill card domain and route");
+}
+//#endregion
+export { Config, apply, inject, name };
+
+//# sourceMappingURL=index.js.map

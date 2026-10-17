@@ -25,6 +25,9 @@
 | [插件生态倡议书](plugin-ecosystem.md) | 开放、可组合、可持续的插件生态愿景与三条原则 |
 | [插件开发](plugin-development.md) | 普通 DSH 插件、Desktop 服务、兼容模式和生命周期 |
 | [工作台概要设计](workbench-design.md) | 侧栏插件与工作区之间的卡片式工作台：面板注册、卡片契约、数据与存储归属 |
+| [工作台详细设计](workbench-detailed-design.md) | 按改动模块展开的实现级设计：包结构、Host 存储域与路由、客户端 store、构建与验证 |
+| [工作台卡片需求方案](workbench-card-requirements.md) | 外观由用户 HTML 模板决定的技能卡：模板规范、契约反推、隔离与安全约束、权限与降级矩阵、验收标准 |
+| [工作台技能卡详细设计](workbench-skill-card-detailed-design.md) | 技能卡的实现级设计：模板引擎与影子根渲染、Host 执行链路（Agent→skill→子代理）、6 条私域路由、测试计划与实施阶段 |
 | [Community Fabric Draft](../dsh-community-fabric/README.zh.md) | 从 Manifest/Capability 基础，到 Runtime/Presentation、service composition 和溯源诊断的社区互操作提案 |
 | [Fabric 社区意见处置记录](../dsh-community-fabric/docs/research/community-issue-23-review.zh.md) | Issue #23 中哪些建议已采纳、拆成独立 RFC、延期或不进入可移植核心 |
 | [Fabric 框架与插件需求调研](../dsh-community-fabric/docs/research/mature-plugin-frameworks.zh.md) | Koishi、Chrome、VS Code 的成熟模式，以及真实 DSH 插件的功能需求 |
