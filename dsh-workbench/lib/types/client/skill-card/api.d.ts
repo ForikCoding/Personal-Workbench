@@ -66,6 +66,21 @@ export type WorkbenchCatalogRead = {
     readonly code: string;
     readonly message: string;
 };
+/** Outcome of storing one hand-edited result. */
+export type WorkbenchResultWrite = {
+    readonly status: 'ok';
+    /** Revision the write landed on. */
+    readonly revision: string;
+    /** The record as stored, so the caller needs no second read. */
+    readonly result: WorkbenchCardResult;
+} | {
+    readonly status: 'rejected';
+    readonly code: string;
+    readonly message: string;
+} | {
+    readonly status: 'unavailable';
+    readonly reason: string;
+};
 /** The read/write face the card consumes. */
 export interface WorkbenchSkillCardApi {
     /**
@@ -106,6 +121,16 @@ export interface WorkbenchSkillCardApi {
      * @returns resolution after the Host answers.
      */
     cancel(cardId: string): Promise<void>;
+    /**
+     * Store one hand-edited region fragment as that card's result.
+     *
+     * A write of its own rather than a run: it spends no model call, and the Host keeps the
+     * record's run facts — the skill and the stop reason — as they are.
+     * @param cardId - the card whose result is being replaced.
+     * @param html - the region HTML to store, verbatim.
+     * @returns the stored record and revision, or the refusal.
+     */
+    saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>;
 }
 /** What the API needs from its host. */
 export interface WorkbenchSkillCardApiOptions {
@@ -130,6 +155,15 @@ export declare function parseSnapshot(value: unknown): WorkbenchCardSnapshot | u
  * @returns the entries, or undefined when a field is outside the contract.
  */
 export declare function parseCatalog(value: unknown): readonly WorkbenchSkillCatalogEntry[] | undefined;
+/**
+ * Validate one result-edit response body.
+ * @param value - decoded body.
+ * @returns the revision and record, or undefined when a field is outside the contract.
+ */
+export declare function parseResultEdit(value: unknown): {
+    readonly revision: string;
+    readonly result: WorkbenchCardResult;
+} | undefined;
 /**
  * Validate one run-state response body.
  * @param value - decoded body.

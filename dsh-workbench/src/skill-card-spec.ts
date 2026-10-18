@@ -29,9 +29,16 @@ export const WORKBENCH_TEMPLATE_TABLE = 'template'
 /** Table holding one execution result per card. */
 export const WORKBENCH_RESULT_TABLE = 'result'
 
-/** Stored schema for one card's selection; absence means "not configured yet". */
+/**
+ * Stored schema for one card's selection and name; absence means "not configured yet".
+ *
+ * Every field the store writes has to appear here. Zod drops a key this schema does not
+ * declare, so an undeclared field survives the write and vanishes on the next load —
+ * which reads to the user as "it saved, then reverted after a restart".
+ */
 export const workbenchCardConfigSchema = z.object({
   skill: z.string().optional(),
+  name: z.string().optional(),
 })
 
 /** Stored schema for one template. */
@@ -45,6 +52,10 @@ export const workbenchTemplateSchema = z.object({
  * `stopReason` stays a plain string because the upstream stop reasons are
  * merge-extensible; closing the union here would reject a value a future
  * provider legitimately reports.
+ *
+ * `editedAt` is declared here in the same change that writes it. A field the store
+ * writes and this schema does not know is dropped on the next load, which reads to the
+ * user as "it saved, then reverted after a restart" — the bug that once lost card names.
  */
 export const workbenchResultSchema = z.object({
   skill: z.string(),
@@ -53,6 +64,7 @@ export const workbenchResultSchema = z.object({
   structured: z.unknown().optional(),
   outputText: z.string().optional(),
   diagnostic: z.string().optional(),
+  editedAt: z.number().finite().nonnegative().optional(),
 })
 
 /**

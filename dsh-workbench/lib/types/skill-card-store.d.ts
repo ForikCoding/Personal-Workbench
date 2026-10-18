@@ -7,7 +7,7 @@
  * value reaches the domain.
  * @module dsh-workbench/skill-card-store
  */
-import type { WorkbenchCardConfigRecord, WorkbenchResultRecord, WorkbenchSkillCardPatch, WorkbenchSkillCardSnapshot, WorkbenchTemplateRecord } from './skill-card-contract.ts';
+import type { WorkbenchCardConfigRecord, WorkbenchCardResult, WorkbenchResultRecord, WorkbenchSkillCardPatch, WorkbenchSkillCardSnapshot, WorkbenchTemplateRecord } from './skill-card-contract.ts';
 /** Read/write side of one declared domain table, as this store consumes it. */
 export interface SkillCardTable<T> {
     /**
@@ -58,6 +58,32 @@ export type WorkbenchSkillCardWriteResult = {
     readonly status: 'invalid';
     readonly reason: string;
 };
+/** Outcome of one hand edit of a stored result. */
+export type WorkbenchResultEditOutcome = 
+/** Stored; the record is the one the client can now show. */
+{
+    readonly status: 'written';
+    readonly result: WorkbenchCardResult;
+}
+/** The card holds no result, so there is no record whose run facts could stand. */
+ | {
+    readonly status: 'missing';
+}
+/** The edit cannot be stored as given. */
+ | {
+    readonly status: 'invalid';
+    readonly reason: string;
+}
+/**
+ * The edit is larger than one stored result may be, in bytes.
+ *
+ * Refused rather than trimmed: a trimmed result would store one thing and display
+ * another, which is exactly the failure this budget exists to prevent.
+ */
+ | {
+    readonly status: 'too-large';
+    readonly bytes: number;
+};
 /** What the store needs from its Host context. */
 export interface WorkbenchSkillCardStoreOptions {
     /** Storage domain name, used to filter change events. */
@@ -78,6 +104,14 @@ export interface WorkbenchSkillCardStoreOptions {
     readonly maxResultBytes: number;
     /** Process start stamp folded into the revision; tests pass a fixed value. */
     readonly bootStamp: number;
+    /**
+     * Clock for the moments the store itself stamps.
+     *
+     * Only a hand edit needs one: it refreshes `executedAt` and sets `editedAt`, and a spec
+     * has to assert those two without waiting for a real second to pass.
+     * @returns milliseconds since the epoch.
+     */
+    readonly now?: () => number;
 }
 /** Errors raised while writing skill card storage, carrying the route's error code. */
 export declare class WorkbenchSkillCardStorageError extends Error {
@@ -123,6 +157,23 @@ export declare class WorkbenchSkillCardStore {
      * @returns resolution after durability.
      */
     putResult(cardId: string, record: WorkbenchResultRecord): Promise<void>;
+    /**
+     * Replace one card's region HTML with a hand-edited fragment.
+     *
+     * A save must not fabricate a run, so everything a run owned stays as it is: the skill
+     * and the stop reason are kept, the raw output and the diagnostic are kept, and only
+     * `structured.html` is replaced. `executedAt` is refreshed because the record's time is
+     * what the page shows as when the result it displays came about, and `editedAt` says
+     * how. A later run overwrites the whole record, which is the existing semantics of
+     * running a card.
+     *
+     * Nothing here trims: a value over the budget is refused. Trimming a hand edit would
+     * store a document the user did not write and display a different one.
+     * @param cardId - card whose stored result is being edited.
+     * @param html - the region HTML to store, verbatim.
+     * @returns the stored record, or why the edit was refused.
+     */
+    putEditedResult(cardId: string, html: string): Promise<WorkbenchResultEditOutcome>;
     /** Stop observing domain changes. Idempotent. */
     dispose(): void;
     /**
@@ -144,4 +195,9 @@ export declare class WorkbenchSkillCardStore {
      * @returns resolution after the call settles.
      */
     private run;
+    /**
+     * Read the clock the store stamps records with.
+     * @returns milliseconds since the epoch.
+     */
+    private moment;
 }

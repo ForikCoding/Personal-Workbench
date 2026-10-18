@@ -47,6 +47,28 @@ export interface WorkbenchSkillCardRouteOptions {
  * @returns a handler that owns the full response lifecycle.
  */
 export declare function createWorkbenchSkillCardHandler(options: WorkbenchSkillCardRouteOptions): (request: IncomingMessage, response: ServerResponse) => void;
+/** Everything the stored-result edit route needs. */
+export interface WorkbenchSkillCardResultRouteOptions {
+    /** Result owner. The record's run facts are read from here, not from the request. */
+    readonly store: WorkbenchSkillCardStore;
+    /** Trust fence applied first. */
+    readonly fence: SkillCardRouteFence;
+    /**
+     * Effective result byte budget of this deployment.
+     *
+     * A deployment may tighten the wire ceiling but never widen it: the route applies the
+     * smaller of the two, so no request can store more than the contract advertises.
+     */
+    readonly maxResultBytes: number;
+    /** Host logger for storage failures. */
+    readonly warn: (message: string) => void;
+}
+/**
+ * Build the route handler for {@link WORKBENCH_SKILL_CARD_RESULT_PATH}.
+ * @param options - store, fence, budget, and logger.
+ * @returns a handler that owns the full response lifecycle.
+ */
+export declare function createWorkbenchSkillCardResultHandler(options: WorkbenchSkillCardResultRouteOptions): (request: IncomingMessage, response: ServerResponse) => void;
 /** Everything the catalog route needs. */
 export interface WorkbenchSkillCardCatalogRouteOptions {
     /** Session-scoped catalog reader. */

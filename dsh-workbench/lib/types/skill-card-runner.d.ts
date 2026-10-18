@@ -4,7 +4,8 @@
  * timeout policy.
  *
  * The runner holds no durable state: a settled result goes to the store, and the
- * run table only carries what a polling client has to see until the next run.
+ * run table only carries what a polling client has to see until the next run. A
+ * bare run skips the store entirely, because its whole result is whether it worked.
  * @module dsh-workbench/skill-card-runner
  */
 import type { WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
@@ -115,7 +116,7 @@ export declare class WorkbenchSkillCardRunner {
      *
      * Every precondition is answered before anything is started, so a rejected
      * start never leaves a child behind and never costs a model call.
-     * @param request - card, session, and the client's output contract.
+     * @param request - card, session, what the run is asked to do, and the client's contract.
      * @returns the started run's state, or why it was refused.
      */
     start(request: WorkbenchRunRequest): WorkbenchRunStartOutcome;
@@ -156,7 +157,7 @@ export declare class WorkbenchSkillCardRunner {
     /**
      * Run the child once.
      * @param run - the run record owning cancellation.
-     * @param input - resolved agent, skill name, and output contract.
+     * @param input - the agent, skill, and either the card's template and contract or nothing.
      * @param cwd - the agent's working directory.
      * @param skill - the loaded skill.
      * @returns the attempt's outcome.
@@ -167,10 +168,10 @@ export declare class WorkbenchSkillCardRunner {
      *
      * Both a captured and an unusable result are kept: the card renders the value
      * when there is one, and the text output is what "view raw output" shows when
-     * there is not.
+     * there is not. A bare run settles the same way but stores nothing.
      * @param run - the run record to settle.
      * @param outcome - the last attempt's outcome.
-     * @returns resolution after the result is durable.
+     * @returns resolution after the result is durable, or immediately for a bare run.
      */
     private finish;
     /**

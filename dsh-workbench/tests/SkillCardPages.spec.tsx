@@ -39,11 +39,13 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
       poll: async () => ({ status: 'unavailable', reason: 'unused here' }),
       start: async () => ({ status: 'failed', code: 'unavailable', message: 'unused here' }),
       cancel: async () => {},
+      saveResult: async () => ({ status: 'unavailable', reason: 'unused here' }),
     },
     cardId: 'skill-card',
     runSessionId: () => undefined,
     fallbackTitle: 'Skill card',
     onBack: () => {},
+    openCard: () => {},
     t,
     ...overrides,
   } as PageProps
@@ -76,6 +78,72 @@ describe('skill card configuration page', () => {
     expect(container.querySelector('select')).not.toBeNull()
     expect(container.querySelector('textarea')).not.toBeNull()
   })
+
+  it('keeps only the way back in the head, letting the fields carry the facts', async () => {
+    // The card's name and skill used to be stated in the head *and* again in the fields,
+    // and the head's copy was the one that could not be edited.
+    const { container } = render(<SkillCardConfigPage {...props({
+      api: {
+        ...props().api,
+        read: async () => ({
+          status: 'ok',
+          snapshot: {
+            revision: '1:0',
+            cards: [{ cardId: 'skill-card', name: '我的任务', skill: 'git-repo', templateSkills: [] }],
+            results: [],
+          },
+        }),
+      },
+    })} />)
+    const head = container.querySelector('header') as HTMLElement
+    expect(head.querySelector('h2')).toBeNull()
+    expect(head.textContent).toBe('skillCardBack')
+    await waitFor(() => {
+      expect((container.querySelector('input') as HTMLInputElement).value).toBe('我的任务')
+    })
+  })
+
+  it('keeps removal in the footer, away from the pair a user presses unread', async () => {
+    const { container } = render(<SkillCardConfigPage {...props()} />)
+    await waitFor(() => { expect(container.querySelector('footer')).not.toBeNull() })
+    const footer = container.querySelector('footer') as HTMLElement
+    expect(footer.textContent).toContain('skillCardSave')
+    expect(footer.textContent).toContain('skillCardClose')
+    expect(footer.textContent).toContain('skillCardDelete')
+    // The head is the way back and nothing else.
+    expect((container.querySelector('header') as HTMLElement).textContent)
+      .not.toContain('skillCardDelete')
+  })
+
+  it('checks a declared card target against the title the grid shows', async () => {
+    // A nameless card is titled by its registered label on the face, and that is the
+    // name a click resolves against — so the editor has to compare with the same rule
+    // rather than reporting a target that exists as missing.
+    const template = [
+      '<!-- dsh-actions',
+      '  next: card "skillCardTitle"',
+      '-->',
+      '<!-- template-begin -->',
+      '<!-- template-end -->',
+    ].join('\n')
+    const { container } = render(<SkillCardConfigPage {...props({
+      api: {
+        ...props().api,
+        read: async () => ({
+          status: 'ok',
+          snapshot: {
+            revision: '1:0',
+            cards: [{ cardId: 'skill-card', skill: 'git-repo', template, templateSkills: ['git-repo'] }],
+            results: [],
+          },
+        }),
+      },
+    })} />)
+    await waitFor(() => {
+      expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe(template)
+    })
+    expect(container.querySelector('[data-action-target-warnings]')).toBeNull()
+  })
 })
 
 describe('skill card result page', () => {
@@ -107,13 +175,6 @@ describe('skill card result page', () => {
     ...poll === undefined ? {} : { poll },
   })
 
-  it('states what the run is doing', () => {
-    // The page has to be legible at every moment; an inert page after pressing Run is
-    // the defect this whole panel exists to prevent.
-    const { container } = render(<SkillCardResultPage {...props()} />)
-    expect(container.textContent).toContain('runStatusIdle')
-  })
-
   it('shows why a run failed where the result would have been', async () => {
     // The failure used to reach only the card face, so a run that failed while the
     // user watched the result page changed nothing on screen.
@@ -140,13 +201,20 @@ describe('skill card result page', () => {
       startedAt: Date.now(),
       retried: false,
     } as const
+    // The page reads the run route once on mount, to adopt a run another card's button
+    // may already have started. Nothing is in flight yet here, so that first read has
+    // to come back empty and the click has to be what starts the run.
+    let polls = 0
     render(
       <SkillCardResultPage
         {...props({
           runSessionId: () => 'session-1',
           api: readyApi(
             async () => ({ status: 'ok', state: running }),
-            async () => ({ status: 'ok', state: running }),
+            async () => {
+              polls += 1
+              return polls === 1 ? { status: 'missing' } : { status: 'ok', state: running }
+            },
           ),
         })}
       />,
@@ -154,12 +222,10 @@ describe('skill card result page', () => {
     const run = await screen.findByRole('button', { name: 'skillCardRun' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
     fireEvent.click(run)
-    // The status line names its phase, so the assertion does not have to guess which
-    // of the two places that word appears in is the one under test.
-    await waitFor(() => {
-      expect(document.querySelector('[data-run-status="running"]')?.textContent)
-        .toContain('runStatusRunning')
-    })
-    expect(screen.getByText('skillCardRunningBody')).toBeTruthy()
+    // The in-flight notice replaces the document, so a page that just started a run is
+    // never inert. The status line that used to name the phase as well was removed as
+    // noise, so the notice is now the one place this state is stated.
+    await waitFor(() => { expect(screen.getByText('skillCardRunningBody')).toBeTruthy() })
+    expect(screen.queryByText('skillCardNotRunTitle')).toBeNull()
   })
 })

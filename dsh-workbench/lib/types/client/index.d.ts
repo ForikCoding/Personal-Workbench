@@ -43,6 +43,13 @@ export interface WorkbenchPanelFace {
     };
     /** Return to the grid from whichever full-panel view is open. */
     readonly closeCard: () => void;
+    /**
+     * Open one of a card's full-panel views.
+     *
+     * Injected rather than read from a context, because a card action can target a
+     * different card: the run starts there and the page that shows it is that card's.
+     */
+    readonly openCard: (cardId: string, view: WorkbenchCardSelection['view']) => void;
 }
 /** Injected share as the page component receives it. */
 export type WorkbenchPanelSeat = InjectFace<WorkbenchPanelFace>;

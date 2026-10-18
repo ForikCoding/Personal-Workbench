@@ -21,6 +21,7 @@ import {
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_CATALOG_PATH,
   WORKBENCH_SKILL_CARD_PATH,
+  WORKBENCH_SKILL_CARD_RESULT_PATH,
   WORKBENCH_SKILL_CARD_RUN_PATH,
   isWorkbenchCardName,
   isWorkbenchSkillName,
@@ -65,6 +66,18 @@ export type WorkbenchCatalogRead =
   | { readonly status: 'ok'; readonly entries: readonly WorkbenchSkillCatalogEntry[] }
   | { readonly status: 'failed'; readonly code: string; readonly message: string }
 
+/** Outcome of storing one hand-edited result. */
+export type WorkbenchResultWrite =
+  | {
+    readonly status: 'ok'
+    /** Revision the write landed on. */
+    readonly revision: string
+    /** The record as stored, so the caller needs no second read. */
+    readonly result: WorkbenchCardResult
+  }
+  | { readonly status: 'rejected'; readonly code: string; readonly message: string }
+  | { readonly status: 'unavailable'; readonly reason: string }
+
 /** The read/write face the card consumes. */
 export interface WorkbenchSkillCardApi {
   /**
@@ -105,6 +118,16 @@ export interface WorkbenchSkillCardApi {
    * @returns resolution after the Host answers.
    */
   cancel(cardId: string): Promise<void>
+  /**
+   * Store one hand-edited region fragment as that card's result.
+   *
+   * A write of its own rather than a run: it spends no model call, and the Host keeps the
+   * record's run facts — the skill and the stop reason — as they are.
+   * @param cardId - the card whose result is being replaced.
+   * @param html - the region HTML to store, verbatim.
+   * @returns the stored record and revision, or the refusal.
+   */
+  saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>
 }
 
 /** Queue depth above which the oldest waiting change is dropped. */
@@ -289,6 +312,33 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
         console.warn('skill card cancel failed:', messageOf(error))
       }
     },
+
+    async saveResult(cardId, html) {
+      let response: Response
+      try {
+        response = await fetcher(WORKBENCH_SKILL_CARD_RESULT_PATH, {
+          method: 'PUT',
+          credentials: 'same-origin',
+          redirect: 'error',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cardId, html }),
+        })
+      } catch (error) {
+        return { status: 'unavailable', reason: `skill card request failed: ${messageOf(error)}` }
+      }
+      const body = await readJson(response)
+      if (response.ok) {
+        const stored = parseResultEdit(body)
+        return stored === undefined
+          ? { status: 'unavailable', reason: 'result response did not match the contract' }
+          : { status: 'ok', revision: stored.revision, result: stored.result }
+      }
+      const error = errorOf(body)
+      return error === undefined
+        ? { status: 'unavailable', reason: `skill card route answered ${String(response.status)}` }
+        : { status: 'rejected', code: error.code, message: error.message }
+    },
   }
 }
 
@@ -410,6 +460,38 @@ export function parseCatalog(value: unknown): readonly WorkbenchSkillCatalogEntr
     })
   }
   return entries
+}
+
+/**
+ * Validate one result-edit response body.
+ * @param value - decoded body.
+ * @returns the revision and record, or undefined when a field is outside the contract.
+ */
+export function parseResultEdit(
+  value: unknown,
+): { readonly revision: string; readonly result: WorkbenchCardResult } | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const body = value as { apiVersion?: unknown; revision?: unknown; result?: unknown }
+  if (body.apiVersion !== WORKBENCH_SKILL_CARD_API_VERSION) return undefined
+  if (typeof body.revision !== 'string') return undefined
+  if (typeof body.result !== 'object' || body.result === null) return undefined
+  const raw = body.result as {
+    cardId?: unknown
+    skill?: unknown
+    executedAt?: unknown
+    stopReason?: unknown
+    editedAt?: unknown
+  }
+  if (typeof raw.cardId !== 'string' || !isWorkbenchCardId(raw.cardId)) return undefined
+  if (typeof raw.skill !== 'string' || typeof raw.executedAt !== 'number' || typeof raw.stopReason !== 'string') {
+    return undefined
+  }
+  // The provenance field is read rather than passed through blind: the row the page draws
+  // from it must not render a value the contract would not accept.
+  if (raw.editedAt !== undefined && (typeof raw.editedAt !== 'number' || !Number.isFinite(raw.editedAt))) {
+    return undefined
+  }
+  return { revision: body.revision, result: { ...(body.result as WorkbenchCardResult), cardId: raw.cardId } }
 }
 
 /**

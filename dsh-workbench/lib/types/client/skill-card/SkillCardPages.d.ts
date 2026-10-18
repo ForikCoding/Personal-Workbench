@@ -26,16 +26,31 @@ export interface SkillCardPageProps {
      * @returns the session id, or undefined when none is available.
      */
     readonly runSessionId: () => string | undefined;
-    /** Shown in place of the name while the card has none. */
+    /**
+     * Shown in place of the name while the card has none.
+     *
+     * Only the result page reads it: the configuration page lets its own name field carry
+     * that fact, so a head that repeated it would be the second, uneditable copy.
+     */
     readonly fallbackTitle: string;
     /** Leave the page and return to the grid. */
     readonly onBack: () => void;
     /**
+     * Open one of a card's full-panel views.
+     *
+     * A card-target action starts that card's run and then shows it, so the result page
+     * is the one that needs this.
+     * @param cardId - the card to show.
+     * @param view - which of its two views.
+     */
+    readonly openCard: (cardId: string, view: 'result' | 'config') => void;
+    /**
      * Translate one workbench string.
      * @param key - dictionary key.
+     * @param params - optional template parameters.
      * @returns the localized text.
      */
-    readonly t: (key: WorkbenchLocaleKey) => string;
+    readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
 }
 /**
  * Render the card's result in the whole display column, with its run control.
@@ -45,6 +60,11 @@ export interface SkillCardPageProps {
 export declare function SkillCardResultPage(props: SkillCardPageProps): ReactNode;
 /**
  * Render the card's configuration in the whole display column.
+ *
+ * The head is the way back and nothing else. The card's name and skill were repeated
+ * here *and* in the fields below, which made the page state the same two facts twice
+ * and the head's copy the one that could not be edited. Removing the card lives in the
+ * footer instead, apart from the controls a user presses without reading.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
  * @returns the configuration page.
  */

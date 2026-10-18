@@ -77,7 +77,8 @@ export function WorkbenchCreateCard({
             aria-expanded={menuOpen}
             onClick={() => { setMenuOpen(previous => !previous) }}
           >
-            {label}
+            <span className={css.createMark} aria-hidden="true">＋</span>
+            <span>{label}</span>
           </button>
         )}
       />

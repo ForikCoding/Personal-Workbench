@@ -11,6 +11,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type {
   WorkbenchCatalogResponse,
+  WorkbenchResultEditRequest,
+  WorkbenchResultEditResponse,
+  WorkbenchRunMode,
   WorkbenchRunRequest,
   WorkbenchRunResponse,
   WorkbenchSkillCardErrorCode,
@@ -18,6 +21,9 @@ import type {
   WorkbenchSkillCardResponse,
 } from './skill-card-contract.ts'
 import {
+  WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
+  WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
+  WORKBENCH_RESULT_MAX_BYTES,
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
   isWorkbenchCardName,
@@ -227,6 +233,131 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     ...skill === undefined ? {} : { skill },
     ...template === undefined ? {} : { template },
   }
+}
+
+/** Everything the stored-result edit route needs. */
+export interface WorkbenchSkillCardResultRouteOptions {
+  /** Result owner. The record's run facts are read from here, not from the request. */
+  readonly store: WorkbenchSkillCardStore
+  /** Trust fence applied first. */
+  readonly fence: SkillCardRouteFence
+  /**
+   * Effective result byte budget of this deployment.
+   *
+   * A deployment may tighten the wire ceiling but never widen it: the route applies the
+   * smaller of the two, so no request can store more than the contract advertises.
+   */
+  readonly maxResultBytes: number
+  /** Host logger for storage failures. */
+  readonly warn: (message: string) => void
+}
+
+/**
+ * Build the route handler for {@link WORKBENCH_SKILL_CARD_RESULT_PATH}.
+ * @param options - store, fence, budget, and logger.
+ * @returns a handler that owns the full response lifecycle.
+ */
+export function createWorkbenchSkillCardResultHandler(
+  options: WorkbenchSkillCardResultRouteOptions,
+): (request: IncomingMessage, response: ServerResponse) => void {
+  return (request, response) => {
+    const rejection = options.fence.requestRejection(request)
+    if (rejection !== undefined) {
+      sendError(response, rejection, rejection === 401 ? 'unauthorized' : 'forbidden', 'request rejected')
+      return
+    }
+    if (request.method !== 'PUT') {
+      sendMethodNotAllowed(response, 'PUT')
+      return
+    }
+    void handleResultEdit(options, request, response)
+  }
+}
+
+/**
+ * Read, validate, and store one hand edit.
+ * @param options - route dependencies.
+ * @param request - the PUT request.
+ * @param response - the response to own.
+ */
+async function handleResultEdit(
+  options: WorkbenchSkillCardResultRouteOptions,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  try {
+    const body = await readJsonBody(request, WORKBENCH_SKILL_CARD_MAX_BODY_BYTES)
+    if (body.status === 'too-large') {
+      throw new SkillCardRequestError(413, 'too-large', 'request body is too large')
+    }
+    if (body.status === 'invalid') {
+      throw new SkillCardRequestError(400, 'invalid-request', body.reason)
+    }
+    const edit = parseResultEdit(body.value, options.maxResultBytes)
+    const outcome = await options.store.putEditedResult(edit.cardId, edit.html)
+    if (outcome.status === 'missing') {
+      sendError(response, 404, 'not-found', 'this card holds no result to edit')
+      return
+    }
+    if (outcome.status === 'invalid') {
+      sendError(response, 400, 'invalid-request', outcome.reason)
+      return
+    }
+    if (outcome.status === 'too-large') {
+      sendError(response, 413, 'too-large', `the edited result is ${String(outcome.bytes)} bytes, above the byte limit`)
+      return
+    }
+    // The new record travels back with the revision the write landed on: the client
+    // updates from this response instead of reading the whole configuration again.
+    const stored: WorkbenchResultEditResponse = {
+      apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
+      revision: options.store.revision,
+      result: outcome.result,
+    }
+    sendJson(response, 200, stored)
+  } catch (error) {
+    if (error instanceof SkillCardRequestError) {
+      sendError(response, error.status, error.code, error.message)
+      return
+    }
+    const detail = error instanceof Error ? error.message : String(error)
+    options.warn(`workbench skill card result edit failed: ${detail}`)
+    sendError(response, 500, 'storage-failure', 'skill card storage failed')
+  }
+}
+
+/**
+ * Validate a decoded result-edit body.
+ *
+ * Only the two fields the contract has are checked, plus the byte budget: the editorial
+ * rules (content policy, an empty region) belong to the editor, which is the only place
+ * that can explain them next to the text they are about. The empty case is enforced a
+ * second time by the store, because an empty stored result renders as a broken card.
+ * @param value - decoded body.
+ * @param maxResultBytes - effective result byte budget.
+ * @returns the validated edit.
+ * @throws {SkillCardRequestError} 400 on a malformed field, 413 above the budget.
+ */
+function parseResultEdit(value: unknown, maxResultBytes: number): WorkbenchResultEditRequest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'body must be an object')
+  }
+  const body = value as { cardId?: unknown; html?: unknown }
+  if (typeof body.cardId !== 'string' || !isWorkbenchCardId(body.cardId)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'cardId must be a namespaced card id')
+  }
+  if (typeof body.html !== 'string') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'html must be a string')
+  }
+  // A deployment may tighten the wire ceiling but never widen it: the effective limit is
+  // the smaller of the two, so a request can never store more than the contract advertises.
+  const limit = Math.min(maxResultBytes, WORKBENCH_RESULT_MAX_BYTES)
+  if (Buffer.byteLength(body.html, 'utf8') > limit) {
+    // The transport's size code, so an oversized fragment reads as a size problem rather
+    // than as a malformed request. It is refused, never truncated.
+    throw new SkillCardRequestError(413, 'too-large', 'html exceeds the byte limit')
+  }
+  return { cardId: body.cardId, html: body.html }
 }
 
 /**
@@ -476,16 +607,94 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'body must be an object')
   }
-  const body = value as { cardId?: unknown; sessionId?: unknown; outputSchema?: unknown }
+  const body = value as {
+    cardId?: unknown
+    sessionId?: unknown
+    mode?: unknown
+    payload?: unknown
+    outputSchema?: unknown
+  }
   if (typeof body.cardId !== 'string' || !isWorkbenchCardId(body.cardId)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'cardId must be a namespaced card id')
   }
   if (typeof body.sessionId !== 'string' || body.sessionId.length === 0) {
     throw new SkillCardRequestError(400, 'invalid-request', 'sessionId must be a non-empty string')
   }
+  // The row is only checked for shape. Its byte budget belongs to the button attribute
+  // that produced it: this value is re-serialized on the way here, so counting bytes
+  // again would measure the encoding rather than the row. The body cap bounds it.
+  let payload: Record<string, unknown> | undefined
+  if (body.payload !== undefined) {
+    if (typeof body.payload !== 'object' || body.payload === null || Array.isArray(body.payload)) {
+      throw new SkillCardRequestError(400, 'invalid-request', 'payload must be an object')
+    }
+    payload = body.payload as Record<string, unknown>
+  }
   // Whether the contract itself is usable is the runner's precondition, so it is
-  // carried through unchecked here and answered as `schema-rejected` there.
-  return { cardId: body.cardId, sessionId: body.sessionId, outputSchema: body.outputSchema }
+  // carried through unchecked here and answered as `schema-rejected` there. It is
+  // absent for a bare run, which asks for no value at all.
+  return {
+    cardId: body.cardId,
+    sessionId: body.sessionId,
+    mode: parseRunMode(body.mode),
+    ...payload === undefined ? {} : { payload },
+    ...body.outputSchema === undefined ? {} : { outputSchema: body.outputSchema },
+  }
+}
+
+/**
+ * Validate the mode one run body carries.
+ *
+ * Explicit rather than inferred from the presence of a contract: a card run that
+ * lost its contract must fail as a card run, not silently become a bare one.
+ * @param value - the decoded `mode` field.
+ * @returns the validated mode.
+ * @throws {SkillCardRequestError} 400 when the mode is missing or malformed.
+ */
+function parseRunMode(value: unknown): WorkbenchRunMode {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode must be an object')
+  }
+  const mode = value as { kind?: unknown; skill?: unknown; instruction?: unknown; previous?: unknown }
+  if (mode.kind === 'card') return { kind: 'card' }
+  if (mode.kind === 'refine') return parseRefineMode(mode)
+  if (mode.kind !== 'bare') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.kind must be card, bare or refine')
+  }
+  if (typeof mode.skill !== 'string' || !isWorkbenchSkillName(mode.skill)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.skill must be a kebab-case skill name')
+  }
+  return { kind: 'bare', skill: mode.skill }
+}
+
+/**
+ * Validate the two strings a refine run carries.
+ *
+ * The instruction is free text, so the only rules are "there is something to ask for"
+ * and a bound on what one request carries. The previous result is not re-validated as
+ * HTML here: it is a string the client read back from a stored result, and the prompt
+ * carries it verbatim either way.
+ * @param mode - the decoded `mode` field, already known to say `refine`.
+ * @returns the validated refine mode.
+ * @throws {SkillCardRequestError} 400 when a field is outside the contract, 413 when
+ * the previous result exceeds its byte budget.
+ */
+function parseRefineMode(mode: { instruction?: unknown; previous?: unknown }): WorkbenchRunMode {
+  if (typeof mode.instruction !== 'string' || mode.instruction.trim() === '') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.instruction must be a non-empty string')
+  }
+  if (mode.instruction.length > WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.instruction is longer than the limit')
+  }
+  if (typeof mode.previous !== 'string') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.previous must be a string')
+  }
+  if (Buffer.byteLength(mode.previous, 'utf8') > WORKBENCH_REFINE_PREVIOUS_MAX_BYTES) {
+    // The transport's own size code, so an oversized replay reads as a size problem
+    // rather than as a malformed request.
+    throw new SkillCardRequestError(413, 'too-large', 'mode.previous exceeds the byte limit')
+  }
+  return { kind: 'refine', instruction: mode.instruction, previous: mode.previous }
 }
 
 /**

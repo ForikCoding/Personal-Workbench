@@ -1,0 +1,330 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * The result page as a page: the framed result and the run detail beneath it.
+ *
+ * The translator is the Chinese dictionary rather than a key echo, because what is under
+ * test here is the sentence the user reads — a detail block whose rows exist only when
+ * they carry something, and a frame that reads as a container without naming itself.
+ */
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { primitivesMock } from './support/primitives-mock.tsx'
+import { zh, en } from '../src/client/locales.ts'
+import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
+import type { WorkbenchCardResult } from '../src/skill-card-contract.ts'
+import type { WorkbenchSkillCardApi } from '../src/client/skill-card/api.ts'
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
+
+const { SkillCardResultPage } = await import('../src/client/skill-card/SkillCardPages.tsx')
+type PageProps = import('../src/client/skill-card/SkillCardPages.tsx').SkillCardPageProps
+
+// Vitest runs without globals, so the library's own auto-cleanup never registers.
+afterEach(cleanup)
+
+/**
+ * Translate through the Chinese dictionary, interpolating placeholders.
+ * @param key - dictionary key.
+ * @param params - placeholder values.
+ * @returns the sentence the user reads.
+ */
+const t = (key: WorkbenchLocaleKey, params?: Record<string, unknown>): string =>
+  Object.entries(params ?? {}).reduce(
+    (text, [name, value]) => text.split(`{${name}}`).join(String(value)),
+    zh[key],
+  )
+
+/** A template whose region is the only part a run fills. */
+const TEMPLATE = '<h1>任务</h1><!-- template-begin --><!-- template-end -->'
+
+/**
+ * A local wall-clock moment.
+ *
+ * Built from local fields rather than an epoch so the formatted time in the run detail
+ * is the same in whatever time zone the suite runs in.
+ */
+const STARTED_AT = new Date(2024, 0, 2, 14, 28, 36).getTime()
+
+/** How long the scripted run took. */
+const TOOK_MS = 42_000
+
+/**
+ * Build one stored result.
+ * @param overrides - fields the case varies.
+ * @returns the result record as storage returns it.
+ */
+function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResult {
+  return {
+    cardId: 'skill-card',
+    skill: 'git-repo',
+    executedAt: STARTED_AT + TOOK_MS,
+    stopReason: 'completed',
+    structured: { html: '<b>要点</b>' },
+    ...overrides,
+  }
+}
+
+/**
+ * Build a transport for one card that is configured and ready to run.
+ * @param options - the stored result.
+ * @returns the api.
+ */
+function pageApi(options: {
+  result?: WorkbenchCardResult
+} = {}): WorkbenchSkillCardApi {
+  return {
+    read: async () => ({
+      status: 'ok',
+      snapshot: {
+        revision: '1:0',
+        cards: [{ cardId: 'skill-card', skill: 'git-repo', template: TEMPLATE, templateSkills: ['git-repo'] }],
+        results: options.result === undefined ? [] : [options.result],
+      },
+    }),
+    write: async () => ({ status: 'failed', reason: 'no write is issued here' }),
+    catalog: async () => ({ status: 'ok', entries: [] }),
+    // The mount-time adoption read: nothing is in flight for another card's button.
+    poll: async () => ({ status: 'missing' }),
+    // Nothing here starts a run: this page is under test for what it shows of a result
+    // that already exists, and the status line's start cases went with that line.
+    start: async () => ({ status: 'unavailable', reason: 'no run is started here' }),
+    cancel: async () => {},
+    saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
+  }
+}
+
+/**
+ * Build page props.
+ * @param overrides - fields the case varies.
+ * @returns complete props.
+ */
+function props(overrides: Partial<PageProps> = {}): PageProps {
+  return {
+    api: pageApi(),
+    cardId: 'skill-card',
+    runSessionId: () => 'session-1',
+    fallbackTitle: '技能卡',
+    onBack: () => {},
+    openCard: () => {},
+    t,
+    ...overrides,
+  }
+}
+
+/**
+ * Wait for the stored configuration to be rendered.
+ * @param container - the render container.
+ * @returns the run detail element.
+ */
+async function detail(container: HTMLElement): Promise<HTMLDetailsElement> {
+  await waitFor(() => { expect(container.querySelector('details')).not.toBeNull() })
+  return container.querySelector('details') as HTMLDetailsElement
+}
+
+describe('the result page', () => {
+  it('renders the region HTML with real newlines rather than JSON escapes', async () => {
+    // Criterion 49. The value used to be printed as one JSON string, so every newline
+    // arrived as a literal `\n` and the block could not be read as HTML at all.
+    const html = '<tr>\n  <td>甲</td>\n  <td>乙</td>\n</tr>'
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result({ structured: { html } }) }) })} />,
+    )
+    await detail(container)
+    const block = container.querySelector('pre[data-run-html]')
+    expect(block).not.toBeNull()
+    expect(block?.textContent).toBe(html)
+    expect(block?.textContent).toContain('\n')
+    expect(block?.textContent).not.toContain('\\n')
+    // Every other field stayed JSON, and `html` is not in that JSON any more.
+    expect(container.querySelector('pre:not([data-run-html])')).toBeNull()
+  })
+
+  it('keeps the remaining structured fields as JSON', async () => {
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({
+            result: result({ structured: { html: '<b>要点</b>\n<i>附注</i>', branch: 'main', count: 2 } }),
+          }),
+        })}
+      />,
+    )
+    await detail(container)
+    expect(container.querySelector('pre[data-run-html]')?.textContent).toBe('<b>要点</b>\n<i>附注</i>')
+    const json = container.querySelector('pre:not([data-run-html])')?.textContent ?? ''
+    expect(json).toBe(JSON.stringify({ branch: 'main', count: 2 }, null, 2))
+    expect(json).not.toContain('"html"')
+    expect(container.textContent).toContain(zh.runStructuredRest)
+  })
+
+  it('renders no row at all for a field that is absent', async () => {
+    // Criterion 50. The block used to state a label plus "this run left no output
+    // behind" even when there was nothing to show, which is a row that says nothing.
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,
+    )
+    const block = await detail(container)
+    // No diagnostic row, and no raw-output row either: this run left no output text.
+    expect(container.textContent).not.toContain(zh.runDiagnostic)
+    expect(container.textContent).not.toContain(zh.runRawOutput)
+    // The only label inside the block is the structured one.
+    expect([...block.querySelectorAll('p')].map(element => element.textContent)).toEqual([zh.runStructured])
+    expect(block.querySelectorAll('pre')).toHaveLength(1)
+  })
+
+  it('names the detail block after everything in it, and leaves 原始输出 to its own row', async () => {
+    // The summary used to read 原始输出 while the block also held the stop reason, the
+    // start time and the structured value: one key, two meanings.
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result({ outputText: 'done' }) }) })} />,
+    )
+    const block = await detail(container)
+    expect(block.querySelector('summary')?.textContent).toBe(zh.runDetailSummary)
+    expect(zh.runDetailSummary).not.toBe(zh.runRawOutput)
+    const labels = [...block.querySelectorAll('p')].map(element => element.textContent)
+    expect(labels).toEqual([zh.runStructured, zh.runRawOutput])
+  })
+
+  it('names each stop reason, and prints one it does not know raw', async () => {
+    // The upstream stop-reason union is merge-extensible: a value this build has no copy
+    // for has to survive as it arrived rather than become an invented label.
+    for (const [reason, word] of [
+      ['completed', zh.runStopCompleted],
+      ['error', zh.runStopError],
+      ['aborted', zh.runStopAborted],
+      ['max-steps', 'max-steps'],
+    ] as const) {
+      const { container, unmount } = render(
+        <SkillCardResultPage {...props({ api: pageApi({ result: result({ stopReason: reason }) }) })} />,
+      )
+      const block = await detail(container)
+      expect(block.querySelector('[data-run-stop-reason]')?.textContent).toBe(word)
+      expect(block.querySelector('[data-run-stop-reason]')?.getAttribute('data-run-stop-reason')).toBe(reason)
+      unmount()
+    }
+  })
+
+  it('carries the stop reason into English as well', async () => {
+    const english = (key: WorkbenchLocaleKey): string => en[key]
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({ result: result({ stopReason: 'completed' }) }),
+          t: english,
+        })}
+      />,
+    )
+    const block = await detail(container)
+    expect(block.querySelector('summary')?.textContent).toBe(en.runDetailSummary)
+    expect(block.querySelector('[data-run-stop-reason]')?.textContent).toBe(en.runStopCompleted)
+  })
+
+  it('removes the template region’s indentation from the code block', async () => {
+    // The model returns the region with the indentation the region had in the template,
+    // so the block used to start several hundred pixels in on every line.
+    const html = [
+      '      <tr>',
+      '        <td>甲</td>',
+      '',
+      '        <td>乙</td>',
+      '      </tr>',
+    ].join('\n')
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result({ structured: { html } }) }) })} />,
+    )
+    await detail(container)
+    expect(container.querySelector('pre[data-run-html]')?.textContent).toBe([
+      '<tr>',
+      '  <td>甲</td>',
+      '',
+      '  <td>乙</td>',
+      '</tr>',
+    ].join('\n'))
+  })
+
+  it('leaves the stored HTML indented, because the splice needs it whole', async () => {
+    // The dedent is a display projection: the stored value is spliced back into the
+    // template verbatim, so the document the user sees must keep every space of it.
+    const html = '      <tr>\n        <td>甲</td>\n      </tr>'
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result({ structured: { html } }) }) })} />,
+    )
+    await detail(container)
+    expect(container.querySelector('pre[data-run-html]')?.textContent).toBe('<tr>\n  <td>甲</td>\n</tr>')
+    // The rendered document is built from the stored value, not from the block's copy:
+    // its text still starts eight spaces in, exactly as the result stored it. The shadow
+    // root is filled from a passive effect, so this waits for the document itself rather
+    // than for the block above it — under load the two are not always in the same tick.
+    await waitFor(() => {
+      const shown = [...container.querySelectorAll('div')]
+        .map(element => element.shadowRoot?.textContent ?? '')
+        .join('')
+      expect(shown).toContain('\n        甲')
+    })
+  })
+
+  it('states the raw output when there is one', async () => {
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result({ outputText: 'done' }) }) })} />,
+    )
+    const block = await detail(container)
+    expect([...block.querySelectorAll('p')].map(element => element.textContent))
+      .toEqual([zh.runStructured, zh.runRawOutput])
+    expect(block.querySelectorAll('pre')[1]?.textContent).toBe('done')
+  })
+
+  it('is collapsed by default, because it is debug information', async () => {
+    // Criterion 51. The result above is the content; this block is the record behind it.
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,
+    )
+    const block = await detail(container)
+    // No `open` in the markup, not just a closed property: the attribute is what a later
+    // edit would add, and it is what this pins.
+    expect(block.hasAttribute('open')).toBe(false)
+    expect(block.open).toBe(false)
+    fireEvent.click(block.querySelector('summary') as HTMLElement)
+    expect(block.open).toBe(true)
+  })
+
+  it('frames the rendered result', async () => {
+    // Criterion for the frame: the document is the user's template, so without a border
+    // its content reads as the page's own. The frame is all that is left of this: the
+    // surface's heading row was removed as noise, so the boundary rests on the border,
+    // the radius and the padding around the document.
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,
+    )
+    await detail(container)
+    const surface = container.querySelector('[data-result-surface]') as HTMLElement | null
+    expect(surface).not.toBeNull()
+    // Nothing names the surface any more: no heading row, and no `aria-labelledby` left
+    // pointing at an id that no longer exists.
+    expect(surface?.querySelector('header')).toBeNull()
+    expect(surface?.hasAttribute('aria-labelledby')).toBe(false)
+    // The document is inside the frame, and its text is the run's own. The shadow root is
+    // filled from a passive effect, so this waits for the document itself rather than for
+    // the block above it — under load the two are not always in the same tick.
+    await waitFor(() => {
+      const rendered = [...(surface?.querySelectorAll('div') ?? [])]
+        .map(element => element.shadowRoot?.textContent ?? '')
+        .join('')
+      expect(rendered).toContain('要点')
+    })
+  })
+
+  it('demotes the permission note to the last line of the page', async () => {
+    // The note is a statement about the page, not part of the document: it belongs
+    // beneath everything, in every state the page can be in.
+    const { container } = render(
+      <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,
+    )
+    await detail(container)
+    expect(container.firstElementChild?.lastElementChild?.textContent).toBe(zh.skillCardPermission)
+    // Not repeated inside the frame, where the document lives.
+    expect(container.querySelector('[data-result-surface]')?.textContent)
+      .not.toContain(zh.skillCardPermission)
+  })
+})

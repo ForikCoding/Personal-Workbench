@@ -182,6 +182,23 @@ export function WorkbenchCardShellView({
                 <IconRefreshOutlineMedium size={14} />
               </Button>
             )}
+            {onRemove !== undefined && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={css.iconButton}
+                data-workbench-remove={id}
+                aria-label={t('removeCard')}
+                onClick={onRemove}
+              >
+                <IconCloseOutlineMedium size={14} />
+              </Button>
+            )}
+            {/* The reorder handle sits last, after the controls that open and remove
+                the card, and in the tertiary colour: moving a card is an affordance for
+                a position it already has, not an action on the card. It stays reachable
+                — visible on hover and on focus, and still the keyboard's only way to
+                move a card — because a control nobody can find is the same as none. */}
             {reorderable && (
               <Button
                 variant="ghost"
@@ -197,18 +214,6 @@ export function WorkbenchCardShellView({
                 }}
               >
                 <IconChevronsUpDownOutlineRegular size={14} />
-              </Button>
-            )}
-            {onRemove !== undefined && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={css.iconButton}
-                data-workbench-remove={id}
-                aria-label={t('removeCard')}
-                onClick={onRemove}
-              >
-                <IconCloseOutlineMedium size={14} />
               </Button>
             )}
           </div>

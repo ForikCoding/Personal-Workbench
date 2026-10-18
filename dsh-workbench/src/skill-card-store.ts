@@ -71,6 +71,22 @@ export type WorkbenchSkillCardWriteResult =
   | { readonly status: 'conflict'; readonly snapshot: WorkbenchSkillCardSnapshot }
   | { readonly status: 'invalid'; readonly reason: string }
 
+/** Outcome of one hand edit of a stored result. */
+export type WorkbenchResultEditOutcome =
+  /** Stored; the record is the one the client can now show. */
+  | { readonly status: 'written'; readonly result: WorkbenchCardResult }
+  /** The card holds no result, so there is no record whose run facts could stand. */
+  | { readonly status: 'missing' }
+  /** The edit cannot be stored as given. */
+  | { readonly status: 'invalid'; readonly reason: string }
+  /**
+   * The edit is larger than one stored result may be, in bytes.
+   *
+   * Refused rather than trimmed: a trimmed result would store one thing and display
+   * another, which is exactly the failure this budget exists to prevent.
+   */
+  | { readonly status: 'too-large'; readonly bytes: number }
+
 /** What the store needs from its Host context. */
 export interface WorkbenchSkillCardStoreOptions {
   /** Storage domain name, used to filter change events. */
@@ -91,6 +107,14 @@ export interface WorkbenchSkillCardStoreOptions {
   readonly maxResultBytes: number
   /** Process start stamp folded into the revision; tests pass a fixed value. */
   readonly bootStamp: number
+  /**
+   * Clock for the moments the store itself stamps.
+   *
+   * Only a hand edit needs one: it refreshes `executedAt` and sets `editedAt`, and a spec
+   * has to assert those two without waiting for a real second to pass.
+   * @returns milliseconds since the epoch.
+   */
+  readonly now?: () => number
 }
 
 /** Errors raised while writing skill card storage, carrying the route's error code. */
@@ -242,6 +266,61 @@ export class WorkbenchSkillCardStore {
     await this.run('put', () => this.options.result.put(cardId, trimmed))
   }
 
+  /**
+   * Replace one card's region HTML with a hand-edited fragment.
+   *
+   * A save must not fabricate a run, so everything a run owned stays as it is: the skill
+   * and the stop reason are kept, the raw output and the diagnostic are kept, and only
+   * `structured.html` is replaced. `executedAt` is refreshed because the record's time is
+   * what the page shows as when the result it displays came about, and `editedAt` says
+   * how. A later run overwrites the whole record, which is the existing semantics of
+   * running a card.
+   *
+   * Nothing here trims: a value over the budget is refused. Trimming a hand edit would
+   * store a document the user did not write and display a different one.
+   * @param cardId - card whose stored result is being edited.
+   * @param html - the region HTML to store, verbatim.
+   * @returns the stored record, or why the edit was refused.
+   */
+  async putEditedResult(cardId: string, html: string): Promise<WorkbenchResultEditOutcome> {
+    if (!isWorkbenchCardId(cardId)) {
+      return { status: 'invalid', reason: `card id ${JSON.stringify(cardId)} is not a namespaced slug` }
+    }
+    // An empty region renders as a card that looks broken, so it is refused here as well
+    // as in the editor: this is the boundary that actually stores it.
+    if (html.trim() === '') {
+      return { status: 'invalid', reason: 'an edited result must hold visible content' }
+    }
+    const previous = this.options.result.get(cardId)
+    // The record's skill and stop reason are the two facts a hand edit has nothing to say
+    // about, so there has to be a record that already holds them.
+    if (previous === undefined) return { status: 'missing' }
+
+    const editBytes = utf8Bytes(html)
+    if (editBytes > this.options.maxResultBytes) {
+      return { status: 'too-large', bytes: editBytes }
+    }
+
+    const at = this.moment()
+    const record: WorkbenchResultRecord = {
+      ...previous,
+      executedAt: at,
+      editedAt: at,
+      // The rest of the structured value, if any, is the run's record and stays put: the
+      // editor shows and replaces the region HTML only.
+      structured: { ...structuredRecord(previous.structured), html },
+    }
+    // The fragment fitted, but the record it lands in may not: the record budget counts
+    // the whole thing, and the run's output text still travels with it.
+    const recordBytes = byteSize(record)
+    if (recordBytes > this.options.maxResultBytes) {
+      return { status: 'too-large', bytes: recordBytes }
+    }
+
+    await this.run('put', () => this.options.result.put(cardId, record))
+    return { status: 'written', result: { cardId, ...record } }
+  }
+
   /** Stop observing domain changes. Idempotent. */
   dispose(): void {
     this.disposeChange()
@@ -311,6 +390,28 @@ export class WorkbenchSkillCardStore {
       throw new WorkbenchSkillCardStorageError(operation, error)
     }
   }
+
+  /**
+   * Read the clock the store stamps records with.
+   * @returns milliseconds since the epoch.
+   */
+  private moment(): number {
+    return this.options.now?.() ?? Date.now()
+  }
+}
+
+/**
+ * Read one structured value as the object an edit merges into.
+ *
+ * The region HTML lives beside whatever else the run committed, so the fragment has to
+ * merge rather than replace. A value that is not a plain object has no fields to keep,
+ * and spreading it would invent some: a string would arrive as one key per character.
+ * @param value - the structured value as stored.
+ * @returns the fields to keep, or an empty object when there are none.
+ */
+function structuredRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  return { ...value as Record<string, unknown> }
 }
 
 /**

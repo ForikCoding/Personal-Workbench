@@ -32,6 +32,9 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     catalog: [],
     catalogStatus: 'idle',
     catalogFailure: undefined,
+    cardTitles: [],
+    refinements: [],
+    previous: undefined,
     ...overrides,
   }
 }
@@ -88,12 +91,11 @@ describe('skill card body', () => {
     expect(container.textContent).toContain('skillCardNotRunTitle')
   })
 
-  it('carries the permission level on every state', () => {
-    // The run inherits the session's full tool permissions, so the card has to
-    // say so whichever state it is in.
-    for (const state of [view({ status: 'loading' }), view(), view({ template: TEMPLATE, result: RESULT })]) {
-      const { container } = render(<SkillCardBody view={state} t={t} />)
-      expect(container.textContent).toContain('skillCardPermission')
-    }
+  it('leaves the permission note to the page that owns it', () => {
+    // The note is a statement about the page — a run inherits the session's full tool
+    // permissions — so it is a footnote beneath the result page's content rather than
+    // part of the document this body renders. The page spec pins it in every state.
+    const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: RESULT })} t={t} />)
+    expect(container.textContent).not.toContain('skillCardPermission')
   })
 })

@@ -19,9 +19,16 @@ export declare const WORKBENCH_CARD_TABLE = "card";
 export declare const WORKBENCH_TEMPLATE_TABLE = "template";
 /** Table holding one execution result per card. */
 export declare const WORKBENCH_RESULT_TABLE = "result";
-/** Stored schema for one card's selection; absence means "not configured yet". */
+/**
+ * Stored schema for one card's selection and name; absence means "not configured yet".
+ *
+ * Every field the store writes has to appear here. Zod drops a key this schema does not
+ * declare, so an undeclared field survives the write and vanishes on the next load —
+ * which reads to the user as "it saved, then reverted after a restart".
+ */
 export declare const workbenchCardConfigSchema: z.ZodObject<{
     skill: z.ZodOptional<z.ZodString>;
+    name: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 /** Stored schema for one template. */
 export declare const workbenchTemplateSchema: z.ZodObject<{
@@ -33,6 +40,10 @@ export declare const workbenchTemplateSchema: z.ZodObject<{
  * `stopReason` stays a plain string because the upstream stop reasons are
  * merge-extensible; closing the union here would reject a value a future
  * provider legitimately reports.
+ *
+ * `editedAt` is declared here in the same change that writes it. A field the store
+ * writes and this schema does not know is dropped on the next load, which reads to the
+ * user as "it saved, then reverted after a restart" — the bug that once lost card names.
  */
 export declare const workbenchResultSchema: z.ZodObject<{
     skill: z.ZodString;
@@ -41,6 +52,7 @@ export declare const workbenchResultSchema: z.ZodObject<{
     structured: z.ZodOptional<z.ZodUnknown>;
     outputText: z.ZodOptional<z.ZodString>;
     diagnostic: z.ZodOptional<z.ZodString>;
+    editedAt: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>;
 /**
  * Skill card domain declaration.

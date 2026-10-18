@@ -14,6 +14,7 @@ import type { WorkbenchLocaleKey } from '../locales.ts'
 import { useWorkbenchReorder } from '../WorkbenchCardGrid.tsx'
 import { ShadowHtml } from './ShadowHtml.tsx'
 import { filledTemplate, resultHtml } from './render.ts'
+import type { WorkbenchActionEvent } from './render.ts'
 import { useSkillCard } from './controller.ts'
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
@@ -21,6 +22,27 @@ import css from './skill-card.module.css'
 
 /** Identity of the one skill card. */
 export const SKILL_CARD_ID = 'skill-card'
+
+/**
+ * Read the title one card face shows.
+ *
+ * Kept next to the face that applies it, because an action declaration addresses a
+ * card by the name the user sees: resolving that name has to fall back exactly the
+ * same way, or a declaration pointing at a nameless card would never resolve.
+ * @param stored - the stored card record.
+ * @param stored.cardId - the card's identity.
+ * @param stored.name - the user's name for it, when one is stored.
+ * @param t - translator, for the default card's own label.
+ * @returns the visible title.
+ */
+export function cardFaceTitle(
+  stored: { readonly cardId: string; readonly name?: string | undefined },
+  t: (key: WorkbenchLocaleKey) => string,
+): string {
+  // Only the default card may fall back to the type's name: a nameless extra instance
+  // would otherwise be indistinguishable from it on the grid.
+  return stored.name ?? (stored.cardId === SKILL_CARD_ID ? t('skillCardTitle') : stored.cardId)
+}
 
 /** Injected share of the skill card entry. */
 export interface SkillCardFace {
@@ -68,7 +90,7 @@ export function SkillCard(props: SkillCardProps): ReactNode {
   const reorder = useWorkbenchReorder()
   // Only the face's facts are read here. The controller is built again by whichever
   // page the card opens, and that page is the one that runs and renders.
-  const { view, actions } = useSkillCard({ api, cardId, sessionId: runSessionId() })
+  const { view, actions } = useSkillCard({ api, cardId, session: runSessionId })
 
   // The card face is an index entry: the user's name for the card, the skill it
   // runs, and the way into its configuration. The result and the configuration each
@@ -90,9 +112,7 @@ export function SkillCard(props: SkillCardProps): ReactNode {
 
   return renderFactorySlot('workbench.card', {
     id: cardId,
-    // Only the default card may fall back to the type's name: a nameless extra
-    // instance would otherwise be indistinguishable from it on the grid.
-    title: view.name ?? (cardId === SKILL_CARD_ID ? t('skillCardTitle') : cardId),
+    title: cardFaceTitle({ cardId, name: view.name }, t),
     ...view.skill === undefined ? {} : { subtitle: view.skill },
     ...view.problem === undefined ? {} : { failure: t(problemKey(view.problem.code)) },
     onActivate: () => { openCard(cardId, 'result') },
@@ -115,33 +135,40 @@ export interface SkillCardBodyProps {
    * @returns the localized text.
    */
   readonly t: (key: WorkbenchLocaleKey) => string
+  /**
+   * Called when a button inside the rendered document is clicked.
+   *
+   * Omitted leaves the document inert, which is the whole of what a card without a
+   * confirmation panel should do with a child-authored button.
+   * @param event - the action the click resolved to, or why it could not be read.
+   */
+  readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined
 }
 
 /**
  * Render the card's content.
- * @param props - the view and `t`.
+ *
+ * The permission note is not here: the result page carries it as a footnote beneath
+ * everything, because it is a statement about the page rather than part of the document
+ * the card renders.
+ * @param props - the view, `t`, and the click outlet.
  * @returns the body element.
  */
-export function SkillCardBody({ view, t }: SkillCardBodyProps): ReactNode {
-  return (
-    <div className={css.body}>
-      {cardContent(view, t)}
-      {/* Every run inherits the session's full tool permissions, and the skill it
-          executes is disk content. The user has to see that before pressing Run. */}
-      <p className={css.permission}>{t('skillCardPermission')}</p>
-    </div>
-  )
+export function SkillCardBody({ view, t, onAction }: SkillCardBodyProps): ReactNode {
+  return <div className={css.body}>{cardContent(view, t, onAction)}</div>
 }
 
 /**
  * Render whichever content the card currently has.
  * @param view - the card view.
  * @param t - translator.
+ * @param onAction - click outlet for buttons the document carries.
  * @returns the content element.
  */
 function cardContent(
   view: WorkbenchCardView,
   t: (key: WorkbenchLocaleKey) => string,
+  onAction: ((event: WorkbenchActionEvent) => void) | undefined,
 ): ReactNode {
   if (view.status === 'loading') {
     return <Notice title={t('skillCardLoading')} body={t('skillCardLoadingBody')} />
@@ -149,9 +176,13 @@ function cardContent(
   if (view.template === undefined) {
     return <Notice title={t('skillCardNoTemplateTitle')} body={t('skillCardNoTemplateBody')} />
   }
-  if (view.run?.phase === 'running') {
-    // A run in flight is a state of its own. Without this the page looked exactly
-    // the same before and during a run, which is what made pressing Run look inert.
+  // A run in flight is a state of its own. Without this the page looked exactly the same
+  // before and during a run, which is what made pressing Run look inert.
+  //
+  // A refinement is the exception: it edits the result already on screen, so replacing
+  // that result with a progress notice hides the very thing being revised. The surface
+  // stays, marked busy, and is swapped when the new version arrives.
+  if (view.run?.phase === 'running' && view.refining !== true) {
     return <Notice title={t('runStatusRunning')} body={t('skillCardRunningBody')} />
   }
   if (view.result === undefined) {
@@ -164,7 +195,13 @@ function cardContent(
     return <Notice title={t('skillCardNotRunTitle')} body={t('skillCardNotRunBody')} />
   }
   // The template's skeleton stays exactly as written; only its region came from the run.
-  return <ShadowHtml html={filledTemplate(view.template, filled)} className={css.template} />
+  return (
+    <ShadowHtml
+      html={filledTemplate(view.template, filled)}
+      className={css.template}
+      onAction={onAction}
+    />
+  )
 }
 
 /** One empty-state block. */

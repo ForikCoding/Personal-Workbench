@@ -33,6 +33,13 @@ export interface WorkbenchPageInjected {
     };
     /** Return to the grid from whichever full-panel view is open. */
     readonly closeCard: () => void;
+    /**
+     * Open one of a card's full-panel views.
+     *
+     * A card action whose target is a card starts that card's run and then shows it,
+     * which is a navigation across cards rather than within one.
+     */
+    readonly openCard: (cardId: string, view: WorkbenchCardSelection['view']) => void;
 }
 /** Composed props of the workbench page. */
 export type WorkbenchPageProps = PropsRuntime<'main'> & PropsRenderSlots<'workbench.cards'> & InjectFace<WorkbenchPageInjected> & {

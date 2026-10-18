@@ -338,7 +338,7 @@ export const WORKBENCH_LAYOUT_MAX_BODY_BYTES = 64 * 1024
 | 副标题 | 只在页面上出现，用于区分"工作台与工作区"，不进侧栏行 |
 | 带参数的键 | `announceMoved` 带 `{title}` 与 `{index}`；页面用 `t(key, params)` 做替换 |
 | 卡片壳的文案 | `refreshAll`（刷新控件）、`dragHandle`（手柄的可访问名）、`cardFailed`（主体被失败原因替换时的标题）、`removeCard`（X 的可访问名）、`statusIdle` / `statusOngoing` / `statusDone` / `statusWarning` / `statusError`（`state` 到文案的映射） |
-| 运行状态的文案 | `runStatusIdle` / `runStatusRunning` / `runStatusDone` / `runStatusCancelled` / `runStatusFailed` 及 `run*` 一组，**由结果页读**，不是卡片正面 |
+| 运行状态的文案 | `runStatusRunning`（正文那块运行中提示的标题）与运行详情那一组 `run*`（`runStartedAt`、`runStopReason`、`runStopCompleted` / `runStopError` / `runStopAborted`、`runDetailSummary` 等），**由结果页读**，不是卡片正面。状态行移除后，失去读者的 `runStatusIdle` / `runStatusDone` / `runStatusCancelled` / `runStatusFailed` / `runDuration` / `skillCardResultHeading` 已一并删除 |
 | 无键可读即缺陷 | 字典里不允许留"没有任何读者"的键：隐藏相关文案（`hideCard`、`showCard`、`announceHidden`、`announceShown`）与不再有控件的 `resetLayout`、`announceReset`、`reload`、`unknownCard`、`createCardConfirm`、`skillCardRunning`、`skillCardCancelled` 都已删除 |
 
 > **注意两处容易误判的"读者"：** `reload` 曾是"重试"文案，`reloadInstances`（页面里的重载函数）包含这串字符但它**不是** locale 键的读者；`skillCardRunning` 与 `skillCardRunningBody` 同理。判定一个键是否还有人读，看的是 `t('<key>')`，不是子串匹配。
@@ -450,7 +450,7 @@ export const inject = ['slots', 'locale']
 
 `WorkbenchPage`（`src/client/WorkbenchPage.tsx`）：
 
-- 结构：页头（`h1` 取 `t('title')`；副标题；刷新按钮）加内容，再加写入/合并提示条（`role="status"` 且 `aria-live="polite"`）。
+- 结构：页头（`h1` 取 `t('title')`；副标题）加内容，再加写入/合并提示条（`role="status"` 且 `aria-live="polite"`）。页头**没有刷新按钮**：它曾经有一个，但只重读排版顺序、没有可见效果，已移除（locale 键 `refreshAll` 留给卡片外壳自己的刷新控件当 `aria-label`）。
 - 顶部内边距照 `ui-plugin-manager` 的页面约定（含 macOS 的 `--dsh-frame-top-clearance` 处理），保证与既有页面同高、拖拽区行为一致。
 - **没有空态分支。** 网格永远渲染，它的末尾永远是「创建卡片」磁贴，所以"一张卡都没有"就是正常的首次运行状态；把网格换成一段说明文字会把创建第一张卡片的唯一入口一起拿走。**也没有"全部隐藏"这种状态**——隐藏不是能力。
 - `renderEntry(id, owner)` 是页面传给网格的唯一渲染入口：它调用 `renderSlot('workbench.cards', owner, { only: id })`，因此网格始终是声明该槽的那次注册在渲染。存盘的卡片实例不是自己的槽位条目，而是由注册的技能卡条目渲染并被告知自己渲染哪个实例。
@@ -570,7 +570,7 @@ export const inject = ['slots', 'locale']
 >
 > - **P1 的"两种空态"** 已不存在：网格永远渲染，末尾是「创建卡片」磁贴，所以"一张卡都没有"就是正常状态（见 4.5）。
 > - **P4 隐藏** 已整体删除（见 9.3）；这一行保留只为对上当时的交付记录，**不是待办**。
-> - 同样地，"验收标准的条数"也随需求方案修订变化——**现在是 16 条**，当前映射见[附录 B](#附录-b验收映射)；P9 那一行的出口标准指的是当时那一版的需求 §13。
+> - 同样地，"验收标准的条数"也随需求方案修订变化——**现在是 48 条**（1–16 既有卡片能力、17–34 按钮触发执行、35–48 编辑器与配置页，三组都已验收），当前映射见[需求方案 · 附录 A](workbench-card-requirements.md#附录-a验收标准映射)与[技能卡详细设计 · 附录 B](workbench-skill-card-detailed-design.md#附录-b验收映射)；P9 那一行的出口标准指的是当时那一版的需求 §13。
 >
 > 段落里"P3 之后追加一次同源双窗口的手工验证"指当时的做法；今天的自动化覆盖见 7.1、9.1 与 9.2。
 
@@ -623,7 +623,7 @@ P2/P3 里"卡片插件注册并渲染"与"跨窗口一致"的验收目前由包�
 | 稳定版 | `["插件","工作台"]` | 通过，截图 `%TEMP%\dsh-workbench-desktop.png` |
 | Beta | `["插件","自动化任务","工作台"]` | 通过，截图 `%TEMP%\dsh-workbench-desktop-beta.png` |
 
-两张截图都显示：工作台行位于插件（Beta 另有自动化任务）之后、工作区区域之前；主框架是工作台页面（标题、副标题、刷新按钮、卡片网格与末尾的创建卡片磁贴）。截图里那条"预览版说明"浮层是上游首启引导，会挡住指针事件，因此脚本用直接派发点击事件的方式激活行——这解释了为什么断言不是用 `click()`。
+两张截图都显示：工作台行位于插件（Beta 另有自动化任务）之后、工作区区域之前；主框架是工作台页面（标题、副标题、卡片网格与末尾的创建卡片磁贴；截图当时页头还有一个刷新按钮，该控件后来按"没有可见效果"移除）。截图里那条"预览版说明"浮层是上游首启引导，会挡住指针事件，因此脚本用直接派发点击事件的方式激活行——这解释了为什么断言不是用 `click()`。
 
 浏览器这一层是**可选**的：脚本在 Playwright 缓存里找不到 `chromium*` 时打印一行 skipped 并继续（加 `--require-workbench-browser` 则改为失败）。这样无浏览器的 CI 不会因为缺二进制而红，而需要严格验证的机器可以显式要求。
 
@@ -642,7 +642,7 @@ P4 交付的隐藏是一条**通用**能力：外壳有 `onHide`，布局记录�
 | 布局服务 / 路由 | 读取与写入里的 `hidden`、`hidden must be a boolean` 校验 | 补丁只带排序；`position` 缺省即删除 |
 | 客户端传输与控制器 | `hidden` 解析、`setHidden`、`showAll`、`hiddenIds` | view 只有 `visibleIds`，actions 只有 `reorder` / `moveBy` / `reset` / `refresh` / `setDragging` |
 | 卡片外壳 | `onHide` 与 `onRemove ?? onHide` 回退、`data-workbench-hide` | X **只在提供 `onRemove` 时渲染**，且只表示删除；不提供就没有那个按钮 |
-| 页面 | 「更多卡片」菜单、「全部隐藏」空态、页脚的隐藏角标 | 页头只剩刷新按钮；网格永远渲染，末尾是创建卡片磁贴 |
+| 页面 | 「更多卡片」菜单、「全部隐藏」空态、页脚的隐藏角标 | 页头只剩标题与副标题（刷新按钮后来也按"没有可见效果"移除）；网格永远渲染，末尾是创建卡片磁贴 |
 | 文案 | `hideCard`、`showCard`、`announceHidden`、`announceShown` | 字典里不再有隐藏相关文案 |
 
 **排序、拖拽、键盘移动与重置一字未动**：只有隐藏这一维被拿掉。`reset()` 仍留在控制器里（它把记录删回未排定状态），但**不再有可见控件**——P4 时代那只"更多卡片"菜单曾承载它。旧记录带 `hidden: true` 的兼容路径由回归用例钉住（`layout-spec.spec.ts`、`layout-service.spec.ts`、`layout-route.spec.ts`、`layout-api.spec.ts`、`layout-store.spec.ts`、`WorkbenchPage.spec.tsx`），外壳"没 `onRemove` 就不画 X"由 `WorkbenchCardShell.spec.tsx` 断言。

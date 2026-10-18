@@ -121,7 +121,13 @@ export interface WorkbenchActivationSpec {
         readonly prompt: readonly WorkbenchContentBlock[];
         /** Initial child directory; omitted inherits the parent's at start. */
         readonly cwd?: string;
-        readonly outputSchema: unknown;
+        /**
+         * Output contract the child must satisfy; omitted asks for no structured value.
+         *
+         * A bare run omits it: nothing is asked for, so nothing can fail to arrive, and the
+         * child's own stop reason is the verdict.
+         */
+        readonly outputSchema?: unknown;
     };
 }
 /** Subagent surface, narrowed to provider discovery and one activation. */

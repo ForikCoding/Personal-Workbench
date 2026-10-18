@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { analyzeTemplate, findRegion } from '../src/client/skill-card/template.ts'
+import { analyzeFragment, analyzeTemplate, findRegion } from '../src/client/skill-card/template.ts'
 import type { WorkbenchTemplateViolationCode } from '../src/client/skill-card/template.ts'
 
 /**
@@ -126,5 +126,210 @@ describe('workbench template analyser', () => {
       const html = '<!-- template-begin --><div><span onclick="x()">a</span></div><!-- template-end -->'
       expect(analyzeTemplate(html).violations[0]?.location).toBe('root > div > span')
     })
+  })
+
+  describe('action declarations', () => {
+    /**
+     * Wrap one declaration block in a template whose region is elsewhere.
+     * @param block - the comment block body.
+     * @returns the template.
+     */
+    function withActions(block: string): string {
+      return [
+        `<!-- dsh-actions\n${block}\n-->`,
+        '<!-- template-begin -->',
+        '<tr></tr>',
+        '<!-- template-end -->',
+      ].join('\n')
+    }
+
+    it('reads one card target and one skill target', () => {
+      const analysis = analyzeTemplate(withActions('  start:  card  "启动任务"\n  finish: skill "task-finish"'))
+      expect(analysis.violations).toEqual([])
+      expect(analysis.actions).toEqual([
+        { key: 'start', target: { kind: 'card', name: '启动任务' } },
+        { key: 'finish', target: { kind: 'skill', name: 'task-finish' } },
+      ])
+    })
+
+    it('declares nothing when the template has no block', () => {
+      // A template with no buttons is the normal case, not a violation.
+      const analysis = analyzeTemplate('<!-- template-begin --><p>a</p><!-- template-end -->')
+      expect(analysis.actions).toEqual([])
+      expect(analysis.violations).toEqual([])
+    })
+
+    it('ignores blank lines and comments inside the block', () => {
+      const analysis = analyzeTemplate(withActions('# 这一行是说明\n\n  start: card "A"\n'))
+      expect(analysis.actions).toHaveLength(1)
+      expect(analysis.violations).toEqual([])
+    })
+
+    it('refuses a second block', () => {
+      const html = [
+        '<!-- dsh-actions\n  a: card "A"\n-->',
+        '<!-- dsh-actions\n  b: card "B"\n-->',
+        '<!-- template-begin --><tr></tr><!-- template-end -->',
+      ].join('\n')
+      expect(codes(html)).toContain('action-declaration-duplicate')
+    })
+
+    it('refuses a key outside the grammar', () => {
+      for (const key of ['中文键', 'a{b', 'a}b']) {
+        expect(codes(withActions(`  ${key}: card "A"`))).toContain('action-key-invalid')
+      }
+    })
+
+    it('refuses the same key twice', () => {
+      expect(codes(withActions('  a: card "A"\n  a: skill "B"'))).toContain('action-key-repeated')
+    })
+
+    it('refuses an unknown target kind, a missing name, and an overlong name', () => {
+      expect(codes(withActions('  a: board "A"'))).toContain('action-target-invalid')
+      expect(codes(withActions('  a: card ""'))).toContain('action-target-invalid')
+      expect(codes(withActions(`  a: card "${'x'.repeat(61)}"`))).toContain('action-target-invalid')
+    })
+
+    it('refuses a block written inside the region', () => {
+      // The region is rewritten on every run, so a declaration inside it survives
+      // exactly until the first run — which reads to the user as "it worked once".
+      const html = [
+        '<!-- template-begin -->',
+        '<!-- dsh-actions\n  a: card "A"\n-->',
+        '<!-- template-end -->',
+      ].join('\n')
+      expect(codes(html)).toContain('actions-inside-region')
+    })
+
+    it('keeps the declared keys that survived a rejected line', () => {
+      // One bad line must not discard the whole block: the rest is still usable and the
+      // editor points at the offending line.
+      const analysis = analyzeTemplate(withActions('  a: card "A"\n  bad line here\n  b: skill "B"'))
+      expect(analysis.actions.map(item => item.key)).toEqual(['a', 'b'])
+      expect(analysis.violations.map(item => item.code)).toEqual(['action-target-invalid'])
+    })
+  })
+
+  describe('violation offsets', () => {
+    /**
+     * Wrap one declaration block in a template whose region is elsewhere.
+     * @param block - the comment block body.
+     * @returns the template.
+     */
+    function withBlock(block: string): string {
+      return [
+        `<!-- dsh-actions\n${block}\n-->`,
+        '<!-- template-begin -->',
+        '<tr></tr>',
+        '<!-- template-end -->',
+      ].join('\n')
+    }
+
+    /**
+     * The offset one code was reported at.
+     * @param html - the template.
+     * @param code - the code to look for.
+     * @returns its offset, when it carries one.
+     */
+    function offsetOf(html: string, code: WorkbenchTemplateViolationCode): number | undefined {
+      return analyzeTemplate(html).violations.find(violation => violation.code === code)?.offset
+    }
+
+    it('points an unclosed region at the marker that stands alone', () => {
+      const opening = '<!-- template-begin --><p>a</p>'
+      expect(offsetOf(opening, 'region-unclosed')).toBe(opening.indexOf('<!-- template-begin -->'))
+      const closing = '<p>a</p><!-- template-end -->'
+      expect(offsetOf(closing, 'region-unclosed')).toBe(closing.indexOf('<!-- template-end -->'))
+    })
+
+    it('points a repeated region at the marker that repeats', () => {
+      const html = '<!-- template-begin -->a<!-- template-end --><!-- template-begin -->b<!-- template-end -->'
+      expect(offsetOf(html, 'region-repeated')).toBe(html.indexOf('<!-- template-begin -->', 1))
+    })
+
+    it('points the removed placeholder syntax at its own match', () => {
+      const html = '<p>{{branch}}</p>'
+      expect(offsetOf(html, 'placeholder-syntax')).toBe(html.indexOf('{{branch}}'))
+    })
+
+    it('points a declaration block written inside the region at the block', () => {
+      const html = [
+        '<!-- template-begin -->',
+        '<!-- dsh-actions\n  a: card "A"\n-->',
+        '<!-- template-end -->',
+      ].join('\n')
+      expect(offsetOf(html, 'actions-inside-region')).toBe(html.indexOf('<!-- dsh-actions'))
+    })
+
+    it('points a bad declaration line at that place in the text, not at a line number', () => {
+      // The offset is what the editor selects, so it has to be an index into the
+      // document; a line number would put the caret in the wrong place.
+      const html = withBlock('  a: card "A"\n  bad line here\n  b: skill "B"')
+      expect(offsetOf(html, 'action-target-invalid')).toBe(html.indexOf('bad line here'))
+    })
+
+    it('points a repeated key at the second declaration', () => {
+      const html = withBlock('  a: card "A"\n  a: skill "B"')
+      const offset = offsetOf(html, 'action-key-repeated')
+      expect(offset).toBeDefined()
+      expect(html.startsWith('a: skill "B"', offset)).toBe(true)
+    })
+
+    it('points a second declaration block at that block', () => {
+      const html = [
+        '<!-- dsh-actions\n  a: card "A"\n-->',
+        '<!-- dsh-actions\n  b: card "B"\n-->',
+        '<!-- template-begin --><tr></tr><!-- template-end -->',
+      ].join('\n')
+      expect(offsetOf(html, 'action-declaration-duplicate')).toBe(html.indexOf('<!-- dsh-actions', 1))
+    })
+
+    it('approximates a content-policy position at the first tag of that kind', () => {
+      // A parsed DOM carries no source spans, so the position is an anchor on the
+      // right line rather than a claim about the offending node: both <img> reports
+      // land on the first one, which is the documented approximation.
+      const html = '<!-- template-begin --><img src="a"><div><img src="b"></div><!-- template-end -->'
+      const offsets = analyzeTemplate(html).violations.map(violation => violation.offset)
+      expect(offsets).toEqual([html.indexOf('<img'), html.indexOf('<img')])
+      expect(offsetOf('<script>alert(1)</script>', 'script')).toBe(0)
+    })
+
+    it('approximates an attribute violation at the element carrying it', () => {
+      const html = '<!-- template-begin --><button onclick="go()">x</button><!-- template-end -->'
+      expect(offsetOf(html, 'event-attribute')).toBe(html.indexOf('<button'))
+    })
+  })
+})
+
+describe('the fragment analyser', () => {
+  // The result editor edits a *region fragment*, which is not a document: it has no region
+  // markers and declares no actions. Reporting document-level refusals against it would
+  // block an edit for syntax that does not apply to a fragment at all.
+  it('reports nothing document-level about a plain fragment', () => {
+    expect(analyzeFragment('<tr><td>a</td></tr>')).toEqual([])
+  })
+
+  it('reports the five content-policy codes and only those', () => {
+    const cases: readonly { readonly html: string; readonly code: string }[] = [
+      { html: '<script>alert(1)</script>', code: 'script' },
+      { html: '<b onclick="x()">a</b>', code: 'event-attribute' },
+      { html: '<a href="javascript:void(0)">a</a>', code: 'unsafe-url' },
+      { html: '<iframe src="x"></iframe>', code: 'external-element' },
+      { html: '<div style="background: url(x.png)">a</div>', code: 'external-css' },
+    ]
+    for (const item of cases) {
+      expect(analyzeFragment(item.html).map(violation => violation.code), item.code)
+        .toEqual([item.code])
+    }
+  })
+
+  it('carries a path and an approximate position, which is what the editor shows', () => {
+    const fragment = '<div><script>alert(1)</script></div>'
+    expect(analyzeFragment(fragment)).toEqual([{
+      code: 'script',
+      location: 'root > div > script',
+      token: 'script',
+      offset: fragment.indexOf('<script'),
+    }])
   })
 })

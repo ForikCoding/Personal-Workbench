@@ -46,10 +46,12 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
         poll: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
         start: async () => ({ status: 'failed', code: 'unavailable', message: 'not used by these cases' }),
         cancel: async () => {},
+        saveResult: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
       },
       runSessionId: () => undefined,
     },
     closeCard: () => {},
+    openCard: () => {},
     api: {
       read: async () => ({ status: 'ok', snapshot: { revision: '1:0', entries: [] } }),
       write: async () => ({ status: 'ok', snapshot: { revision: '1:1', entries: [] } }),
@@ -294,21 +296,12 @@ describe('WorkbenchPage', () => {
     })
   })
 
-  it('re-reads the layout from the refresh control', async () => {
-    const read = vi.fn(async () => ({ status: 'ok' as const, snapshot: { revision: '4:0', entries: [] } }))
-    renderPage({ api: { read, write: props().api.write } })
-    await waitFor(() => { expect(read).toHaveBeenCalledTimes(1) })
-    fireEvent.click(screen.getByRole('button', { name: en.refreshAll }))
-    await waitFor(() => { expect(read).toHaveBeenCalledTimes(2) })
-  })
-
   it('offers the creation entry when no card exists', () => {
     // An empty card list is the normal first-run state, not an empty state to guide
     // out of. The grid holds the creation entry, so replacing the grid with a
     // message took away the only way to make the first card.
     renderPage({ useCards: ((selector: (snapshot: never[]) => unknown) => selector([])) as PageProps['useCards'] })
     expect(screen.getByText(en.createCard)).toBeTruthy()
-    expect(screen.getByRole('button', { name: en.refreshAll })).toBeTruthy()
   })
 
   it('offers no hiding control, because hiding is not a capability', () => {

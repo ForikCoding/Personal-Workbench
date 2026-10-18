@@ -20,6 +20,16 @@ export const WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/c
 /** Run control route: `POST` starts, `GET` polls, `DELETE` cancels. */
 export const WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`
 
+/**
+ * Stored-result edit route: `PUT` replaces one card's region HTML by hand.
+ *
+ * A route of its own rather than a fourth method on the run route: editing a result is
+ * not a run. It spends no model call, it has no phase to poll, and bending the run route
+ * into it would make every run precondition answer for an operation that does not run
+ * anything.
+ */
+export const WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`
+
 /** Contract version echoed in every response; a mismatched client refuses to parse. */
 export const WORKBENCH_SKILL_CARD_API_VERSION = 1
 
@@ -31,6 +41,23 @@ export const WORKBENCH_TEMPLATE_MAX_PER_CARD = 16
 
 /** Maximum bytes of one stored result, counted over the structured value and the text output. */
 export const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024
+
+/**
+ * Longest revision instruction a refine run accepts, in characters.
+ *
+ * The instruction is the user's own sentence about what to change, so the limit only
+ * bounds what one request carries and what the prompt spends on it; it is not a
+ * grammar. A paragraph is far more than a revision ever needs.
+ */
+export const WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH = 2_000
+
+/**
+ * Maximum bytes of the previous result a refine run replays into its prompt.
+ *
+ * The previous result is the region HTML of a stored result, so this is the same
+ * number that bounds a stored result: anything the card can show, it can revise.
+ */
+export const WORKBENCH_REFINE_PREVIOUS_MAX_BYTES = WORKBENCH_RESULT_MAX_BYTES
 
 /** Maximum request-body bytes accepted by the configuration route. */
 export const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024
@@ -70,6 +97,62 @@ export const WORKBENCH_OUTPUT_SCHEMA = {
   properties: { html: { type: 'string' } },
   required: ['html'],
   additionalProperties: true,
+}
+
+/**
+ * Attribute carrying the action key on a button a child authored.
+ *
+ * The key names a declaration the template holds, never a card or skill directly: the
+ * child may choose which declared target a row uses, but it cannot invent one.
+ */
+export const WORKBENCH_ACTION_ATTRIBUTE = 'data-dsh-action'
+
+/** Attribute carrying that row's raw fields, as JSON, on the same button. */
+export const WORKBENCH_PAYLOAD_ATTRIBUTE = 'data-dsh-row'
+
+/**
+ * The only attributes that produce behaviour.
+ *
+ * Closed on purpose. Reading is driven by this list rather than by a prefix, so an
+ * attribute a reader has not been taught — including a typo of one of these — does
+ * nothing at all instead of silently becoming a different action.
+ */
+export const WORKBENCH_ACTION_ATTRIBUTES = [
+  WORKBENCH_ACTION_ATTRIBUTE,
+  WORKBENCH_PAYLOAD_ATTRIBUTE,
+] as const
+
+/** Action key grammar, the same shape as an MCP server name. */
+export const WORKBENCH_ACTION_KEY_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
+
+/**
+ * Budget for one payload attribute, in UTF-8 bytes.
+ *
+ * A payload over budget is refused rather than truncated: a shortened payload would
+ * make the confirmation panel show one set of parameters while the run used another.
+ */
+export const WORKBENCH_ACTION_PAYLOAD_MAX_BYTES = 8 * 1024
+
+/**
+ * Marker opening the block where a template declares its action targets.
+ *
+ * The declaration lives in the template, outside the filled region, because the region
+ * is rewritten by the child on every run. A target the child could author would be a
+ * target the child could invent.
+ */
+export const WORKBENCH_ACTIONS_MARKER = 'dsh-actions'
+
+/** What one declared action points at. */
+export type WorkbenchActionTarget =
+  | { readonly kind: 'card'; readonly name: string }
+  | { readonly kind: 'skill'; readonly name: string }
+
+/** One target a template declares, addressed by the key its buttons carry. */
+export interface WorkbenchActionDeclaration {
+  /** Key a button references through `data-dsh-action`. */
+  readonly key: string
+  /** What that key resolves to. */
+  readonly target: WorkbenchActionTarget
 }
 
 /**
@@ -192,6 +275,45 @@ export interface WorkbenchResultRecord {
   readonly outputText?: string
   /** Provider-authored failure detail, if any. */
   readonly diagnostic?: string
+  /**
+   * When the region HTML was replaced by hand, in milliseconds since the epoch.
+   *
+   * Absent means every byte of this record came from a run. The field exists so the
+   * result can say it was edited without pretending a run produced it, and it is
+   * deliberately not a refinement-log entry: that log records instructions, and a hand
+   * edit is not one.
+   */
+  readonly editedAt?: number
+}
+
+/**
+ * Client-to-Host replacement of one card's region HTML.
+ *
+ * Only the HTML travels: everything else about the result — the skill, the stop reason,
+ * the raw output, the diagnostic — stays exactly as the record already holds it, because
+ * a hand edit is not a run and has nothing to say about any of them.
+ */
+export interface WorkbenchResultEditRequest {
+  /** Card whose stored result is being edited. */
+  readonly cardId: string
+  /** The region HTML to store, verbatim. */
+  readonly html: string
+}
+
+/** Successful result-edit body. */
+export interface WorkbenchResultEditResponse {
+  /** Contract version this Host speaks. */
+  readonly apiVersion: number
+  /**
+   * Revision after the write.
+   *
+   * Returned with the record so the client can refresh both halves of its snapshot from
+   * one response: a result updated against a stale revision would make the next
+   * configuration write conflict for no reason.
+   */
+  readonly revision: string
+  /** The record as stored, so the client needs no second read. */
+  readonly result: WorkbenchCardResult
 }
 
 /** One card's configuration as read, with the selected skill's template body. */
@@ -267,18 +389,70 @@ export interface WorkbenchSkillCatalogEntry {
   readonly userInvocable: boolean
 }
 
+/**
+ * What one run is asked to do.
+ *
+ * Three shapes rather than one flag, because the runs differ in more than a parameter:
+ * a card run exists to fill its template's region and has a contract to satisfy, a bare
+ * run executes a skill and answers only whether it worked, and a refine run revises a
+ * result the card already has.
+ */
+export type WorkbenchRunMode =
+  /**
+   * Card run: the stored template is carried into the prompt, its region is filled,
+   * and the child reports `{ html }`.
+   */
+  | { readonly kind: 'card' }
+  /**
+   * Bare run: the named skill, with no document to fill and nothing to report.
+   *
+   * The target names the skill itself: a bare run is triggered by a button whose
+   * target is a skill, which need not be the skill the reporting card is configured
+   * with.
+   */
+  | { readonly kind: 'bare'; readonly skill: string }
+  /**
+   * Refine run: revise a result this card already produced.
+   *
+   * The template still comes from the card's stored selection, so the request does not
+   * carry it — the Host answers "which document" the same way it does for a card run.
+   * The output contract is unchanged (`{ html }`), so parsing, cleaning and splicing
+   * are the card run's, reused rather than reimplemented.
+   */
+  | {
+    readonly kind: 'refine'
+    /** What to change, as the user wrote it. */
+    readonly instruction: string
+    /** The region HTML the revision starts from, verbatim. */
+    readonly previous: string
+  }
+
 /** Client-to-Host run start. */
 export interface WorkbenchRunRequest {
-  /** Card being run. */
+  /** Card the run is reported under; also how its state is polled. */
   readonly cardId: string
   /** Session whose live agent supplies the skill scope and the child's model. */
   readonly sessionId: string
+  /** What this run is asked to do. */
+  readonly mode: WorkbenchRunMode
   /**
-   * Output contract derived from the template on the client. Required because a
-   * template is the precondition for running; the Host validates it with the
-   * upstream object-rooted guard before handing it to a subagent.
+   * The row that triggered this run: the raw fields the clicked button carried.
+   *
+   * Absent for a run a human started from the card's own control, because no row stands
+   * behind it. When present the value travels into the child's prompt unchanged, which
+   * is what makes the confirmation panel's full-parameter display a gate rather than a
+   * description.
    */
-  readonly outputSchema: unknown
+  readonly payload?: Record<string, unknown>
+  /**
+   * Output contract, carried by every run that fills a template.
+   *
+   * Optional because a bare run has nothing to validate: its verdict is the child's
+   * own stop reason. The Host skips the contract preconditions when it is absent.
+   * A refine run sends the same fixed `{ html }` contract as a card run, because it
+   * returns the same thing.
+   */
+  readonly outputSchema?: unknown
 }
 
 /** Lifecycle phase of one card's run. */

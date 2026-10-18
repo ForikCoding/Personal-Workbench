@@ -4,7 +4,8 @@
  * timeout policy.
  *
  * The runner holds no durable state: a settled result goes to the store, and the
- * run table only carries what a polling client has to see until the next run.
+ * run table only carries what a polling client has to see until the next run. A
+ * bare run skips the store entirely, because its whole result is whether it worked.
  * @module dsh-workbench/skill-card-runner
  */
 
@@ -24,7 +25,7 @@ import type {
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from './skill-card-host.ts'
-import { renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
+import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
 
 /** Outcome of reading one session's skill catalog. */
 export type WorkbenchCatalogOutcome =
@@ -87,6 +88,13 @@ interface RunRecord {
   readonly cardId: string
   readonly startedAt: number
   readonly controller: AbortController
+  /**
+   * Whether this run fills a template.
+   *
+   * A bare run executes a skill and keeps nothing: no template, no contract, and no
+   * stored result. The flag is what keeps that promise in the paths that persist.
+   */
+  readonly bare: boolean
   phase: WorkbenchRunPhase
   retried: boolean
   result?: WorkbenchResultRecord
@@ -104,17 +112,50 @@ interface RunRecord {
   childId?: string | undefined
   /** The child's own failure text, captured from the host bus during the attempt. */
   childError?: string | undefined
+  /** Whether the deadline, rather than a caller, ended this run. */
+  timedOut: boolean
   timer?: ReturnType<typeof setTimeout>
 }
 
-/** What one attempt needs beyond the run record. */
-interface RunInput {
-  readonly agent: WorkbenchAgent
-  readonly skill: string
-  /** The card's HTML for this skill, carried into the prompt as the output template. */
-  readonly template: string
-  readonly outputSchema: unknown
-}
+/**
+ * What one attempt runs, in the shape its prompt needs.
+ *
+ * A discriminated union rather than a set of nullable fields: the runs that fill a
+ * template always have one and a contract, a bare run never has either, and a refine
+ * run additionally carries what it revises.
+ */
+type RunInput =
+  | {
+    readonly kind: 'card'
+    readonly agent: WorkbenchAgent
+    readonly skill: string
+    /** The card's HTML for this skill, carried into the prompt as the output template. */
+    readonly template: string
+    /** The row that triggered this run, when a click did. */
+    readonly payload?: Record<string, unknown>
+    readonly outputSchema: unknown
+  }
+  | {
+    readonly kind: 'refine'
+    readonly agent: WorkbenchAgent
+    readonly skill: string
+    /** The card's HTML for this skill, the same document a card run fills. */
+    readonly template: string
+    /** The region HTML the revision starts from, verbatim. */
+    readonly previous: string
+    /** What to change, verbatim. */
+    readonly instruction: string
+    /** The row that triggered this run, when a click did. */
+    readonly payload?: Record<string, unknown>
+    readonly outputSchema: unknown
+  }
+  | {
+    readonly kind: 'bare'
+    readonly agent: WorkbenchAgent
+    readonly skill: string
+    /** The row that triggered this run, when a click did. */
+    readonly payload?: Record<string, unknown>
+  }
 
 /** Outcome of one child execution. */
 type AttemptOutcome =
@@ -199,19 +240,22 @@ export class WorkbenchSkillCardRunner {
    *
    * Every precondition is answered before anything is started, so a rejected
    * start never leaves a child behind and never costs a model call.
-   * @param request - card, session, and the client's output contract.
+   * @param request - card, session, what the run is asked to do, and the client's contract.
    * @returns the started run's state, or why it was refused.
    */
   start(request: WorkbenchRunRequest): WorkbenchRunStartOutcome {
-    if (!looksLikeContract(request.outputSchema)) {
+    const mode = request.mode
+    // A bare run asks for no value, so a missing contract is not a defect there. Every
+    // run that fills a template — a first fill or a revision — has one to satisfy.
+    if (mode.kind !== 'bare' && !looksLikeContract(request.outputSchema)) {
       return reject('schema-rejected', 'the run carried no object-rooted output contract')
     }
-    const selection = this.options.selection(request.cardId)
-    if (selection.skill === undefined) {
+    // A refine run reads its document from the same stored selection a card run does:
+    // the request never carries the template.
+    const selection = mode.kind === 'bare' ? undefined : this.options.selection(request.cardId)
+    const skill = mode.kind === 'bare' ? mode.skill : selection?.skill
+    if (skill === undefined) {
       return reject('not-configured', 'no skill is configured for this card')
-    }
-    if (selection.template === undefined) {
-      return reject('template-missing', `no template is stored for skill "${selection.skill}"`)
     }
     const agent = this.options.host.agents.get(request.sessionId)
     if (agent === undefined) {
@@ -219,30 +263,71 @@ export class WorkbenchSkillCardRunner {
     }
     const providerName = this.options.subagentProvider
     const provider = this.options.host.subagents.getProvider(providerName)
-    if (provider === undefined || !provider.capabilities.outputSchema) {
+    if (provider === undefined) {
+      return reject('provider-unavailable', `subagent provider "${providerName}" is not registered`)
+    }
+    // Structured output is required by the runs that ask for a contract. A bare run
+    // reads the child's stop reason instead, so it does not need that capability.
+    if (request.outputSchema !== undefined && !provider.capabilities.outputSchema) {
       return reject('provider-unavailable', `subagent provider "${providerName}" cannot return structured output`)
     }
     if (this.runs.get(request.cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns) {
       return reject('run-in-progress', 'another run is already in flight')
     }
 
+    let input: RunInput
+    if (mode.kind === 'bare') {
+      input = {
+        kind: 'bare',
+        agent,
+        skill,
+        ...request.payload === undefined ? {} : { payload: request.payload },
+      }
+    } else {
+      const template = selection?.template
+      if (template === undefined) {
+        return reject('template-missing', `no template is stored for skill "${skill}"`)
+      }
+      input = mode.kind === 'refine'
+        ? {
+            kind: 'refine',
+            agent,
+            skill,
+            template,
+            previous: mode.previous,
+            instruction: mode.instruction,
+            ...request.payload === undefined ? {} : { payload: request.payload },
+            outputSchema: request.outputSchema,
+          }
+        : {
+            kind: 'card',
+            agent,
+            skill,
+            template,
+            ...request.payload === undefined ? {} : { payload: request.payload },
+            outputSchema: request.outputSchema,
+          }
+    }
+
     const run: RunRecord = {
       cardId: request.cardId,
       startedAt: this.now(),
       controller: new AbortController(),
+      bare: mode.kind === 'bare',
       phase: 'running',
       retried: false,
+      timedOut: false,
     }
-    run.timer = setTimeout(() => { run.controller.abort() }, this.options.runTimeoutMs)
+    run.timer = setTimeout(() => {
+      // Recorded before the abort so the settle path can tell a deadline from a
+      // caller's cancellation.
+      run.timedOut = true
+      run.controller.abort()
+    }, this.options.runTimeoutMs)
     this.runs.set(request.cardId, run)
     this.active += 1
 
-    const execution = this.execute(run, {
-      agent,
-      skill: selection.skill,
-      template: selection.template,
-      outputSchema: request.outputSchema,
-    })
+    const execution = this.execute(run, input)
     this.inflight.add(execution)
     void execution
       .catch((error: unknown) => { this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`) })
@@ -349,7 +434,7 @@ export class WorkbenchSkillCardRunner {
   /**
    * Run the child once.
    * @param run - the run record owning cancellation.
-   * @param input - resolved agent, skill name, and output contract.
+   * @param input - the agent, skill, and either the card's template and contract or nothing.
    * @param cwd - the agent's working directory.
    * @param skill - the loaded skill.
    * @returns the attempt's outcome.
@@ -371,9 +456,18 @@ export class WorkbenchSkillCardRunner {
       delivery: 'caller',
       request: {
         parent: input.agent,
-        prompt: [{ type: 'text', text: renderWorkbenchSkillPrompt(skill, input.template) }],
+        prompt: [{
+          type: 'text',
+          text: input.kind === 'card'
+            ? renderWorkbenchSkillPrompt(skill, input.template, input.payload)
+            : input.kind === 'refine'
+              ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload)
+              : renderWorkbenchBarePrompt(skill, input.payload),
+        }],
         ...cwd === undefined ? {} : { cwd },
-        outputSchema: input.outputSchema,
+        // Conditional on purpose: a bare run sends no contract at all, and the seam
+        // treats its absence as "nothing to capture" rather than as a default.
+        ...input.kind === 'bare' ? {} : { outputSchema: input.outputSchema },
       },
     })
     // Bound before awaiting the result: the child may fault while it runs, and the bus
@@ -382,7 +476,11 @@ export class WorkbenchSkillCardRunner {
     run.childError = undefined
     try {
       const result = await activation.result
-      const stored = toResultRecord(input.skill, result, this.now())
+      // A refine run settles exactly like a card run: it captured `{ html }`, so the
+      // record is the same shape and the store, retry and failure paths are reused.
+      const stored = input.kind === 'bare'
+        ? toBareRecord(input.skill, result, this.now())
+        : toResultRecord(input.skill, result, this.now())
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
       const record = result.stopReason === 'error'
@@ -390,7 +488,26 @@ export class WorkbenchSkillCardRunner {
         && run.childError !== undefined
         ? { ...stored, diagnostic: run.childError }
         : stored
-      if (signal.aborted || result.stopReason === 'aborted') return { kind: 'cancelled', record }
+      if (signal.aborted || result.stopReason === 'aborted') {
+        // A bare run has no cancel control, so the only thing that aborts one is the
+        // deadline — and a deadline is a failure with a reason, not a cancellation.
+        if (input.kind === 'bare' && run.timedOut) {
+          return { kind: 'unusable', record, failure: 'the skill run timed out', retryable: false }
+        }
+        return { kind: 'cancelled', record }
+      }
+      if (input.kind === 'bare') {
+        // Nothing was asked for, so the child's own stop reason is the whole verdict.
+        return result.stopReason === 'completed'
+          ? { kind: 'captured', record }
+          : {
+            kind: 'unusable',
+            record,
+            failure: bareFailure(result, record.diagnostic),
+            // Repeating a bare run would spend another model call for the same verdict.
+            retryable: false,
+          }
+      }
       const usable = result.structured !== undefined && result.stopReason === 'completed'
       return usable
         ? { kind: 'captured', record }
@@ -411,10 +528,10 @@ export class WorkbenchSkillCardRunner {
    *
    * Both a captured and an unusable result are kept: the card renders the value
    * when there is one, and the text output is what "view raw output" shows when
-   * there is not.
+   * there is not. A bare run settles the same way but stores nothing.
    * @param run - the run record to settle.
    * @param outcome - the last attempt's outcome.
-   * @returns resolution after the result is durable.
+   * @returns resolution after the result is durable, or immediately for a bare run.
    */
   private async finish(run: RunRecord, outcome: AttemptOutcome): Promise<void> {
     if (outcome.kind === 'cancelled') {
@@ -435,6 +552,9 @@ export class WorkbenchSkillCardRunner {
       run.failure = outcome.failure
       run.failureCode = 'run-failed'
     }
+    // A bare run keeps nothing: its verdict stays in the run table for this session
+    // and a reload leaves the card showing its own stored result.
+    if (run.bare) return
     try {
       await this.options.saveResult(run.cardId, outcome.record)
     } catch (error) {
@@ -544,12 +664,49 @@ function toResultRecord(skill: string, result: WorkbenchSubagentResult, executed
 }
 
 /**
+ * Project one bare child result onto the in-memory record.
+ *
+ * Deliberately narrower than {@link toResultRecord}: a bare run answers only whether
+ * it worked, so neither a structured value nor the output text is kept. Keeping them
+ * would put a model's prose one field away from a surface that must show only the
+ * verdict.
+ * @param skill - the skill that ran.
+ * @param result - the child's terminal result.
+ * @param executedAt - completion time.
+ * @returns the in-memory record.
+ */
+function toBareRecord(skill: string, result: WorkbenchSubagentResult, executedAt: number): WorkbenchResultRecord {
+  return {
+    skill,
+    executedAt,
+    stopReason: result.stopReason,
+    ...result.diagnostic === undefined ? {} : { diagnostic: result.diagnostic },
+  }
+}
+
+/**
  * Join the text blocks of a child's final output.
  * @param output - the child's output blocks.
  * @returns the concatenated text.
  */
 function textOf(output: readonly { readonly type: string; readonly text?: string }[]): string {
   return output.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
+}
+
+/**
+ * Describe why a bare run did not succeed.
+ *
+ * There is no capture to miss here, so the stop reason is the reason; the child's own
+ * error text, when the bus carried one, is what makes it actionable.
+ * @param result - the child's terminal result.
+ * @param diagnostic - the diagnostic already read off the record, if any.
+ * @returns a readable reason.
+ */
+function bareFailure(result: WorkbenchSubagentResult, diagnostic?: string): string {
+  const detail = diagnostic ?? result.diagnostic
+  return detail === undefined
+    ? `the skill run ended as ${result.stopReason}`
+    : `the skill run ended as ${result.stopReason}: ${detail}`
 }
 
 /**

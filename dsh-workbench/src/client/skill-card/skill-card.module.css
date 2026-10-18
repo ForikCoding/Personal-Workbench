@@ -51,29 +51,17 @@
   line-height: 18px;
 }
 
-/* What the run is doing, stated at every moment. */
-
-.runStatus {
-  margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.runStatus[data-run-status='running'] {
-  color: var(--dsw-alias-label-primary);
-}
-
 .runProblem {
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid var(--dsw-alias-border-focus);
+  border: 1px solid var(--dsw-alias-brand-primary);
   border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-primary);
   font-size: 12px;
   line-height: 18px;
 }
 
+/* The hairline that separates the run's debug detail from the result above it. */
 .runOutput {
   border-top: 1px solid var(--dsw-alias-border-l1);
   padding-top: 8px;
@@ -122,6 +110,191 @@
   overflow-wrap: anywhere;
 }
 
+/* The region HTML as the run produced it: real newlines, and long lines scroll rather
+   than fold. A folded tag reads as several lines of a different tag. */
+.runPreHtml {
+  max-height: 320px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  overflow: auto;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre;
+}
+
+/* The card's rendered document sits in its own frame. Without a border the template's
+   content reads as the page's own. Nothing inside it is styled here: the document is
+   the user's, inside its own shadow root.
+
+   The boundary rests on the padding alone: this surface carried a heading row with a
+   hairline under it until the product owner removed that row as noise, and what keeps
+   the rendered document — which brings its own shadow and radius — off the border is
+   now the 12px gutter around it. Lowering it would leave the document flush. */
+.resultSurface {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-md);
+  min-width: 0;
+}
+
+/* The result's own editor, which takes the surface's content slot where the rendered
+   document was. Gaps rather than margins: the status line, the field, the refusals and the
+   two controls are one column of four things. */
+.resultEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Revising the result is a sentence about what is on screen, so the composer sits
+   directly under it: field and send on one line, the log of what was already asked
+   below. */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The field grows upwards from one row and the regenerating control sits beside it, so
+   the control has to stay at the bottom edge rather than float beside the middle of a
+   four-row field. The gap is what keeps a disabled control reading as "nothing written
+   yet" instead of as part of the field. */
+.composerRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because
+   this is the same kind of input as the conversation's: `min-height: 36px` and
+   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in
+   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value
+   `--dsw-radius-panel`, and the type is the card's own inherited
+   `var(--dsh-content-font-size, 14px)` over
+   `calc(24px + var(--dsh-content-font-delta, 0px))`.
+   The bottom inset is the one value restated rather than copied: the chat field's bottom
+   space comes from the toolbar row beneath it, while this field ends on its own border,
+   so it repeats the top inset instead of sitting its last line on the edge. */
+.composerInput {
+  /* The chat card's own stroke colour, so the field's edge is the same hairline the
+     elevation token draws around the conversation's composer. */
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 36px;
+  /* Four rows of the same line box, plus its own insets and border. Past that the field
+     scrolls rather than growing. */
+  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);
+  padding: 4px 8px 4px 14px;
+  border: 0;
+  border-radius: var(--dsw-radius-panel);
+  background: var(--dsw-specific-input-major);
+  box-shadow: var(--dsw-elevation-soft);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: var(--dsh-content-font-size, 14px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  resize: none;
+  overflow-y: auto;
+}
+
+.composerInput::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+
+/* The chat composer's own disabled treatment: the text it holds stays readable but stops
+   looking like something that can be written into. */
+.composerInput:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: not-allowed;
+}
+
+.composerInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+
+/* A refusal of the last revision, stated where the ask was made. */
+.composerProblem {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* The log reads as a conversation: the instruction, then when it was applied. */
+.refineLog {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The log's header: how many revisions it holds, and the one step back they allow. */
+.refineLogHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.refineLogTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.refineLogList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One entry is a sentence and its moment, in that order. The row used to be a flex line
+   with the time pushed to the far edge, which put the two facts at opposite ends of a
+   full-width row and made the time look like a column of its own. */
+.refineLogItem {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.refineLogInstruction {
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
+}
+
+.refineLogTime {
+  margin-left: 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The block's last line, and the only place that says how long any of it lives. */
+.refineLogNote {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .notice {
   display: flex;
   flex-direction: column;
@@ -148,14 +321,53 @@
 .settings {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  min-width: 0;
+}
+
+/* One group of the configuration page: a heading, its controls, and a hairline above
+   every group but the first. Groups rather than nested cards — a card inside the
+   page's own surface reads as a second frame around the same thing. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 20px 0;
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.section + .section {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+/* Two fields on one row. At this width a full-width field is a long empty box beside
+   a short label, so each is held to the width its content needs. */
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
   min-width: 0;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* 320–360px: wide enough for a long name, narrow enough for two on one row. */
+  width: 340px;
+  max-width: 100%;
+  min-width: 0;
+  gap: 6px;
 }
 
 .fieldLabel {
@@ -178,15 +390,131 @@
 }
 
 .editor {
-  min-height: 120px;
+  min-height: 320px;
   padding: 6px;
   font-family: monospace;
   resize: vertical;
 }
 
+/* The editor is the page's main work surface, so one line above it carries the three
+   facts a writer needs while typing: where the region is, what the template declares,
+   and how much of the size budget it uses. */
+.editorStatus {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* A template with no region cannot run at all, so the whole line turns into the
+   warning rather than one clause of it. */
+.editorStatusMissing {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+/* Above 85% of the byte budget the count is the fact that matters. */
+.editorStatusWarn {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+/* The one control this line carries: writing the missing markers. It inherits the
+   line's type so it reads as part of the sentence. */
+.editorStatusAction {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Gutter plus text area in one row. The two must share font, size, line height and
+   vertical padding, or the numbers stop lining up with the lines they label. */
+.editorPane {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
+}
+
+/* The gutter. Its lines are separate elements so one band can be drawn across the
+   region's lines and a second, subtler one across the action block. Font, size, line
+   height and vertical padding are restated on the lines themselves, because a band
+   that changes any of them pulls the numbers off the text they label. */
+.gutter {
+  margin: 0;
+  padding: 6px 0;
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+  /* Scrolling happens in the text area; the gutter follows it in code. */
+  overflow: hidden;
+  user-select: none;
+}
+
+/* One numbered line, which is also its own click target. The transparent left border
+   is what keeps every number in one column once a banded line adds a coloured border
+   of the same width. */
+.gutterLine {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.gutterLine:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The region a child fills: the two marker lines and everything between them. */
+.gutterLineRegion {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);
+  border-left-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The action declaration block, drawn more faintly so the two bands stay
+   distinguishable in a template that has both. */
+.gutterLineActions {
+  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);
+  border-left-color: var(--dsw-alias-label-tertiary);
+}
+
+.editorPane .editor {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 6px 8px;
+}
+
+.editorPane .editor:focus-visible {
+  border: 0;
+  outline: none;
+}
+
+.editorPane:focus-within {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
 .editor:focus-visible,
 .select:focus-visible {
-  border-color: var(--dsw-alias-border-focus);
+  border-color: var(--dsw-alias-brand-primary);
   outline: none;
 }
 
@@ -198,10 +526,44 @@
   line-height: 1.6;
 }
 
-.previewPane {
+/* A violation is a jump target: clicking it puts the caret on the construct it names.
+   It keeps the list's own type and colour so the list still reads as a list. */
+.violationJump {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+
+.violationJump:hover,
+.violationJump:focus-visible {
+  color: var(--dsw-alias-label-primary);
+  text-decoration-style: solid;
+}
+
+/* The preview's own surface, inset from the page. What is inside is the user's
+   document in a shadow root, so only this frame is styled here. */
+.previewSurface {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.previewLabel {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .preview {
@@ -215,8 +577,235 @@
   gap: 6px;
 }
 
-.permission {
-  margin: 8px 0 0;
+/* The declaration builder: a small form that writes one line into the template. */
+
+.actionBuilder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.builderRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  min-width: 0;
+}
+
+.builderField {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The key's grammar, and the reason the confirm button is disabled. It is a line of
+   text rather than a tooltip because it has to be readable while typing. */
+.hint {
+  margin: 0;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
+  line-height: 16px;
+}
+
+.hintError {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* The page's footer, pinned to the bottom of the scroll container: saving must not
+   depend on scrolling past a preview that can be arbitrarily tall. */
+.configFooter {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footerSpacer {
+  flex: 1 1 auto;
+}
+
+/* What the second press will do, stated where the press happens. */
+.deletePrompt {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* Both selectors carry two classes so the colour wins over the shared Button's own
+   `color` and `:hover` rules whatever order the two stylesheets load in. */
+.footerActions .deleteCard {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.footerActions .deleteCard:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* A write the controller refused used to leave the page looking untouched. */
+.writeFailure {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* The permission note, demoted to a footnote: it is a statement about the page, not
+   part of the document the card renders, and it stands beneath everything. */
+.permission {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* The in-place confirmation panel, which takes the card's display area the way the
+   editor does. */
+
+.actionPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+}
+
+.actionFacts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.actionFacts dt {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.actionFacts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing
+   standing between a model-authored row and the run that receives it. */
+.actionPayload {
+  max-height: 240px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  overflow: auto;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A bare run's one line: whether it is still going, and how it ended. */
+
+.bareRun {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.bareRun[data-bare-run='settled'] {
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are
+   pointless; narrower, stacking them pushes whichever is second below the fold, so the
+   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */
+.panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* A grid child defaults to min-width auto, which lets the editor's content widen the
+   column instead of scrolling inside it. */
+.panes > .section {
+  min-width: 0;
+}
+
+.paneTabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.paneTab {
+  flex: 1 1 auto;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: calc(var(--dsw-radius-sm) - 1px);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.paneTab[aria-selected='true'] {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.paneTab:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+
+@media (min-width: 1100px) {
+  .panes {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  /* Both panes are visible, so a tab strip would only repeat their headings. */
+  .paneTabs {
+    display: none;
+  }
+}
+
+@media (max-width: 1099px) {
+  /* The selected tab already names the pane, so the heading would say it twice. */
+  .panes .sectionTitle {
+    display: none;
+  }
+
+  .panes[data-pane='edit'] > .section:nth-of-type(2),
+  .panes[data-pane='preview'] > .section:nth-of-type(1) {
+    display: none;
+  }
 }

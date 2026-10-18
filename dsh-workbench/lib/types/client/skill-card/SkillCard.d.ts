@@ -9,10 +9,27 @@
 import { type ReactNode } from 'react';
 import type { InjectFace, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { WorkbenchLocaleKey } from '../locales.ts';
+import type { WorkbenchActionEvent } from './render.ts';
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 /** Identity of the one skill card. */
 export declare const SKILL_CARD_ID = "skill-card";
+/**
+ * Read the title one card face shows.
+ *
+ * Kept next to the face that applies it, because an action declaration addresses a
+ * card by the name the user sees: resolving that name has to fall back exactly the
+ * same way, or a declaration pointing at a nameless card would never resolve.
+ * @param stored - the stored card record.
+ * @param stored.cardId - the card's identity.
+ * @param stored.name - the user's name for it, when one is stored.
+ * @param t - translator, for the default card's own label.
+ * @returns the visible title.
+ */
+export declare function cardFaceTitle(stored: {
+    readonly cardId: string;
+    readonly name?: string | undefined;
+}, t: (key: WorkbenchLocaleKey) => string): string;
 /** Injected share of the skill card entry. */
 export interface SkillCardFace {
     /** Transport. */
@@ -59,13 +76,25 @@ export interface SkillCardBodyProps {
      * @returns the localized text.
      */
     readonly t: (key: WorkbenchLocaleKey) => string;
+    /**
+     * Called when a button inside the rendered document is clicked.
+     *
+     * Omitted leaves the document inert, which is the whole of what a card without a
+     * confirmation panel should do with a child-authored button.
+     * @param event - the action the click resolved to, or why it could not be read.
+     */
+    readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined;
 }
 /**
  * Render the card's content.
- * @param props - the view and `t`.
+ *
+ * The permission note is not here: the result page carries it as a footnote beneath
+ * everything, because it is a statement about the page rather than part of the document
+ * the card renders.
+ * @param props - the view, `t`, and the click outlet.
  * @returns the body element.
  */
-export declare function SkillCardBody({ view, t }: SkillCardBodyProps): ReactNode;
+export declare function SkillCardBody({ view, t, onAction }: SkillCardBodyProps): ReactNode;
 /**
  * Choose the status line for a higher-priority fact.
  * @param code - the failure code.

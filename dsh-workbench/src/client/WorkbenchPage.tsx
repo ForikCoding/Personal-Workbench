@@ -43,6 +43,13 @@ export interface WorkbenchPageInjected {
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
+  /**
+   * Open one of a card's full-panel views.
+   *
+   * A card action whose target is a card starts that card's run and then shows it,
+   * which is a navigation across cards rather than within one.
+   */
+  readonly openCard: (cardId: string, view: WorkbenchCardSelection['view']) => void
 }
 
 /** Composed props of the workbench page. */
@@ -94,7 +101,7 @@ function storedCardsFrom(cards: readonly { readonly cardId: string; readonly nam
  * @returns the page element.
  */
 export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
-  const { useCards, useSelection, api, skillCards, closeCard, renderSlot, t, usePanelInfo } = props
+  const { useCards, useSelection, api, skillCards, closeCard, openCard, renderSlot, t, usePanelInfo } = props
   const cards = useCards(snapshot => snapshot)
   const selection = useSelection(snapshot => snapshot)
   const active = usePanelInfo(info => info.activePanelId === 'workbench')
@@ -216,6 +223,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         runSessionId: skillCards.runSessionId,
         fallbackTitle: labelOf(selection.cardId),
         onBack: closeCard,
+        openCard,
         t,
       }
       return selection.view === 'result'
@@ -225,15 +233,14 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
 
   return (
     <div className={css.page}>
+      {/* Every view of the workbench carries the workbench's own title, including the
+          card pages: they are views of this panel, not separate destinations, and the
+          card's own head (back control, name) sits below it. Without it a card page
+          started flush at the top edge and read as a different place. */}
       <header className={css.pageHead}>
         <div>
           <h1 className={css.pageTitle}>{t('title')}</h1>
           <p className={css.pageIntro}>{t('subtitle')}</p>
-        </div>
-        <div className={css.toolbar}>
-          <button type="button" className={css.control} onClick={() => { actions.refresh() }}>
-            {t('refreshAll')}
-          </button>
         </div>
       </header>
       {content}

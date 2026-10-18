@@ -44,6 +44,7 @@ function request(overrides: Partial<WorkbenchRunRequest> = {}): WorkbenchRunRequ
   return {
     cardId: 'skill-card',
     sessionId: AGENT.id,
+    mode: { kind: 'card' },
     outputSchema: { type: 'object', properties: {} },
     ...overrides,
   }

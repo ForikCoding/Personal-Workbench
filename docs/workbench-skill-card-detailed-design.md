@@ -2,6 +2,12 @@
 
 [需求方案](workbench-card-requirements.md)回答"要什么"。本文回答"怎么做"——把技能卡拆成 14 个模块，逐个讲清楚。
 
+> **修订说明。** 本文随需求方案第十版同步。上一版（第九版）的五件事（编辑区与聊天输入区同形、运行中的停止控制、运行详情的两处可读性修正（开关改名与去缩进）与结束原因本地化、修改记录的头部行、面板标题回归）落在本文的 **M10**（结果页与微调编辑区、面板标题所在的 `WorkbenchPage.tsx`）、**M8**（取消动作与微调状态）与 **M13 / M14 / 附录 B** 上，验收标准由 56 条增至 60 条（那一批落地时整个包是 453 个测试 / 34 个 spec 文件）。
+>
+> **本轮（第十版）加的是手工编辑结果**：结果表面里就地打开一个编辑器，改的是**存盘的那段区间片段**（不是模板、不是 DOM），保存后它就是这张卡的结果，记录上多一个 `editedAt`，运行详情里多一行「手工编辑」，而它**不进修改记录**、仍可用「回到上一版」退回一步。它落在本文的 **M10**（结果页与 `SkillCardResultEditor.tsx`、`text-editing.ts`、`violation-copy.ts`）、**M8**（`saveResultEdit` 与 `api.saveResult`）、**M1**（`editedAt`、结果写请求与回执）、**M4**（`workbenchResultSchema`）与 **M6**（`PUT /api/workbench/skill-card/result`）上；验收标准由 60 条增至 **70 条**，本批落地时整个包是 **505 个测试 / 37 个 spec 文件**，`corepack yarn workspace dsh-workbench check` exit 0。需求侧的条目编号、决策表与验收分组见[需求方案 §19 与 §14.6](workbench-card-requirements.md#146-已实现并验收6170)。
+>
+> **本轮（第十一版）撤掉结果页的两处噪音。** 产品负责人判定两样东西都是噪音：结果面上方那行**状态行**（`✓ 已完成 · 14:28:36 · 用时 42s`，连带 `data-run-status` 钩子、`runStatusLine` 一族函数，以及四个状态词与 `runDuration` 这些失去读者的 locale key），以及结果表面里那行**「结果」`h3`**（连同它的 `resultHead` 头部行、细线与 `useId`/`aria-labelledby` 配对、`skillCardResultHeading` 这个 key）。两处都整行删除，**没有被任何东西替代**；结果表面的边框、圆角与内边距留下，容器的边界从此只靠内边距把渲染文档挡在边框之外。状态与时间这两个事实没有丢——结束原因与开始时间一直在「运行详情」里。需求侧的验收标准 **52** 因此撤回、编号保留（并顺带撤回 FR-38）。这一批落地时整个包是 **501 个测试 / 37 个 spec 文件**。
+
 ## 怎么读这份文档
 
 每个模块按 **STAR** 四段展开，读法如下：
@@ -20,7 +26,7 @@
 ```
 用户在工作台上看到技能卡
         │
-        │ ① 点齿轮：选一个 skill，写整份 HTML 文档（区间标记 + 注释）
+        │ ① 点「配置」：选一个 skill，写整份 HTML 文档（区间标记 + 注释）
         ▼
    ┌─────────────────────────────────────────┐
    │ 客户端：分析模板——有恰好一对区间吗？      │  ← M2 模板引擎
@@ -43,12 +49,15 @@
         │ ④ 客户端把 html 拼回骨架、清洗、放进影子根
         ▼
    卡片上显示出一张表格／列表／任意排版（骨架逐字节不变）
+        │ ⑤ 不满意时不必重跑：写一句要求，宿主在「上一版」上再跑一次
+        ▼
+   结果就地替换；上一版与修改记录只留在本次会话（M8、M10）
 ```
 
 三条贯穿全文的线索：
 
 1. **模板是前置条件。** 没有模板就没有可交给子代理的规格，也没有可供拼回结果的骨架（需求决策 20）。
-2. **两个不可信来源，信任级别并不相同。** 用户写的骨架是自伤面（会被复制粘贴），而子代理回填的 HTML 片段来自**模型**——它读过模板、skill 以及 skill 工具的输出。注入链断在"逐次清洗"与影子根这两处（M3、M12）。
+2. **两个不可信来源，信任级别并不相同。** 用户写的骨架是自伤面（会被复制粘贴），而子代理回填的 HTML 片段来自**模型**——它读过模板、skill 以及 skill 工具的输出。注入链断在"逐次清洗"与影子根这两处（M3、M12）。微调的 `<previous_result>` 也属于这一侧：那段 HTML 是上一次模型写的，进下一次提示词时同样不可信。
 3. **skill 必须按 agent 作用域读。** 裸读在真实组合里返回空数组，这不是优化而是必需（M5）。
 
 > **第二版的三件事已删除，不要在这份文档里找它们：** 占位符 `{{字段}}` 与循环标记 `data-dsh-each` 的文法、`deriveTemplate` 的契约反推、编辑器里的字段清单与占位样值预览。今天的模板语言只有一对区间标记，输出契约只有一个固定常量。
@@ -64,9 +73,9 @@
 | **M5** | 执行服务 | `src/skill-card-runner.ts` | Agent → skill → 子代理 → 结构化结果 |
 | **M6** | 私域路由 | `src/skill-card-route.ts` | 浏览器访问宿主的 6 个入口 |
 | **M7** | 插件入口与配置 | `src/index.ts`、`src/config.ts` | 启动时装配全部能力，暴露可调项 |
-| **M8** | 客户端传输与状态 | `src/client/skill-card/api.ts`、`controller.ts` | 页面需要的 view 与 actions |
+| **M8** | 客户端传输与状态 | `src/client/skill-card/api.ts`、`controller.ts`、`run-start.ts` | 页面需要的 view 与 actions，含微调的内存状态（记录、上一版、回退） |
 | **M9** | 卡片组件与装配 | `src/client/skill-card/SkillCard.tsx`、`src/client/index.ts` | 卡片本体，以及补上缺失的工厂注册 |
-| **M10** | 配置对话框与编辑器 | `src/client/skill-card/SkillCardSettings.tsx` 等 | 选 skill、写模板、就地校验、实时预览 |
+| **M10** | 编辑器与配置页（含结果页） | `src/client/skill-card/SkillCardSettings.tsx`、`SkillCardPages.tsx`、`ActionDeclarationPanel.tsx`、`declarations.ts`、`skeleton.ts`、`WorkbenchPage.tsx`（面板标题） | 三段配置页、行号栏、状态行、键盘、违例定位、声明构建器、骨架、并排/切换、页脚与两段式删除；结果页的结果表面、运行详情与微调编辑区（含运行中的停止控制） |
 | **M11** | 依赖与构建 | `package.json`、构建配置 | 声明新依赖，保持构建面不变 |
 | **M12** | 失败、可观测与安全（横切） | 贯穿各模块 | 两个不可信来源的处置与权限边界 |
 | **M13** | 测试设计 | `tests/` | 每层怎么验、验什么 |
@@ -118,6 +127,8 @@
 export const WORKBENCH_SKILL_CARD_PATH = '/api/workbench/skill-card'
 export const WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/catalog`
 export const WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`
+/** 手工编辑结果：一条独立的写，不是运行路由上的第四个方法。 */
+export const WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`
 export const WORKBENCH_SKILL_CARD_API_VERSION = 1
 ```
 
@@ -128,6 +139,29 @@ export const WORKBENCH_TEMPLATE_MAX_BYTES = 32 * 1024
 export const WORKBENCH_TEMPLATE_MAX_PER_CARD = 16
 export const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024
 export const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024
+/** 修改要求：字符上限。它是一句话，不是语法；上限只界定一次请求与提示词的花费。 */
+export const WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH = 2_000
+/** 上一版 HTML 的字节上限：与一条结果的预算相同——卡片能显示的结果，它都能微调。 */
+export const WORKBENCH_REFINE_PREVIOUS_MAX_BYTES = WORKBENCH_RESULT_MAX_BYTES
+```
+
+**运行模式**——三种，各自声明的不是一个标志位而是一种输入形状（见下）：
+
+| 模式 | 携带什么 | 模板从哪来 | 输出契约 |
+| --- | --- | --- | --- |
+| `card` | 无 | 存盘的选择 | `{html}` |
+| `bare` | `skill` | 没有模板 | 无（只读子代理的结束原因） |
+| `refine` | `instruction`、`previous` | 存盘的选择（**请求不带模板**） | `{html}`（与 `card` 同一个常量） |
+
+```ts
+/** 微调：在已有结果上按一句要求改一次。 */
+| {
+  readonly kind: 'refine'
+  /** 要改什么，逐字进入提示词。 */
+  readonly instruction: string
+  /** 修订的起点：屏幕上那份区间 HTML，逐字。 */
+  readonly previous: string
+}
 ```
 
 **文法常量**——模板语言只有一对区间标记，以及那份固定的输出契约：
@@ -151,13 +185,14 @@ export const WORKBENCH_OUTPUT_SCHEMA = {
 
 > **已废弃：** `WORKBENCH_LOOP_ATTRIBUTE`（`data-dsh-each`）与 `WORKBENCH_FIELD_PATTERN`（字段名文法）已随占位符语言一起删除。`deriveTemplate` 也不存在了——没有可推导的东西。
 
-**线上数据结构**——分四组：
+**线上数据结构**——分五组：
 
 | 组 | 类型 | 说明 |
 | --- | --- | --- |
-| 存储 | `WorkbenchCardConfigRecord`、`WorkbenchTemplateRecord`、`WorkbenchResultRecord` | 落盘的东西 |
+| 存储 | `WorkbenchCardConfigRecord`、`WorkbenchTemplateRecord`、`WorkbenchResultRecord` | 落盘的东西；结果记录自本轮起带 `editedAt?: number` |
 | 读取 | `WorkbenchSkillCardSnapshot`、`WorkbenchCardConfigView` | 打开工作台时拿到的 |
 | 写入 | `WorkbenchSkillCardPatch` | 改配置 |
+| 结果写 | `WorkbenchResultEditRequest`、`WorkbenchResultEditResponse` | 手工编辑结果：`{ cardId, html }` 进，`{ apiVersion, revision, result }` 出 |
 | 运行 | `WorkbenchRunRequest`、`WorkbenchRunState`、`WorkbenchRunPhase` | 执行相关 |
 
 ```ts
@@ -165,12 +200,31 @@ export const WORKBENCH_OUTPUT_SCHEMA = {
 export interface WorkbenchRunRequest {
   readonly cardId: string
   readonly sessionId: string
+  /** 这次运行被要求做什么：card / bare / refine，见上表。 */
+  readonly mode: WorkbenchRunMode
+  /** 触发这次运行的那一行原始字段；从卡片自己的控件发起的运行没有它。 */
+  readonly payload?: Record<string, unknown>
   /**
-   * 输出契约。**每次运行都送同一个常量** `WORKBENCH_OUTPUT_SCHEMA`：子代理只回报
-   * 填好的那段区间 HTML，没有按模板生成的契约。字段仍然保留，因为它是子代理启动
-   * 请求的一部分，宿主也对它做一次廉价的形状预检。
+   * 输出契约。**每次填模板的运行都送同一个常量** `WORKBENCH_OUTPUT_SCHEMA`（`card` 与
+   * `refine`）——子代理只回报填好的那段区间 HTML，没有按模板生成的契约。`bare` 不带它。
    */
-  readonly outputSchema: unknown
+  readonly outputSchema?: unknown
+}
+
+/**
+ * 手工编辑结果。请求只带两个字段：记录里的 skill、结束原因、原始输出与诊断都是
+ * "那次运行"的事实，编辑对它们无话可说；回执带上新记录与新 revision，页面因此不需要
+ * 再读一遍配置（否则拿旧 revision 的下一次配置写会白白冲突一次）。
+ */
+export interface WorkbenchResultEditRequest {
+  readonly cardId: string
+  readonly html: string
+}
+
+export interface WorkbenchResultEditResponse {
+  readonly apiVersion: number
+  readonly revision: string
+  readonly result: WorkbenchCardResult
 }
 ```
 
@@ -284,9 +338,19 @@ const content = template.content
 
 **规则只写一份。** 分析器（拒绝）与渲染器（清洗）共用 `policy.ts` 里的同一批判定：分析器漏掉一条，渲染时就会被静默移除，用户会以为模板生效了。
 
+#### 违例的位置：一个可选的源码偏移
+
+每条违例除了码与位置文案，还可以带一个 `offset`（模板文本里的字符下标）。它的精度分两档，**这个差别写进了类型的注释里**：
+
+- **精确**：文本扫描类——区间标记、占位符残留、声明块里的每一行。扫描时手里就有匹配的 `index`，报的就是它。
+- **近似**：五个内容策略码。它们来自遍历解析后的 DOM，而 DOM 不带源码区间，所以只能取"该标签名首次出现的位置"（`approximateTagOffset`）。同一个标签出现多次时它指向**第一个**，未必是肇事的那一个——对"把光标放到那一行"够用，但不能当成精确位置来宣称。
+- 锚点都找不到时**不给**这个字段：伪造一个位置比不给更糟。
+
+`offset` 由编辑器消费（M10 的违例跳转），分析器自己不解释它。声明块解析出的 `actions` 也挂在同一个分析结果上，那部分归[按钮触发执行 · M1](workbench-skill-card-actions-design.md#m1-动作声明模板侧)设计。
+
 ### 结果 R
 
-- `analyzeTemplate(html)` 返回 `{ region, violations }`：区间在哪，以及每一条拒绝原因与位置。
+- `analyzeTemplate(html)` 返回 `{ region, actions, violations }`：区间在哪、声明了哪些目标（声明块本身归按钮触发执行那份设计），以及每一条拒绝原因与位置。
 - 缺失/未闭合/重复的标记、占位符语法、违禁构造都在**保存前与运行前**被拦下，用户看到具体位置，不会出现"存进去了但一运行就出问题"。
 - 这个模块只在客户端运行，宿主不需要任何 HTML 解析依赖，也不再承担契约校验。
 
@@ -433,13 +497,23 @@ export const WORKBENCH_SKILL_CARD_DOMAIN = defineDomain({
 
 | 表 | 键 | 值 |
 | --- | --- | --- |
-| `card` | cardId | `{ skill?: string }` |
+| `card` | cardId | `{ skill?: string; name?: string }` |
 | `template` | `${cardId}_${skill}` | `{ html: string }` |
-| `result` | cardId | `{ skill, executedAt, stopReason, structured?, outputText?, diagnostic? }` |
+| `result` | cardId | `{ skill, executedAt, stopReason, structured?, outputText?, diagnostic?, editedAt? }` |
 
-**`structured` 现在只装一个 `html`**（填好的那段区间）。旧版本存下的命名值仍是合法记录——存储层不校验契约，卡片那边发现没有 `html` 时按"尚未运行"呈现。`diagnostic` 是失败文本：提供方写的，或由 M5 从 `agent/error` 捕获到的。
+**`structured` 现在只装一个 `html`**（填好的那段区间）。旧版本存下的命名值仍是合法记录——存储层不校验契约，卡片那边发现没有 `html` 时按"尚未运行"呈现。`diagnostic` 是失败文本：提供方写的，或由 M5 从 `agent/error` 捕获到的。`editedAt` 是本轮加的：它只在有人**手工编辑**过这段区间时出现，缺席表示每个字节都来自一次运行（写入路径见 M10「结果的手工编辑」）。
 
 模板用复合键，因为需求决策 15 要求**模板跟 skill 走**：切回原来的 skill，原来的模板还在。
+
+#### 约束：store 写入的每个字段都必须在 schema 里声明
+
+这条是**用一次真缺陷换来的**，写在类型注释里也写在需求 §17.5 里。
+
+P10 给卡片记录加了 `name`：store 会写它，写入也成功返回，但 `workbenchCardConfigSchema` 只声明了 `skill`。zod 默认丢弃未声明的键，于是**加载时名字被丢掉**——重启后卡片退回 id，而 skill 名照旧显示（那个字段恰好声明过）。用户看到的是"存了，重启又回退"，而日志里没有任何一次失败。
+
+规则由此确定：**store 写入的每个字段都必须出现在 `src/skill-card-spec.ts` 的 schema 里**。这条不能靠"记得同步两处"来守，所以有一个专门的包级测试 `skill-card-spec.spec.ts`：它拿 `{ skill, name }` 整条解析并断言**逐字段相等**（不是"解析不报错"——那就正好漏掉被丢弃的字段）。
+
+**本轮第一次按这条规则新增字段**：手工编辑结果写 `editedAt`，`workbenchResultSchema` 与它**同一次改动**里声明，`skill-card-spec.spec.ts` 也加了对应用例（整条往返不丢字段；没有该字段的记录不会被凭空补上；`editedAt: 0` 也保留）。这条约束在过去是"补上漏掉的字段"，这一轮是它要守住的常规路径。
 
 **分隔符必须是下划线，不能用冒号。** `per-record` 布局把记录键编码成**文件名片段**，只接受 `[a-zA-Z0-9_-]`（[per-record-unit.ts:39](../deepseek-harness/packages/storage/storage-json/src/per-record-unit.ts#L39)）；冒号在 Windows 文件名里非法，会让整个写入被拒。卡片 id 与 skill 名都不允许下划线，所以第一个下划线永远是分隔符，解析无歧义。这条是 P6 真机验证时才暴露的——内存假表不会触发路径编码。
 
@@ -482,13 +556,14 @@ export class WorkbenchSkillCardStore {
 在**入域之前**按字节处理，不让超大值进存储：
 
 - 模板超 `WORKBENCH_TEMPLATE_MAX_BYTES` → 直接拒绝（用户在编辑器里就看到错误）。
-- 结果超 `WORKBENCH_RESULT_MAX_BYTES` → **截断文本输出，保留结构化值**。理由是结构化值是渲染要用的，文本输出只是"查看原始输出"的兜底。
+- 结果超 `WORKBENCH_RESULT_MAX_BYTES` → **截断文本输出，保留结构化值**。理由是结构化值是渲染要用的，文本输出只是「运行详情」里读原始输出的兜底。
 
 ### 结果 R
 
 - 配置与结果互不影响，可以分别清理。
 - 已发布的布局域一字未改。
 - 损坏的单条记录不会导致工作台起不来。
+- 存储 schema 覆盖 store 写入的每个字段，所以"存进去、重启又回退"这类缺陷有专门用例守着（`skill-card-spec.spec.ts`）。
 
 ---
 
@@ -608,6 +683,41 @@ Then fill in the part of the document below that sits between <!-- template-begi
 - **只有区间回来。** 子代理不书写样式、标题与外壳，所以骨架不可能在两次运行之间漂移（M3 的字符串拼接即由此成立）。
 - **提示词的最坏情况有界。** 模板存储时就受 `WORKBENCH_TEMPLATE_MAX_BYTES = 32 * 1024` 限制，所以这个 `<output_document>` 不会无限膨胀。
 
+#### 微调怎么进 prompt
+
+`renderWorkbenchRefinePrompt(skill, template, previous, instruction, payload?)` 与卡片运行共用同一个 skill 块与同一个 `<output_document>`，只把"要产出什么"换成"要改什么"：
+
+```
+<skill_content name="…">…</skill_content>
+[<row_data>…</row_data>]                ← 带行数据时才有，位置与另外两种提示词一致
+
+<output_document>
+…存盘模板，逐字…
+</output_document>
+
+<previous_result>
+…上一版区间 HTML，逐字…
+</previous_result>
+
+<revision_request>
+…用户那句话，逐字…
+</revision_request>
+
+Revise the previous result above as the revision request asks, and report only the
+region content through the structured-output tool as `html`.
+
+- Change only what the revision request names; keep everything else exactly as the previous result wrote it.
+- The comments inside the document still state what each part must contain.
+- Report HTML, not a description of it.
+```
+
+- **顺序就是要求。** 先给"填哪里"的文档，再给"那里现在是什么"，最后给"要改成什么"：模型不需要在一段数据里自己找哪一部分是待改的。
+- **上一版逐字携带，不做摘要。** 摘要是第二份、有损的事实来源，而这里恰好在要求"没点名的部分照旧"。
+- **文档仍然逐字。** 微调改的是区间内容，骨架一个字都不动，所以它照旧只以用户写下的字符串流转。
+- **`<previous_result>` 里的内容来自上一次成功的捕获**，已经过 M3 同一条清洗路径；它进入下一次提示词时不再被"信任"——它是模型自己写的东西，与 `<row_data>` 属于同一类不可信输入（M12）。
+
+`attempt()` 的输入因此从两种形状变成三种（`RunInput` 的 `card` / `refine` / `bare`）。三种里只有 `card` 与 `refine` 会带 `outputSchema`，也只有这两种会走"捕获—重试—落盘"那条路径；`refine` 的成交方式与 `card` **完全相同**，所以 `describeFailure`、`isRetryable`、`toResultRecord` 与 `saveResult` 一行都没有为它改。（最初想给微调单独一条落盘路径，但那样就有两套"什么算成功"的判据——正是第二版踩过的坑。）
+
 宿主上下文按本包既有做法**就地声明窄接口**，不引入无法解析的 `.d.ts`（P1 曾因某个上游包的类型无法解析而失败）：
 
 ```ts
@@ -644,7 +754,7 @@ readonly workingDirectory?: WorkbenchWorkingDirectory
 
 这是与区间语言同期的第二处改动，解决的是另一个具体问题：**失败曾经是黑箱。**
 
-子代理这条缝在子代理出错时只留下 `stopReason: 'error'`，**把 error 对象丢掉**。于是"模型没按契约交出 `html`"和"子代理自己崩了"在调用方看来完全一样，原始输出面板里也什么都没有。
+子代理这条缝在子代理出错时只留下 `stopReason: 'error'`，**把 error 对象丢掉**。于是"模型没按契约交出 `html`"和"子代理自己崩了"在调用方看来完全一样，运行详情里也什么都没有。
 
 上游把前者的原因放在宿主的 `agent/error` 事件上：`{ agent, turn, step, error }`。宿主订阅它，按 `agent.id === childId` 匹配到**本次运行自己起的那个子代理**，把消息落到运行记录上，最终写进结果的 `diagnostic`：
 
@@ -680,7 +790,7 @@ const record = result.stopReason === 'error' && stored.diagnostic === undefined 
 2. **认领早于等待。** 事件可能在 `await` 期间到达，晚一步绑定就永远收不到。
 3. **不覆盖提供方已经写好的诊断。** `diagnostic` 是"原始输出"面板要显示的东西，两处来源只能取其一，优先提供方。
 
-失败原因因此有了落点：结果记录的 `diagnostic` → 卡片错误态 → 结果页的原始输出面板。
+失败原因因此有了落点：结果记录的 `diagnostic` → 卡片错误态 → 结果页的运行详情。
 
 #### 五个容易搞错的地方
 
@@ -735,7 +845,7 @@ const retryable = !usable && (result.stopReason === 'completed' || result.stopRe
 - 一次运行产出**结构化结果**（`{ html }`），或一个**可操作的失败原因**（M1 里那组降级码之一）。
 - 用户会话里不会多出消息；重跑不会因为并发而互相干扰。
 - 取消与超时都走同一条 `AbortController` 路径，行为一致。
-- 子代理自己报错时，结果里带着它的失败文本，原始输出面板能显示——失败不再是黑箱。
+- 子代理自己报错时，结果里带着它的失败文本，运行详情能显示——失败不再是黑箱。
 
 ---
 
@@ -768,6 +878,7 @@ const retryable = !usable && (result.stopReason === 'completed' || result.stopRe
 | `POST` | `/api/workbench/skill-card/run` | 启动一次运行 | `template-missing` `run-in-progress` `provider-unavailable` `schema-rejected` `skill-not-found` `session-not-live` |
 | `GET` | `/api/workbench/skill-card/run?cardId=` | 轮询运行状态 | `not-found` |
 | `DELETE` | `/api/workbench/skill-card/run?cardId=` | 取消并释放 | `not-found` |
+| `PUT` | `/api/workbench/skill-card/result` | 把手工编辑的区间片段存成这张卡的结果 | `not-found` `invalid-request` `too-large` |
 
 #### 为什么用轮询而不是 SSE
 
@@ -787,6 +898,21 @@ const retryable = !usable && (result.stopReason === 'completed' || result.stopRe
 预检拦的是"请求压根没带契约"这类情况——那种情况下启动子代理会白花一次模型调用才失败。
 
 这仍然体现整份设计的一条纪律：**两侧都不假设对方已经挡住。** 客户端会先分析模板（为了给用户即时反馈），宿主仍然独立回答"这张卡有没有模板"（因为进程边界不可信）。
+
+#### 模式是显式校验的，不是猜出来的
+
+`parseRunMode` 是一个三路分派，而不是"有契约就是卡片运行"这种推断：**一次丢了契约的卡片运行必须作为卡片运行失败，而不是悄悄变成裸运行**。同理，微调也必须由 `kind: 'refine'` 明说。
+
+`refine` 分派到 `parseRefineMode`，两条规则都按传输层自己的码回答：
+
+| 字段 | 规则 | 不合法时 |
+| --- | --- | --- |
+| `instruction` | 字符串，`trim()` 后非空，长度 ≤ `WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH` | 400 `invalid-request` |
+| `previous` | 字符串，UTF-8 字节 ≤ `WORKBENCH_REFINE_PREVIOUS_MAX_BYTES` | 非字符串 400；超体积 413 `too-large` |
+
+- **`previous` 不再被当成 HTML 校验。** 它是客户端从一条存盘结果里读回来的字符串，提示词逐字带走；形状检查留给读者，尺寸检查留在这里（一条 64 KiB 的请求体上限之外的原文不该被悄悄送进提示词）。
+- **超体积用 413 而不是 400**：那是一个尺寸问题，与模板超限是同一类，客户端也会显示成同一类原因。
+- **"非空"在服务端也要查。** 客户端禁用「重新生成」只是界面上的门；这条路径会花一次模型调用，所以它自己也有一条门。
 
 ### 结果 R
 
@@ -892,10 +1018,12 @@ export interface WorkbenchSkillCardApi {
   start(request: WorkbenchRunRequest): Promise<StartResult>
   poll(cardId: string, signal?: AbortSignal): Promise<PollResult>
   cancel(cardId: string): Promise<void>
+  /** 手工编辑结果：一次独立的写，不是运行。 */
+  saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>
 }
 ```
 
-每一次调用都返回**结构化结果**而不是抛异常——页面要渲染"不可用"状态，而不是落进错误边界。响应在这里做契约校验：这是进程边界，宿主的 JSON 是输入，不是可信值。
+每一次调用都返回**结构化结果**而不是抛异常——页面要渲染"不可用"状态，而不是落进错误边界。响应在这里做契约校验：这是进程边界，宿主的 JSON 是输入，不是可信值。`saveResult` 的回执同样过一遍 `parseResultEdit`：`apiVersion`、`revision`、`result.cardId` 与 `result.editedAt` 的形状都在校验范围内——**「手工编辑」那一行渲染什么，取决于这里收下什么**，所以一个非有限数字的 `editedAt` 会让整条回执被拒收，而不是被画到页面上。
 
 写操作沿用布局 API 的串行队列与上限（同时等待的写不超过 8 条，溢出即失败）。
 
@@ -921,6 +1049,17 @@ export interface WorkbenchCardView {
   run?: WorkbenchRunState
   /** 合并后的唯一失败面（本地错误 → 运行终态错误 → 配置读失败）。 */
   problem?: WorkbenchCardProblem
+  /** 本次会话里已生效的微调，最旧在前。**只在内存里**，从不落盘。 */
+  refinements: readonly WorkbenchRefinement[]
+  /** 最近一次微调换下来的那份结果，只留一份；`undefined` 表示没有可回退的版本。 */
+  previous: WorkbenchPreviousResult | undefined
+  /**
+   * 最近一次微调失败的原因。
+   *
+   * 与 `problem` 分开：页面把它报在**编辑区下方**（问题发起的地方），而不是结果上方
+   * ——那里是用户仍在读的结果。
+   */
+  refineProblem?: WorkbenchCardProblem
   /** 能不能运行：有 skill、有模板、有活会话。 */
   runnable: boolean
   /** 会话的 agent 能调用的 skill。 */
@@ -932,6 +1071,15 @@ export interface WorkbenchCardView {
 export interface WorkbenchCardActions {
   run(): void
   cancel(): void
+  /** 在屏幕上这份结果的基础上按一句要求改一次。 */
+  refine(instruction: string): void
+  /** 把上一版放回屏幕；一步，用完即弃，不写盘。手工编辑的回退走的也是这一个。 */
+  undoRefine(): void
+  /**
+   * 把手工编辑后的区间片段存成这张卡的结果。
+   * @returns 存下了没有；被拒时原因已经落在 `view.problem` 上。
+   */
+  saveResultEdit(html: string): Promise<boolean>
   /** 重读存储里的配置与结果。 */
   refresh(): void
   chooseSkill(skill: string): void
@@ -947,9 +1095,47 @@ export interface WorkbenchCardActions {
 
 - **`withCatalog` 决定要不要读目录。** 只有配置页列 skill，所以只有它传 `withCatalog: true`；卡片正面与结果页都不传。网格里每张卡都为一份它不显示的列表发一次请求，正是这条设计要避免的。
 - **`remove()` 返回 Promise**，因为它总要有后续：卡片正面用它通知面板重读列表（`onCardsChanged`），配置页用它决定何时退回网格。
+- **`saveResultEdit` 是唯一返回 `boolean` 的动作**：编辑器只在写成功之后离开，所以"存下了没有"必须回到调用处。被拒时它顺手把 `view.problem` 设上，页面在结果表面上方以 `role="alert"` 说明原因——存盘失败看起来像成功，是这个面板一再修的那类缺陷。
 - **`rename` 的空串即清除**：`name` 传 `null` 让卡片回到注册标签，而不是存一段空白标题。
 - **`problem` 是合并后的一个字段**，组件只渲染一条，不必自己判断优先级。
+- **`refineProblem` 是第二个失败字段，刻意不并进 `problem`。** 一次失败的微调有两个事实要同时成立："结果没变"与"这次要求失败了"。前者要求结果留在原处，后者要求失败出现在**发起处**（编辑区下方）；把它并进 `problem` 会让失败跑到结果上方，而结果下方那句要求看起来像没被处理。
 - **`view` 被记忆化**（`useMemo`，依赖是它显示的每一个值）：卡片正文按这份 view 记忆化成一个闭包，再交给外壳的本地槽；闭包身份不稳会让子树每次渲染都重挂载、重建影子根（P8 的装配细节之一）。
+
+#### 微调状态：三个内存字段与一次记录
+
+微调**没有新的存储**，也没有新的路由。它用到的是既有的 `POST /run`（模式换成 `refine`），落盘走既有的 `saveResult`，所以这份状态全部在客户端，且全部在内存里：
+
+```ts
+const [refinements, setRefinements] = useState<readonly WorkbenchRefinement[]>([])
+const [previousResult, setPreviousResult] = useState<WorkbenchResultRecord | undefined>(undefined)
+// 回退（或一次失败的微调）放回屏幕上的那份记录。它是**显示层的覆盖**，从不写盘。
+const [resultOverride, setResultOverride] = useState<WorkbenchResultRecord | undefined>(undefined)
+// 在飞微调待记录的内容。用 ref 而不是 state：轮询回调要读它，又不该因此重订阅。
+const refinement = useRef<RefinementIntent | undefined>(undefined)
+```
+
+显示的结果按 `resultOverride ?? run?.result ?? stored` 取，这一条顺序解释了四件事：
+
+| 情形 | 结果从哪来 | 为什么 |
+| --- | --- | --- |
+| 普通运行 | 本次运行的记录 | 与没有微调时完全一样 |
+| 微调成功 | 本次运行的记录（覆盖被清掉） | 存盘的就是它，屏幕上也是它 |
+| 微调失败 | **覆盖 = 失败前那份记录** | 一次失败的修订不能把用户已接受的结果拿走 |
+| 回退后 | 覆盖 = 上一版记录 | 回退只改显示（需求 R6） |
+
+三处记录点：
+
+1. **`refine()` 先把"要记什么"放进 ref**：`instruction`、屏幕上那份记录、以及它的区间 HTML。请求带的就是这份 HTML——**屏幕上是哪一版，就修订哪一版**，回退之后再微调也一样。
+2. **运行到达终态时结算**（`settleRefinement`）。它在**两个地方**被调用：`start()` 的应答（一个已经结束的运行）与每一次轮询。放在轮询回调里而不是 `useEffect` 里，是因为效果会晚一帧看到这次转变，而那一帧里日志和上一版还没出现。
+3. **成功**追加一条记录并把替换下来的记录留作上一版；**失败或被取消**把那份记录放回覆盖、并写 `refineProblem`。被取消也算失败：它同样没有产出。
+
+几条边界，都是刻意的：
+
+- **`start()`（普通重跑）清掉上一版与覆盖**，但**保留记录**。一次重跑不是一次微调，它的"上一版"没有意义；记录记的是"问过什么"，不是"显示什么"。它同时清掉待记录的 ref，免得一次重跑的终态被记到上一次微调的账上。
+- **`refresh()` 清掉覆盖**：重读存储之后，屏幕上的答案应当是存盘的那一份。
+- **`previous` 由那份记录派生**（`{ html: resultHtml(record.structured), at: record.executedAt }`），所以"回到上一版"恢复的是**整条记录**，运行详情里的时间与结束原因都跟着回来，而不是只换掉一段 HTML。
+- **没有可修订的 HTML 就没有编辑器**：结果页只在 `resultHtml(view.result.structured)` 存在时才画编辑区。控制器里另有一道门（拿不到 HTML 就报 `run-failed`），因为 composer 只是界面上的门。
+- **运行中的「停止」走的就是 `cancel()`**：编辑区那块主控件在运行期间调用 `actions.cancel`，与页面头部的取消是同一个动作（M10）。因此这里没有第二套中断路径，也没有"从编辑区取消不结算"这种例外——一次被取消的运行仍然按"失败或被取消"结算（第 3 条），结果是留在屏幕上、`refineProblem` 报在编辑区下方。
 
 #### 数据获取时机
 
@@ -958,8 +1144,11 @@ export interface WorkbenchCardActions {
 | 卡片挂载 | 只 `read()` 一次（纯存储读，**不发模型请求**） |
 | 配置页挂载（`withCatalog: true`） | 取一次 `catalog(sessionId)` |
 | 点"运行" | `start()` 后按 1 秒轮询直到终态 |
+| 点"重新生成" | 同一个 `start()`，模式是 `refine`；同样轮询到终态 |
 | 改 skill / 模板 / 名字 | `write()`，无模型调用 |
 | 删除卡片 | `write({ remove: true })`，无模型调用 |
+
+**微调不发新的请求种类。** 客户端这一层看到的仍然只有 `read` / `write` / `catalog` / `start` / `poll` / `cancel` 六个方法（M8 的任务 T 第 1 条没有变），"微调"是 `start()` 的一个模式。
 
 目录**由"会列 skill 的那个视图被渲染"触发**（`useEffect` + `withCatalog`），而不是由某个谁都得记得调用的动作触发：`catalogStatus` 从 `idle` 走到 `loading`，再到 `ready` 或 `failed`。
 
@@ -1091,9 +1280,39 @@ export function SkillCard(props: SkillCardProps): ReactNode {
 
 这条是**能力移除**而不是偏好：布局记录只剩排序一维（`position`），隐藏那条分区、`setHidden` / `showAll` 与它们的播报文案都已从源码删除，宿主也不再解析 `hidden`。旧记录里仍写着 `hidden: true` 的卡片按可见读回，不做迁移——字段被忽略，卡片就在可见序列里（`WorkbenchCardShell.spec.tsx` 断言外壳在没有 `onRemove` 时**一个 X 都不画**）。
 
+#### 排序手柄：最后一个控件，三级色，随悬浮/聚焦显现
+
+头部动作区里的控件顺序是**卡片自己的动作 → 刷新（若提供）→ X（若提供）→ 手柄**。手柄排在最后、并走三级色，因为它和另外几个不是一类东西：
+
+- 它操作的是**卡片已经拥有的位置**，不是卡片本身；
+- 它和另外几个图标按钮一样**只在悬浮或聚焦时出现**（`.card:hover .iconButton`、`.card:focus-within .iconButton`）——一个常显的控件不是被弱化的控件，它只是比别人更响；
+- 但"弱化"不能变成"消失"：手柄仍然是键盘移动卡片的**唯一**入口（方向键移动一位、Escape 取消拖拽），`focus-within` 让它在键盘聚焦时同样出现。
+
+```tsx
+{reorderable && (
+  <Button
+    variant="ghost"
+    size="sm"
+    className={clsx(css.iconButton, css.handle)}
+    data-workbench-drag-handle={id}
+    aria-label={t('dragHandle')}
+    aria-pressed={dragging}
+    onKeyDown={(event) => {
+      if (event.key === 'ArrowUp') { event.preventDefault(); onMoveBy(-1) }
+      if (event.key === 'ArrowDown') { event.preventDefault(); onMoveBy(1) }
+      if (event.key === 'Escape') { event.preventDefault(); onCancelDrag() }
+    }}
+  >
+    <IconChevronsUpDownOutlineRegular size={14} />
+  </Button>
+)}
+```
+
+`.handle` 只加三件事：三级色、拖拽光标（`grab` / `grabbing`）与 `touch-action: none`（触摸拖拽不被页面滚动抢走）；显现规则由 `.iconButton` 那条共用规则负责（静止时 `opacity: 0`，`.card:hover` / `.card:focus-within` 时回到 1），所以**手柄不会有一套自己的可见性逻辑**。`WorkbenchCardShell.spec.tsx` 断言的是顺序与类名（四个头部按钮里只有最后一个是手柄），显现本身是 CSS，测试不断言。
+
 #### 状态与结果不画在卡片正面
 
-P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状态行（带 `data-run-status`）说这次运行在做什么，失败文案走外壳的 `failure` 位，正文与原始输出都由结果页渲染。外壳仍保留状态点这套能力（`state` / `status` 可选），供其它卡片类型使用。
+P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：运行中的正文提示说这次运行在做什么，失败文案走外壳的 `failure` 位，正文与原始输出都由结果页渲染。外壳仍保留状态点这套能力（`state` / `status` 可选），供其它卡片类型使用。
 
 结果超过 `resultStaleAfterMs` 时显示"已过期"与上次执行时间——**仍未实现**：这个阈值是部署配置，客户端当前拿不到它（见 M14 的"仍未覆盖的两项"）。
 
@@ -1108,34 +1327,274 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 - 卡片装上统一外壳，外观与其它卡片一致。
 - `workbench.card` 工厂从此可用，P5 的独立卡片包不再受阻。
 - 卡片正面只做索引；结果与配置各占一整栏，用户在按下运行的那一页看到权限等级。
+- 排序手柄是头部动作的最后一个控件、走三级色、随悬浮/聚焦显现，并且仍是键盘移动卡片的唯一入口。
 
 ---
 
-## M10 配置对话框与编辑器
+## M10 编辑器与配置页
 
-> 文件：`src/client/skill-card/SkillCardSettings.tsx`
+> 文件：`src/client/skill-card/SkillCardSettings.tsx`（配置页与编辑器）、`SkillCardPages.tsx`（两个整栏页面）、`SkillCardResultEditor.tsx`（结果编辑器）、`text-editing.ts`（两个编辑器共用的行与缩进算术）、`violation-copy.ts`（五个内容策略码的文案归属）、`ActionDeclarationPanel.tsx`（声明构建器）、`declarations.ts`（把一条声明写进文档）、`skeleton.ts`（起手文档）、`skill-card.module.css`（本模块的全部样式）
 
 ### 情境 S
 
-这是用户唯一要动手的地方，也是需求里"易用性"的落点。他要在这里做三件事：选 skill、写整份 HTML 文档、预览效果。
+这是用户唯一要动手的地方，也是需求里"易用性"的落点。他要在这里做三件事：给卡片起名、选一个 skill、写整份 HTML 文档，然后看着它决定改哪里。
 
-其中有一个**必须先说清楚的限制**：模板是运行的前置条件，而"填什么"写在**区间注释**里——系统无法替他决定该产出什么形态。他必须自己写清楚（通常因为他就是写这个 skill 的人）。编辑器能提供的帮助是"随时告诉他哪里不合法"，而不是"告诉他该写什么"。
+其中有一个**必须先说清楚的限制**：模板是运行的前置条件，而"填什么"写在**区间注释**里——系统无法替他决定该产出什么形态。他必须自己写清楚（通常因为他就是写这个 skill 的人）。编辑器能提供的帮助是"让他写得下去、并随时告诉他哪里不合法"，而不是"告诉他该写什么"。
+
+**这个模块分三批长成今天的形状**，每一批解决的都是一批之后用户真正卡住的地方：
+
+| 批次 | 落下什么 | 上一批之后仍然卡住的地方 |
+| --- | --- | --- |
+| 第一批 | 行号栏、状态行、键盘 | 一份几十行的文档找不到刚写的那一行；体积到保存时才炸；Tab 只能离开字段，写嵌套 HTML 没有缩进 |
+| 第二批 | 违例跳转、声明构建器、缺失目标告警、骨架插入 | 违例清单是一段让人重读全文的散文；声明块是唯一要背语法的地方；空文本框教不会那两处语法 |
+| 第三批 | 并排/切换与整页布局（三段、粘性页脚、两段式删除、页脚内的失败行） | 编辑与预览只能二选一；保存按钮被任意高的预览顶出视野；删除一次点击就生效，写入失败在页面上看不出来 |
+| 第四批 | **结果页**：结果表面、能读的运行详情、（微调编辑区在 M8 的状态之上）。那一批还加了一行状态与一个「结果」标题，**第十一版已按产品决定整行移除** | 渲染出来的文档没有归属，也没有一个说"这是这张卡的结果"的框；调试区把 `html` 当 JSON 打印，读不了；改一次结果只能重跑一次、再花一次模型调用 |
+| 第五批 | **结果的手工编辑**：结果表面里就地打开 `SkillCardResultEditor`、一条独立的结果写路由、`editedAt` 与「手工编辑」一行 | 模型回填错一个字符也只能再花一次模型调用；而页面上那份渲染文档看着能改、其实没有任何东西会记住它 |
 
 ### 任务 T
 
-1. 两段结构：skill 选择器、模板编辑器（含实时预览）。
-2. 无模板时**不提供运行入口**。
-3. 预览必须用**与正式渲染完全相同**的路径。
-4. 随输入做区间与内容策略校验，就地报错；有违例时**保存按钮不可用**。
+1. **配置页**：三段（基本信息 / 模板 / 预览）+ 粘性页脚；卡片页头部只有「返回」，而**面板自己的标题（工作台 + 副标题）在它上面**，由页面渲染；字段成对、**每个标签与它的控件配对**。
+2. **模板是前置条件**：无模板时不提供运行入口；有违例时保存不可用。
+3. **预览**走**与正式渲染完全相同**的路径，并且说的是真话（骨架 + 空区间，没有示例数据）。
+4. **行号栏**与文本区同步滚动、两处染色、点行号选行。
+5. **状态行**一行给出区间行号、声明条数、**字节**占预算多少，缺区间时变成可操作的警告。
+6. **键盘**：Tab 缩进、Shift+Tab 反缩进、Escape 之后 Tab 离开、Ctrl/Cmd+S 保存。
+7. **违例可定位**：有位置的点一下就选中并滚过去，没位置的保持纯文本。
+8. **声明构建器**代写声明行，且**块按它本来的缩进整块重发**。
+9. **缺失目标告警但不阻塞保存**；**骨架**可一键插入且零违例。
+10. **页脚**：保存 / 关闭 / 两段式删除；写入失败在页脚**内部**以 `role="alert"` 出现。
+11. **结果页**：渲染的文档在一个有边框、圆角与内边距的表层里——边界只靠这三样（它曾经还靠一行「结果」标题与细线，第十一版按产品决定移除，**不要恢复**）；运行详情默认折叠、标题写「运行详情」、`html` 按真实换行且去掉区间缩进、结束原因本地化、缺失字段整行不出现；权限说明降为页脚。状态与时间只在「运行详情」里读。
+12. **微调编辑区**：结果下方一句话 + 「重新生成」+ 修改记录 + 「回到上一版」，记录与上一版**只在本次会话**；编辑区与聊天输入区同形并随内容长高；运行中那个位置变成「停止」。
+13. **结果的手工编辑**：入口只在有结果且没有运行占住卡片时出现在「运行」左边；编辑器改的是**存盘片段**（不从 DOM 读）、与模板编辑器同一套键盘；保存拒绝内容策略、空内容与超预算三件事；保存后片段成为结果、`editedAt` 落盘并在运行详情里显示、编辑前那一版可用「回到上一版」取回，而这次编辑**不进修改记录**。
 
 ### 行动 A
 
-#### 两段结构
+#### 页面的形状
 
-1. **skill 选择器**——数据来自目录接口，`userInvocable` 为假的 skill 不列出。未配置时这里是主行动。
-2. **模板编辑器**——等宽文本框 + 实时预览。
+**面板标题在每个视图上。** `WorkbenchPage` 在渲染网格、结果页或配置页**之前**无条件画那块头部（`<h1>工作台</h1>` + 副标题），卡片页自己的头部排在它下面（结果页：返回 / 卡片名 / skill / 运行控件等；配置页：只有返回）。
 
-**第二版这里还有第三项"字段清单"（列出上次结果里的真实字段、点击插入光标处），已随字段一起删除。** 今天没有字段可列：子代理回报的是一段 HTML，不是一组命名值。要改结果，改的是注释——它是唯一能告诉子代理"要填什么"的地方（需求 §7、§9.4）。
+第七版曾经相反：为了让卡片页不叠出三层标题带，面板标题在卡片页上被拿掉，只留卡片页头部。第九版推翻了它，理由有两条：**卡片页是这个面板的一个视图**（少了标题，从网格点进一张卡读起来像跳到了另一个页面），以及**那段顶部留白需要一个来源**——拿掉标题之后卡片页的内容从顶边开始。真正叠三层的是"面板标题 → 卡片页头部再写一遍卡片名与 skill → 字段标签"，问题在**重复且不可编辑的卡片名**，不在面板标题（需求 FR-43、决策 E12）。
+
+`SkillCardConfigPage` 画一个头部（`← 返回`）和 M10 的编辑器；编辑器自己是三段，靠**间距与细线**分隔，**不做嵌套卡片**——卡片套卡片读起来是第二层框，而这一页已经在页面自己的表面上了。
+
+| 段 | 内容 | 为什么是这一层 |
+| --- | --- | --- |
+| 基本信息 | 卡片名称、skill 选择器，两个字段**同一行**、各 `width: 340px` | 整行宽的输入框只是一行标签旁边的大片空白；340px 够放一个长名字，又放得下两个 |
+| 模板 | 状态行、告警/构建器、行号栏 + 文本区、违例清单 | 一行行往下都是一个写文档的人要依次看的东西 |
+| 预览 | 自有边框表面上的影子根渲染，标签「骨架预览，区间尚未填充」 | 预览里的东西是用户的文档，只有这一个框是本产品的 |
+
+三段都用 `aria-labelledby` 指向自己的 `h2`；名称与 skill 两个字段的标签是 `<label htmlFor>`，模板字段由它自己的 `aria-label` 命名（标题已经是可见的分组名，再加一个可见标签只是噪音）。**卡片页头部不重复卡片名与 skill**（配置页头部因此只有「返回」）：它们就在下面的字段里，重复一遍会在"面板标题 → 卡片页头部 → 字段标签"之间多出一层，而头部那份还是不可编辑的那一份。这层重复就是第七版误判成"面板标题的问题"的那层，纠正后仍然不画。
+
+写入失败由**页脚**呈现，见下面「粘性页脚」一节。
+
+**配置字段第一版只有两种类型**：枚举选择（skill 选择器）与长文本（模板）。需求 FR-13 的通用机制按这两种落地——机制是通用的，字段类型面先收窄。第二版这里还有第三项"字段清单"（列出上次结果里的真实字段、点击插入光标处），**已随字段一起删除**：今天没有字段可列，子代理回报的是一段 HTML，不是一组命名值。
+
+#### 结果页：结果表面与运行详情
+
+结果页（`SkillCardResultPage`）是另一个整栏视图，它在面板标题之下摞了三层：**结果表面 → 微调编辑区 → 运行详情**，最下面是一句权限脚注。它曾经在结果表面之上还有一行状态行，第十一版按产品决定移除了。
+
+| 层 | 内容 | 为什么在这一层 |
+| --- | --- | --- |
+| 结果表面 | 边框 + 圆角 + 内边距，里面是影子根渲染的文档 | 渲染的文档是用户模板的内容；没有框，它就没有归属 |
+| 微调编辑区 | 多行编辑区 + 「重新生成」（运行中变「停止」）+ 记录头部行 + 记录 + 只在本次会话 | 对结果的下一句话，紧跟结果 |
+| 运行详情 | 默认折叠的 `<details>`，开关写「运行详情」：结束原因、时间、结构化值、原始输出、诊断 | 调试信息，不是内容 |
+| 脚注 | `skillCardPermission` | 关于这一页的说明，不是这一页的内容 |
+
+**结果表面只加框，不改文档。** `.resultSurface` 只有 `border` / `border-radius` / `padding`，**没有背景色，也没有任何会进入影子根的样式**：用户模板的排版与配色一个字都不动。
+
+**边界只靠内边距**（第十一版）：用户模板常常自带阴影与圆角，那块阴影会压在表层边框接缝上。表层原先靠一行「结果」`h3` 加它下面的细线（`resultHead`）让容器的上边界读得出来；那一行被产品负责人判为噪音并整行移除，**没有被任何东西替代**。留下的是边框、圆角与 `padding: 12px`——**内边距现在承担全部边界职责**：它把渲染文档（连同它自己的阴影）挡在边框之内。把 `padding` 调小或去掉，文档就会贴到边框上，这条界线也随之消失。表层的 `display: flex` 与 `flex-direction: column` 留着，内容槽还是它唯一的孩子。
+
+**状态与时间只在「运行详情」里读。** 结束原因（`runStopReason` 那一行）与开始时间（`runStartedAt` 那一行）都是详情里的行，运行中的状态则由正文的运行提示（`skillCardRunningBody`）说明。页面没有一行概述，也没有 `data-run-status` 这个钩子：它随那一行一起删掉了，没有第二个读者。`clockText` 留了下来，但只服务微调记录里那条时间。
+
+**运行详情的五处修正**，都由"读不了"引起（前三处是第八版，后两处是第九版）：
+
+1. **`html` 不再是 JSON 里的一段字符串。** `readStructured` 把 `html` 抽出来单独渲染成 `<pre data-run-html>`（等宽、`overflow: auto`、**`white-space: pre`**），其余字段仍是 `JSON.stringify(rest, null, 2)`。抽字段时**按名字逐个拷贝**而不是解构重建，剩下的字段因此保持存储时的顺序——这是这次运行的原始记录，重排一次值就等于把记录改了一次。
+2. **缺失的字段整行不出现。** 没有输出文本就没有「原始输出」那一行（那句"这次运行没有留下输出"已从两本字典里删掉），没有诊断就没有诊断行，没有结构化值就没有结构化块。**一个空行说的是"空"，不是"发生了什么"。**
+3. **默认折叠。** `<details>` 不带 `open`：它是"为什么没有数据"的答案，不是数据本身。测试钉的是**没有 `open` 属性**，不只是 `open` 为假——后来被加回去的正是那个属性。
+4. **开关的文案是「运行详情」。** 它一度写作「原始输出」，可块里是四行：结束原因、开始时间、结构化值、原始输出。开关用一个子行的名字命名，等于只说了四分之一。今天两个含义用**两个 key**：`runDetailSummary`（开关）与 `runRawOutput`（那一行）。
+5. **代码块去掉区间的公共缩进，结束原因说中文。** 两件事都是显示层的：
+   - **去缩进**：模型回填的是模板里那段区间的内容，于是每一行都带着区间在模板里的缩进；一份缩进在表格深层的模板，代码块从四百多像素的地方才开始。`dedentedHtml()` 取**非空行的最长公共前导空白**并去掉；空行不参与计算、去掉后不留缩进；没有公共前缀时原文返回。**它只用于显示**：存盘的值要被原样拼回模板，所以那一个是**不能**被改写的（结果页用例同时断言两侧：代码块是去缩进的，影子根里的文档仍是原始的 8 空格缩进）。
+   - **结束原因本地化**：`STOP_REASON_KEYS` 是一张**部分映射**（`completed` / `error` / `aborted` → `正常结束` / `出错` / `已中止`），不是穷举。上游的 `stopReason` 是可合并扩展的联合类型，遇到没写进表里的值**原样打印**——编一个看起来合理的标签，等于说出一件这次运行没做过的事。原始值仍挂在 `data-run-stop-reason` 上。
+
+`html` 为空或只有空白时**不抽出来**：它留在 JSON 里（`{"html": "  "}`），因为一个空的代码块既看不出"空"，也看不出空在哪。这是纯显示上的取舍——值本身一个字节都没动。
+
+#### 结果的手工编辑
+
+一次运行的结果并不总是对的，而有时候要改的只是两个字符。这一批给结果页加了一条**比"再说一句话"更短的路**：就地把结果里那段区间 HTML 改成对的，保存后它就是这张卡的结果。
+
+```tsx
+// SkillCardPages.tsx
+const editable = view.result !== undefined && !running && !bareRunning
+const [editing, setEditing] = useState(false)
+
+{editable && !editing
+  ? <Button variant="ghost" size="sm" onClick={() => { setEditing(true) }} data-result-edit-start="">{t('skillCardResultEdit')}</Button>
+  : null}
+<Button variant="primary" size="sm" disabled={bareRunning || editing || (!running && !view.runnable)} …>
+  {running ? t('skillCardCancel') : t('skillCardRun')}
+</Button>
+…
+<section className={css.resultSurface} data-result-surface="">
+  {editing
+    ? <SkillCardResultEditor
+        html={resultHtml(view.result?.structured) ?? ''}
+        t={t}
+        onSave={async (html) => { if (await actions.saveResultEdit(html)) setEditing(false) }}
+        onCancel={() => { setEditing(false) }}
+      />
+    : <div data-result-busy={…}><SkillCardBody view={view} t={t} onAction={actions.click} /></div>}
+</section>
+```
+
+**编辑器在结果表面的内容槽里，不在别处。** 它是**就地切换**，不是浮层：共享原语没有对话框，配置页的编辑器也是这么做的。表层的边框与内边距留在原地——被编辑的正是刚才渲染在那里的东西，框没有理由消失。
+
+**编辑的只有片段，且只从记录里读。**
+
+| 读什么 | 从哪读 | 为什么不是别处 |
+| --- | --- | --- |
+| 片段初值 | `stored.result.structured.html`（经 `resultHtml`） | 页面上的渲染文档是"模板拼上片段"的成品，它的文本**不是**能把片段拼回模板的那个值；从 DOM 读会把骨架一起读进来 |
+| 模板 | 从不读 | 编辑结果是结果这一层的事；改骨架要回配置页（需求 E13） |
+| 保存的内容 | 字段里的 `draft` | 它是用户写的那份，逐字发给宿主 |
+
+**键盘与外观照抄模板编辑器，文档级的三样东西一个都不带。** `text-editing.ts` 是这一批新拆出来的：`INDENT`、`LINE_HEIGHT`、`lineIndexAt`、`lineBounds`、`indentBlock` 现在由两个编辑器共用，模板编辑器只是把 `editIndent` 改成"算一次、写一次"：
+
+```ts
+// 模板编辑器与结果编辑器共用同一份算术
+export function indentBlock(text, selectionStart, selectionEnd, outdent): IndentEdit | undefined
+// 没有一个字符要动时返回 undefined：空按一次 Shift+Tab 不该往文本里塞一次无变化的编辑
+```
+
+- **Tab / Shift+Tab**：裸光标缩进两空格、反缩进删它**前面**的至多两空格；跨行选区整块移动一级，选区跟着重算。
+- **Escape 之后 Tab 离开字段**：Tab 被编辑器占用的那一刻不给出口，就等于把键盘用户关在里面。
+- **Ctrl/Cmd+S 保存**并 `preventDefault()`，与按钮走**同一个** `saveable` 门。
+- **行号栏每行一个元素**，`aria-hidden`、逐行 `tabIndex={-1}`、点行号选中该行，`onScroll` 与文本区同步——与模板编辑器同一份实现思路（`.gutter` / `.gutterLine` / `.editorPane` 都复用，没有为结果编辑器新写一套样式）。
+- **没有区间染色**（片段里没有 `template-begin` / `template-end`）、**没有声明构建器**（片段里不能声明动作）、**没有骨架插入**（片段不是文档，一份骨架在这里没有意义）。这一点是需求 E16，也是两个编辑器唯一的形态差别。
+
+**保存门（`saveable`）拦三件事，缺一不存：**
+
+```ts
+const bytes = new TextEncoder().encode(draft).length        // 字节，不是字符
+const overBudget = bytes > WORKBENCH_RESULT_MAX_BYTES
+const empty = draft.trim() === ''
+const violations = useMemo(() => analyzeFragment(draft), [draft])
+const saveable = dirty && !empty && !overBudget && violations.length === 0
+```
+
+1. **五个内容策略构造**（`script`、`event-attribute`、`unsafe-url`、`external-element`、`external-css`）。它们由 `analyzeFragment()` 报——这是这一批在 `template.ts` 里新增的**窄入口**：
+
+   ```ts
+   /** 五个内容策略码，什么都不多报。 */
+   export function analyzeFragment(html: string): readonly WorkbenchFragmentViolation[] {
+     const found: WorkbenchFragmentViolation[] = []
+     walk(parseTemplate(html), 'root', found, html.toLowerCase())
+     return found
+   }
+   ```
+
+   为什么不是"跑一遍 `analyzeTemplate` 再筛五个码"：片段**不是文档**，它没有区间标记、也没有声明块，`analyzeTemplate` 会因为它"缺区间"而拒绝一次完全合法的编辑。`contentViolations()` 反过来改成直接复用 `analyzeFragment`，于是这五条规则在两个编辑器里是同一份代码。文案也归到一处（`violation-copy.ts` 的 `CONTENT_VIOLATION_KEYS`），模板编辑器的 14 项 `VIOLATION_KEYS` 用展开把这份并进去。
+2. **空内容**：`trim()` 之后为空也算空。消息要说出"结果为空"**并指出这张卡可以再运行一次**——空区间渲染出来像一张坏卡，而"再跑一次"是比"存一份空的"更好的出口。
+3. **超过 `WORKBENCH_RESULT_MAX_BYTES`**：读数写成 `12,480 / 65,536 字节`，超 85% 变警告色，超上限时额外多一行 `role="alert"` 的拒绝说明。**字段里的内容保持完整**：拒绝不能变成在框里截断。
+
+`dirty` 也在门里：打开编辑器、什么都不改就按保存，会把 `editedAt` 盖到一份没人编辑过的结果上——**未改动的草稿不值得一次写**，所以这时保存是禁用的。
+
+**一条独立的结果写路由，不借运行路由。**
+
+```
+PUT /api/workbench/skill-card/result        body: { cardId, html }
+ → 200 { apiVersion, revision, result }     404 这张卡没有结果   413 超预算   400 字段不合契约
+```
+
+- 不复用 `POST /run`：手工编辑不是一次运行，它没有阶段可轮询，也不该让运行的前置条件（skill、模板、会话、输出契约）替一个不跑任何东西的操作作答（需求 §19.4(i)）。
+- 校验 `cardId`（命名空间 slug）与 `html`（字符串），并按 `Math.min(maxResultBytes, WORKBENCH_RESULT_MAX_BYTES)` 拒绝超预算——部署可以收紧上限，**不能放宽契约**。
+- 回执带上**新记录与新 revision**，页面据此更新，不再读一遍配置；否则下一次配置写会拿着过期 revision 白白冲突一次。
+
+**store 的合并是这一批最容易写错的一段**（`putEditedResult`）：
+
+```ts
+const record: WorkbenchResultRecord = {
+  ...previous,                       // skill、stopReason、outputText、diagnostic 原样留下
+  executedAt: this.moment(),
+  editedAt: this.moment(),           // 同一个时刻：这就是"这份结果是被改出来的"那一次
+  structured: { ...structuredRecord(previous.structured), html },
+}
+```
+
+- **只替换 `structured.html`**，结构化值里的其余字段也保留（`structuredRecord` 只接受普通对象：把一个字符串 `...` 展开会变成每个字符一个键）。
+- **不伪造运行**：`skill` 与 `stopReason` 是"哪一次运行"的事实，手工编辑对它无话可说。所以一张**没有结果**的卡返回 `missing`（404）——没有记录可以站在这两个事实上。
+- **拒绝而不裁剪**：片段超预算返回 `too-large`；片段没超、但**整条记录**（片段 + 这次运行的原始输出）超预算时同样返回 `too-large`。裁剪就变成"存一份、显示另一份"，而那正是这条预算存在的理由（`putResult` 的 `trimResult` 是运行路径上的取舍，手工编辑不走它）。
+- **下一次运行覆盖它**：一次运行写的是全新记录，`editedAt` 自然消失。这就是"运行一张卡"本来的语义（需求 E14）。
+
+**客户端一侧**：`actions.saveResultEdit(html)` 收下草稿，`api.saveResult(cardId, html)` 发一次 `PUT`，成功时把回执里的 `revision` 与 `result` 一起折进 controller 的 `config`（`replaceResult` 就地替换、按 cardId 排序，不追加第二条），并把**编辑前那份记录**放进 `previousResult`——「回到上一版」因此不需要第二套机制。
+
+```ts
+// controller.ts
+if (prior !== undefined) setPreviousResult(prior)   // 回退的入口与微调共用
+setResultOverride(undefined)
+// 刻意不动 refinements：那份记录记的是指令，手工编辑不是指令
+```
+
+- **失败留在编辑器里**：写入被拒时 `view.problem` 在结果表面上方以 `role="alert"` 说明原因，编辑器**保持打开**、草稿不动。存盘失败看起来像成功，是这个面板一再修的那类缺陷。
+- **不写盘的回退**：`undoRefine` 把 `previousResult` 变回屏幕上的 `resultOverride`，用掉即消失、不写存储——与微调的回退完全同一条路径（需求 E17）。
+- **「修改记录 · 0 次」与「回到上一版」同时出现**：这不是缺陷。头部那个计数说的是**问过几次**，回退说的是**能退回什么**；一次手工编辑让后者成立、前者仍为 0。这一条在验收 67 里被明确钉住。
+- **编辑器打开期间的取舍**：入口自己消失、「运行」不可按、微调编辑区不画。三件事同一个理由——**一次运行会替换草稿所依据的那份结果**，而这是一次没有确认的破坏。
+
+#### 微调编辑区
+
+结果下方的这块区域是"再改一次"的地方，顺序就是说话的次序：
+
+```tsx
+<div className={css.composer} data-refine-composer="">
+  <div className={css.composerRow}>
+    <textarea rows={rows} value={instruction} disabled={busy} … />   {/* 一到四行，随内容长高 */}
+    {busy
+      ? <Button variant="ghost" size="sm" onClick={onStop}>{t('refineStop')}</Button>
+      : <Button variant="primary" size="sm" disabled={empty} onClick={submit}>{t('refineAction')}</Button>}
+  </div>
+  {view.refineProblem === undefined ? null : <p role="alert" data-refine-problem={…}>…</p>}
+  <div className={css.refineLog} data-refine-log="">
+    <div className={css.refineLogHead}>…修改记录 · N 次… …回到上一版…</div>
+    <ol>…每条：那句话 + 紧跟的时间…</ol>
+    <p>…只在本次会话…</p>
+  </div>
+</div>
+```
+
+**编辑区抄的是聊天输入区的尺寸，不是自己挑的**（需求 FR-41）。来源是应用自己的聊天输入区——`@deepseek-ai/dsh-client-ui-conversation` 的 `skeleton/InputBar.module.css`：
+
+| 项 | 值 | 来源 |
+| --- | --- | --- |
+| `min-height` | `36px` | `.input` |
+| `padding` | `4px 8px 0 14px` | `.input`（占位符 `inset` 与它对齐） |
+| 圆角 | `var(--dsw-radius-panel)`（28px） | `.card`，令牌由主题定义 |
+| 字号 | `var(--dsh-content-font-size, 14px)` | `.card`，用户设置的内容字号 |
+| 行高 | `calc(24px + var(--dsh-content-font-delta, 0px))` | `.card`，主题定义 delta |
+
+同样的来源还给了底色 `--dsw-specific-input-major`、描边（`--dsw-elevation-soft` + `--dsw-elevation-stroke-color: var(--dsw-alias-border-l2)`）、字体 `--dsw-font-family`、占位符 `--dsw-alias-label-caption` 与禁用态颜色。**唯一的偏差是下内边距 `4px` 而不是 `0`**：聊天输入区下面还有一条工具栏行（`padding: 2px 8px 6px`）替它留出底部空间，这块编辑区到底就是自己的下边缘（描边是阴影、不占布局），用 `0` 会让第四行压在那条线上。这一条写在注释里，也写在需求 §18.6 里——偏差要留下来，但不能是哑的。
+
+**长高**：`rows` 由换行数得出（1–4，量不到时的兜底）；布局后再测一次——高度先置 `auto`，再写成 `scrollHeight`（折行的长句也会长高），上限由 CSS 的 `max-height` 封住（四行的行高 + 上下内边距，另留 2px 余量；框没有边框，描边是阴影），超出即在框内滚动。`scrollHeight` 为 0 时**不塌**：保留 `rows` 的高度。
+
+- **按钮的门是"输入非空且没有运行在跑"**（`trim()` 之后为空也算空）。控制器里还有同一道门：这是会花一次模型调用的路径。
+- **发送后清空编辑区**，否则那句话留在框里读起来像"还没生效"。
+- **运行中那个位置是「停止」，不是禁用的「重新生成」**（需求 FR-44）：页面头部的取消在结果把页面撑高之后滚出视野，而用户正看着结果与编辑区。它调用与头部**同一个** `actions.cancel`，没有第二条中断路径；被取消的运行仍按"失败或被取消"结算，结果留在屏幕上、`refineProblem` 报在下方。
+- **运行中编辑区本身禁用**，结果表面同时进入忙碌态（`data-result-busy="true"`、`aria-busy`）；忙碌态用的仍是既有的运行态提示（`skillCardRunningBody`），它盖住的正是"这一段正在被重写"。
+- **`Enter` 提交、`Shift+Enter` 换行**；`event.nativeEvent.isComposing` 为真时**不提交**——输入法用 `Enter` 确认候选词，在那里提交会送出半句话。
+- **失败报在编辑区下方**，`role="alert"`，并且**页面上只有这一处**：`view.refineProblem` 存在时，结果上方那行 `view.problem` 不画——同一次失败说两遍比说一遍更糟。
+- **记录只在有内容时出现**（`refinements` 或 `previous` 非空）：一个空列表的标题只是噪音。
+- **记录有一个头部行**：左边 `修改记录 · N 次`（计数，不是句子），右边「回到上一版」，**没有上一版时它不出现**。它曾经是列表下方单独一行的链接，比记录本身还显眼。
+- **记录读起来像对话**：每条是"那句话 + 生效时间"，时间**紧跟在那句话后面**（小一号、三级色、`tabular-nums`、不换行），而不是被推到整行最右——推到边缘之后时间和那句话成了两列，读起来像表格。
+- **"只在本次会话"是整块的最后一行**，措辞要同时盖住**记录与回退**（需求 R5）：消失的不只是这张清单，还有「回到上一版」能退回去的那一版。
+
+**jsdom 断言不到的部分（写明，不含糊）：**
+
+| 这一版做了什么 | 为什么断言不到 |
+| --- | --- |
+| 结果表面的边框、圆角、内边距，以及与运行详情之间的细线 | 全是 CSS 声明，jsdom 不计算样式；测试断言的是 DOM 结构与层级（渲染文档在 `[data-result-surface]` 之内，而那个表层不带标题行、也不带 `aria-labelledby`） |
+| 运行详情的折叠**动画** | jsdom 不实现 `<details>` 的过渡，只有"关着 / 打开"两种状态可断言 |
+| 编辑区**量出来的高度** | 高度是布局后由 `scrollHeight` 写进内联样式的像素；jsdom 没有布局，`scrollHeight` 恒为 0，可断言的只有 `rows`（1–4）与键盘行为 |
+| 忙碌态的**外观** | 断言的是 `data-result-busy`、`aria-busy` 与"渲染文档被运行态提示替换"这个结构事实 |
+| 「可滚动、不折行」的 `html` 代码块 | 断言的是文本本身是原值（真实换行、无字面 `\n`；去缩进后的样例行）；`overflow` 与 `white-space` 是 CSS |
+| 结果编辑器里**行号与行的对齐**（等宽、字号、行高、内边距四处必须一致） | jsdom 不排版：能断言的只有"每行一个元素、数量与行数一致、点行号选中该行"，对齐与否只能人工看 |
+| 结果编辑器的**打开/关闭** | 它没有过渡：同一块结果表面的内容槽从渲染文档换成编辑器，是重渲染而不是浮层，因此没有"动画"可断言（与折叠动画不同，这里本来就没有） |
 
 #### 模板是前置条件
 
@@ -1143,33 +1602,192 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 
 宿主侧同样拒绝无模板的运行（`template-missing`），而且它**自己从存储回答"有没有模板"**，不依赖客户端自律——这是 M6 那条纪律的又一次体现。
 
+保存的**唯一一道门**在这里，按钮与快捷键共用它，因此不存在"第二个入口把被拒的文档存进去"：
+
+```ts
+// 缺失目标故意不在门内：它指向的卡片可以以后才建。
+const saveable = analysis.violations.length === 0 && draft.length > 0 && view.skill !== undefined
+```
+
 #### 预览
 
 预览把**正在编辑的这份文档本身**交给 **M3 的同一个渲染函数**（`ShadowHtml` → `renderTemplate`）：同一条解析路径、同一遍清洗、同一个影子根。
 
-三点要说清楚：
-
-- **没有"占位样值"。** 第二版的预览要拿数据（上次结果或合成样值）才算得出画面；现在没有值可填，预览展示的就是骨架——这正是用户交给子代理的那份东西，所见即所得。
-- **注释在预览里是注释。** 它们说明要填什么，不产生画面。
+- **没有"占位样值"。** 预览展示的就是骨架——这正是用户交给子代理的那份东西。
+- **标签必须说真话。** 它一度写作「使用示例数据」，而预览从来不填示例值：这份产品**有意拒绝示例数据**（填进去的假值会让人以为卡片已经能用）。标签因此改为「骨架预览，区间尚未填充」，说的是它实际渲染的东西。
+- **注释在预览里是注释**：它们说明要填什么，不产生画面。
 - **未保存的草稿也能预览**：预览用的是编辑器里的 `draft`，不是存储里的模板，所以违例能边写边看见。
 
-#### 随输入校验
+#### 行号栏
 
-`useMemo(() => analyzeTemplate(draft), [draft])`，每条违例渲染成一行"本地化文案 · 位置"：
+**一行一个元素**，不是拼成一整段数字文本。原因只有一个：染色必须落在**属于它的那些行**上，一整段文字做不到。
 
-- 区间问题（`region-missing` / `region-unclosed` / `region-repeated`）→ 提示标记缺失或不成对；
-- `placeholder-syntax` → 提示占位符语法已移除，改用区间标记并在注释里写明要求；
-- 违禁构造（脚本、事件、危险 URL、外部资源、外部 CSS）→ 就地报错并指出位置；
-- 超体积上限 → 宿主拒绝并回 `too-large`；
-- 全部通过 → 保存按钮可用，提交给宿主。
+```tsx
+<pre ref={gutter} className={css.gutter} aria-hidden="true">
+  {gutterLines.map(line => (
+    <button
+      key={line.number}
+      type="button"
+      tabIndex={-1}                                   // 不是 Tab 停靠点
+      className={gutterLineClass(line.kind)}
+      onMouseDown={(event) => { event.preventDefault() }}  // 焦点留在文本区
+      onClick={() => { selectLine(line.number - 1) }}
+    >
+      {line.number}
+    </button>
+  ))}
+</pre>
+```
 
-**配置字段第一版只支持两种类型**：枚举选择（skill 选择器）与长文本（模板）。需求 FR-13 的通用配置机制按这两种落地——机制本身是通用的，字段类型面先收窄。
+- **同步滚动**：文本区 `onScroll` 把 `scrollTop` 写给行号栏。固定不动的行号栏配一个可滚动的文本区，标出来的行号是错的——这不是优化，是正确性。行号栏自己 `overflow: hidden`，它从不独立滚动。
+- **两处染色**：`gutterLines` 先按 `findActionsBlock` 标出 `dsh-actions` 块的行（`gutterLineActions`，更淡的一层），再按 `regionLines` 标出区间（`gutterLineRegion`，强调色 + 强调色左边框）。**后标的覆盖先标的，所以区间胜**：声明写在区间里本身就是一条违例，而区间是读者必须先看到的事实。
+- **行号对齐**：每行固定 `border-left: 2px solid transparent`，染色时只换颜色不换宽度；字体、字号、行高与垂直内边距在两个元素上各写一遍——任何一处不同，数字就会从它标注的那一行上滑走。
+- **点行号选行**：`selectLine` 用 `lineBounds` 取该行（不含换行符）的范围，再走与违例跳转同一个 `revealRange`，焦点回到文本区。
+- **对读屏隐藏**（`aria-hidden`）且逐行 `tabIndex={-1}`：它是文本区上的鼠标便利，不是一串新的键盘负担。
+
+#### 状态行
+
+一行三件事，顺序就是写文档时的关注顺序：
+
+```
+区间 42–58 · 动作声明 3 条 · 12,480 / 32,768 字节 · 有未保存的改动
+```
+
+- **行号，不是偏移。** `regionLines` 由 `region.start` / `region.end` 换算成 1 基行号：`region.start` 是开启标记之后第一个字符，所以它属于开启标记那一行；闭合标记同理。
+- **字节，不是字符。** `new TextEncoder().encode(draft).length` 对着 `WORKBENCH_TEMPLATE_MAX_BYTES`。宿主的上限是 UTF-8 字节，按字符计会把一份中文文档报告成"还放得下"，而宿主会拒绝它——9,500 个汉字按字符计远不到提醒线，按字节计已经过了它。
+- **85% 变警告色**（`.editorStatusWarn`）：这是提醒，不是限制；真正的限制在存储时。
+- **脏标记**：`draft !== view.template` 或名字变了，就在同一行追加「有未保存的改动」。
+- **缺区间时整行变警告**，并给一个「插入标记」：`insertRegionMarkers` 在光标处写入成对标记（各自独占一行——标记与别的内容同行会把区间在中途打开或关闭），**光标落在两标记之间的空行**，那正是用户接下来要打字的地方；写完之后按钮消失，状态行改报新的行号。
+- **模板为空时给的是「插入骨架」**（下一节），不是标记：空文本框需要的是整份示例，不只是两个标记。
+- 右边还有一个「添加动作」，见「声明构建器」。
+- 数字用 `Intl.NumberFormat('en-US')` 分组（`12,480`），因为一长串数字要数位数才能读。
+
+#### 键盘
+
+```ts
+const escaped = useRef(false)
+```
+
+- **Tab 缩进两空格，Shift+Tab 反缩进。** `editIndent` 分两种情形：
+  - **裸光标**：Tab 在光标处插入两空格；Shift+Tab 删除光标**前面**的至多两空格（`<p>  a` 把光标放在空格之后是常见形态，而"行首"不是）。
+  - **选区跨行**：覆盖的每一行各移动一级，块的相对形状不变；选区跟着重算，不会因为多出的空格而错位。
+- **Escape 之后 Tab 离开字段。** Tab 被编辑器占用的那一刻，不给出出口就等于把键盘用户关在里面：按 Escape 之后，下一次 Tab **不做任何处理**，交给浏览器移动焦点。
+- **Ctrl/Cmd+S 保存**并 `preventDefault()`：浏览器默认会去"保存"整个外壳页面，而这里要保存的是这份模板。它和按钮走**同一个** `saveable` 门（上面那段），所以不可保存时它也不保存，但仍然吞掉默认行为。
+- 写回文本用 `queueMicrotask` 恢复选区：React 的重渲染发生在这之后，同步设置 `setSelectionRange` 会被旧值覆盖。
+
+#### 违例清单与定位
+
+`useMemo(() => analyzeTemplate(draft), [draft])` 的结果逐条渲染成一行"本地化文案 · 位置"（`VIOLATION_KEYS` 是一张穷尽的记录，新增一个违规码会在这里编译失败直到它有文案）。
+
+**位置可以点，也可以没有：**
+
+- 违例带 `offset` 时渲染成按钮：点击 → `revealRange(offset, offset + (token?.length ?? 1))`，选中那一段、把焦点放回文本区、并**居中滚动**到它。
+- **没有 `offset`（如缺区间）时渲染成纯文本**：一个点了不动的按钮比一行字更糟。
+- 文本区没有"按偏移滚动"的接口，所以定位靠"行号 × 行高"这两个数：`LINE_HEIGHT = 18` 与两个元素上写死的 `line-height: 18px` 必须一致，`revealRange` 才能把目标放到视野中部。程序化滚动不一定触发 `scroll` 事件，所以它顺手把行号栏也同步一次——慢一帧的行号栏是错的号码。
+
+**精度分两档**（类型的注释里写了，实现见 M2）：
+
+- **精确**：区间标记、占位符残留、声明块的每一行——扫描时手里就有匹配的位置。
+- **近似**：五个内容策略码（`script`、`event-attribute`、`unsafe-url`、`external-element`、`external-css`）。它们来自解析后的 DOM，DOM 不带源码区间，所以取的是"该标签名首次出现的位置"。同一标签出现多次时它可能指向第一个，未必是肇事那一个——够把光标放到那一行，但**不能当成精确位置来宣称**。
+
+#### 声明构建器
+
+动作声明是模板里**唯一需要背语法**的地方：键写错，或者把 `card` 写成 `cards`，渲染出来是一张完全正常的卡，只是每个按钮都被拒。所以由面板代写。
+
+- 三个字段：**动作键**、**类型**（card / skill）、**目标**（卡片取 `view.cardTitles`——用户看到的标题，也正是点击路径按名称解析的那一份；skill 取 `userInvocable` 的那一份，因为点击路径只认这些）。
+- **边输入边校验**：键必须匹配 `WORKBENCH_ACTION_KEY_PATTERN`，已被本模板占用的键直接拒绝（否则用户只是换了个顺序走到 `action-key-repeated` 那条违例）。说明文字就地显示文法或拒绝原因，并用 `aria-describedby` 指到输入框——落到错误上的人得知道它说的是哪个字段。
+- 两类目标各记各的选择：把类型切过去看一眼再切回来，原来选中的目标还在。
+- 列表为空时**说出原因**（没有卡片 / 目录为空 / 目录读不到）并禁用确认：一个没有任何说明的禁用按钮正是这个面板要消除的东西。
+- Escape 关闭面板（和删除确认一致：误开的面板不该需要再看一眼才能关）。
+
+**写入规则（`declarations.ts`）**，这一段是踩过两个坑之后定下的：
+
+- **已有块：整块按它本来的缩进重发。** 只拼接字符会把块里原有的空行与多余缩进留在原地，于是**每加一条就漂一点**；而从标记而不是行首开始替换，会把旧的缩进留在新标记前面，于是**结束分隔符与它自己的条目不在同一层**。现在块被整块重写：首行用原来的缩进，条目深一级（`indent + '  '`），`-->` 与首行对齐；块里原有的声明逐条保留，块**外**的内容一字不动。
+- 只有空白才允许被吞掉：标记若与别的内容同行（`<div><!-- dsh-actions a: card "A" --></div>`），那行前面的内容不是我们的，所以从标记本身开始替换、缩进按空串处理。
+- **没有块时新建一个，位置在 `<!-- template-begin -->` 之前。** 区间每次运行会被整体重写，声明写进区间只能活一次；放在文档末尾则会在"区间缺了闭合标记"时被一起吞掉。
+- 写完**关闭面板、光标落在刚写的那一行**（`insertion.lineStart`）：这是用户要"看见它发生了"的那一行。面板只在写入之后关闭，被拒绝的插入不会看起来像成功。
+
+#### 缺失目标告警
+
+一条声明可以指向一个**现在还不存在**的目标：卡片可以以后才建，skill 可以以后才装。所以它告警，但**不进保存门**。
+
+- 判断放在编辑器里，不放分析器：分析器是纯文本函数，它手上没有卡片清单，也没有 skill 目录。
+- 两道门避免误报：配置还没读出来（`view.status !== 'ready'`）时什么都不报（否则每一张卡都是"缺失"）；目录读不出来（`catalogStatus !== 'ready'`）时不报 skill 缺失——**读不到不等于不存在**。
+- 渲染成状态行下方一个 `data-action-target-warnings` 的列表，文案与违例同一副样式：它读起来像问题，但「保存」照旧可用。
+
+#### 骨架插入
+
+模板为空时，状态行提供「插入骨架」（`templateSkeleton(t)`）。它是一份**完整文档**：`<style>`、**空的** `dsh-actions` 块、区间标记对；区间里一段注释说明要生成什么、一行示例按钮、以及 `&#39;` 的转义规则。
+
+- **文案本地化，标记与示例是字面量**：注释是给人读、给子代理执行的说明；标记与属性是语法，翻译它们等于破坏它们。
+- **必须零违例**：`skill-card-skeleton.spec.ts` 用中英两本字典各生成一次并断言 `violations` 为空、区间存在、块为空。一个打开就报错的起手样例比空框更糟。
+- 只在模板为空时提供：非空模板上给"插入骨架"等于提供一个覆盖自己文档的按钮。
+- 插入后光标落在**区间起点**：那是用户接下来要替换的那一段。
+
+#### 并排与切换
+
+编辑与预览是**同一件事看两遍**：宽到放得下两块可读区域时它们并排，标签条隐藏；窄了以后并排会把后一块推到折叠线以下，于是标签接管选择，标题隐藏（标签已经说了窗格的名字）。
+
+- 实现是一条 CSS 媒体查询 + 一个状态：`.panes` 在 `min-width: 1100px` 变成两列并 `display: none` 掉 `.paneTabs`；`max-width: 1099px` 时按 `data-pane` 只显示一个 `.section`，并隐藏它们的 `h2`。
+- 断点是"两块可读窗格不再放得下"的位置，不是设备判断。
+- **测试断言的是 CSS 所依据的状态**（`data-pane` 与两个标签的 `aria-selected`），不是响应式结果：jsdom 不计算媒体查询，也没有布局。这一点在验收标准 43 与附录 A.3 里都标明了。
+
+#### 粘性页脚：保存、失败行与两段式删除
+
+页脚 `position: sticky; bottom: 0`，背景取页面底色：保存不能依赖"滚过一段可能任意高的预览"。
+
+- 左边是 `保存`（`primary`，受 `saveable` 约束）与 `关闭`。
+- **最右是危险色的「删除卡片」**，用一个 `flex: 1 1 auto` 的间隔把它推到远离那对"不读就按"的按钮的地方。
+- **删除需要两次按下**：第一次只把 `deleteArmed` 置真，按钮换成 `确认删除` + `取消`，并在 `aria-live="polite"` 的提示位写出"删除后无法撤销"。第二次（`确认删除`）才调用 `onDelete`；`取消` 与 **Escape** 都回到未确认态（Escape 由页脚上的 `onKeyDown` 处理，所以焦点在页脚里任何位置都有效）。
+- **没有对话框**：共享原语不提供 dialog，自己造一个会往应用里加第二套浮层机制，所以确认就地完成。
+- 删除的写入与离开**由页面负责**（`SkillCardConfigPage` 的 `onDelete` 先 `remove()` 再 `onBack()`）：宿主提交之后才回网格，否则网格会把刚删掉的卡再读回来。
+- **写入失败渲染在页脚内部**：
+
+```tsx
+{view.problem === undefined ? null : (
+  <p className={css.writeFailure} role="alert">
+    {t(problemKey(view.problem.code))}
+    {view.problem.detail === undefined || view.problem.detail === '' ? '' : ` · ${view.problem.detail}`}
+  </p>
+)}
+```
+
+它曾经根本不渲染：一次被拒绝的写入在页面上和成功一模一样。现在它在 `role="alert"` 里，并且在**粘性页脚内**——失败不会随内容滚出视野。
+
+#### 约束：只用主题实际定义的令牌
+
+编辑器与外壳里一共有**九条焦点规则**（编辑器的输入框与下拉、行号所在的编辑区、违例跳转、窗格标签，外壳里可激活的卡片与图标按钮，以及创建磁贴）引用过 `--dsw-alias-border-focus`，而**安装的主题并没有定义这个令牌**。后果不是报错，而是那些声明在计算值阶段失效：焦点环退化成看不出来的默认值。写的时候没有任何提示（未知的自定义属性是合法的），用的时候也看不出少了什么——**每一个用键盘的人都在没有焦点提示的界面里走**。
+
+承载焦点环的那几处（输入框与下拉的边框、编辑区的 `focus-within` 边框、图标按钮与可激活卡片的 `outline`、窗格标签与创建磁贴的 `outline`）现在统一引用 `--dsw-alias-brand-primary`（主题里定义了的强调色，也是本包其它地方用的那一支）。另外两处本来就不画环形：编辑区把自己的内层 `outline` 清掉（外框由 `focus-within` 负责），违例跳转只改文字色。约束由此确定：**CSS 只能用主题实际定义的令牌**；引用一个不存在的自定义属性不会在构建期或运行期报错，它只是安静地什么都不做。
+
+#### 约束：两处输入区用同一套数字，偏差要写下来
+
+微调编辑区不是"照着聊天输入区画一个像的"，而是**抄它的数字**：`min-height: 36px`、`padding: 4px 8px 0 14px`、`--dsw-radius-panel`、`var(--dsh-content-font-size, 14px)` 与 `calc(24px + var(--dsh-content-font-delta, 0px))` 都来自 `@deepseek-ai/dsh-client-ui-conversation` 的 `InputBar.module.css`（`.input` 与 `.card`）。理由很直接：用户在这块框里写的是同一类东西——一句话的指令——而两个长得不一样的指令框会让"这个框更小，所以它更次要"成为一个没人打算表达的暗示。
+
+代价是**应用那边的输入区一改，这块就旧了**。这是接受的：这条依赖没有代码层面的耦合（不引用对方的模块，只抄数字），过期时表现为"两块框看起来不完全一样"，而不是坏掉。
+
+**唯一刻意的偏差**是下内边距（`4px` 对 `0`，理由见「微调编辑区」）。偏差必须写在注释与需求 §18.6 里：一个既不是抄来的、也不是选来的数字，如果哪里都不写，下一个人只会以为抄漏了。
+
+#### 约束：页头不再放「刷新」
+
+工作台页头曾经有一个「刷新」按钮。它只重读一次排版顺序，**没有任何可见效果**（卡片内容与结果都不在它的覆盖范围内），而"刷新"这个名字许诺的远多于这一点——一个按下去看不出变化的按钮，会让人怀疑别的东西也没生效。
+
+按钮已从页头移除，页头只剩标题与副标题。`refreshAll` 这个 locale 键**保留**：卡片外壳自己的刷新控件（`onRefresh`，可选）仍然拿它当 `aria-label`。删掉键会让那个控件变成无名按钮。
 
 ### 结果 R
 
-- 用户所见即所得：预览与正式渲染同一条路径。
-- 缺标记、重复标记、旧占位符语法与违禁构造都在提交前被拦下，用户看到具体位置。
-- 没有模板时不会误触运行；结果不对时，需要改的是区间注释或骨架排版，编辑器把这两样都摆在同一屏里。
+- 用户所见即所得：预览与正式渲染同一条路径，标签说的就是它渲染的东西。
+- 缺标记、重复标记、旧占位符语法与违禁构造都在提交前被拦下，条目能点、点了就跳到出问题的那一段。
+- 行号、区间与声明条数一直摆在眼前；体积按宿主计量的单位报，快超限时提前变色。
+- 键盘用户能缩进、也能出去；鼠标用户能点行号、能点违例。
+- 声明块由面板代写，加多少条都不会漂；指向尚无目标的声明会被告知，但不会拦住保存。
+- 空模板一键得到一份能通过分析的起手文档。
+- 保存与删除都在手边（粘性页脚），删除要两次按下，写入失败不会被滚动带走。
+- 结果页上：结果有框（框的边界靠边框、圆角与内边距，没有标题行、也没有状态行），权限说明退到脚注；运行详情默认折叠、开关写「运行详情」、`html` 按真实换行且去掉区间缩进读得懂、结束原因是中文、缺失的字段不占行。
+- 不满意时不必重跑：一句话改一次，记录在旁边，退一步就在记录里；这两样只在本次会话里，页面上写着这句话。那句话写在一块与聊天输入区同形的编辑区里（1–4 行随内容长高，`Enter` 提交、`Shift+Enter` 换行），运行中它的「重新生成」变成「停止」。
+- 结果也可以**由人直接改**：头部一个次级「编辑」把结果表面就地切成编辑器，改的是存盘那段片段；五个内容策略构造、空内容与超预算都在保存前被拒并说明理由；保存后它就是这张卡的结果，运行详情里多一行「手工编辑」，**一步**回退仍在，「修改记录」仍然是 0 条——那份记录记的是指令，不是编辑。
+- 这个面板的每个视图——网格、结果页、配置页——都在「工作台」标题之下；卡片页自己的头部排在它下面。
+- 没有任何一处靠"引用一个主题没定义的令牌"来假装有样式。
 
 ---
 
@@ -1275,8 +1893,8 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 | 没有模板 | 说明要先写模板 + 去配置 |
 | 子代理后端不支持 | 说明是部署配置问题 |
 | 模板不合法（标记问题、占位符语法、违禁构造） | 编辑器就地指出位置或原因，保存按钮禁用 |
-| 结果里没有 `html`（重试后） | 错误态 + 「查看原始输出」 |
-| 子代理自身报错 | 错误态 + 原因（来自 `agent/error` 的诊断），可在原始输出面板查看 |
+| 结果里没有 `html`（重试后） | 错误态 + 「运行详情」 |
+| 子代理自身报错 | 错误态 + 原因（来自 `agent/error` 的诊断），可在运行详情里查看 |
 | 旧结果（结构化值里没有 `html`） | 按"尚未运行"呈现，不显示空框 |
 | 结果过期 | 显示"已过期"与执行时间 |
 
@@ -1312,22 +1930,31 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 1. 每一层各自可验，失败时能定位到层。
 2. 宿主执行链路用**假的上游窄接口**驱动，覆盖全部分支。
 3. 安全断言必须有独立用例（模板被拒、片段被清、样式不外泄）。
-4. 需求 §14 里**已实现**的 16 条验收标准（1–16）逐条可验。§14 另有 18 条（17–34）属于**尚未实现**的按钮触发执行功能，本设计不为它们负责——那部分还没有实现与测试。
+4. 需求 §14 的 **70 条**验收标准中**在效的 69 条**逐条可验（第 52 条已撤回，见需求 §14.4）。**分工**：本设计负责 1–16（卡片模型与既有卡片能力）、35–48（编辑器与配置页，M10、M9、M4）、49–56（结果页与微调，M10、M8、M5、M1、M6）、57–60（第九版那批打磨，M10、M8 与面板标题所在的页面组件）与 61–70（第十版的手工编辑结果，M10、M8、M1、M4、M6），映射见[附录 B](#附录-b验收映射)；**17–34** 属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)自己映射，本文不重复。
 
 ### 行动 A
 
 | 层 | 文件 | 覆盖 |
 | --- | --- | --- |
 | 契约 | `skill-card-contract.spec.ts` | 常量不变量、区间标记正则（含无空白写法）、输出契约的形状与 `required`、错误码封闭性 |
+| 存储域 schema | `skill-card-spec.spec.ts` | 卡片记录（`skill` 与 `name`）整条往返、只带一侧的记录、空记录、模板与结果整条往返——**"store 写了但 schema 没声明"这一类缺陷的专门用例**；第十版增加 `editedAt` 的往返、`editedAt: 0` 与缺席的区别 |
 | 存储 | `skill-card-store.spec.ts` | 读写、revision、conflict、体积裁剪、模板复合键 |
+| 存储（手工编辑） | `skill-card-result-edit.spec.ts` | `putEditedResult` 的合并语义（保 `skill`/`stopReason`/输出/诊断、只换 `structured.html`、刷新 `executedAt`、写 `editedAt`）、`missing`/`invalid`/`too-large` 三条拒绝且不写盘、片段与整条记录两道预算都不裁剪、再跑一次后 `editedAt` 消失；同文件还驱动 `PUT /result`：围栏优先、只认 `PUT`、字段校验、404、413、500 不回显记录 |
 | 执行 | `skill-card-runner.spec.ts` | 正常、无活会话、无契约、无模板、provider 不支持、skill 不存在、一次重试、取消、超时、`agent/error` 归因、提供方诊断不被覆盖 |
-| 路由 | `skill-card-route.spec.ts` | 围栏优先、6 条路径、400/401/403/409/413/500、错误体不回显请求体 |
+| 微调执行 | `skill-card-refine.spec.ts` | 微调提示词的三段与顺序（含 `<row_data>`）、模板取自存盘选择、契约与 `card` 一致、一次重试、落盘整条记录、无模板/无契约时拒绝 |
+| 路由 | `skill-card-route.spec.ts` | 围栏优先、6 条路径、400/401/403/409/413/500、错误体不回显请求体；微调请求的逐字段校验与超限码 |
 | 模板 | `template.spec.ts` | 区间扫描的四种结果与位置、内容策略全部违规码、`placeholder-syntax` 及其 token、合法片段引用（`url(#id)`）不被误判 |
-| 渲染 | `render.spec.ts` | 骨架逐字节不变（前缀比对）、片段清洗（`<script>`/`<img>`/事件属性被移除、外部 CSS 的 `<style>` 整块移除）、`resultHtml` 对无 `html` 的结果返回 undefined、样式不外泄 |
-| 组件 | `SkillCard.spec.tsx` | 各状态呈现、有结果时回填区间、旧结果读作"尚未运行"、权限标注 |
-| 页面 | `SkillCardPages.spec.tsx` | 配置页（目录读取、名称/skill/模板）与结果页（运行中、失败原因） |
-| 卡片模型 | `WorkbenchCardShell.spec.tsx`、`WorkbenchCardGrid.spec.tsx`、`WorkbenchPage.spec.tsx`、`layout-controller.spec.tsx` | 外壳的标题/子标题/失败位与激活、X 只在有 `onRemove` 时渲染且只表示删除、拖拽与键盘排序、创建卡片磁贴、存盘实例的投影、布局记录只剩排序（`hidden` 被忽略）与 reset 的删除语义 |
-| 编辑器 | `SkillCardSettings.spec.tsx` | 选择器、就地违例清单与禁用保存、预览 |
+| 声明写入 | `skill-card-declarations.spec.ts` | 声明行的文法、追加到既有块、无块时在区间前新建、块保持原缩进且条目对齐、逐次插入不漂移、已有空行的块被整块规整 |
+| 起手文档 | `skill-card-skeleton.spec.ts` | 中英两本字典生成的骨架都零违例、区间与空声明块都在、区间内含示例按钮与 `&#39;` 规则、没有残留占位符语法 |
+| 渲染 | `render.spec.ts` | 骨架逐字节不变（前缀比对）、片段清洗（`<script>`/`<img>`/事件属性被移除、外部 CSS 的 `<style>` 整块移除）、`resultHtml` 对无 `html` 的结果返回 undefined、样式不外泄；第九版增加了 `dedentedHtml` 的四条（公共前缀被去掉、空行不参与也不留缩进、无前缀时原样、返回新字符串而不改原值） |
+| 组件 | `SkillCard.spec.tsx` | 各状态呈现、有结果时回填区间、旧结果读作"尚未运行"、权限说明不再画在正文里（它属于结果页的脚注） |
+| 页面 | `SkillCardPages.spec.tsx` | 配置页（目录读取、名称/skill/模板、**卡片页自己的头部只有返回**）与结果页（运行中、失败原因） |
+| 结果页 | `SkillCardResultPage.spec.tsx` | `html` 的真实换行与其余字段的 JSON、缺失字段整行不出现、默认折叠（**没有 `open` 属性**）、结果表面只框不命名（表层里没有 `header`、也没有 `aria-labelledby`）、权限脚注在页末；第九版增加了去缩进的显示值、影子根仍是原缩进、开关文案「运行详情」与 `原始输出` 的分离、结束原因的三行映射 + 未知值原样 + 英文侧；第十一版删掉了三个状态行用例，并把"框住并命名"改写为只断言框住 |
+| 微调界面 | `SkillCardRefine.spec.tsx` | 空输入不可按、请求形状、成功替换 + 记录 + 一步回退（轮询路径）、失败结果不变且告警只在编辑器一处、被拒启动同样报在那里、再微调的 `previous`、运行中的忙碌态与禁用、没有结果时不提供编辑器；第九版增加了 `Enter` 提交 / `Shift+Enter` 换行、`rows` 1→4 封顶、运行中主控件变「停止」并调用取消、记录头部行的条数与「回到上一版」的位置、提示行是整块最后一行 |
+| 卡片模型 | `WorkbenchCardShell.spec.tsx`、`WorkbenchCardGrid.spec.tsx`、`WorkbenchPage.spec.tsx`、`layout-controller.spec.tsx` | 外壳的标题/子标题/失败位与激活、X 只在有 `onRemove` 时渲染且只表示删除、**排序手柄在头部动作末位**、拖拽与键盘排序、创建卡片磁贴、存盘实例的投影、布局记录只剩排序（`hidden` 被忽略）与 reset 的删除语义。**注意它不覆盖卡片页上的面板标题**：每个用例都把 `useSelection` 定为 `undefined`（见附录 B 第 58 条） |
+| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行 |
+| 结果编辑器 | `SkillCardResultEdit.spec.tsx` | 入口的四种状态（有结果、无结果、运行中、裸运行中）与打开期间运行不可按、初值来自存盘片段、行号与「没有文档级 affordance」、字节读数、保存的请求与视图、取消不写、内容策略五码逐个 + 跳转、空内容、超预算不截断、`editedAt` 那一行、回退一步且记录仍为 0 条、Tab/Shift+Tab/Escape+Tab |
+| 结果写传输 | `skill-card-result-api.spec.ts` | `PUT` 的路径与体、`parseResultEdit` 的契约版本/身份/`editedAt` 形状校验、拒绝与传输失败的两种结果 |
 
 > 第二版这里的 `skill-card-api.spec.ts`（解析、非契约响应、串行队列）与"字段清单"用例已不存在：传输层没有独立 spec，它通过组件与页面 spec 以假 api 驱动。
 
@@ -1345,6 +1972,9 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 - 每条验收标准都能指到具体用例。
 - 安全断言有独立、可回归的用例，模板侧（拒绝）与片段侧（清洗）各有一组。
 - 执行链路的每个失败分支都有测试，不依赖真机偶发。
+- **样式与响应式不参与断言，这一点写在映射里而不是含糊过去**：jsdom 不计算媒体查询、没有布局，也不解析主题令牌，因此"≥1100px 并排"、"粘性页脚"、"手柄随悬浮显现"、"焦点环是品牌色"、"结果表面的边框、圆角与内边距"、"折叠动画"、"忙碌态的外观"、"代码块可滚动不折行"、"**编辑区量出来的高度**"、"**结果编辑器里行号与行的对齐**"这些断言的是 CSS 所依据的状态（`data-pane`、DOM 位置与层级、类名、`data-result-busy`、`rows`、文本本身），不是渲染结果。需求 §14.3 / §14.4 / §14.5 / §14.6 与附录 A.3 / A.4 / A.5 / A.6 对每一条都标了这一句。
+- **有一条新行为只覆盖了一半，写在这里**：第 58 条（面板标题在卡片页上）没有 DOM 断言——`WorkbenchPage.spec.tsx` 的每个用例都把 `useSelection` 定为 `undefined`，没有一个用例打开卡片页。要补它得加一个"选中某张卡"的用例，本轮源码与测试都冻结，所以只把它写成已知缺口（附录 B 第 58 行）。
+- 第九版落地时整个包是 **453 个测试 / 34 个 spec 文件**；第十版（手工编辑结果）落地时是 **505 个测试 / 37 个 spec 文件**；第十一版（撤掉状态行与「结果」标题）落地时是 **501 个测试 / 37 个 spec 文件**（少了三个状态行用例与一个"页面在说什么"用例，另有两个用例改写而没有增减条数），`corepack yarn workspace dsh-workbench check`（typecheck + test + build + 产物校验）exit 0。
 
 ---
 
@@ -1371,7 +2001,7 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 | **P8** | 模板引擎、隔离渲染、`workbench.card` 工厂注册、卡片本体 | 有模板时按模板渲染；无模板时「运行」不可用并给出引导 |
 | **P9** | 配置对话框、编辑器、预览、降级态与文案 | 需求 §13 当时的验收标准逐条可验 |
 
-> **本节是当时的计划表。** P9 里列过的"字段清单"随后被删除（见下文"区间语言重构"），验收标准的条数也已随需求方案修订变化——**现在共 34 条**：其中 **1–16 已实现并验收**，**17–34 属于尚未实现的按钮触发执行功能**（需求 §12）。那张表里的 P9 出口标准指的是当时那一版的需求 §13，不是今天的条数；当前映射见[附录 B](#附录-b验收映射)，那里只映射已实现的 16 条。
+> **本节是当时的计划表。** P9 里列过的"字段清单"随后被删除（见下文"区间语言重构"），验收标准的条数也已随需求方案修订变化——**现在共 70 条，其中在效 69 条**（第 52 条已由产品负责人撤回，编号保留）：**1–16、17–34、35–48、49–51 与 53–56、57–60、61–70 六组都已实现并验收**（17–34 是按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md)负责；35–48 是编辑器与配置页，49–56 是结果页与微调，57–60 是第九版那批打磨，61–70 是第十版的手工编辑结果，见下面「P10 之后」）。那张表里的 P9 出口标准指的是当时那一版的需求 §13，不是今天的条数；当前映射见[附录 B](#附录-b验收映射)。
 
 每阶段结束跑 `yarn workspace dsh-workbench check`（typecheck + test + build + verify:artifacts）。P8 起改动会影响客户端可见输出，追加两个变体的真实 profile 验证。
 
@@ -1508,7 +2138,7 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：状
 | 预览与字段提取（**已删除**） | ~~`src/client/skill-card/preview.ts`~~ |
 | M10 编辑器 | `src/client/skill-card/SkillCardSettings.tsx` |
 
-**修改**：M8 传输层补 `catalog()`；控制器补设置态与三个写入动作；卡片补齿轮入口、编辑器切换、**权限等级标注**；文案补 22 个键；样式补编辑器一组类。
+**修改**：M8 传输层补 `catalog()`；控制器补设置态与三个写入动作；卡片补**配置入口**（P9 当时是右上角齿轮，P10 改成头部动作里的「配置」按钮）、编辑器切换、**权限等级标注**；文案补 22 个键；样式补编辑器一组类。
 
 **验证证据**（全部实跑）
 
@@ -1579,7 +2209,7 @@ P9 的功能全部通过测试，真机也确认"卡片在、运行按钮禁用"
 
 #### 加上了什么
 
-**子代理自身的失败不再是黑箱。** 子代理这条缝把出错的子代理压成 `stopReason: 'error'` 并**丢掉 error 对象**，所以"没交回 `html`"与"子代理自己崩了"在调用方看来曾经完全一样。现在宿主订阅 `agent/error`（`{ agent, turn, step, error }`），按 `agent.id === childId` 归因到本次运行，写进结果的 `diagnostic`，由结果页的原始输出面板显示。实现细节与三条纪律见 [M5 · 子代理自身的失败要单独捕获](#子代理自身的失败要单独捕获)。
+**子代理自身的失败不再是黑箱。** 子代理这条缝把出错的子代理压成 `stopReason: 'error'` 并**丢掉 error 对象**，所以"没交回 `html`"与"子代理自己崩了"在调用方看来曾经完全一样。现在宿主订阅 `agent/error`（`{ agent, turn, step, error }`），按 `agent.id === childId` 归因到本次运行，写进结果的 `diagnostic`，由结果页的运行详情显示。实现细节与三条纪律见 [M5 · 子代理自身的失败要单独捕获](#子代理自身的失败要单独捕获)。
 
 #### 验证证据（实跑）
 
@@ -1592,12 +2222,58 @@ P9 的功能全部通过测试，真机也确认"卡片在、运行按钮禁用"
 
 #### 当前验收映射
 
-需求 §14 的 34 条里，**已实现的 1–16** 逐条落在哪个模块，见[附录 B](#附录-b验收映射)。**17–34 不被映射**：它们属于尚未实现的按钮触发执行功能（需求 §12），本设计没有对应模块。
+需求 §14 的 70 条里（第 52 条已撤回），**1–16、35–48、49–51 与 53–56、57–60 与 61–70** 逐条落在本设计的哪个模块见[附录 B](#附录-b验收映射)。**17–34 不在附录 B 里**：它们属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)逐条映射，本文不重复（那部分的共享地基与本文的 M1、M2、M3 是同一批代码）。
 
 #### 仍未覆盖的两项（不变）
 
 1. **第 1 条的端到端仍未跑过**：需要"打开一个会话 + 该会话作用域下有一个可用 skill + 一次真实模型调用"，启动验证脚本不具备这些条件。链路的每一段都有测试（配置写入、模板分析、执行、拼接与清洗），但"点运行到看见结果"这一整条路径仍待人工验证。
 2. **结果过期提示未实现**：`resultStaleAfterMs` 是部署配置，客户端拿不到它。
+
+### P10 之后：编辑器与配置页（已落地）
+
+P10 把编辑器搬进整栏的配置页之后，这个模块又按用户实际卡住的地方改了三批，结果页则又改了一批。**前面 M10 写的是今天的样子**，这里只记交付顺序与证据。
+
+| 批次 | 落下什么 | 新增/改动的文件 |
+| --- | --- | --- |
+| 1 | 行号栏、状态行（字节 + 85% + 缺区间警告）、键盘（Tab / Shift+Tab / Escape 出口 / Ctrl+Cmd+S） | `SkillCardSettings.tsx`、`skill-card.module.css` |
+| 2 | 违例 `offset` 与点击定位、声明构建器（`ActionDeclarationPanel.tsx` + `declarations.ts`）、缺失目标告警、骨架（`skeleton.ts`） | 同上 + `template.ts`（`offset`）、`skill-card-skeleton.spec.ts`、`skill-card-declarations.spec.ts` |
+| 3 | 三段与整页布局、字段同一行、预览自有表面与标签、并排/切换、粘性页脚、两段式删除、页脚内的失败行、排序手柄的末位与三级色 | `SkillCardPages.tsx`、`WorkbenchCardShell.tsx`、`card.module.css`、各模块的 spec |
+| 4 | **结果页**：结果表面、权限说明降为脚注、运行详情的三处修正（真实换行、无空行、默认折叠）、微调编辑区与它的会话内记录（那一批还加了结果表面上的「结果」标题与一行状态，**第十一版已按产品决定整行移除**） | `SkillCardPages.tsx`、`SkillCard.tsx`（正文不再画权限说明）、`skill-card.module.css`、`controller.ts`、`run-start.ts`、`skill-card-prompt.ts`、`skill-card-contract.ts`、`skill-card-route.ts`、`skill-card-runner.ts`、`locales.ts`（两本字典）、`SkillCardResultPage.spec.tsx`、`SkillCardRefine.spec.tsx`、`skill-card-refine.spec.ts` |
+| 5 | **第九版打磨**：微调编辑区与聊天输入区同形（1–4 行、`Enter` / `Shift+Enter`、组字保护）、运行中主控件变「停止」、运行详情（开关写「运行详情」、去区间缩进、结束原因本地化）、记录头部行与提示行归位、结果表面标题行 + 细线（**该标题行第十一版已移除**）、**面板标题回到每个视图** | `SkillCardPages.tsx`、`render.ts`（`dedentedHtml`）、`WorkbenchPage.tsx`（面板标题无条件渲染）、`skill-card.module.css`、`locales.ts`（两本字典）、`SkillCardResultPage.spec.tsx`、`SkillCardRefine.spec.tsx`、`render.spec.ts` |
+| 6 | **第十版：手工编辑结果**：结果表面里的就地编辑器（`SkillCardResultEditor.tsx`）、两个编辑器共用的行与缩进算术（`text-editing.ts`）、片段分析窄入口（`template.ts` 的 `analyzeFragment`）、五个内容策略码的共用文案（`violation-copy.ts`）、结果写路由与 store 合并（`putEditedResult`）、`editedAt` 与「手工编辑」一行 | `SkillCardPages.tsx`、`SkillCardResultEditor.tsx`、`text-editing.ts`、`violation-copy.ts`、`SkillCardSettings.tsx`（改用共用算术）、`template.ts`、`skill-card-contract.ts`、`skill-card-spec.ts`、`skill-card-store.ts`、`skill-card-route.ts`、`index.ts`、`client/skill-card/api.ts`、`client/skill-card/controller.ts`、`locales.ts`（两本字典）、`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts`、`skill-card-result-api.spec.ts` |
+| 7 | **第十一版：撤掉结果页的两处噪音**：结果面上方的状态行（`runStatusLine` / `runStateText` / `runStateMark` / `RUN_STATE_MARKS` / `durationText` / `joinSegments` / `useElapsedSeconds`，`data-run-status` 钩子与 `.runStatus` 样式）与结果表面里的「结果」标题（`resultHead` / `resultHeading`、`useId` 与 `aria-labelledby` 配对）。两本字典里失去读者的六个键（`runStatusIdle` / `runStatusDone` / `runStatusCancelled` / `runStatusFailed` / `runDuration` / `skillCardResultHeading`）一起删掉 | `SkillCardPages.tsx`、`skill-card.module.css`、`locales.ts`（两本字典）、`SkillCardResultPage.spec.tsx`、`SkillCardPages.spec.tsx`、`skill-card-action-panel.spec.tsx` |
+
+**验证证据**（实跑，不是推断。下面的数字是**本批落地时**的；第十一批落地时是 501 个测试 / 37 个 spec 文件；第十批落地时是 505 个测试 / 37 个 spec 文件；第四批落地时是 438 个测试 / 34 个 spec 文件、`lib/client.js` 196.63 kB、`inline-client-styles` 26,430 字符）
+
+| 项 | 结果 |
+| --- | --- |
+| `corepack yarn workspace dsh-workbench check` | typecheck + **453 个测试（34 个 spec 文件，第九版落地时）** / **505 个测试（37 个 spec 文件，第十版落地时）** / **501 个测试（37 个 spec 文件，第十一版落地时）** + build + 产物校验，**exit 0** |
+| 客户端产物 | `lib/client.js` 200.66 kB（vite 报，第九版时），`inline-client-styles` 装入 29,387 字符 CSS 并删掉旁路文件；externals 仍只有基线模块。第十一版落地时是 `lib/client.js` 212.48 kB、装入 **29,135** 字符 CSS——少掉的那部分正是状态行与「结果」标题行那几条规则 |
+| 新增的 spec（第四批） | `SkillCardResultPage.spec.tsx`（当时 10 个用例）、`SkillCardRefine.spec.tsx`（当时 8 个）、`skill-card-refine.spec.ts`（6 个）；另外 `skill-card-route.spec.ts` 增加 3 个用例、`skill-card-run-start.spec.ts` 增加 2 个、`SkillCard.spec.tsx` 的权限案例改为"正文不画它" |
+| 第九版新增的用例（+15） | `SkillCardResultPage.spec.tsx` +5（去缩进后的代码块 / 影子根仍是原缩进、开关文案与 `原始输出` 的键分离、结束原因三值 + 未知值原样、英文侧映射、标题行 `header > h3`——最后这条第十一版随标题一起删掉），现在 15 个（第十一版之后 12 个）；`SkillCardRefine.spec.tsx` +6（`Enter` 提交与 `Shift+Enter` 不提交、`rows` 1→4 封顶、记录头部条数与「回到上一版」位置、提示行是最后一行、回退后头部按钮消失、运行中的「停止」调用取消），现在 14 个；`render.spec.ts` +4（`dedentedHtml` 四条），现在 15 个 |
+| 第十版新增的用例（+52） | 三个新文件 `SkillCardResultEdit.spec.tsx`（23 个）、`skill-card-result-edit.spec.ts`（17 个）、`skill-card-result-api.spec.ts`（7 个）；`template.spec.ts` +3（`analyzeFragment` 的窄口径、五码逐条、path 与近似位置），`skill-card-spec.spec.ts` +2（`editedAt` 整条往返、缺席与零的区别）；`skill-card-contract.spec.ts` 的既有用例补上"结果写是一条独立路径"的断言 |
+| 第十一版删掉/改写的用例（−4） | `SkillCardResultPage.spec.tsx` **删 3**（状态行三段 + 缺段的那两条、运行中每秒计时那条）并**改写 1**（"框住并命名"→只断言框住：表层在、里面没有 `header`、没有 `aria-labelledby`、文档在框里）；`SkillCardPages.spec.tsx` **删 1**（"页面在说自己正在做什么"——它断的就是删掉的那行）并**改写 1**（运行中那条改为等运行提示出现、不再等 `data-run-status`）；`skill-card-action-panel.spec.tsx` **改写 1**（同样把等待目标换成运行提示）。净减 4，spec 文件数不变 |
+
+**这一轮修掉的三个真缺陷**，都已写成约束（M4 与 M10 各自的"约束"小节、需求 §17.5）：
+
+1. **存储 schema 缺 `name`**：写入成功、加载丢弃，重启后卡片退回 id 而 skill 名还在（M4）。
+2. **`--dsw-alias-border-focus` 不由主题定义**：九条焦点规则因此静默失效（M10）。
+3. **页头的「刷新」没有可见效果**：移除，locale 键留给外壳的 `aria-label`（M10）。
+
+**结果页那一批修掉的两个"读不了"**（已写成需求 §18.1 与 M10 的结果页小节）：
+
+1. **调试区把 `html` 当 JSON 打印**：真实换行变成字面的 `\n`，整段无法阅读；缺失字段还占着一行说"没有输出"。
+2. **结果没有归属**：渲染的文档浮在页面上，没有框，也看不出它从哪里开始。当时补的是框加一行「结果」标题；**标题后来按产品决定移除，框与内边距留下**。
+
+**第九版那一批又修掉三个"读不了 / 做不了"**（同上，已写进 §18 与 M10）：
+
+1. **一句话写不进一行**：那句真实的修改要求会冲出单行框的可见宽度，长句只能滚着看。换成与聊天输入区同形的多行编辑区之后，1–4 行随内容长高。
+2. **看得见但按不动的「重新生成」**：运行期间它是禁用的，而取消在页面顶部、已经被结果顶出视野。那块主控件现在直接变成「停止」。
+3. **开关名只说了四分之一，代码块从四百像素外开始，结束原因是英文**：三处都在运行详情里（开关改名、去缩进、本地化，未知值原样）。
+
+另外两处是层级问题：**修改记录**把时间推到整行最右、退一步的链接单独占一行，三样东西一个重量；**面板标题**在卡片页上被拿掉之后，卡片页读起来像另一个页面。前者重排成头部行 + 消息式的行，后者按需求 FR-43 装回来（**推翻第七版**）。
+
+**仍然没做的**：上面「仍未覆盖的两项」照旧——第 1 条的真机端到端与结果过期提示。编辑器的响应式行为（并排、粘性、显现规则）、结果页的样式类结果（边框、圆角、内边距、折叠动画、忙碌态外观）、**编辑区量出来的高度**，以及**卡片页上的面板标题**都没有自动化断言，原因见 M13 结果 R（最后一项是第九版新增的已知缺口）。
 
 ### 结果 R
 
@@ -1605,6 +2281,7 @@ P9 的功能全部通过测试，真机也确认"卡片在、运行按钮禁用"
 - 缺口（工厂未注册）在第一张真实卡片落地时被一并修掉。
 - 验收标准在 P9 结束时逐条可验；其条数与映射随后续修订更新，当前映射见[附录 B](#附录-b验收映射)。
 - P10 的卡片模型重构随后落地：卡片实例是存盘的用户数据，卡片正面只是索引，结果与配置各占一整栏。
+- 编辑器与配置页的三批改动随后落地（见上）：需求 §14 的 48 条因此全部有实现与包级测试；结果页与微调的第四批落地后共 56 条；第九版那批打磨落地后共 **60 条**；第十版的手工编辑结果落地后共 **70 条**，其中 **69 条在效**（第 52 条在第十一版撤回，编号保留），全部有实现与包级测试。样式与响应式那几项仍只能靠人工确认，映射里都标了；**卡片页上的面板标题**（第 58 条）是唯一"行为有、断言只有一半"的一条，见附录 B；结果编辑器里**行号与行的对齐**也是只能人工看的一处。
 
 ---
 
@@ -1644,8 +2321,8 @@ P9 的功能全部通过测试，真机也确认"卡片在、运行按钮禁用"
 
 两个页面**各自建一个 `useSkillCard`**，而不是从外面接一个控制器：页面只在自己是当前视图时挂载，所以这个 hook 只会为屏幕上那张卡运行。
 
-- **结果页**（`SkillCardResultPage`）：返回按钮、卡片名、skill、**运行 / 取消按钮**、状态行（带 `data-run-status`）、失败文案、卡片正文（模板渲染）与可展开的**原始输出**（stop reason、执行时间、`diagnostic`、结构化值、文本输出）。运行中每秒刷新已用秒数。
-- **配置页**（`SkillCardConfigPage`）：返回按钮、卡片名、skill、**删除卡片**按钮，然后是 M10 的编辑器（名称、skill 选择器、模板、预览）。它用 `withCatalog: true`，因为只有这一页列 skill。删除**延后到宿主提交再返回网格**，网格才不会又把这张卡读回来。
+- **结果页**（`SkillCardResultPage`）：返回按钮、卡片名、skill、**运行 / 取消按钮**、失败文案、卡片正文（模板渲染）、微调编辑区（运行中它的主控件是「停止」）与可展开的**运行详情**（结束原因、执行时间、`diagnostic`、结构化值、原始输出）。它曾经在结果表面上方还有一行状态行（带 `data-run-status`），第十一版按产品决定整行删掉——状态与时间这两个事实只在运行详情里读。
+- **配置页**（`SkillCardConfigPage`）：头部**只有「返回」**（卡片名与 skill 在下面的字段里，这一页的头部再写一遍就是那层重复且不可编辑的卡片名；面板自己的标题在它上面，见「页面的形状」），然后是 M10 的三段编辑器（基本信息 / 模板 / 预览）与粘性页脚（保存 / 关闭 / 两段式删除）。它用 `withCatalog: true`，因为只有这一页列 skill。删除**延后到宿主提交再返回网格**，网格才不会又把这张卡读回来。
 
 ### 创建卡片（`WorkbenchCreateCard.tsx`）
 
@@ -1758,9 +2435,9 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 
 ## 附录 B：验收映射
 
-需求 §14 的 **已实现 16 条（1–16）**与本设计的对应关系：
+需求 §14 的 **1–16**（既有卡片能力）、**35–48**（编辑器与配置页）、**49–56**（结果页与微调，**其中 52 已撤回**）、**57–60**（第九版那批打磨）与 **61–70**（第十版的手工编辑结果）与本设计的对应关系：
 
-> **17–34 不在本附录里，这是故意的。** 它们是需求 §12「技能卡按钮触发执行」的待验收项，该功能**尚未实现**，本文不为它设计、也没有模块可映射。看到 §14 一共 34 条、而本表只有 16 行，不是遗漏。
+> **17–34 不在本附录里，这是故意的。** 它们属于「技能卡按钮触发执行」，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)逐条映射；那部分与本设计共用 M1、M2、M3 的同一批代码，但模块编排（M1–M8）在那一份文档里。看到 §14 一共 70 条、而本表 52 行，不是遗漏。**其中第 52 行已撤回**（第十一版，见需求 §14.4）：那一行留着，是为了让编号与历史对得上，它不主张任何东西已通过。
 
 | 需求验收 | 落在哪个模块 |
 | --- | --- |
@@ -1772,7 +2449,7 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 6 回填片段里的禁止构造被清除 | M3 的 `stripForbidden`，`render.spec.ts` |
 | 7 打开工作台不产生模型调用 | M6 的 `GET` 是纯存储读，`SkillCard.spec.tsx` |
 | 8 结果里没有 `html` 时恰好重试一次 | M5 重试判据，`skill-card-runner.spec.ts` |
-| 9 编辑器就地违例 + 预览同一路径 | M10，`SkillCardSettings.spec.tsx` |
+| 9 编辑器就地违例 + 预览同一路径 | M10 的违例清单与预览，`SkillCardSettings.spec.tsx` |
 | 10 未写模板时不能运行并给出引导 | M5 `template-missing` + M9，`skill-card-runner.spec.ts` / `SkillCard.spec.tsx` |
 | 11 各降级态可操作 | M1 的可操作错误码 + M12 |
 | 12 子代理自身失败可诊断 | M5 的 `agent/error` 归因，`skill-card-runner.spec.ts` |
@@ -1780,6 +2457,42 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 14 权限标注 + 审批流 | M9 + M12 |
 | 15 不改动上游子模块 | 全部改动在 `dsh-workbench/` 内，`git status` 中子模块无改动 |
 | 16 卡片模型（创建、正面、结果页、配置页、X、无隐藏） | M9 的卡片本体与外壳（X 只在有 `onRemove` 时渲染）、M8 的选中状态、P10 一节的卡片模型；`WorkbenchPage.spec.tsx` / `WorkbenchCardShell.spec.tsx` / `WorkbenchCardGrid.spec.tsx`；隐藏移除后布局记录只剩排序，`layout-controller.spec.tsx` 断言 actions 里没有隐藏操作 |
+| 35 行号栏：逐行染色（区间胜）、点行号选行、同步滚动 | M10「行号栏」（`gutterLines` / `selectLine` / `onScroll`）；`SkillCardSettings.spec.tsx`（同步滚动无自动化断言） |
+| 36 状态行：行号 + 声明条数 + 字节/上限、85% 警告、脏标记 | M10「状态行」（`regionLines`、`TextEncoder`、`.editorStatusWarn`）；`SkillCardSettings.spec.tsx` |
+| 37 缺区间 → 整行警告 + 「插入标记」 | M10「状态行」（`insertRegionMarkers`）；`SkillCardSettings.spec.tsx` |
+| 38 键盘：Tab / Shift+Tab / Escape 出口 / Ctrl+Cmd+S | M10「键盘」（`handleEditorKey`、`editIndent`、`saveable`）；`SkillCardSettings.spec.tsx` |
+| 39 违例点击定位；无位置保持纯文本；内容策略位置近似 | M10「违例清单与定位」+ M2「违例的位置」；`SkillCardSettings.spec.tsx`（近似值本身未断言） |
+| 40 声明构建器：键校验 / 已占用 / 两类目标 / 写入与新建块 / 按原缩进整块重发 | M10「声明构建器」+ `declarations.ts`；`SkillCardSettings.spec.tsx`、`skill-card-declarations.spec.ts` |
+| 41 缺失目标告警但不阻塞保存；读不到不报缺失 | M10「缺失目标告警」；`SkillCardSettings.spec.tsx` |
+| 42 骨架可插入且零违例 | M10「骨架插入」+ `skeleton.ts`；`skill-card-skeleton.spec.ts`、`SkillCardSettings.spec.tsx` |
+| 43 并排 / 标签切换（媒体查询 + `data-pane`） | M10「并排与切换」（CSS 媒体查询 + `data-pane`）；`SkillCardSettings.spec.tsx`（响应式结果不可测） |
+| 44 三段分组、卡片页头部只有返回、两字段一行、预览自有表面与标签、粘性页脚、标签配对 | M10「页面的形状」+「粘性页脚」（面板标题由 `WorkbenchPage.tsx` 渲染，见 58）；`SkillCardSettings.spec.tsx`、`SkillCardPages.spec.tsx`（样式不参与断言） |
+| 45 删除两次按下、`aria-live` 播报、取消与 Escape 都不删 | M10「粘性页脚」的两段式删除；`SkillCardSettings.spec.tsx` |
+| 46 写入失败在页脚内以 `role="alert"` 呈现 | M10「粘性页脚」的失败行；`SkillCardSettings.spec.tsx` |
+| 47 排序手柄在末位、三级色、随悬浮/聚焦显现 | M9「排序手柄」；`WorkbenchCardShell.spec.tsx`（显现是 CSS） |
+| 48 卡片名称重载后仍在（schema 覆盖写入字段） | M4「约束：store 写入的每个字段都必须在 schema 里声明」；`skill-card-spec.spec.ts` |
+| 49 `html` 按真实换行渲染（显示时去区间缩进），其余字段仍是 JSON | M10「结果页」的 `readStructured` 与 `.runPreHtml`、`render.ts` 的 `dedentedHtml`；`SkillCardResultPage.spec.tsx`、`render.spec.ts`（去缩进本身见 60；`white-space: pre` / `overflow: auto` 是 CSS，未断言） |
+| 50 缺失的字段整行不出现 | M10「结果页」的五处修正（`runNoOutput` 已从两本字典删除）；`SkillCardResultPage.spec.tsx`（`原始输出` 在无输出文本时完全不出现） |
+| 51 运行详情默认折叠 | M10「结果页」（`<details>` 不带 `open`；测试钉"没有 `open` 属性"）；`SkillCardResultPage.spec.tsx`（折叠动画不可测） |
+| 52 ~~状态行：状态 + 开始时间 + 用时~~ **已撤回（第十一版）** | ~~M10「结果页」的 `runStatusLine` / `runStateText` / `runStateMark` / `clockText`~~；那一行及其函数已删除，`clockText` 现在只服务微调记录。**这一条不主张任何东西已通过**，需求侧见 §14.4 |
+| 53 输入为空时「重新生成」不可按 | M10「微调编辑区」的 `empty` 门 + M8 的 `refine()` 门（运行中那个位置是「停止」，见 57）；`SkillCardRefine.spec.tsx` |
+| 54 成功：就地替换 + 记录（指令 + 紧跟的时间）+ 头部行条数 + 「回到上一版」在头部 + 提示行在最后 + 一步回退 | M8「微调状态」（`settleRefinement`、`previousResult`、`resultOverride`）+ M10「微调编辑区」的记录块；`SkillCardRefine.spec.tsx`；提示词与落盘见 `skill-card-refine.spec.ts` |
+| 55 失败：结果不变 + 失败报在编辑区下方 | M8 的 `refineProblem` 与"覆盖 = 失败前那份记录" + M10「微调编辑区」；`SkillCardRefine.spec.tsx` |
+| 56 微调过的结果可以再微调 | M8 的 `refine()`（请求带屏幕上那份 HTML）+ M10「微调编辑区」；`SkillCardRefine.spec.tsx` |
+| 57 运行中主控件变「停止」，与头部共用同一个取消 | M10「微调编辑区」的 `onStop`/`data-refine-stop` + M8 的 `cancel()`，以及"被取消按失败结算"（M8 三处记录点的第 3 条）；`SkillCardRefine.spec.tsx`（"共用同一个动作"是源码事实，无独立断言） |
+| 58 面板标题在每个视图上，卡片页自己的头部在其下；配置页头部仍只有「返回」 | M10「页面的形状」（`WorkbenchPage.tsx` 无条件渲染标题）+ M10「微调编辑区」所属页面的头部；`WorkbenchPage.spec.tsx`（标题随页面渲染）、`SkillCardPages.spec.tsx`（配置页头部只有返回）。**卡片页那一半没有 DOM 断言**：`WorkbenchPage.spec.tsx` 的用例都把 `useSelection` 定为 `undefined` |
+| 59 编辑区与聊天输入区同形、1–4 行随内容长高、`Enter` 提交 / `Shift+Enter` 换行 / 组字不提交 | M10「微调编辑区」（`rows` 与 `useLayoutEffect` 的 `scrollHeight` 测量、`isComposing` 判断）+ `skill-card.module.css` 的 `.composerInput`（尺寸来自 `InputBar.module.css`）；`SkillCardRefine.spec.tsx`（高度本身不可测：jsdom 无布局） |
+| 60 运行详情：开关写「运行详情」、代码块去公共缩进（显示层）、结束原因本地化、未知值原样 | M10「结果页」的第 4、5 处修正（`runDetailSummary` / `runRawOutput` 两个 key、`dedentedHtml`、`STOP_REASON_KEYS` 部分映射）；`SkillCardResultPage.spec.tsx`、`render.spec.ts` |
+| 61 「编辑」入口：有结果且没有运行占住卡片时才有，位置在「运行」左边，打开期间运行不可按 | M10「结果的手工编辑」（`editable` 与 `editing`、头部的 ghost 控件、`disabled` 条件），以及"编辑器打开时微调编辑区不画"；`SkillCardResultEdit.spec.tsx` |
+| 62 编辑的是存盘片段、保存后成为卡片结果、页面按回执更新 | M10「结果的手工编辑」（`html={resultHtml(view.result?.structured) ?? ''}`、`saveResultEdit`）+ M8（`saveResult`、`replaceResult`）+ M6（`PUT /result` 回执）；`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts`、`skill-card-result-api.spec.ts` |
+| 63 取消不写任何东西，视图原样返回 | M10「结果的手工编辑」（`onCancel` 只 `setEditing(false)`）；`SkillCardResultEdit.spec.tsx` |
+| 64 五个内容策略构造拒绝保存，给出原因与位置（可点） | M2 的 `analyzeFragment`（窄入口）+ `policy.ts` + M10 的 `CONTENT_VIOLATION_KEYS` 与 `revealViolation`；`SkillCardResultEdit.spec.tsx`、`template.spec.ts` |
+| 65 空内容被拒，消息说结果为空且这张卡可以再运行一次 | M10 的 `empty` 门与 `resultEditEmpty`；M10/存储边界（`putEditedResult` 的 `invalid`）；`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts` |
+| 66 超 `WORKBENCH_RESULT_MAX_BYTES` 拒绝、绝不截断（编辑器 + 路由 + store） | M10 的字节读数与 `overBudget` 门 + M6 的 `Math.min(maxResultBytes, WORKBENCH_RESULT_MAX_BYTES)` + M4/M10 的 `putEditedResult`（片段与整条记录两道预算，均不裁剪）；`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts` |
+| 67 保存后可退回一步，且这次编辑不进修改记录 | M8 的 `saveResultEdit`（把 `prior` 放进 `previousResult`、不动 `refinements`）+ M8 `undoRefine` + M10「微调编辑区」的头部行；`SkillCardResultEdit.spec.tsx` |
+| 68 记录带 `editedAt`，运行详情有一行「手工编辑」和时间 | M1 的 `editedAt` + M10「结果页」`RunOutput` 的新行 + M8 `parseResultEdit` 的形状校验；`SkillCardResultEdit.spec.tsx`、`skill-card-result-api.spec.ts` |
+| 69 保存不伪造运行：保 `skill`/`stopReason`/输出/诊断，只换 `structured.html`，刷新 `executedAt`、写 `editedAt`；下一次运行覆盖 | M10/store 的 `putEditedResult`（`moment()` 与 `structuredRecord()`）+ M10「结果的手工编辑」+ `putResult` 的既有语义；`skill-card-result-edit.spec.ts` |
+| 70 `editedAt` 在存储 schema 里声明，重启后仍在 | M4 的 `workbenchResultSchema` 与「约束：store 写入的每个字段都必须在 schema 里声明」；`skill-card-spec.spec.ts` |
 
 ## 附录 C：依据
 

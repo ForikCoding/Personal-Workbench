@@ -52,6 +52,43 @@ export const zh = {
   skillCardCatalogEmpty: '这个会话没有可用的 skill',
   skillCardNoSession: '读不到已安装的 skill：应用里还没有活的会话。先打开一个会话，再回来选 skill。',
   skillCardTemplateLabel: '模板',
+  skillCardTemplateSizeUnit: '字节',
+  skillCardTemplateDirty: '有未保存的改动',
+  // The three facts on the editor's status line: where the region is, what the
+  // template declares, and how much of the size budget it uses.
+  skillCardRegionRange: '区间 {start}–{end}',
+  skillCardRegionMissing: '区间缺失',
+  skillCardActionsCount: '动作声明 {count} 条',
+  skillCardInsertMarkers: '插入标记',
+  skillCardInsertSkeleton: '插入骨架',
+  // The starter document. Its prose is an instruction a child agent follows, so it is
+  // translated; the markup around it is the example and stays as written.
+  skillCardSkeletonHeading: '任务',
+  skillCardSkeletonWhat: '在这里生成要显示的内容：一行一个条目，字段按这张卡要展示的东西来定。',
+  skillCardSkeletonExample: '需要按钮时写在同一行里（动作键取上方 dsh-actions 块里声明过的键）：<li>CP-2025-001 登录模块联调 <button type="button" data-dsh-action="finish" data-dsh-row=\'{"task_number":"CP-2025-001"}\'>完成</button></li>',
+  skillCardSkeletonQuote: 'data-dsh-row 用单引号包住，值里的单引号必须写成 &#39;，否则属性会断开、这次点击会被拒绝。',
+  // The declaration builder. It exists because the block is the one place a user must
+  // otherwise memorise exact syntax, and a wrong key only fails at click time.
+  skillCardAddAction: '添加动作',
+  skillCardActionKey: '动作键',
+  skillCardActionKeyHint: '字母、数字、下划线或短横线，1–32 个字符',
+  skillCardActionKeyTaken: '这个动作键已经被声明过了',
+  skillCardActionKind: '类型',
+  skillCardActionKindCard: '卡片',
+  skillCardActionKindSkill: 'skill',
+  skillCardActionTarget: '目标',
+  skillCardActionNoCards: '还没有可以指向的卡片。先建一张卡片，再回来添加这个动作。',
+  // A declared target that no longer exists is reported, not refused: the card may be
+  // created (or the skill installed) after the declaration is written.
+  skillCardActionCardTargetMissing: '动作 {key} 指向的卡片不存在：{name}',
+  skillCardActionSkillTargetMissing: '动作 {key} 指向的 skill 不存在或不能被调用：{name}',
+  // The three groups of the configuration page.
+  skillCardSectionBasics: '基本信息',
+  skillCardPreviewSample: '骨架预览，区间尚未填充',
+  // Removing a card is not a partial edit, so it is confirmed in place rather than
+  // carried out on the first press.
+  skillCardDeleteConfirm: '确认删除',
+  skillCardDeleteConfirmPrompt: '删除后无法撤销，确认删除这张卡片？',
   skillCardTemplatePlaceholder: '用 HTML 写这张卡的样子，用 <!-- template-begin --> 与 <!-- template-end --> 标出要填数据的位置，并在注释里写明填写要求',
   skillCardPreview: '预览',
   skillCardSave: '保存',
@@ -65,6 +102,11 @@ export const zh = {
   skillCardViolationRegionUnclosed: '区间标记没有成对出现',
   skillCardViolationRegionRepeated: '只支持一对区间标记',
   skillCardViolationPlaceholder: '占位符语法已移除，请改用区间标记，并在注释里写明填写要求',
+  skillCardViolationActionDuplicate: '动作声明只能有一处',
+  skillCardViolationActionKey: '动作键不合法（字母、数字、下划线、短横线，1–32 字符）',
+  skillCardViolationActionKeyRepeated: '这个动作键被声明了两次',
+  skillCardViolationActionTarget: '动作目标必须写成 card "名称" 或 skill "名称"',
+  skillCardViolationActionInsideRegion: '动作声明不能写在区间内——区间每次运行都会被重写',
   skillCardPermission: '运行时使用当前会话的完整工具权限',
   skillCardBack: '返回',
   skillCardCardName: '卡片名称',
@@ -76,19 +118,74 @@ export const zh = {
   cardTypeMemory: '记忆卡片',
   skillCardDelete: '删除卡片',
   removeCard: '删除卡片',
-  // Run status, so the result page states what a run is doing at every moment.
-  runStatusIdle: '未运行',
+  // The one state word the page still says in words: the in-flight notice that replaces
+  // the document. Every other state is what the content itself shows.
   runStatusRunning: '运行中',
-  runStatusDone: '已完成',
-  runStatusCancelled: '已取消',
-  runStatusFailed: '失败',
   runStartedAt: '开始于',
   runStopReason: '结束原因',
+  // A result whose region HTML was replaced by hand says so on its own row. It is not a
+  // 修改记录 entry: that log records instructions, and a hand edit is not one.
+  runEditedAt: '手工编辑',
+  // Editing a stored result by hand: the entry in the result head, the field, and the two
+  // reasons an edit cannot be stored. The empty one names the way out — run the card again
+  // — because an empty region renders as a broken-looking card rather than as nothing.
+  skillCardResultEdit: '编辑',
+  resultEditLabel: '结果内容',
+  resultEditPlaceholder: '这里是这段区间的 HTML：改完保存，它就是这张卡的结果',
+  resultEditEmpty: '结果为空，没有可保存的内容。这张卡可以再运行一次，也可以在这里直接填入区间 HTML。',
+  resultEditTooLarge: '内容有 {bytes} 字节，超过 {max} 字节上限，未保存。',
+  // The disclosure's own name, which had been the raw output row's: the block holds the
+  // stop reason, the start time, the structured value and the raw output, so naming it
+  // after one of the four described a quarter of what opening it shows.
+  runDetailSummary: '运行详情',
   runStructured: '结构化结果',
   runRawOutput: '原始输出',
   runDiagnostic: '诊断',
-  runNoOutput: '这次运行没有留下输出。',
+  // The stop reasons this build can name. The upstream union is merge-extensible, so an
+  // unlisted reason is shown as it arrived rather than guessed at.
+  runStopCompleted: '正常结束',
+  runStopError: '出错',
+  runStopAborted: '已中止',
+  // The structured value's region HTML is shown as HTML rather than as one JSON string,
+  // so the fields left over need a name of their own.
+  runStructuredRest: '其余字段',
   skillCardRunningBody: '技能正在执行，完成后结果会显示在这里。',
+  // The composer that revises the result. Both the log and the kept version live in
+  // memory, and the note says so — otherwise their disappearance on reload reads as a
+  // bug rather than as the accepted cost.
+  refinePlaceholder: '说明要改哪里，例如「按时间倒序」',
+  refineAction: '重新生成',
+  refineStop: '停止',
+  // The log's header, which states how many revisions it holds in a count rather than a
+  // sentence, and stands beside the one step back it makes possible.
+  refineLogCount: '修改记录 · {count} 次',
+  refineSessionOnly: '修改记录与上一版只保留在本次会话里，重新加载就没了。',
+  refineUndo: '回到上一版',
+  // The in-place confirmation panel. It is a safety control, not a convenience: the
+  // parameters it shows came from a model and go straight into a run.
+  actionPanelTitle: '确认这次执行',
+  actionFieldTarget: '目标',
+  actionFieldSkill: '将运行的 skill',
+  actionFieldPayload: '参数',
+  actionFieldSession: '运行所属会话',
+  actionTargetCard: '卡片：{name}',
+  actionTargetSkill: 'skill：{name}',
+  actionConfirm: '确认',
+  actionCancel: '取消',
+  actionCandidates: '可选：{names}',
+  actionProblemMissingAction: '按钮没有带动作键，已拒绝执行',
+  actionProblemMalformedPayload: '这一行的数据读不出来，已拒绝执行',
+  actionProblemOversizedPayload: '这一行的数据超出体积上限，已拒绝执行',
+  actionProblemUnknownAction: '模板没有声明这个动作键，已拒绝执行',
+  actionProblemCardMissing: '找不到这个名称对应的卡片',
+  actionProblemCardAmbiguous: '有多张同名卡片，无法确定目标',
+  actionProblemSkillMissing: '找不到这个名称对应的 skill',
+  actionProblemBusy: '目标卡片正在运行，等它结束再试',
+  actionProblemUnavailable: '目标现在不能运行',
+  // A skill target's whole result: whether it worked, and why not.
+  bareRunRunning: '正在执行 skill {skill}',
+  bareRunDone: 'skill 执行完成',
+  bareRunFailed: 'skill 执行失败',
 }
 
 /** English dictionary; the annotation keeps both dictionaries on one key set. */
@@ -138,6 +235,43 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardCatalogEmpty: 'This session has no invocable skills',
   skillCardNoSession: 'Cannot read the installed skills: no session is live yet. Open one, then pick a skill.',
   skillCardTemplateLabel: 'Template',
+  skillCardTemplateSizeUnit: 'bytes',
+  skillCardTemplateDirty: 'unsaved changes',
+  // The three facts on the editor's status line: where the region is, what the
+  // template declares, and how much of the size budget it uses.
+  skillCardRegionRange: 'region {start}–{end}',
+  skillCardRegionMissing: 'no region',
+  skillCardActionsCount: '{count} actions',
+  skillCardInsertMarkers: 'insert markers',
+  skillCardInsertSkeleton: 'insert skeleton',
+  // The starter document. Its prose is an instruction a child agent follows, so it is
+  // translated; the markup around it is the example and stays as written.
+  skillCardSkeletonHeading: 'Tasks',
+  skillCardSkeletonWhat: 'Generate what this card should show here: one entry per row, with the fields this card needs.',
+  skillCardSkeletonExample: 'A row that needs a button carries it inline (the key comes from the dsh-actions block above): <li>CP-2025-001 Sign-in flow <button type="button" data-dsh-action="finish" data-dsh-row=\'{"task_number":"CP-2025-001"}\'>Finish</button></li>',
+  skillCardSkeletonQuote: 'data-dsh-row is wrapped in single quotes, so a quote inside a value must be written &#39;; otherwise the attribute breaks and the click is refused.',
+  // The declaration builder. It exists because the block is the one place a user must
+  // otherwise memorise exact syntax, and a wrong key only fails at click time.
+  skillCardAddAction: 'Add action',
+  skillCardActionKey: 'Action key',
+  skillCardActionKeyHint: 'letters, digits, underscores or dashes, 1–32 characters',
+  skillCardActionKeyTaken: 'That action key is already declared',
+  skillCardActionKind: 'Type',
+  skillCardActionKindCard: 'Card',
+  skillCardActionKindSkill: 'Skill',
+  skillCardActionTarget: 'Target',
+  skillCardActionNoCards: 'There is no other card to point at yet. Create one, then add this action.',
+  // A declared target that no longer exists is reported, not refused: the card may be
+  // created (or the skill installed) after the declaration is written.
+  skillCardActionCardTargetMissing: 'Action {key} points at a card that does not exist: {name}',
+  skillCardActionSkillTargetMissing: 'Action {key} points at a skill that is not installed or cannot be invoked: {name}',
+  // The three groups of the configuration page.
+  skillCardSectionBasics: 'Basics',
+  skillCardPreviewSample: 'Skeleton preview, the region is not filled yet',
+  // Removing a card is not a partial edit, so it is confirmed in place rather than
+  // carried out on the first press.
+  skillCardDeleteConfirm: 'Confirm delete',
+  skillCardDeleteConfirmPrompt: 'This cannot be undone. Delete this card?',
   skillCardTemplatePlaceholder: 'Write this card’s HTML, marking the data region with <!-- template-begin --> and <!-- template-end -->, and say what to fill in the comments',
   skillCardPreview: 'Preview',
   skillCardSave: 'Save',
@@ -151,6 +285,11 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardViolationRegionUnclosed: 'the region markers are not a pair',
   skillCardViolationRegionRepeated: 'only one pair of region markers is supported',
   skillCardViolationPlaceholder: 'placeholder syntax was removed; use region markers and say what to fill in the comments',
+  skillCardViolationActionDuplicate: 'a template may declare its actions only once',
+  skillCardViolationActionKey: 'an action key must be 1–32 letters, digits, underscores or dashes',
+  skillCardViolationActionKeyRepeated: 'that action key is declared twice',
+  skillCardViolationActionTarget: 'an action target must read card "name" or skill "name"',
+  skillCardViolationActionInsideRegion: 'declare actions outside the region: the region is rewritten on every run',
   skillCardPermission: 'Runs with the current session’s full tool permissions',
   skillCardBack: 'Back',
   skillCardCardName: 'Card name',
@@ -162,19 +301,74 @@ export const en: Record<keyof typeof zh, string> = {
   cardTypeMemory: 'Memory card',
   skillCardDelete: 'Delete card',
   removeCard: 'Delete card',
-  // Run status, so the result page states what a run is doing at every moment.
-  runStatusIdle: 'Not run yet',
+  // The one state word the page still says in words: the in-flight notice that replaces
+  // the document. Every other state is what the content itself shows.
   runStatusRunning: 'Running',
-  runStatusDone: 'Finished',
-  runStatusCancelled: 'Cancelled',
-  runStatusFailed: 'Failed',
   runStartedAt: 'Started',
   runStopReason: 'Stop reason',
+  // A result whose region HTML was replaced by hand says so on its own row. It is not a
+  // revision-log entry: that log records instructions, and a hand edit is not one.
+  runEditedAt: 'Edited by hand',
+  // Editing a stored result by hand: the entry in the result head, the field, and the two
+  // reasons an edit cannot be stored. The empty one names the way out — run the card again
+  // — because an empty region renders as a broken-looking card rather than as nothing.
+  skillCardResultEdit: 'Edit',
+  resultEditLabel: 'Result content',
+  resultEditPlaceholder: 'The region’s HTML: saving it becomes this card’s result',
+  resultEditEmpty: 'The result is empty, so there is nothing to save. Run this card again, or type the region HTML here.',
+  resultEditTooLarge: 'The content is {bytes} bytes, over the {max}-byte limit, so nothing was saved.',
+  // The disclosure's own name, which had been the raw output row's: the block holds the
+  // stop reason, the start time, the structured value and the raw output, so naming it
+  // after one of the four described a quarter of what opening it shows.
+  runDetailSummary: 'Run details',
   runStructured: 'Structured result',
   runRawOutput: 'Raw output',
   runDiagnostic: 'Diagnostic',
-  runNoOutput: 'This run left no output behind.',
+  // The stop reasons this build can name. The upstream union is merge-extensible, so an
+  // unlisted reason is shown as it arrived rather than guessed at.
+  runStopCompleted: 'Completed',
+  runStopError: 'Error',
+  runStopAborted: 'Aborted',
+  // The structured value's region HTML is shown as HTML rather than as one JSON string,
+  // so the fields left over need a name of their own.
+  runStructuredRest: 'Other fields',
   skillCardRunningBody: 'The skill is executing. Its result appears here when it finishes.',
+  // The composer that revises the result. Both the log and the kept version live in
+  // memory, and the note says so — otherwise their disappearance on reload reads as a
+  // bug rather than as the accepted cost.
+  refinePlaceholder: 'Say what to change, e.g. “newest first”',
+  refineAction: 'Regenerate',
+  refineStop: 'Stop',
+  // The log's header, which states how many revisions it holds in a count rather than a
+  // sentence, and stands beside the one step back it makes possible.
+  refineLogCount: 'Revision log · {count}',
+  refineSessionOnly: 'The revision log and the previous version are kept only for this session; a reload clears them.',
+  refineUndo: 'Back to previous',
+  // The in-place confirmation panel. It is a safety control, not a convenience: the
+  // parameters it shows came from a model and go straight into a run.
+  actionPanelTitle: 'Confirm this run',
+  actionFieldTarget: 'Target',
+  actionFieldSkill: 'Skill that will run',
+  actionFieldPayload: 'Parameters',
+  actionFieldSession: 'Session',
+  actionTargetCard: 'Card: {name}',
+  actionTargetSkill: 'Skill: {name}',
+  actionConfirm: 'Confirm',
+  actionCancel: 'Cancel',
+  actionCandidates: 'Choices: {names}',
+  actionProblemMissingAction: 'The button carried no action key, so nothing ran',
+  actionProblemMalformedPayload: 'This row’s data could not be read whole, so nothing ran',
+  actionProblemOversizedPayload: 'This row’s data is over the size limit, so nothing ran',
+  actionProblemUnknownAction: 'The template does not declare this action key, so nothing ran',
+  actionProblemCardMissing: 'No card has that name',
+  actionProblemCardAmbiguous: 'More than one card has that name, so the target is ambiguous',
+  actionProblemSkillMissing: 'No installed skill has that name',
+  actionProblemBusy: 'The target card is already running; try again when it finishes',
+  actionProblemUnavailable: 'That target cannot run right now',
+  // A skill target's whole result: whether it worked, and why not.
+  bareRunRunning: 'Running skill {skill}',
+  bareRunDone: 'The skill finished',
+  bareRunFailed: 'The skill failed',
 }
 
 /** Key union of the `workbench` namespace. */

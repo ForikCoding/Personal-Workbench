@@ -85,6 +85,22 @@ describe('WorkbenchCardShellView', () => {
     expect(screen.queryByLabelText(en.dragHandle)).toBeNull()
   })
 
+  it('leaves the reorder handle last in the head actions, at the tertiary weight', () => {
+    // It is an affordance for the position a card already has, so it sits after the
+    // controls that act on the card and carries the muted colour rather than the
+    // card's own weight. Hiding it at rest is the shell's rule for icon controls, and
+    // it comes back on hover and on focus.
+    const { container } = render(
+      <WorkbenchCardShellView
+        {...props({ onRemove: () => {}, onRefresh: () => {}, actions: <button type="button">Open</button> })}
+      />,
+    )
+    const controls = [...(container.querySelector('header')?.querySelectorAll('button') ?? [])]
+    expect(controls.map(control => control.hasAttribute('data-workbench-drag-handle')))
+      .toEqual([false, false, false, true])
+    expect(controls.at(-1)?.className).toContain('handle')
+  })
+
   it('moves the card from the keyboard and cancels on Escape', () => {
     const onMoveBy = vi.fn()
     const onCancelDrag = vi.fn()

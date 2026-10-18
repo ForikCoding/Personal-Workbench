@@ -16,7 +16,7 @@ import { WORKBENCH_LAYOUT_DOMAIN, WORKBENCH_LAYOUT_TABLE } from './layout-spec.t
 import { createWorkbenchLayoutHandler } from './layout-route.ts'
 import type { WorkbenchHostContext } from './layout-route.ts'
 import { WorkbenchLayoutService } from './layout-service.ts'
-import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
+import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_TABLE,
   WORKBENCH_RESULT_TABLE,
@@ -29,6 +29,7 @@ import { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
 import {
   createWorkbenchSkillCardCatalogHandler,
   createWorkbenchSkillCardHandler,
+  createWorkbenchSkillCardResultHandler,
   createWorkbenchSkillCardRunHandler,
 } from './skill-card-route.ts'
 import { WorkbenchSkillCardStore } from './skill-card-store.ts'
@@ -196,6 +197,16 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
         path: WORKBENCH_SKILL_CARD_RUN_PATH,
         handler: createWorkbenchSkillCardRunHandler({ runner, fence: host.connection, warn }),
       }), 'workbench: skill card run route'),
+      ctx.effect(() => host.webServer.register({
+        kind: 'exact',
+        path: WORKBENCH_SKILL_CARD_RESULT_PATH,
+        handler: createWorkbenchSkillCardResultHandler({
+          store,
+          fence: host.connection,
+          maxResultBytes: config.maxResultBytes,
+          warn,
+        }),
+      }), 'workbench: skill card result route'),
     ]
     return async () => {
       for (const dispose of disposers) dispose()

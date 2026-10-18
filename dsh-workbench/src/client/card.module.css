@@ -6,11 +6,12 @@
   gap: 12px;
   box-sizing: border-box;
   height: 100%;
-  min-height: 132px;
-  padding: 14px 16px;
+  min-height: 180px;
+  padding: 16px 18px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-1);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .spanWide {
@@ -25,11 +26,15 @@
 }
 
 .activatable:hover {
-  border-color: var(--dsw-alias-border-focus);
+  border-color: var(--dsw-alias-brand-primary);
+  /* A lift, not a colour change: the card already changes border on hover, and the
+     shadow is what reads as "this opens something" before the pointer arrives. */
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);
+  transform: translateY(-1px);
 }
 
 .activatable:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-focus);
+  outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 1px;
 }
 
@@ -65,14 +70,22 @@
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
   overflow-wrap: anywhere;
 }
 
+/* The skill name is a chip rather than a second line of grey text: it is a fact about
+   the card, not a subtitle of its name, and the chip is what separates the two levels. */
 .subtitle {
-  font-size: 12px;
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+  font-size: 11px;
   line-height: 18px;
   color: var(--dsw-alias-label-secondary);
   overflow-wrap: anywhere;
@@ -110,9 +123,10 @@
   opacity: 0;
 }
 
+/* The card's own controls and the host's icon controls are hidden until the card is
+   hovered or focused: at rest the title is the only thing on the line. */
 .card:hover .iconButton,
-.card:focus-within .iconButton,
-.handle {
+.card:focus-within .iconButton {
   opacity: 1;
 }
 
@@ -122,11 +136,16 @@
 }
 
 .iconButton:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-focus);
+  outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 1px;
 }
 
+/* The reorder handle reveals with the other icon controls and sits in the tertiary
+   colour, so it reads as an affordance rather than as a peer of the card's own
+   actions. Hovering it brings it back to the primary label colour, and because it is
+   inside the card, focusing it from the keyboard reveals it too. */
 .handle {
+  color: var(--dsw-alias-label-tertiary);
   cursor: grab;
   touch-action: none;
 }

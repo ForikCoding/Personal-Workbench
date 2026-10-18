@@ -10,6 +10,10 @@ import {
 import type { SkillCardRouteFence } from '../src/skill-card-route.ts'
 import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection } from '../src/skill-card-runner.ts'
+import {
+  WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
+  WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
+} from '../src/skill-card-contract.ts'
 import { WorkbenchSkillCardStore } from '../src/skill-card-store.ts'
 import { FakeRequest, run } from './support/fake-http.ts'
 import { fakeSkillCardTables } from './support/fake-skill-card-tables.ts'
@@ -282,6 +286,7 @@ function runBody(overrides: Record<string, unknown> = {}): Record<string, unknow
   return {
     cardId: 'skill-card',
     sessionId: 'session-1',
+    mode: { kind: 'card' },
     outputSchema: { type: 'object', properties: {} },
     ...overrides,
   }
@@ -422,6 +427,64 @@ describe('workbench skill card run route', () => {
     expect(JSON.parse(empty.body).error.message).toBe('request body is empty')
   })
 
+  it('requires the run to say what it is asked to do', async () => {
+    // The mode is explicit rather than inferred from the presence of a contract: a card
+    // run that lost its contract has to fail as a card run, not quietly become a bare
+    // one.
+    const { run: handle } = runtime()
+    const none = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: undefined })))
+    expect(none.statusCode).toBe(400)
+    expect(JSON.parse(none.body).error.message).toBe('mode must be an object')
+
+    const unknown = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: { kind: 'other' } })))
+    expect(JSON.parse(unknown.body).error.message).toBe('mode.kind must be card, bare or refine')
+
+    const nameless = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: { kind: 'bare' } })))
+    expect(JSON.parse(nameless.body).error.message).toBe('mode.skill must be a kebab-case skill name')
+
+    const invalid = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: { kind: 'bare', skill: 'Git-Repo' } })))
+    expect(JSON.parse(invalid.body).error.message).toBe('mode.skill must be a kebab-case skill name')
+  })
+
+  it('accepts a bare run for a card with no template at all', async () => {
+    // The skill target names the skill itself, so neither a configured skill nor a
+    // template is a precondition.
+    const { run: handle, fake, runner } = runtime({ selection: {}, outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'bare', skill: 'git-repo' },
+      outputSchema: undefined,
+    })))
+    expect(response.statusCode).toBe(202)
+    expect(fake.activations[0]?.request).not.toHaveProperty('outputSchema')
+    expect(fake.activations[0]?.request.prompt[0]?.text).not.toContain('<output_document>')
+    runner.cancel('skill-card')
+  })
+
+  it('carries the row it was given into the prompt', async () => {
+    // The route is a process boundary, so what it forwards has to be what it received:
+    // the confirmation panel's guarantee ends in the child's prompt, not at the wire.
+    const row = { task_number: 'CP-2025-001', task_status: 1 }
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'bare', skill: 'git-repo' },
+      payload: row,
+    })))
+    expect(response.statusCode).toBe(202)
+    const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
+    expect(prompt).toContain(`<row_data>\n${JSON.stringify(row, null, 2)}\n</row_data>`)
+    runner.cancel('skill-card')
+  })
+
+  it('refuses a row that is not an object', async () => {
+    const { run: handle, fake } = runtime()
+    for (const payload of [[], 'text', 7, null, true]) {
+      const response = await run(handle, at(RUN_PATH, 'POST', runBody({ payload })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message).toBe('payload must be an object')
+    }
+    expect(fake.activations).toEqual([])
+  })
+
   it('reports the run state once the child settles', async () => {
     const { run: handle, runner } = runtime({
       outcomes: [{ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed', structured: { branch: 'main' } }],
@@ -435,6 +498,69 @@ describe('workbench skill card run route', () => {
     expect(body.apiVersion).toBe(1)
     expect(body.state.phase).toBe('settled')
     expect(body.state.result.structured).toEqual({ branch: 'main' })
+  })
+
+  it('accepts a refine run and tells the child what to revise', async () => {
+    // The template is the card's stored one, so the request only names the change and the
+    // HTML it starts from.
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
+    })))
+    expect(response.statusCode).toBe(202)
+    const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
+    expect(prompt).toContain('<previous_result>\n<b>旧</b>\n</previous_result>')
+    expect(prompt).toContain('<revision_request>\n按时间倒序\n</revision_request>')
+    expect(fake.activations[0]?.request.outputSchema).toEqual({ type: 'object', properties: {} })
+    runner.cancel('skill-card')
+  })
+
+  it('rejects a refine mode outside the contract', async () => {
+    const { run: handle, fake } = runtime()
+    const cases: readonly { readonly mode: Record<string, unknown>; readonly message: string }[] = [
+      {
+        mode: { kind: 'refine', previous: 'x' },
+        message: 'mode.instruction must be a non-empty string',
+      },
+      {
+        mode: { kind: 'refine', instruction: '   ', previous: 'x' },
+        message: 'mode.instruction must be a non-empty string',
+      },
+      {
+        mode: { kind: 'refine', instruction: 'x'.repeat(WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH + 1), previous: 'x' },
+        message: 'mode.instruction is longer than the limit',
+      },
+      {
+        mode: { kind: 'refine', instruction: 'x' },
+        message: 'mode.previous must be a string',
+      },
+      {
+        mode: { kind: 'refine', instruction: 'x', previous: 7 },
+        message: 'mode.previous must be a string',
+      },
+    ]
+    for (const item of cases) {
+      const response = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: item.mode })))
+      expect(response.statusCode, item.message).toBe(400)
+      expect(JSON.parse(response.body).error.message).toBe(item.message)
+    }
+    // A previous result above the byte budget is a size problem, not a malformed request.
+    const oversized = await run(handle, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'refine', instruction: 'x', previous: 'x'.repeat(WORKBENCH_REFINE_PREVIOUS_MAX_BYTES + 1) },
+    })))
+    expect(oversized.statusCode).toBe(413)
+    expect(JSON.parse(oversized.body).error.code).toBe('too-large')
+    expect(fake.activations).toEqual([])
+  })
+
+  it('refuses a refine run for a card with no template', async () => {
+    const { run: handle, fake } = runtime({ selection: { skill: 'git-repo' } })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
+    })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).error.code).toBe('template-missing')
+    expect(fake.activations).toEqual([])
   })
 
   it('rejects an unknown card id and reports an unstarted run', async () => {

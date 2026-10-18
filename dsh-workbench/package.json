@@ -31,7 +31,9 @@
     "lib/**/*.map",
     "lib/types/**/*.d.ts",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "INSTALL.md",
+    "LICENSE"
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

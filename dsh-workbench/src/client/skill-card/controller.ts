@@ -4,18 +4,39 @@
  * The card never talks to the Host directly; it renders this view and calls these
  * actions. Failures travel as codes so the component localizes them, with the
  * Host's own text kept as secondary detail.
+ *
+ * Two of the states here are deliberately transient and never stored: the action
+ * waiting for confirmation, and a bare run's progress. A reload loses both, which is
+ * what makes a skill target's result a property of the screen rather than of the card.
+ *
+ * The refinement state — the revision log and the one version kept for a step back —
+ * is transient for the same reason: the stored result stays the only durable thing,
+ * and a reload starts the conversation over.
  * @module dsh-workbench/client/skill-card/controller
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  WorkbenchActionDeclaration,
+  WorkbenchActionTarget,
+  WorkbenchCardConfigView,
+  WorkbenchCardResult,
   WorkbenchResultRecord,
   WorkbenchRunState,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
 } from '../../skill-card-contract.ts'
-import { WORKBENCH_OUTPUT_SCHEMA } from '../../skill-card-contract.ts'
-import type { WorkbenchCardSnapshot, WorkbenchConfigWrite, WorkbenchSkillCardApi } from './api.ts'
+import type {
+  WorkbenchCardSnapshot,
+  WorkbenchConfigWrite,
+  WorkbenchRunStart,
+  WorkbenchSkillCardApi,
+} from './api.ts'
+import type { WorkbenchActionErrorCode, WorkbenchActionLookup } from './actions.ts'
+import { resolveAction } from './actions.ts'
+import type { WorkbenchActionEvent } from './render.ts'
+import { resultHtml } from './render.ts'
+import { startCardRefine, startCardRun } from './run-start.ts'
 import { analyzeTemplate } from './template.ts'
 
 /** How often a running card asks the Host for its state. */
@@ -37,6 +58,107 @@ export interface WorkbenchCardProblem {
   readonly detail?: string
 }
 
+/**
+ * Every reason a clicked action cannot run.
+ *
+ * The three payload reasons come from reading the button, the rest from resolving what
+ * it points at. Both sets are reported the same way, on the card the user is looking
+ * at.
+ */
+export type WorkbenchActionProblemCode =
+  | WorkbenchActionErrorCode
+  /** A click whose own key or payload could not be read; see {@link WorkbenchActionEvent}. */
+  | Extract<WorkbenchActionEvent, { readonly kind: 'invalid' }>['reason']
+
+/** Why one clicked action cannot run. */
+export interface WorkbenchActionProblem {
+  /** Code the panel localizes. */
+  readonly code: WorkbenchActionProblemCode
+  /** Everything the user could have meant, for the message to list; empty when none. */
+  readonly candidates: readonly string[]
+  /** The Host's own text, when the failure has one. */
+  readonly detail?: string
+}
+
+/**
+ * One action waiting for confirmation.
+ *
+ * Carries everything the panel states, read at the moment of the click, so the values
+ * the user confirms are the values that run.
+ */
+export interface WorkbenchPendingAction {
+  /** Action key the button carried. */
+  readonly key: string
+  /** What that key resolves to. */
+  readonly target: WorkbenchActionTarget
+  /** Target identity resolved at click time: a card id, or a skill name. */
+  readonly reference: string
+  /** The skill that will run: a card target's own skill, or the skill target itself. */
+  readonly skill: string
+  /** That row's raw fields, unchanged. */
+  readonly payload: Record<string, unknown>
+  /** Session the run belongs to. */
+  readonly sessionId: string
+}
+
+/**
+ * One bare run's state.
+ *
+ * There is no result to keep, so there is nothing to store: a skill target answers
+ * whether it worked, and the card underneath keeps showing its own stored result.
+ */
+export type WorkbenchBareRunState =
+  | { readonly phase: 'running'; readonly skill: string; readonly startedAt: number }
+  | {
+    readonly phase: 'settled'
+    readonly skill: string
+    /** Whether the child ended normally. */
+    readonly ok: boolean
+    /** Why it did not, when it did not. */
+    readonly diagnostic?: string
+  }
+
+/**
+ * One accepted refinement, as the result page's log shows it.
+ *
+ * Kept in memory only: the log is a conversation with this page, not a property of the
+ * card, so a reload starts it empty.
+ */
+export interface WorkbenchRefinement {
+  /** What the user asked for, verbatim. */
+  readonly instruction: string
+  /** When the refinement was applied, in milliseconds since the epoch. */
+  readonly at: number
+}
+
+/**
+ * The result one refinement replaced, kept for a single step back.
+ *
+ * In memory only for the same reason as the log, and replaced — not appended to — on
+ * every refinement: the step back is one version deep by design.
+ */
+export interface WorkbenchPreviousResult {
+  /** The region HTML the surface showed before the last refinement. */
+  readonly html: string
+  /** When that result was executed, in milliseconds since the epoch. */
+  readonly at: number
+}
+
+/**
+ * What an in-flight refinement needs once its run settles.
+ *
+ * Held in a ref rather than in state: the polling callback reads it without the state
+ * update that would resubscribe the interval on every render.
+ */
+interface RefinementIntent {
+  /** What the user asked for, verbatim. */
+  readonly instruction: string
+  /** The result the surface was showing; put back when the run fails. */
+  readonly prior: WorkbenchResultRecord | undefined
+  /** Its region HTML, which is the revision's starting point. */
+  readonly priorHtml: string
+}
+
 /** What one card renders. */
 export interface WorkbenchCardView {
   /** Whether the stored configuration has been read yet. */
@@ -53,6 +175,35 @@ export interface WorkbenchCardView {
   readonly run?: WorkbenchRunState
   /** Present when the card cannot show or do what it should. */
   readonly problem?: WorkbenchCardProblem
+  /** The action waiting for confirmation; while present the panel replaces the body. */
+  readonly pendingAction?: WorkbenchPendingAction
+  /** The last clicked action's refusal, shown as an alert. */
+  readonly actionProblem?: WorkbenchActionProblem
+  /** This session's bare run, when a skill target was triggered. */
+  readonly bareRun?: WorkbenchBareRunState
+  /**
+   * Refinements applied in this session, oldest first.
+   *
+   * Read as a conversation log by the result page. Never stored, so a reload starts it
+   * empty — an accepted cost of keeping the stored result the only durable thing.
+   */
+  readonly refinements: readonly WorkbenchRefinement[]
+  /** The result the last refinement replaced, for one step back; in memory only. */
+  readonly previous: WorkbenchPreviousResult | undefined
+  /**
+   * Why the last refinement failed.
+   *
+   * Separate from {@link problem} because the page reports it under the composer, where
+   * the ask came from, instead of above the result the user is still reading.
+   */
+  readonly refineProblem?: WorkbenchCardProblem
+  /**
+   * Whether the running run is a refinement of what is shown.
+   *
+   * The surface keeps the current result while this is true: a refinement changes the
+   * result, so hiding it removes the thing the user is reviewing.
+   */
+  readonly refining?: boolean
   /** Whether a run can start: a skill, a template, and a live session. */
   readonly runnable: boolean
   /** Skills the session's agent can invoke. */
@@ -61,6 +212,16 @@ export interface WorkbenchCardView {
   readonly catalogStatus: WorkbenchCatalogStatus
   /** Why the catalog could not be read, when it could not. */
   readonly catalogFailure: WorkbenchSkillCardErrorCode | 'unavailable' | undefined
+  /**
+   * Titles of every stored card, as a declaration must address them.
+   *
+   * The editor checks a declared card target against this list. It is carried on the
+   * view rather than read by the analyser because the analyser is a pure text function
+   * with no catalog and no storage, and because these names are the ones the click path
+   * resolves against: a second rule here would let a declaration resolve differently in
+   * the editor than it does when clicked.
+   */
+  readonly cardTitles: readonly string[]
 }
 
 /** What one card can do. */
@@ -69,12 +230,42 @@ export interface WorkbenchCardActions {
   run(): void
   /** Cancel the in-flight run. */
   cancel(): void
+  /**
+   * Ask for the current result to be revised.
+   *
+   * The run is a card run with the same contract, so its result replaces the card's
+   * stored result; this session keeps the previous HTML and appends one log entry.
+   * @param instruction - what to change, as the user typed it.
+   */
+  refine(instruction: string): void
+  /**
+   * Put the result the last refinement — or the last hand edit — replaced back on screen.
+   *
+   * One step only: the previous version is consumed, and this never writes storage. The
+   * undo stack is deliberately separate from the revision log, so a hand edit is undoable
+   * without becoming an entry in a log that records instructions.
+   */
+  undoRefine(): void
+  /**
+   * Store one hand-edited region fragment as this card's result.
+   *
+   * The record's run facts — the skill and the stop reason — are the Host's to keep; this
+   * replaces the filled region and nothing else. The pre-edit result is kept for one step
+   * back, and the edit is deliberately not appended to the revision log.
+   * @param html - the fragment as the editor shows it.
+   * @returns whether it was stored; a refusal is reported as {@link WorkbenchCardView.problem}.
+   */
+  saveResultEdit(html: string): Promise<boolean>
   /** Re-read the stored configuration and result. */
   refresh(): void
   /** Store a new skill selection. */
   chooseSkill(skill: string): void
-  /** Store a template for the selected skill. */
-  saveTemplate(template: string): void
+  /**
+   * Store a template for the selected skill, together with the card's name.
+   * @param template - the HTML to store.
+   * @param name - the card's name as the editor shows it; an empty value clears it.
+   */
+  saveTemplate(template: string, name: string): void
   /** Store the card's name; an empty name clears it back to the registered label. */
   rename(name: string): void
   /**
@@ -82,6 +273,18 @@ export interface WorkbenchCardActions {
    * @returns resolution once the Host has committed the removal.
    */
   remove(): Promise<void>
+  /**
+   * Read one click on a button a child authored.
+   *
+   * Resolves the key at the moment of the click and either opens the confirmation
+   * panel or reports why it cannot run. Nothing is executed here.
+   * @param event - the action the click resolved to, or why it could not be read.
+   */
+  click(event: WorkbenchActionEvent): void
+  /** Carry out the pending action; the panel is one-shot. */
+  confirmAction(): void
+  /** Drop the pending action. Nothing else happens: no run, no write, no navigation. */
+  cancelAction(): void
 }
 
 /** What the hook needs. */
@@ -90,8 +293,15 @@ export interface WorkbenchSkillCardOptions {
   readonly api: WorkbenchSkillCardApi
   /** Card identity. */
   readonly cardId: string
-  /** Session the run hangs off; undefined when none is available. */
-  readonly sessionId: string | undefined
+  /**
+   * Read the session a run hangs off.
+   *
+   * A callback rather than a value, because the click path has to know whether a
+   * session is live *when the click happens*: opening a session after the page rendered
+   * must make the next click resolvable rather than refusing it.
+   * @returns the session id, or undefined when none is available.
+   */
+  readonly session: () => string | undefined
   /**
    * Whether this card needs the skill catalog.
    *
@@ -100,6 +310,32 @@ export interface WorkbenchSkillCardOptions {
    * issue a request per card for a list none of them shows.
    */
   readonly withCatalog?: boolean
+  /**
+   * Read the title one card face shows.
+   *
+   * A declaration addresses a card by the name the user sees, so resolution has to
+   * fall back exactly the way the face does.
+   * @param cardId - the card.
+   * @param name - its stored name, when it has one.
+   * @returns the visible title.
+   */
+  readonly cardTitle?: (cardId: string, name: string | undefined) => string
+  /**
+   * Open one of a card's full-panel views.
+   *
+   * A card target starts its run and then jumps to that card, which is a navigation
+   * only the panel can perform.
+   * @param cardId - the card to show.
+   * @param view - which of its two views.
+   */
+  readonly openCard?: (cardId: string, view: 'result' | 'config') => void
+  /**
+   * Whether to adopt a run that is already in flight for this card.
+   *
+   * A run can be started by another card's button before this card's page exists, and
+   * only this card's own controller can show what became of it.
+   */
+  readonly watchRun?: boolean
 }
 
 /** Configuration as read, before it is projected onto one card. */
@@ -110,17 +346,68 @@ type ConfigState =
 
 /**
  * Drive one skill card.
- * @param options - transport, card identity, session, and panel activity.
+ * @param options - transport, card identity, session, and the panel's own callbacks.
  * @returns the card's view and actions.
  */
 export function useSkillCard(options: WorkbenchSkillCardOptions): {
   readonly view: WorkbenchCardView
   readonly actions: WorkbenchCardActions
 } {
-  const { api, cardId, sessionId, withCatalog = false } = options
+  const {
+    api,
+    cardId,
+    session,
+    withCatalog = false,
+    cardTitle = defaultCardTitle,
+    openCard,
+    watchRun = false,
+  } = options
+  // The render-time answer, for what the card shows. Every click asks again, because
+  // the session may have been opened since this render.
+  const sessionId = session()
   const [config, setConfig] = useState<ConfigState>({ kind: 'loading' })
   const [run, setRun] = useState<WorkbenchRunState | undefined>(undefined)
   const [problem, setProblem] = useState<WorkbenchCardProblem | undefined>(undefined)
+  const [pendingAction, setPendingAction] = useState<WorkbenchPendingAction | undefined>(undefined)
+  const [actionProblem, setActionProblem] = useState<WorkbenchActionProblem | undefined>(undefined)
+  const [bareRun, setBareRun] = useState<WorkbenchBareRunState | undefined>(undefined)
+  const [refinements, setRefinements] = useState<readonly WorkbenchRefinement[]>([])
+  const [previousResult, setPreviousResult] = useState<WorkbenchResultRecord | undefined>(undefined)
+  // The record an undo — or a failed refinement — puts in place of the shown one. A
+  // display override, never a write: nothing in this session's refinement state is
+  // stored, and no route stores a result on a client's behalf.
+  const [resultOverride, setResultOverride] = useState<WorkbenchResultRecord | undefined>(undefined)
+  const [refineProblem, setRefineProblem] = useState<WorkbenchCardProblem | undefined>(undefined)
+  const refinement = useRef<RefinementIntent | undefined>(undefined)
+
+  /**
+   * Record what a settled refinement run means for the surface.
+   *
+   * Called wherever a run state turns terminal — the start response and every poll —
+   * so a refinement answered before the first poll is recorded exactly like one
+   * answered by it.
+   * @param state - the run state just read.
+   */
+  const settleRefinement = useCallback((state: WorkbenchRunState): void => {
+    const intent = refinement.current
+    if (intent === undefined) return
+    if (state.phase !== 'settled' && state.phase !== 'cancelled') return
+    refinement.current = undefined
+    // A cancelled refinement produced no result, so it is reported like a failure at the
+    // place the ask was made: the composer, not the run's status line.
+    if (state.phase === 'cancelled' || state.failure !== undefined || state.failureCode !== undefined) {
+      setResultOverride(intent.prior)
+      setRefineProblem({
+        code: state.failureCode ?? 'run-failed',
+        ...state.failure === undefined ? {} : { detail: state.failure },
+      })
+      return
+    }
+    setPreviousResult(intent.prior)
+    setRefinements(entries => [...entries, { instruction: intent.instruction, at: Date.now() }])
+    // The run's own record is the new result, so no override is left behind.
+    setResultOverride(undefined)
+  }, [])
   const [catalog, setCatalog] = useState<readonly WorkbenchSkillCatalogEntry[]>([])
   const [catalogStatus, setCatalogStatus] = useState<WorkbenchCatalogStatus>('idle')
   const [catalogFailure, setCatalogFailure] = useState<WorkbenchSkillCardErrorCode | 'unavailable' | undefined>(undefined)
@@ -143,6 +430,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   }, [api, sessionId, withCatalog])
 
   const refresh = useCallback(() => {
+    // A re-read shows what is stored, so a result an undo put on screen stops being
+    // the answer: the stored one is newer than the step back.
+    setResultOverride(undefined)
     void api.read().then((result) => {
       if (result.status === 'ok') {
         setConfig({ kind: 'ready', snapshot: result.snapshot })
@@ -158,6 +448,17 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // never cost a model call.
   useEffect(() => { refresh() }, [refresh])
 
+  // A run started elsewhere is already in flight when this page appears, and only a
+  // read of the run route can find it. Adopting just the running phase keeps an old
+  // settled run — cancellation included — from reappearing as if it were news.
+  useEffect(() => {
+    if (!watchRun) return
+    void api.poll(cardId).then((result) => {
+      if (result.status !== 'ok' || result.state.phase !== 'running') return
+      setRun(result.state)
+    })
+  }, [api, cardId, watchRun])
+
   // Poll only while a run is in flight; a settled run needs no further traffic.
   const running = run?.phase === 'running'
   useEffect(() => {
@@ -167,6 +468,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       void api.poll(cardId).then((result) => {
         if (stopped) return
         if (result.status === 'ok') {
+          // The moment a refinement becomes news: its own page is the only reader, so
+          // the log and the step back are recorded here rather than in an effect that
+          // would see the transition a frame late.
+          settleRefinement(result.state)
           setRun(result.state)
           return
         }
@@ -178,7 +483,36 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       stopped = true
       clearInterval(timer)
     }
-  }, [api, cardId, running])
+  }, [api, cardId, running, settleRefinement])
+
+  // A bare run reports only its verdict, so the loop stops at the first terminal
+  // phase and nothing beyond the diagnostic is read off the state.
+  const bareRunning = bareRun?.phase === 'running'
+  useEffect(() => {
+    if (!bareRunning || bareRun === undefined) return
+    const skill = bareRun.skill
+    let stopped = false
+    const timer = setInterval(() => {
+      void api.poll(cardId).then((result) => {
+        if (stopped || result.status !== 'ok') return
+        const state = result.state
+        if (state.phase === 'idle' || state.phase === 'running') return
+        // A cancelled bare run is a timeout, and a timeout is a failure (B6).
+        const ok = state.phase === 'settled' && state.failure === undefined
+        const diagnostic = state.failure ?? state.result?.diagnostic
+        setBareRun({
+          phase: 'settled',
+          skill,
+          ok,
+          ...diagnostic === undefined ? {} : { diagnostic },
+        })
+      })
+    }, POLL_INTERVAL_MS)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [api, cardId, bareRun, bareRunning])
 
   const card = config.kind === 'ready'
     ? config.snapshot.cards.find(entry => entry.cardId === cardId)
@@ -186,11 +520,29 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const stored = config.kind === 'ready'
     ? config.snapshot.results.find(entry => entry.cardId === cardId)
     : undefined
+  // The override wins over a settled run: the only ways it is set are an undo and a
+  // refinement that failed, and both mean "show the result that run was replacing".
+  const result = resultOverride ?? run?.result ?? stored
+  // The step back is stated as the pair the page reads, derived from the record it
+  // restores, so what the control says and what it puts back cannot drift apart.
+  const previous = useMemo<WorkbenchPreviousResult | undefined>(() => {
+    if (previousResult === undefined) return undefined
+    const html = resultHtml(previousResult.structured)
+    return html === undefined ? undefined : { html, at: previousResult.executedAt }
+  }, [previousResult])
 
   const start = useCallback(() => {
+    // A fresh run replaces the result outright, so the revision state stops describing
+    // it: the step back is no longer "the version before the last change", and an
+    // intent left over by a refinement must not be credited to this run.
+    refinement.current = undefined
+    setResultOverride(undefined)
+    setPreviousResult(undefined)
+    setRefineProblem(undefined)
     // A refused start says why. Returning silently here is what made pressing Run
     // look like nothing happened at all.
-    if (sessionId === undefined) {
+    const live = session()
+    if (live === undefined) {
       setProblem({ code: 'session-not-live', detail: '' })
       return
     }
@@ -209,9 +561,8 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setProblem({ code: 'template-invalid', detail: first.location })
       return
     }
-    // One fixed contract: the child returns the filled region, so nothing about the
-    // result can fail on shape.
-    void api.start({ cardId, sessionId, outputSchema: WORKBENCH_OUTPUT_SCHEMA }).then((outcome) => {
+    // The one card-run path, shared with a run started from another card's button.
+    void startCardRun(api, cardId, live).then((outcome) => {
       if (outcome.status === 'ok') {
         setRun(outcome.state)
         setProblem(undefined)
@@ -221,9 +572,106 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         ? { code: asErrorCode(outcome.code), detail: outcome.message }
         : { code: 'unavailable', detail: outcome.reason })
     })
-  }, [api, cardId, sessionId, card?.skill, card?.template])
+  }, [api, cardId, session, card?.skill, card?.template])
 
   const cancel = useCallback(() => { void api.cancel(cardId) }, [api, cardId])
+
+  const refine = useCallback((instruction: string) => {
+    const text = instruction.trim()
+    // The composer disables its button on empty input; the same rule is enforced here,
+    // because this is the boundary that actually spends a model call.
+    if (text === '') return
+    if (run?.phase === 'running') return
+    const live = session()
+    if (live === undefined) {
+      setProblem({ code: 'session-not-live', detail: '' })
+      return
+    }
+    if (card?.skill === undefined) {
+      setProblem({ code: 'not-configured', detail: '' })
+      return
+    }
+    if (card.template === undefined) {
+      setProblem({ code: 'template-missing', detail: '' })
+      return
+    }
+    // What is on screen is what gets revised, an undone version included: the request
+    // carries the same HTML the surface shows, not a re-read of storage.
+    const priorHtml = resultHtml(result?.structured)
+    if (priorHtml === undefined) {
+      // Nothing to revise. The composer is only offered beside a rendered result, so
+      // this is the stale-click guard rather than a state the user can reach.
+      setRefineProblem({ code: 'run-failed', detail: '' })
+      return
+    }
+    setRefineProblem(undefined)
+    setProblem(undefined)
+    refinement.current = { instruction: text, prior: result, priorHtml }
+    void startCardRefine(api, cardId, live, text, priorHtml).then((outcome) => {
+      if (outcome.status !== 'ok') {
+        // A refused start never became a run, so nothing was replaced: the refusal is
+        // reported under the composer and the result stays as it was.
+        refinement.current = undefined
+        setRefineProblem(refineStartProblem(outcome))
+        return
+      }
+      // Recorded from the start response too, so a run that settled before the first
+      // poll still lands in the log.
+      settleRefinement(outcome.state)
+      setRun(outcome.state)
+    })
+  }, [api, card?.skill, card?.template, cardId, result, run?.phase, session, settleRefinement])
+
+  const undoRefine = useCallback(() => {
+    const kept = previousResult
+    if (kept === undefined) return
+    // Back on screen, not into storage: the step back is part of this session's view of
+    // the result, and it is spent by using it.
+    setResultOverride(kept)
+    setPreviousResult(undefined)
+    setRefineProblem(undefined)
+  }, [previousResult])
+
+  const saveResultEdit = useCallback(async (html: string): Promise<boolean> => {
+    // Two guards the editor already enforces, restated here because this is the boundary
+    // that spends a stored write: an empty region renders as a broken card, and a run in
+    // flight is about to replace whatever this would store.
+    if (html.trim() === '') return false
+    if (run?.phase === 'running') {
+      setProblem({ code: 'run-in-progress', detail: '' })
+      return false
+    }
+    const prior = result
+    const outcome = await api.saveResult(cardId, html)
+    if (outcome.status !== 'ok') {
+      // A stored write that failed used to leave the screen looking like a success, which
+      // is the defect this branch exists to avoid: the editor stays open and the page
+      // states why above the surface.
+      setProblem(outcome.status === 'rejected'
+        ? { code: asErrorCode(outcome.code), detail: outcome.message }
+        : { code: 'unavailable', detail: outcome.reason })
+      return false
+    }
+    // The response carries both halves of what changed, so nothing is read a second time.
+    setConfig((state) => {
+      if (state.kind !== 'ready') return state
+      return {
+        kind: 'ready',
+        snapshot: {
+          ...state.snapshot,
+          revision: outcome.revision,
+          results: replaceResult(state.snapshot.results, outcome.result),
+        },
+      }
+    })
+    // What this replaced is what 回到上一版 recovers. The revision log stays untouched: it
+    // records instructions, and a hand edit is not one.
+    if (prior !== undefined) setPreviousResult(prior)
+    setResultOverride(undefined)
+    setRefineProblem(undefined)
+    setProblem(undefined)
+    return true
+  }, [api, cardId, result, run?.phase])
 
   const revision = config.kind === 'ready' ? config.snapshot.revision : undefined
 
@@ -243,22 +691,69 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     void api.write({ baseRevision: revision, cardId, skill }).then(applyWrite)
   }, [api, applyWrite, cardId, revision])
 
-  const saveTemplate = useCallback((template: string) => {
+  const saveTemplate = useCallback((template: string, name: string) => {
     const skill = card?.skill
     if (revision === undefined || skill === undefined) return
-    void api.write({
-      baseRevision: revision,
+    // The name travels with the template: "保存" is the one action the user takes, and
+    // persisting the name through a separate blur write meant a revision advance between
+    // the two dropped it while the input still showed the text.
+    const patch = {
       cardId,
       skill,
       template: { skill, html: template },
-    }).then(applyWrite)
+      name: name.trim() === '' ? null : name,
+    }
+    const send = (baseRevision: string, retried: boolean): void => {
+      void api.write({ ...patch, baseRevision }).then((result) => {
+        if (result.status !== 'conflict') {
+          applyWrite(result)
+          return
+        }
+        // A save states the whole card, so a moved revision is not a conflicting edit.
+        if (retried) {
+          applyWrite(result)
+          return
+        }
+        send(result.snapshot.revision, true)
+      })
+    }
+    send(revision, false)
   }, [api, applyWrite, cardId, revision, card?.skill])
 
   const rename = useCallback((name: string) => {
-    if (revision === undefined) return
     // An emptied field clears the name rather than storing blank text, so the card
     // falls back to its registered label instead of rendering an empty title.
-    void api.write({ baseRevision: revision, cardId, name: name.trim() === '' ? null : name }).then(applyWrite)
+    const patch = { cardId, name: name.trim() === '' ? null : name }
+    const send = (baseRevision: string, retried: boolean): void => {
+      void api.write({ ...patch, baseRevision }).then((result) => {
+        if (result.status !== 'conflict') {
+          applyWrite(result)
+          return
+        }
+        // A rename sets one field to an absolute value, so a moved revision means the
+        // revision advanced, not that this would clobber another edit. One retry
+        // against the state the Host just returned; a second conflict is reported.
+        if (retried) {
+          applyWrite(result)
+          return
+        }
+        send(result.snapshot.revision, true)
+      })
+    }
+    if (revision !== undefined) {
+      send(revision, false)
+      return
+    }
+    // Returning here used to drop the edit outright: the input already shows the new
+    // text, so the user reads a silent return as "saved" while nothing was written.
+    // Read the revision that is missing, then write.
+    void api.read().then((outcome) => {
+      if (outcome.status !== 'ok') {
+        setProblem({ code: 'unavailable', detail: '' })
+        return
+      }
+      send(outcome.snapshot.revision, false)
+    })
   }, [api, applyWrite, cardId, revision])
 
   const remove = useCallback(async () => {
@@ -266,12 +761,189 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     applyWrite(await api.write({ baseRevision: revision, cardId, remove: true }))
   }, [api, applyWrite, cardId, revision])
 
+  /**
+   * Ask which of the cards a declaration could mean are already running.
+   *
+   * The stored snapshot carries what a card *is*, never what it is doing, so the run
+   * route is asked — and only about the cards the clicked key actually names.
+   */
+  const runningTargets = useCallback(async (
+    declaration: WorkbenchActionDeclaration | undefined,
+    cards: readonly WorkbenchCardConfigView[],
+  ): Promise<ReadonlySet<string>> => {
+    const busy = new Set<string>()
+    if (declaration?.target.kind !== 'card') return busy
+    const name = declaration.target.name
+    const named = cards.filter(entry => cardTitle(entry.cardId, entry.name) === name)
+    await Promise.all(named.map(async (entry) => {
+      const state = await api.poll(entry.cardId)
+      if (state.status === 'ok' && state.state.phase === 'running') busy.add(entry.cardId)
+    }))
+    return busy
+  }, [api, cardTitle])
+
+  const resolveClick = useCallback(async (
+    key: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> => {
+    setActionProblem(undefined)
+    // Whether a session is live decides a skill target, and the answer is read now
+    // rather than taken from the render that produced the button.
+    const live = session()
+    // Both halves of the lookup are re-read now rather than taken from the mount-time
+    // snapshot: a card may have been deleted or a skill uninstalled since.
+    const [found, catalogRead] = await Promise.all([api.read(), api.catalog(live)])
+    if (found.status !== 'ok') {
+      setPendingAction(undefined)
+      setActionProblem({ code: 'target-unavailable', candidates: [], detail: found.reason })
+      return
+    }
+    const snapshot = found.snapshot
+    const template = snapshot.cards.find(entry => entry.cardId === cardId)?.template
+    if (template === undefined) {
+      setPendingAction(undefined)
+      setActionProblem({ code: 'target-unavailable', candidates: [] })
+      return
+    }
+    const declarations = analyzeTemplate(template).actions
+    const declaration = declarations.find(item => item.key === key)
+    if (declaration?.target.kind === 'skill' && catalogRead.status !== 'ok') {
+      // Answering "no such skill" against a list that could not be read would send the
+      // user hunting for an uninstalled package that is installed.
+      setPendingAction(undefined)
+      setActionProblem({ code: 'target-unavailable', candidates: [], detail: catalogRead.message })
+      return
+    }
+    const busy = await runningTargets(declaration, snapshot.cards)
+    const lookup: WorkbenchActionLookup = {
+      cards: snapshot.cards.map(entry => ({
+        cardId: entry.cardId,
+        name: cardTitle(entry.cardId, entry.name),
+        running: busy.has(entry.cardId),
+      })),
+      skills: catalogRead.status === 'ok'
+        ? catalogRead.entries.filter(entry => entry.userInvocable).map(entry => entry.name)
+        : [],
+      live: live !== undefined,
+    }
+    const resolution = resolveAction(declarations, lookup, key, payload)
+    if (resolution.kind === 'failed') {
+      setPendingAction(undefined)
+      setActionProblem({ code: resolution.code, candidates: resolution.candidates })
+      return
+    }
+    // The panel cannot open without stating these two, and neither is in the
+    // resolution: which skill a card target will actually run, and where a skill target
+    // would run. Reporting them as one "unavailable" beats confirming a run that the
+    // Host is certain to refuse.
+    const skill = resolution.target.kind === 'card'
+      ? snapshot.cards.find(entry => entry.cardId === resolution.reference)?.skill
+      : resolution.target.name
+    if (live === undefined || skill === undefined) {
+      setPendingAction(undefined)
+      setActionProblem({ code: 'target-unavailable', candidates: [] })
+      return
+    }
+    setPendingAction({
+      key: resolution.key,
+      target: resolution.target,
+      reference: resolution.reference,
+      skill,
+      payload: resolution.payload,
+      sessionId: live,
+    })
+  }, [api, cardId, cardTitle, runningTargets, session])
+
+  const click = useCallback((event: WorkbenchActionEvent): void => {
+    setPendingAction(undefined)
+    if (event.kind === 'invalid') {
+      // A payload that cannot be read whole never reaches the panel: a shortened
+      // parameter list would make the confirmed and the executed data two things.
+      setActionProblem({ code: event.reason, candidates: [] })
+      return
+    }
+    void resolveClick(event.key, event.payload)
+  }, [resolveClick])
+
+  const confirmAction = useCallback(() => {
+    const pending = pendingAction
+    if (pending === undefined) return
+    // The panel is one-shot: closing it before anything starts is what keeps a second
+    // click from running the same action twice.
+    setPendingAction(undefined)
+    setActionProblem(undefined)
+    if (pending.target.kind === 'card') {
+      // Started before the jump: a refusal then lands on the card the user is looking
+      // at, instead of moving them first and reporting the failure afterwards.
+      // The confirmed row travels with the run, so the target card executes the row the
+      // user saw rather than a run with no idea which row it was for.
+      void startCardRun(api, pending.reference, pending.sessionId, pending.payload).then((outcome) => {
+        if (outcome.status !== 'ok') {
+          setActionProblem(startProblem(outcome))
+          return
+        }
+        openCard?.(pending.reference, 'result')
+      })
+      return
+    }
+    void api.start({
+      cardId,
+      sessionId: pending.sessionId,
+      mode: { kind: 'bare', skill: pending.skill },
+      // Same rule for a skill target: the row it was triggered from is its input.
+      payload: pending.payload,
+    }).then((outcome) => {
+      if (outcome.status !== 'ok') {
+        setActionProblem(startProblem(outcome))
+        return
+      }
+      setBareRun({
+        phase: 'running',
+        skill: pending.skill,
+        startedAt: outcome.state.startedAt ?? Date.now(),
+      })
+    })
+  }, [api, cardId, openCard, pendingAction])
+
+  const cancelAction = useCallback(() => {
+    // Deliberately nothing else: no run, no write, no navigation. Cancelling is only
+    // ever the removal of the question.
+    setPendingAction(undefined)
+  }, [])
+
   const actions = useMemo<WorkbenchCardActions>(
-    () => ({ run: start, cancel, refresh, chooseSkill, saveTemplate, rename, remove }),
-    [start, cancel, refresh, chooseSkill, saveTemplate, rename, remove],
+    () => ({
+      run: start,
+      cancel,
+      refine,
+      undoRefine,
+      saveResultEdit,
+      refresh,
+      chooseSkill,
+      saveTemplate,
+      rename,
+      remove,
+      click,
+      confirmAction,
+      cancelAction,
+    }),
+    [
+      start,
+      cancel,
+      refine,
+      undoRefine,
+      saveResultEdit,
+      refresh,
+      chooseSkill,
+      saveTemplate,
+      rename,
+      remove,
+      click,
+      confirmAction,
+      cancelAction,
+    ],
   )
 
-  const result = run?.result ?? stored
   const problemOfRun = run?.failureCode === undefined
     ? undefined
     : { code: run.failureCode, ...run.failure === undefined ? {} : { detail: run.failure } }
@@ -289,14 +961,116 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     ...card?.template === undefined ? {} : { template: card.template },
     ...result === undefined ? {} : { result },
     ...run === undefined ? {} : { run },
+    // A refinement revises what is on screen, so the screen keeps showing it until the
+    // new version arrives. Replacing the result with a progress notice threw away the
+    // very thing being reviewed.
+    ...run?.phase === 'running' && refinement.current !== undefined ? { refining: true } : {},
     ...effective === undefined ? {} : { problem: effective },
+    ...pendingAction === undefined ? {} : { pendingAction },
+    ...actionProblem === undefined ? {} : { actionProblem },
+    ...bareRun === undefined ? {} : { bareRun },
+    refinements,
+    previous,
+    ...refineProblem === undefined ? {} : { refineProblem },
     runnable: sessionId !== undefined && card?.skill !== undefined && card.template !== undefined,
     catalog,
     catalogStatus,
     catalogFailure,
-  }), [config, run, problem, sessionId, card?.name, card?.skill, card?.template, result, catalog, catalogStatus, catalogFailure])
+    // The same naming rule the click path resolves a card target with, so a declaration
+    // the editor accepts is one that can actually be found when a button carries it.
+    cardTitles: config.kind === 'ready'
+      ? config.snapshot.cards.map(entry => cardTitle(entry.cardId, entry.name))
+      : [],
+  }), [
+    config,
+    run,
+    problem,
+    sessionId,
+    card?.name,
+    card?.skill,
+    card?.template,
+    result,
+    catalog,
+    catalogStatus,
+    catalogFailure,
+    pendingAction,
+    actionProblem,
+    bareRun,
+    refinements,
+    previous,
+    refineProblem,
+    cardTitle,
+  ])
 
   return { view, actions }
+}
+
+/**
+ * Read the title one card face shows, when nothing else supplies that rule.
+ * @param cardId - the card.
+ * @param name - its stored name, when it has one.
+ * @returns the name, or the card id it falls back to.
+ */
+function defaultCardTitle(cardId: string, name: string | undefined): string {
+  return name ?? cardId
+}
+
+/**
+ * Put one written result into a snapshot's result list.
+ *
+ * Replaced in place rather than appended: the list is ordered by card id and one card has
+ * exactly one result, so appending would show the same card twice from one read onwards.
+ * @param results - the snapshot's results, ascending by card id.
+ * @param written - the record the Host just stored.
+ * @returns a new list holding that record.
+ */
+function replaceResult(
+  results: readonly WorkbenchCardResult[],
+  written: WorkbenchCardResult,
+): readonly WorkbenchCardResult[] {
+  let found = false
+  const next = results.map((entry) => {
+    if (entry.cardId !== written.cardId) return entry
+    found = true
+    return written
+  })
+  if (!found) next.push(written)
+  return next.sort((left, right) => (left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : 0))
+}
+
+/**
+ * Read one refused start as an action problem.
+ *
+ * A concurrent run is the one refusal with a name of its own: the click already
+ * checked, so only the window between checking and starting can produce it — and the
+ * Host refuses rather than queueing, which is exactly what is reported.
+ * @param outcome - the refusal, which is never an accepted run.
+ * @returns the problem to report on the card the user is looking at.
+ */
+function startProblem(outcome: Exclude<WorkbenchRunStart, { readonly status: 'ok' }>): WorkbenchActionProblem {
+  const detail = outcome.status === 'rejected' ? outcome.message : outcome.reason
+  const code: WorkbenchActionProblemCode = outcome.status === 'rejected' && outcome.code === 'run-in-progress'
+    ? 'target-busy'
+    : 'target-unavailable'
+  return { code, candidates: [], ...detail === '' ? {} : { detail } }
+}
+
+/**
+ * Read one refused refine start as the failure the composer shows.
+ *
+ * A concurrent run is the one refusal with a name of its own, exactly as it is for a
+ * plain run; the difference is only where the answer lands — under the composer, since
+ * that is where the ask came from.
+ * @param outcome - the refusal, which is never an accepted run.
+ * @returns the problem to report under the composer.
+ */
+function refineStartProblem(
+  outcome: Exclude<WorkbenchRunStart, { readonly status: 'ok' }>,
+): WorkbenchCardProblem {
+  if (outcome.status === 'rejected') {
+    return { code: asErrorCode(outcome.code), detail: outcome.message }
+  }
+  return { code: 'unavailable', detail: outcome.reason }
 }
 
 /**

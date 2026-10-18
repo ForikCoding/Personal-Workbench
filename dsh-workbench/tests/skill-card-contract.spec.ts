@@ -11,6 +11,7 @@ import {
   WORKBENCH_SKILL_CARD_CATALOG_PATH,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
   WORKBENCH_SKILL_CARD_PATH,
+  WORKBENCH_SKILL_CARD_RESULT_PATH,
   WORKBENCH_SKILL_CARD_RUN_PATH,
   WORKBENCH_SKILL_NAME_MAX_LENGTH,
   WORKBENCH_TEMPLATE_MAX_BYTES,
@@ -23,6 +24,10 @@ describe('skill card contract', () => {
   it('keeps every route under the base path', () => {
     expect(WORKBENCH_SKILL_CARD_CATALOG_PATH.startsWith(`${WORKBENCH_SKILL_CARD_PATH}/`)).toBe(true)
     expect(WORKBENCH_SKILL_CARD_RUN_PATH.startsWith(`${WORKBENCH_SKILL_CARD_PATH}/`)).toBe(true)
+    // The result edit is its own operation, so it is its own path rather than a fourth
+    // method on the run route.
+    expect(WORKBENCH_SKILL_CARD_RESULT_PATH).toBe(`${WORKBENCH_SKILL_CARD_PATH}/result`)
+    expect(WORKBENCH_SKILL_CARD_RESULT_PATH).not.toBe(WORKBENCH_SKILL_CARD_RUN_PATH)
   })
 
   it('orders the byte ceilings so both halves agree on what fits', () => {
