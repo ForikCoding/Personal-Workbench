@@ -100,6 +100,17 @@ describe('createWorkbenchSkillCardApi.saveResult', () => {
     expect(outcome.status).toBe('unavailable')
   })
 
+  it('refuses a record whose model is not a pair of ids', async () => {
+    // The run-detail row names the route straight from this value, so a joined string or a
+    // half-filled pair is refused whole rather than printed as if it were provenance.
+    for (const model of ['deepseek/chat', { provider: 'deepseek' }, { provider: '', model: 'chat' }]) {
+      const fetcher = vi.fn<FetchLike>(async () => json(200, { ...OK_BODY, result: { ...STORED, model } }))
+      const api = createWorkbenchSkillCardApi({ fetcher })
+      const outcome = await api.saveResult('skill-card', 'x')
+      expect(outcome.status, JSON.stringify(model)).toBe('unavailable')
+    }
+  })
+
   it('reports a transport failure as unavailable', async () => {
     const fetcher = vi.fn<FetchLike>(async () => { throw new Error('offline') })
     const api = createWorkbenchSkillCardApi({ fetcher })

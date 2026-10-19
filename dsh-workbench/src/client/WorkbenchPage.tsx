@@ -16,6 +16,7 @@ import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchCardSelection, WorkbenchCardsOwnerProps } from './contract.ts'
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
 import type { WorkbenchCardSnapshot } from './skill-card/api.ts'
+import type { WorkbenchModelSeat } from './skill-card/model.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
 import { WorkbenchCreateCard } from './WorkbenchCreateCard.tsx'
 import type { WorkbenchCardType } from './WorkbenchCreateCard.tsx'
@@ -40,6 +41,8 @@ export interface WorkbenchPageInjected {
      * @returns the session id, or undefined when none is available.
      */
     readonly runSessionId: () => string | undefined
+    /** Model catalog the result and configuration pages read. */
+    readonly models: WorkbenchModelSeat
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
@@ -221,6 +224,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         api: skillCards.api,
         cardId: selection.cardId,
         runSessionId: skillCards.runSessionId,
+        models: skillCards.models,
         fallbackTitle: labelOf(selection.cardId),
         onBack: closeCard,
         openCard,

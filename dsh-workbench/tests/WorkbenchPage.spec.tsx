@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { fakeModelSeat } from './support/fake-model-seat.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
@@ -49,6 +50,7 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
         saveResult: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
       },
       runSessionId: () => undefined,
+      models: fakeModelSeat(),
     },
     closeCard: () => {},
     openCard: () => {},
@@ -144,6 +146,7 @@ describe('WorkbenchPage', () => {
               },
             },
             runSessionId: () => undefined,
+            models: fakeModelSeat(),
           },
         })}
       />,
@@ -188,6 +191,7 @@ describe('WorkbenchPage', () => {
               }),
             },
             runSessionId: () => undefined,
+            models: fakeModelSeat(),
           },
           renderSlot: ((_name: string, owner: { cardId: string }, opts: { only?: string }) => {
             calls.push({ only: opts.only, cardId: owner.cardId })

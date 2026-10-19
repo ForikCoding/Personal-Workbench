@@ -7,7 +7,7 @@
  * typed value.
  * @module dsh-workbench/client/skill-card/api
  */
-import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchRunCapabilities, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
 /** Fetch seam so tests can drive transport without a server. */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 /** Configuration and results the page renders from. */
@@ -15,6 +15,14 @@ export interface WorkbenchCardSnapshot {
     readonly cards: readonly WorkbenchCardConfigView[];
     readonly results: readonly WorkbenchCardResult[];
     readonly revision: string;
+    /**
+     * What the Host recorded about running a card, at composition.
+     *
+     * Absent means the Host sent no verdict — a build that predates the field — and the
+     * card is then treated as able to run: its run route answers for real, and refuses
+     * with `run-unavailable` when the seam is in fact missing.
+     */
+    readonly capabilities?: WorkbenchRunCapabilities;
 }
 /** Outcome of one configuration read. */
 export type WorkbenchConfigRead = {

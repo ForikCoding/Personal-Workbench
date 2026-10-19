@@ -94,7 +94,7 @@ describe('a bare skill run', () => {
     // Criterion 27: no template travels. The stored selection is not even consulted —
     // a skill target is its own skill, which need not be the card's.
     const { runner, fake, saved } = setup({ selection: {} })
-    expect(runner.start(bare())).toMatchObject({ status: 'started' })
+    expect(await runner.start(bare())).toMatchObject({ status: 'started' })
     const state = await settle(runner)
 
     const request = fake.activations[0]?.request
@@ -118,7 +118,7 @@ describe('a bare skill run', () => {
     const { runner, saved } = setup({
       outcomes: [{ output: [{ type: 'text', text: 'I did the thing' }], stopReason: 'completed' }],
     })
-    runner.start(bare())
+    await runner.start(bare())
     const state = await settle(runner)
     expect(state?.result).toEqual({ skill: 'git-repo', executedAt: 42, stopReason: 'completed' })
     expect(saved).toEqual([])
@@ -128,11 +128,11 @@ describe('a bare skill run', () => {
     // A bare run asks for no value, so the capability is not required — but a card run
     // on the same backend still is.
     const bareSetup = setup({ providers: { spawn: { outputSchema: false } } })
-    expect(bareSetup.runner.start(bare())).toMatchObject({ status: 'started' })
+    expect(await bareSetup.runner.start(bare())).toMatchObject({ status: 'started' })
     await settle(bareSetup.runner)
 
     const cardSetup = setup({ providers: { spawn: { outputSchema: false } } })
-    expect(cardSetup.runner.start(card())).toMatchObject({
+    expect(await cardSetup.runner.start(card())).toMatchObject({
       status: 'rejected',
       code: 'provider-unavailable',
     })
@@ -143,7 +143,7 @@ describe('a bare skill run', () => {
     // Criterion 29: `agent/error` is a failure with its own text, and the host bus is
     // the only place that text exists.
     const { runner, fake, saved } = setup({ outcomes: ['manual'] })
-    runner.start(bare())
+    await runner.start(bare())
     const claimChild = async (): Promise<void> => {
       for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
     }
@@ -164,7 +164,7 @@ describe('a bare skill run', () => {
     // Criterion 29: a timeout is a failure. A bare run has no cancel control, so the
     // deadline is the only thing that can end one early.
     const { runner, fake } = setup({ outcomes: ['hang'], runTimeoutMs: 10 })
-    runner.start(bare())
+    await runner.start(bare())
     const state = await settle(runner)
     expect(state?.phase).toBe('settled')
     expect(state?.failureCode).toBe('run-failed')
@@ -178,7 +178,7 @@ describe('a bare skill run', () => {
     const { runner, fake } = setup({
       outcomes: [{ output: [], stopReason: 'refusal' }],
     })
-    runner.start(bare())
+    await runner.start(bare())
     const state = await settle(runner)
     expect(fake.activations).toHaveLength(1)
     expect(state?.failure).toBe('the skill run ended as refusal')

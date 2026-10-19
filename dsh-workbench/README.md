@@ -68,3 +68,4 @@ A card reads its own facts from its Host half or from existing client state. The
 - Order persistence is fixed to the storage domain; the browser `localStorage` and the settings namespace are both deliberately unused.
 - The command palette does not expose the reorder commands yet; the keyboard path runs through a card's own handle.
 - The page shows no workspace context yet, so `useWorkspaces` is not part of its props.
+- The skill card's model picker reads the optional `modelDirectories` client service, injected in its scoped form. Without that service a card still runs on a model it has stored, but its runs inherit the session's model, and such a result cannot name the route it used: the result record's `model` is written only when the card itself pinned one.

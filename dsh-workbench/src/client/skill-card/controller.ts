@@ -20,6 +20,7 @@ import type {
   WorkbenchActionDeclaration,
   WorkbenchActionTarget,
   WorkbenchCardConfigView,
+  WorkbenchCardModel,
   WorkbenchCardResult,
   WorkbenchResultRecord,
   WorkbenchRunState,
@@ -34,6 +35,8 @@ import type {
 } from './api.ts'
 import type { WorkbenchActionErrorCode, WorkbenchActionLookup } from './actions.ts'
 import { resolveAction } from './actions.ts'
+import type { WorkbenchModelDirectoryView, WorkbenchModelField, WorkbenchModelSeat } from './model.ts'
+import { NO_MODEL_DIRECTORY, resolveModelField } from './model.ts'
 import type { WorkbenchActionEvent } from './render.ts'
 import { resultHtml } from './render.ts'
 import { startCardRefine, startCardRun } from './run-start.ts'
@@ -175,6 +178,14 @@ export interface WorkbenchCardView {
   readonly run?: WorkbenchRunState
   /** Present when the card cannot show or do what it should. */
   readonly problem?: WorkbenchCardProblem
+  /**
+   * Why this card cannot run at all, when the deployment cannot start a child.
+   *
+   * Separate from {@link problem} because it is not a fault of the card: reading,
+   * configuring, and hand-editing it all still work, so the card must keep rendering
+   * its content while this states what the run control waits for.
+   */
+  readonly runUnavailable?: WorkbenchCardProblem
   /** The action waiting for confirmation; while present the panel replaces the body. */
   readonly pendingAction?: WorkbenchPendingAction
   /** The last clicked action's refusal, shown as an alert. */
@@ -204,8 +215,15 @@ export interface WorkbenchCardView {
    * result, so hiding it removes the thing the user is reviewing.
    */
   readonly refining?: boolean
-  /** Whether a run can start: a skill, a template, and a live session. */
+  /** Whether a run can start: a skill, a template, a live session, and a model to name. */
   readonly runnable: boolean
+  /**
+   * What the model field offers, and whether a run can name its route.
+   *
+   * Carried on the view rather than read by each page, because the field's state and the
+   * run control's answer have to be the same answer.
+   */
+  readonly modelField: WorkbenchModelField
   /** Skills the session's agent can invoke. */
   readonly catalog: readonly WorkbenchSkillCatalogEntry[]
   /** Whether the catalog has been read. */
@@ -261,6 +279,14 @@ export interface WorkbenchCardActions {
   /** Store a new skill selection. */
   chooseSkill(skill: string): void
   /**
+   * Store the model this card's runs use.
+   *
+   * The pair travels whole: two ids, never a joined string, so a provider id containing a
+   * slash cannot be misread as a separator.
+   * @param model - the route the user chose.
+   */
+  chooseModel(model: WorkbenchCardModel): void
+  /**
    * Store a template for the selected skill, together with the card's name.
    * @param template - the HTML to store.
    * @param name - the card's name as the editor shows it; an empty value clears it.
@@ -311,6 +337,14 @@ export interface WorkbenchSkillCardOptions {
    */
   readonly withCatalog?: boolean
   /**
+   * Read the model catalog this card's field offers.
+   *
+   * Omitted by the card face, which neither shows the field nor has a run control. A page
+   * that omits it resolves every card to "no model known", which is the honest answer for
+   * a view that cannot see the directory.
+   */
+  readonly models?: WorkbenchModelSeat
+  /**
    * Read the title one card face shows.
    *
    * A declaration addresses a card by the name the user sees, so resolution has to
@@ -358,6 +392,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     cardId,
     session,
     withCatalog = false,
+    models,
     cardTitle = defaultCardTitle,
     openCard,
     watchRun = false,
@@ -411,6 +446,17 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const [catalog, setCatalog] = useState<readonly WorkbenchSkillCatalogEntry[]>([])
   const [catalogStatus, setCatalogStatus] = useState<WorkbenchCatalogStatus>('idle')
   const [catalogFailure, setCatalogFailure] = useState<WorkbenchSkillCardErrorCode | 'unavailable' | undefined>(undefined)
+  const [directory, setDirectory] = useState<WorkbenchModelDirectoryView>(NO_MODEL_DIRECTORY)
+
+  // The directory is an outside store, so it is read into state and watched rather than
+  // read during render: it loads after the page mounts, and a field that never re-rendered
+  // would stay empty after the catalog arrived.
+  useEffect(() => {
+    if (models === undefined) return
+    const read = (): void => { setDirectory(models.read(sessionId)) }
+    read()
+    return models.subscribe(sessionId, read)
+  }, [models, sessionId])
 
   // The catalog belongs to the view that lists skills, so it is loaded by that view
   // being rendered rather than by an action someone has to remember to call.
@@ -520,6 +566,21 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const stored = config.kind === 'ready'
     ? config.snapshot.results.find(entry => entry.cardId === cardId)
     : undefined
+  // A card's own route wins and the session's selection is only the default it shows. The
+  // field answers both questions at once: what the picker offers, and whether a run can
+  // name the model it would use.
+  const modelField = useMemo<WorkbenchModelField>(
+    () => resolveModelField(card?.model, directory),
+    [card?.model, directory],
+  )
+  // Recorded by the Host once, at composition, and read here rather than asked per click.
+  // Memoized on the configuration so the view's own identity stays stable between renders.
+  const runUnavailable = useMemo<WorkbenchCardProblem | undefined>(
+    () => config.kind === 'ready' && config.snapshot.capabilities?.startActivation === false
+      ? { code: 'run-unavailable' }
+      : undefined,
+    [config],
+  )
   // The override wins over a settled run: the only ways it is set are an undo and a
   // refinement that failed, and both mean "show the result that run was replacing".
   const result = resultOverride ?? run?.result ?? stored
@@ -689,6 +750,11 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const chooseSkill = useCallback((skill: string) => {
     if (revision === undefined) return
     void api.write({ baseRevision: revision, cardId, skill }).then(applyWrite)
+  }, [api, applyWrite, cardId, revision])
+
+  const chooseModel = useCallback((model: WorkbenchCardModel) => {
+    if (revision === undefined) return
+    void api.write({ baseRevision: revision, cardId, model }).then(applyWrite)
   }, [api, applyWrite, cardId, revision])
 
   const saveTemplate = useCallback((template: string, name: string) => {
@@ -920,6 +986,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       saveResultEdit,
       refresh,
       chooseSkill,
+      chooseModel,
       saveTemplate,
       rename,
       remove,
@@ -935,6 +1002,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       saveResultEdit,
       refresh,
       chooseSkill,
+      chooseModel,
       saveTemplate,
       rename,
       remove,
@@ -966,13 +1034,23 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // very thing being reviewed.
     ...run?.phase === 'running' && refinement.current !== undefined ? { refining: true } : {},
     ...effective === undefined ? {} : { problem: effective },
+    ...runUnavailable === undefined ? {} : { runUnavailable },
     ...pendingAction === undefined ? {} : { pendingAction },
     ...actionProblem === undefined ? {} : { actionProblem },
     ...bareRun === undefined ? {} : { bareRun },
     refinements,
     previous,
     ...refineProblem === undefined ? {} : { refineProblem },
-    runnable: sessionId !== undefined && card?.skill !== undefined && card.template !== undefined,
+    // The deciding question is whether there is a model the run could name, never whether
+    // the picker loaded: a known route keeps a card runnable with no catalog at all. A
+    // harness without the activation seam is the one answer that closes this off for
+    // every card, and the view states it beside the disabled control.
+    runnable: runUnavailable === undefined
+      && sessionId !== undefined
+      && card?.skill !== undefined
+      && card.template !== undefined
+      && modelField.kind !== 'unavailable',
+    modelField,
     catalog,
     catalogStatus,
     catalogFailure,
@@ -989,6 +1067,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     card?.name,
     card?.skill,
     card?.template,
+    modelField,
     result,
     catalog,
     catalogStatus,
@@ -1000,6 +1079,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     previous,
     refineProblem,
     cardTitle,
+    runUnavailable,
   ])
 
   return { view, actions }
@@ -1094,8 +1174,10 @@ const LOCALIZED_CODES: Record<WorkbenchSkillCardErrorCode, true> = {
   'template-missing': true,
   'catalog-failed': true,
   'provider-unavailable': true,
+  'model-unavailable': true,
   'schema-rejected': true,
   'run-in-progress': true,
+  'run-unavailable': true,
 }
 
 /**

@@ -25,6 +25,7 @@ import type {
   WorkbenchCardView,
   WorkbenchPendingAction,
 } from './controller.ts'
+import type { WorkbenchModelSeat } from './model.ts'
 import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
@@ -237,6 +238,19 @@ function RunOutput({
       <dl className={css.runFacts}>
         <dt>{t('runStopReason')}</dt>
         <dd data-run-stop-reason={result.stopReason}>{stopReasonText(result.stopReason, t)}</dd>
+        {/* The route this result came from. Absent for a run that inherited the session's
+            model: the Host was never told which route that resolved to, and inventing one
+            would be worse than saying nothing. */}
+        {result.model === undefined ? null : (
+          <>
+            <dt>{t('runModel')}</dt>
+            <dd data-run-model={`${result.model.provider}/${result.model.model}`}>
+              {result.model.provider}
+              {' / '}
+              {result.model.model}
+            </dd>
+          </>
+        )}
         <dt>{t('runStartedAt')}</dt>
         <dd>{new Date(result.executedAt).toLocaleString()}</dd>
         {/* A hand-edited result states that it was edited, on its own row and with its own
@@ -294,6 +308,13 @@ export interface SkillCardPageProps {
    * @returns the session id, or undefined when none is available.
    */
   readonly runSessionId: () => string | undefined
+  /**
+   * Read the model catalog, and what it knows about one session.
+   *
+   * Required rather than optional: a page that cannot see the directory cannot say which
+   * model a run would use, and this feature never runs work it cannot name.
+   */
+  readonly models: WorkbenchModelSeat
   /**
    * Shown in place of the name while the card has none.
    *
@@ -461,7 +482,7 @@ function RefinePanel({
  * @returns the result page.
  */
 export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, fallbackTitle, onBack, openCard, t } = props
+  const { api, cardId, runSessionId, models, fallbackTitle, onBack, openCard, t } = props
   // The face's own naming rule, reused so an action declaration can address this card
   // by the title the user actually reads on it.
   const cardTitle = useCallback(
@@ -472,6 +493,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
     api,
     cardId,
     session: runSessionId,
+    models,
     openCard,
     // This page is where another card's button lands after starting this card's run.
     watchRun: true,
@@ -525,6 +547,21 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
           {running ? t('skillCardCancel') : t('skillCardRun')}
         </Button>
       </header>
+      {/* A disabled run control with no sentence beside it is the same defect the catalog
+          notice fixes on the configuration page: the user cannot tell what is missing. */}
+      {view.modelField.kind === 'unavailable'
+        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+        : null}
+      {/* The run control is disabled because this harness has no activation seam. The
+          sentence names what is missing and which harness provides it, so the state is
+          readable before the control is pressed rather than after it fails. */}
+      {view.runUnavailable === undefined
+        ? null
+        : (
+          <p className={css.runProblem} data-run-unavailable="">
+            {t(problemKey(view.runUnavailable.code))}
+          </p>
+        )}
       {/* A refinement's failure is reported under the composer instead; stating it here
           too would put the same failure on the page twice. */}
       {view.problem === undefined || view.refineProblem !== undefined ? null : (
@@ -616,7 +653,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
  * @returns the configuration page.
  */
 export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, onBack, t } = props
+  const { api, cardId, runSessionId, models, onBack, t } = props
   // The face's own naming rule, reused here so the editor checks a declared card target
   // against the title the user reads on the grid — which is the name the click path
   // resolves — instead of against the card id a nameless card would otherwise show as.
@@ -628,6 +665,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
     api,
     cardId,
     session: runSessionId,
+    models,
     withCatalog: true,
     cardTitle,
   })
@@ -642,6 +680,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
         view={view}
         t={t}
         onChoose={actions.chooseSkill}
+        onChooseModel={actions.chooseModel}
         onSave={actions.saveTemplate}
         onRename={actions.rename}
         onClose={onBack}

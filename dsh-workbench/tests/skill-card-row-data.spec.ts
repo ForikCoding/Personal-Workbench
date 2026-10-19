@@ -84,7 +84,7 @@ async function promptOf(
   activations: readonly WorkbenchActivationSpec[],
   request: WorkbenchRunRequest,
 ): Promise<string> {
-  expect(runner.start(request)).toMatchObject({ status: 'started' })
+  expect(await runner.start(request)).toMatchObject({ status: 'started' })
   await vi.waitFor(() => {
     const phase = runner.state(request.cardId)?.phase
     expect(phase === 'settled' || phase === 'cancelled').toBe(true)

@@ -235,10 +235,14 @@ const PROBLEM_KEYS: Record<WorkbenchCardProblem['code'], WorkbenchLocaleKey> = {
   'session-not-live': 'skillCardProblemNoSession',
   'skill-not-found': 'skillCardProblemSkillMissing',
   'provider-unavailable': 'skillCardProblemProvider',
+  'model-unavailable': 'skillCardProblemModelUnavailable',
   'schema-rejected': 'skillCardProblemContract',
   'template-invalid': 'skillCardProblemTemplateInvalid',
   'run-in-progress': 'skillCardProblemRunning',
   'run-failed': 'skillCardProblemRunFailed',
+  // A harness without the activation seam: the one failure that is about the deployment
+  // rather than about this card, and the only one whose copy names a version to install.
+  'run-unavailable': 'skillCardProblemRunUnavailable',
   'too-large': 'skillCardProblemTooLarge',
   'unavailable': 'skillCardProblemUnavailable',
   'unauthorized': 'skillCardProblemGeneric',

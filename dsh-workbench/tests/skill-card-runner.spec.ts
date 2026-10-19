@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
-import type { WorkbenchRunRequest } from '../src/skill-card-contract.ts'
+import type { WorkbenchRunRequest, WorkbenchResultRecord } from '../src/skill-card-contract.ts'
 import type { WorkbenchSubagentResult } from '../src/skill-card-host.ts'
 import { AGENT, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHost, FakeHostOptions } from './support/fake-skill-card-host.ts'
@@ -19,11 +19,11 @@ function setup(options: FakeHostOptions & {
 } = {}): {
   runner: WorkbenchSkillCardRunner
   fake: FakeHost
-  saved: { cardId: string; record: { stopReason: string; structured?: unknown } }[]
+  saved: { cardId: string; record: WorkbenchResultRecord }[]
   warnings: string[]
 } {
   const fake = fakeHost(options)
-  const saved: { cardId: string; record: { stopReason: string; structured?: unknown } }[] = []
+  const saved: { cardId: string; record: WorkbenchResultRecord }[] = []
   const warnings: string[] = []
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
@@ -122,9 +122,31 @@ describe('workbench skill card runner', () => {
   })
 
   describe('start preconditions', () => {
-    it('refuses a run with no output contract', () => {
+    it('refuses a card run on a harness without the activation seam', async () => {
+      // The stable channel pins 0.2.0-rc.2, whose subagent service has start and
+      // startContinuable but no startActivation. The composition already probed it; this is
+      // the second line, so a call that arrives anyway is answered with a state rather than
+      // throwing `undefined is not a function` out of the route.
+      const { runner, fake } = setup({ startActivation: false })
+      const outcome = await runner.start(request())
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'run-unavailable' })
+      // The refusal names the member the harness is missing, which is the operator's remedy.
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('startActivation')
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a bare run the same way, which is the template-button path', async () => {
+      // A button authored inside a result starts a bare run through the same route, so it
+      // lands on the same guard instead of a stack trace.
+      const { runner, fake } = setup({ startActivation: false })
+      const outcome = await runner.start(request({ mode: { kind: 'bare', skill: 'git-repo' }, outputSchema: undefined }))
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'run-unavailable' })
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a run with no output contract', async () => {
       const { runner, fake } = setup()
-      expect(runner.start(request({ outputSchema: undefined }))).toEqual({
+      expect(await runner.start(request({ outputSchema: undefined }))).toEqual({
         status: 'rejected',
         code: 'schema-rejected',
         detail: 'the run carried no object-rooted output contract',
@@ -132,53 +154,53 @@ describe('workbench skill card runner', () => {
       expect(fake.activations).toEqual([])
     })
 
-    it('refuses a contract that is not object-rooted', () => {
+    it('refuses a contract that is not object-rooted', async () => {
       const { runner } = setup()
-      expect(runner.start(request({ outputSchema: { type: 'array' } }))).toMatchObject({
+      expect(await runner.start(request({ outputSchema: { type: 'array' } }))).toMatchObject({
         status: 'rejected',
         code: 'schema-rejected',
       })
-      expect(runner.start(request({ outputSchema: 'not a schema' }))).toMatchObject({
+      expect(await runner.start(request({ outputSchema: 'not a schema' }))).toMatchObject({
         status: 'rejected',
         code: 'schema-rejected',
       })
     })
 
-    it('refuses a card with no skill selected', () => {
+    it('refuses a card with no skill selected', async () => {
       const { runner } = setup({ selection: {} })
-      expect(runner.start(request())).toEqual({
+      expect(await runner.start(request())).toEqual({
         status: 'rejected',
         code: 'not-configured',
         detail: 'no skill is configured for this card',
       })
     })
 
-    it('refuses a card with no template for its skill', () => {
+    it('refuses a card with no template for its skill', async () => {
       const { runner } = setup({ selection: { skill: 'git-repo' } })
-      expect(runner.start(request())).toEqual({
+      expect(await runner.start(request())).toEqual({
         status: 'rejected',
         code: 'template-missing',
         detail: 'no template is stored for skill "git-repo"',
       })
     })
 
-    it('refuses a session with no live agent', () => {
+    it('refuses a session with no live agent', async () => {
       const { runner } = setup({ live: false })
-      expect(runner.start(request())).toMatchObject({ status: 'rejected', code: 'session-not-live' })
+      expect(await runner.start(request())).toMatchObject({ status: 'rejected', code: 'session-not-live' })
     })
 
-    it('refuses an unregistered or incapable backend', () => {
+    it('refuses an unregistered or incapable backend', async () => {
       const missing = setup({ providers: {} })
-      expect(missing.runner.start(request())).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
+      expect(await missing.runner.start(request())).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
 
       const incapable = setup({ providers: { spawn: { outputSchema: false } } })
-      expect(incapable.runner.start(request())).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
+      expect(await incapable.runner.start(request())).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
     })
 
     it('refuses a second run for the same card', async () => {
       const { runner } = setup({ outcomes: ['hang'] })
-      expect(runner.start(request()).status).toBe('started')
-      expect(runner.start(request())).toEqual({
+      expect((await runner.start(request())).status).toBe('started')
+      expect(await runner.start(request())).toEqual({
         status: 'rejected',
         code: 'run-in-progress',
         detail: 'another run is already in flight',
@@ -189,8 +211,8 @@ describe('workbench skill card runner', () => {
 
     it('refuses a run once the global concurrency limit is reached', async () => {
       const { runner } = setup({ outcomes: ['hang'] })
-      expect(runner.start(request()).status).toBe('started')
-      expect(runner.start(request({ cardId: 'other-card' }))).toMatchObject({
+      expect((await runner.start(request())).status).toBe('started')
+      expect(await runner.start(request({ cardId: 'other-card' }))).toMatchObject({
         status: 'rejected',
         code: 'run-in-progress',
       })
@@ -199,12 +221,81 @@ describe('workbench skill card runner', () => {
     })
   })
 
+  describe('the card model', () => {
+    /** The route a card configured with a model names. */
+    const MODEL = { provider: 'deepseek', model: 'deepseek-chat' }
+
+    it('pins the child to the card model and stamps it on the record', async () => {
+      // Criteria 74 and 75. The route travels as `agentOptions` — never as text in the
+      // prompt, which the child could not honour — and the record keeps it so the result
+      // page can name the model that produced what the user is reading.
+      const { runner, fake, saved } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: MODEL },
+        outcomes: [{ output: [], stopReason: 'completed', structured: { html: '<b>a</b>' } }],
+      })
+      expect((await runner.start(request())).status).toBe('started')
+      await settle(runner)
+      expect(fake.activations[0]?.request.agentOptions).toEqual(MODEL)
+      expect(saved[0]?.record.model).toEqual(MODEL)
+    })
+
+    it('passes no agentOptions at all when the card names no model', async () => {
+      // Criterion 76. Omission is the promise: the child then inherits the session's model
+      // exactly as it did before this feature existed, and the record says nothing about a
+      // route the Host was never told.
+      const { runner, fake, saved } = setup()
+      expect((await runner.start(request())).status).toBe('started')
+      await settle(runner)
+      expect(fake.activations[0]?.request).not.toHaveProperty('agentOptions')
+      expect(saved[0]?.record).not.toHaveProperty('model')
+    })
+
+    it('refuses a provider that does not advertise the capability, naming the route', async () => {
+      // Criterion 77. A backend that cannot take a route must refuse rather than run on
+      // the session's model: the card says one thing and the run would do another.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: MODEL },
+        providers: { spawn: { outputSchema: true, agentOptions: false } },
+      })
+      const outcome = await runner.start(request())
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('deepseek/deepseek-chat')
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a model provider this deployment does not route', async () => {
+      // Criterion 78. The registry rejects for a provider it does not have, which is what
+      // tells a missing provider apart from a model that left the catalog.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: { provider: 'gone', model: 'large' } },
+        models: { deepseek: ['deepseek-chat'] },
+      })
+      const outcome = await runner.start(request())
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('gone/large')
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a model the provider no longer offers', async () => {
+      // Criterion 79. Missing from an answered catalog is its own refusal: the provider is
+      // there, the model is not, and saying which one is gone is the whole point.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: { provider: 'deepseek', model: 'retired' } },
+        models: { deepseek: ['deepseek-chat'] },
+      })
+      const outcome = await runner.start(request())
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'model-unavailable' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('deepseek/retired')
+      expect(fake.activations).toEqual([])
+    })
+  })
+
   describe('execution', () => {
     it('runs the skill through a child and stores the captured value', async () => {
       const { runner, fake, saved } = setup({
         outcomes: [{ output: [{ type: 'text', text: 'done' }], stopReason: 'completed', structured: { branch: 'main' } }],
       })
-      const started = runner.start(request())
+      const started = await runner.start(request())
       expect(started).toEqual({
         status: 'started',
         state: { cardId: 'skill-card', phase: 'running', startedAt: 42, retried: false },
@@ -239,7 +330,7 @@ describe('workbench skill card runner', () => {
 
     it('sends the canonical skill wrapper and inherits the agent scope', async () => {
       const { runner, fake } = setup()
-      runner.start(request())
+      await runner.start(request())
       await settle(runner)
 
       const spec = fake.activations[0]
@@ -277,7 +368,7 @@ describe('workbench skill card runner', () => {
         '</body></html>',
       ].join('\n')
       const { runner, fake } = setup({ selection: { skill: 'git-repo', template } })
-      runner.start(request())
+      await runner.start(request())
       await settle(runner)
       const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
       expect(prompt).toContain('<tr><td>{{num}}</td></tr>')
@@ -294,7 +385,7 @@ describe('workbench skill card runner', () => {
           { output: [{ type: 'text', text: 'ok' }], stopReason: 'completed', structured: { branch: 'main' } },
         ],
       })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
 
       expect(fake.activations).toHaveLength(2)
@@ -311,7 +402,7 @@ describe('workbench skill card runner', () => {
       const { runner } = setup({
         outcomes: [{ output: [{ type: 'thinking', text: 'weighing options' }], stopReason: 'completed' }],
       })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
       expect(state?.failure).toBe('the run finished without a value matching the contract')
       expect(state?.result?.outputText).toBeUndefined()
@@ -325,7 +416,7 @@ describe('workbench skill card runner', () => {
       const claimChild = async (): Promise<void> => {
         for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
       }
-      runner.start(request())
+      await runner.start(request())
       await claimChild()
       expect(fake.activations).toHaveLength(1)
       runner.observeAgentError('child', new Error('the model call was rejected'))
@@ -344,7 +435,7 @@ describe('workbench skill card runner', () => {
       const claimChild = async (): Promise<void> => {
         for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
       }
-      runner.start(request())
+      await runner.start(request())
       await claimChild()
       runner.observeAgentError('some-other-agent', new Error('unrelated'))
       fake.settleChild({ output: [], stopReason: 'error' })
@@ -362,7 +453,7 @@ describe('workbench skill card runner', () => {
           { output: [{ type: 'text', text: 'second' }], stopReason: 'completed' },
         ],
       })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
 
       expect(fake.activations).toHaveLength(2)
@@ -381,7 +472,7 @@ describe('workbench skill card runner', () => {
       // The seam reports a missed capture as `error` too, so this is retried once
       // before the run is called failed.
       const { runner, fake } = setup({ outcomes: [failed, failed] })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
       expect(fake.activations).toHaveLength(2)
       expect(state?.failure).toBe('the run ended as error: provider exploded')
@@ -390,7 +481,7 @@ describe('workbench skill card runner', () => {
     it('does not repeat a child that refused or hit its ceiling', async () => {
       for (const stopReason of ['refusal', 'max-tokens']) {
         const { runner, fake } = setup({ outcomes: [{ output: [], stopReason }] })
-        runner.start(request())
+        await runner.start(request())
         const state = await settle(runner)
         expect(state?.failure).toBe(`the run ended as ${stopReason}`)
         expect(fake.activations).toHaveLength(1)
@@ -399,7 +490,7 @@ describe('workbench skill card runner', () => {
 
     it('reports a skill that is no longer available', async () => {
       const { runner, fake } = setup({ definitions: {} })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
       expect(fake.activations).toEqual([])
       expect(state).toMatchObject({
@@ -411,7 +502,7 @@ describe('workbench skill card runner', () => {
 
     it('reports an upstream resolution failure as a run failure', async () => {
       const { runner, warnings } = setup({ throwsOn: 'ensure' })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
       expect(state).toMatchObject({ phase: 'settled', failureCode: 'run-failed', failure: 'no working directory' })
       expect(warnings).toEqual(['workbench skill card run failed: no working directory'])
@@ -421,7 +512,7 @@ describe('workbench skill card runner', () => {
       const { runner, warnings } = setup({
         saveResult: async () => { throw new Error('disk full') },
       })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
       expect(state?.phase).toBe('settled')
       expect(state?.result?.structured).toEqual({ a: '1' })
@@ -432,7 +523,7 @@ describe('workbench skill card runner', () => {
   describe('cancellation and timeouts', () => {
     it('cancels an in-flight run without retrying', async () => {
       const { runner, fake } = setup({ outcomes: ['hang'] })
-      runner.start(request())
+      await runner.start(request())
       expect(runner.cancel('skill-card')).toBe(true)
 
       const state = await settle(runner)
@@ -443,22 +534,22 @@ describe('workbench skill card runner', () => {
     it('ignores a cancel for a card with no run in flight', async () => {
       const { runner } = setup()
       expect(runner.cancel('skill-card')).toBe(false)
-      runner.start(request())
+      await runner.start(request())
       await settle(runner)
       expect(runner.cancel('skill-card')).toBe(false)
     })
 
     it('cancels a run that outlives its timeout', async () => {
       const { runner } = setup({ outcomes: ['hang'], runTimeoutMs: 10 })
-      runner.start(request())
+      await runner.start(request())
       const state = await settle(runner)
       expect(state?.phase).toBe('cancelled')
     })
 
     it('signals every in-flight run on dispose', async () => {
       const { runner } = setup({ outcomes: ['hang', 'hang'], maxConcurrentRuns: 2 })
-      runner.start(request())
-      runner.start(request({ cardId: 'other-card' }))
+      await runner.start(request())
+      await runner.start(request({ cardId: 'other-card' }))
       await runner.dispose()
       expect(runner.state('skill-card')).toBeUndefined()
       expect(runner.state('other-card')).toBeUndefined()

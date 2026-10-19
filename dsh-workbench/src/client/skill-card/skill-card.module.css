@@ -370,7 +370,27 @@
   gap: 6px;
 }
 
+/* The model field has two states that are text rather than a control: a route the card
+   cannot offer, and no route at all. Both occupy the place the picker would, at the same
+   height, so the row does not jump between the three states. */
+.fieldValue {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .fieldLabel {
+  margin: 0;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
 }

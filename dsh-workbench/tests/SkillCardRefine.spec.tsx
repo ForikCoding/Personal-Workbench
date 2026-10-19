@@ -12,6 +12,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { zh } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
 import type {
@@ -132,6 +133,9 @@ function props(api: WorkbenchSkillCardApi): PageProps {
     api,
     cardId: 'skill-card',
     runSessionId: () => 'session-1',
+    // A live catalog with a known selection: a refinement is a model call, and a card
+    // that cannot name a model would refuse it before these cases ever reach the composer.
+    models: fakeModelSeat(),
     fallbackTitle: '技能卡',
     onBack: () => {},
     openCard: () => {},

@@ -149,6 +149,58 @@ describe('workbench skill card store', () => {
     expect(store.read().cards).toEqual([])
   })
 
+  it('stores a card model as a pair and reads it back whole', async () => {
+    // Criterion 71's storage half: the pair is stored as two fields, so a provider id
+    // containing a slash survives the round trip unparsed.
+    const { store, tables } = setup()
+    const model = { provider: 'vendor/gateway', model: 'large' }
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', model })
+    expect(tables.operations).toEqual([
+      { table: 'card', kind: 'put', key: 'skill-card', value: { model } },
+    ])
+    expect(store.read().cards).toEqual([{ cardId: 'skill-card', model, templateSkills: [] }])
+  })
+
+  it('keeps the model when the skill changes, and the reverse', async () => {
+    // Name, skill, and model share one record: every write merges against what is stored,
+    // so choosing one of the three never clears the other two.
+    const model = { provider: 'deepseek', model: 'deepseek-chat' }
+    const seeded = setup({ seed: { card: { 'skill-card': { skill: 'git-repo', model } } } })
+    await seeded.store.write({ baseRevision: '7:0', cardId: 'skill-card', name: 'Repo overview' })
+    expect(seeded.store.read().cards).toEqual([
+      { cardId: 'skill-card', name: 'Repo overview', skill: 'git-repo', model, templateSkills: [] },
+    ])
+
+    const renamed = setup({ seed: { card: { 'skill-card': { name: 'Repo overview' } } } })
+    await renamed.store.write({ baseRevision: '7:0', cardId: 'skill-card', model })
+    expect(renamed.store.read().cards).toEqual([
+      { cardId: 'skill-card', name: 'Repo overview', model, templateSkills: [] },
+    ])
+  })
+
+  it('clears a model without dropping the name or the selection', async () => {
+    // `null` means "go back to inheriting the session's model". It is a field being
+    // cleared, not the card being deleted, so the other two fields survive it.
+    const { store, tables } = setup({
+      seed: { card: { 'skill-card': { name: 'Repo overview', skill: 'git-repo', model: { provider: 'deepseek', model: 'deepseek-chat' } } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', model: null })
+    expect(tables.operations[0]).toMatchObject({ table: 'card', kind: 'put' })
+    expect(store.read().cards).toEqual([
+      { cardId: 'skill-card', name: 'Repo overview', skill: 'git-repo', templateSkills: [] },
+    ])
+  })
+
+  it('deletes the record once name, skill, and model are all cleared', async () => {
+    // An empty record would keep a card alive with nothing left to configure it with.
+    const { store, tables } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', model: { provider: 'deepseek', model: 'deepseek-chat' } } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: null, model: null })
+    expect(tables.operations).toEqual([{ table: 'card', kind: 'delete', key: 'skill-card' }])
+    expect(store.read().cards).toEqual([])
+  })
+
   it('removes a card together with every template it holds', async () => {
     // A removal that left the templates behind would keep records no card can ever
     // read again, and another card's records must survive it.
@@ -203,7 +255,13 @@ describe('workbench skill card store', () => {
       },
       {
         patch: { baseRevision: '7:0', cardId: 'skill-card', remove: true, name: 'Repo overview' },
-        reason: 'a removal cannot carry a name, a skill, or a template',
+        reason: 'a removal cannot carry a name, a skill, a model, or a template',
+      },
+      {
+        // A route is two ids or nothing. An empty half is not a route, and accepting it
+        // would store a card that names a model it cannot run.
+        patch: { baseRevision: '7:0', cardId: 'skill-card', model: { provider: 'deepseek', model: '' } },
+        reason: 'model must name a non-empty provider and model id',
       },
     ]
     for (const { patch, reason } of cases) {

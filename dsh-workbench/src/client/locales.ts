@@ -41,6 +41,8 @@ export const zh = {
   skillCardProblemTemplateInvalid: '模板不合法',
   skillCardProblemRunning: '已经有一个运行在进行',
   skillCardProblemRunFailed: '这次运行没有产出可用的结果',
+  // 这张卡能读、能改，只有"运行"不行：宿主没有提供子代理的激活入口。
+  skillCardProblemRunUnavailable: '当前 harness 不能运行卡片：卡片运行需要提供 startActivation 的 harness（0.2.1-alpha.2 / beta 通道），已安装的 harness 没有提供',
   skillCardProblemTooLarge: '模板超出体积上限',
   skillCardProblemUnavailable: '暂时读不到这张卡的状态',
   skillCardProblemGeneric: '这张卡暂时不可用',
@@ -110,6 +112,11 @@ export const zh = {
   skillCardPermission: '运行时使用当前会话的完整工具权限',
   skillCardBack: '返回',
   skillCardCardName: '卡片名称',
+  // The model field. Its two non-selectable states say what the card knows: a route it
+  // cannot offer, and the case where there is no model to run on at all.
+  skillCardModel: '模型',
+  skillCardModelUnavailable: '没有可用的模型，这张卡暂时不能运行',
+  skillCardProblemModelUnavailable: '这张卡指定的模型已经不可用',
   skillCardNamePlaceholder: '给这张卡起个名字',
   createCard: '创建卡片',
   createCardCancel: '取消',
@@ -123,6 +130,9 @@ export const zh = {
   runStatusRunning: '运行中',
   runStartedAt: '开始于',
   runStopReason: '结束原因',
+  // The route a result came from. Its own row rather than part of the stop-reason line:
+  // a user reading a result must never have to guess which model produced it.
+  runModel: '模型',
   // A result whose region HTML was replaced by hand says so on its own row. It is not a
   // 修改记录 entry: that log records instructions, and a hand edit is not one.
   runEditedAt: '手工编辑',
@@ -224,6 +234,8 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardProblemTemplateInvalid: 'The template is not valid',
   skillCardProblemRunning: 'Another run is already in flight',
   skillCardProblemRunFailed: 'The run produced no usable result',
+  // The card itself is fine: the harness under it is missing the seam a run needs.
+  skillCardProblemRunUnavailable: 'This harness cannot run cards: a card run needs a harness that provides startActivation (0.2.1-alpha.2, the beta channel), and the installed harness does not',
   skillCardProblemTooLarge: 'The template is above the size limit',
   skillCardProblemUnavailable: 'This card’s state cannot be read right now',
   skillCardProblemGeneric: 'This card is unavailable right now',
@@ -293,6 +305,11 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardPermission: 'Runs with the current session’s full tool permissions',
   skillCardBack: 'Back',
   skillCardCardName: 'Card name',
+  // The model field. Its two non-selectable states say what the card knows: a route it
+  // cannot offer, and the case where there is no model to run on at all.
+  skillCardModel: 'Model',
+  skillCardModelUnavailable: 'No model is available, so this card cannot run',
+  skillCardProblemModelUnavailable: 'The model this card names is no longer available',
   skillCardNamePlaceholder: 'Name this card',
   createCard: 'Create card',
   createCardCancel: 'Cancel',
@@ -306,6 +323,9 @@ export const en: Record<keyof typeof zh, string> = {
   runStatusRunning: 'Running',
   runStartedAt: 'Started',
   runStopReason: 'Stop reason',
+  // The route a result came from. Its own row rather than part of the stop-reason line:
+  // a user reading a result must never have to guess which model produced it.
+  runModel: 'Model',
   // A result whose region HTML was replaced by hand says so on its own row. It is not a
   // revision-log entry: that log records instructions, and a hand edit is not one.
   runEditedAt: 'Edited by hand',

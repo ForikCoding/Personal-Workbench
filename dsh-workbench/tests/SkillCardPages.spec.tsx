@@ -4,6 +4,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { fakeModelSeat } from './support/fake-model-seat.ts'
+import type { WorkbenchModelDirectoryView, WorkbenchModelSeat } from '../src/client/skill-card/model.ts'
+import { modelKey } from '../src/client/skill-card/model.ts'
+import type { WorkbenchCardModel, WorkbenchSkillCardPatch } from '../src/skill-card-contract.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
@@ -43,6 +47,7 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
     },
     cardId: 'skill-card',
     runSessionId: () => undefined,
+    models: fakeModelSeat(),
     fallbackTitle: 'Skill card',
     onBack: () => {},
     openCard: () => {},
@@ -115,6 +120,31 @@ describe('skill card configuration page', () => {
       .not.toContain('skillCardDelete')
   })
 
+  it('stores the model the picker chose, as a pair and against the revision it read', async () => {
+    // The field is only a control until the write lands: this is the boundary that makes the
+    // choice real, and it carries the pair rather than a joined string.
+    const writes: WorkbenchSkillCardPatch[] = []
+    const { container } = render(<SkillCardConfigPage {...props({
+      api: {
+        ...props().api,
+        write: async (patch) => {
+          writes.push(patch)
+          return { status: 'ok', snapshot: { revision: '1:1', cards: [{ cardId: 'skill-card', templateSkills: [] }], results: [] } }
+        },
+      },
+    })} />)
+    await waitFor(() => { expect(container.querySelector('[data-model-select]')).not.toBeNull() })
+    fireEvent.change(container.querySelector('[data-model-select]') as HTMLSelectElement, {
+      target: { value: modelKey({ provider: 'deepseek', model: 'deepseek-reasoner' }) },
+    })
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    expect(writes[0]).toMatchObject({
+      baseRevision: '1:0',
+      cardId: 'skill-card',
+      model: { provider: 'deepseek', model: 'deepseek-reasoner' },
+    })
+  })
+
   it('checks a declared card target against the title the grid shows', async () => {
     // A nameless card is titled by its registered label on the face, and that is the
     // name a click resolves against — so the editor has to compare with the same rule
@@ -151,11 +181,13 @@ describe('skill card result page', () => {
    * Build an api for a card that is ready to run, so the run control is live.
    * @param start - the run start to answer with.
    * @param poll - optional run-state polls.
+   * @param model - route the card stores, when the case is about a pinned model.
    * @returns the api.
    */
   const readyApi = (
     start: PageProps['api']['start'],
     poll?: PageProps['api']['poll'],
+    model?: WorkbenchCardModel,
   ): PageProps['api'] => ({
     ...props().api,
     read: async () => ({
@@ -166,6 +198,7 @@ describe('skill card result page', () => {
           cardId: 'skill-card',
           skill: 'git-repo',
           template: '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->',
+          ...model === undefined ? {} : { model },
           templateSkills: ['git-repo'],
         }],
         results: [],
@@ -227,5 +260,84 @@ describe('skill card result page', () => {
     // noise, so the notice is now the one place this state is stated.
     await waitFor(() => { expect(screen.getByText('skillCardRunningBody')).toBeTruthy() })
     expect(screen.queryByText('skillCardNotRunTitle')).toBeNull()
+  })
+
+  it('keeps the run control live when a route is known but the catalog is not', async () => {
+    // Criterion 73's deciding question: "is there a model we can run with", never "did the
+    // picker load". The stored route survives a failed directory, so the run does too.
+    render(
+      <SkillCardResultPage
+        {...props({
+          runSessionId: () => 'session-1',
+          api: readyApi(
+            async () => ({ status: 'unavailable', reason: 'no run is started here' }),
+            undefined,
+            { provider: 'deepseek', model: 'deepseek-chat' },
+          ),
+          models: fakeModelSeat({ available: false, current: null }),
+        })}
+      />,
+    )
+    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
+    expect(screen.queryByText('skillCardModelUnavailable')).toBeNull()
+  })
+
+  it('disables the run control, and says why, when no model is known', async () => {
+    // The third state. Without a route the host would have nothing to name on the result,
+    // so the card refuses to start rather than run on a model it cannot report.
+    const start = vi.fn(async () => ({ status: 'unavailable' as const, reason: 'unused here' }))
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          runSessionId: () => 'session-1',
+          api: readyApi(start),
+          models: fakeModelSeat({ available: false, current: null }),
+        })}
+      />,
+    )
+    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    await waitFor(() => { expect(container.querySelector('[data-run-model-unavailable]')).not.toBeNull() })
+    expect(run).toHaveProperty('disabled', true)
+    fireEvent.click(run)
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  it('adopts a model the directory reports after the page has mounted', async () => {
+    // The directory loads asynchronously, so the field is watched rather than read once:
+    // without the subscription a page that mounted before the catalog arrived would stay
+    // permanently unrunnable.
+    let state: WorkbenchModelDirectoryView = { available: true, status: 'loading', current: null, groups: [] }
+    const listeners = new Set<() => void>()
+    const models: WorkbenchModelSeat = {
+      read: () => state,
+      subscribe: (_sessionId, listener) => {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+    }
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          runSessionId: () => 'session-1',
+          api: readyApi(async () => ({ status: 'unavailable', reason: 'no run is started here' })),
+          models,
+        })}
+      />,
+    )
+    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    await waitFor(() => { expect(run).toHaveProperty('disabled', true) })
+
+    state = {
+      available: true,
+      status: 'ready',
+      current: { provider: 'deepseek', model: 'deepseek-chat' },
+      groups: [],
+    }
+    for (const listener of [...listeners]) listener()
+    await waitFor(() => {
+      expect(run).toHaveProperty('disabled', false)
+      expect(container.querySelector('[data-run-model-unavailable]')).toBeNull()
+    })
   })
 })

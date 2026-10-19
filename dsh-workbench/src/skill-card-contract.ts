@@ -237,16 +237,47 @@ export function parseTemplateKey(key: string): { readonly cardId: string; readon
 }
 
 /**
+ * One exact provider/model route a card runs on.
+ *
+ * Stored as the pair rather than as a `"provider/model"` string: a provider id may
+ * itself contain a slash, so splitting the joined form back into two fields would be a
+ * bug farm. `reasoningEffort` is deliberately absent — v1 pins the route and nothing
+ * else, and an effort the card never chose would be a value it never had.
+ */
+export interface WorkbenchCardModel {
+  /** Provider route owning the model. */
+  readonly provider: string
+  /** Model id the provider advertises. */
+  readonly model: string
+}
+
+/**
+ * Whether a value is a usable card route.
+ * @param value - candidate value.
+ * @returns whether it holds two non-empty ids.
+ */
+export function isWorkbenchCardModel(value: unknown): value is WorkbenchCardModel {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const provider: unknown = Reflect.get(value, 'provider')
+  const model: unknown = Reflect.get(value, 'model')
+  return typeof provider === 'string' && provider.length > 0
+    && typeof model === 'string' && model.length > 0
+}
+
+/**
  * One card's persisted configuration.
  *
  * An absent record means "no skill chosen yet": the card renders its empty
- * state rather than guessing a default.
+ * state rather than guessing a default. A card with no `model` runs on whatever the
+ * session runs on, exactly as it did before this field existed.
  */
 export interface WorkbenchCardConfigRecord {
   /** User-assigned card name; absent falls back to the card's registered label. */
   readonly name?: string
   /** Skill the user selected; absent means unconfigured. */
   readonly skill?: string
+  /** Model this card runs on; absent means the run inherits the session's model. */
+  readonly model?: WorkbenchCardModel
 }
 
 /** One card's template for one skill. */
@@ -269,6 +300,14 @@ export interface WorkbenchResultRecord {
   readonly executedAt: number
   /** Why the run ended, as reported by the subagent seam. */
   readonly stopReason: string
+  /**
+   * Route the run ran on, when the card named one.
+   *
+   * Absent means the child inherited the session's model and the Host was never told
+   * which route that resolved to. It is kept in the record so the result page can state
+   * which model produced a result instead of leaving the user to guess.
+   */
+  readonly model?: WorkbenchCardModel
   /** The validated structured value; absent means no valid capture was committed. */
   readonly structured?: unknown
   /** The child's final assistant output, kept for "view raw output". */
@@ -324,6 +363,8 @@ export interface WorkbenchCardConfigView {
   readonly name?: string
   /** Selected skill; absent means unconfigured. */
   readonly skill?: string
+  /** Model this card runs on; absent means its runs inherit the session's model. */
+  readonly model?: WorkbenchCardModel
   /** Skills this card already holds a template for. */
   readonly templateSkills: readonly string[]
   /**
@@ -339,6 +380,21 @@ export interface WorkbenchCardConfigView {
 export interface WorkbenchCardResult extends WorkbenchResultRecord {
   /** Card identity the result belongs to. */
   readonly cardId: string
+}
+
+/**
+ * What this deployment can do with a card run, answered once.
+ *
+ * A card run goes through the subagent service's `startActivation`. A harness that
+ * predates it — `0.2.0-rc.2` on the stable channel, which has `start` and
+ * `startContinuable` but no activation seam — can load the workbench and edit cards,
+ * but cannot start a run. The answer is a property of the composition rather than of a
+ * card or a click, so it is probed where the Host half is assembled and carried on
+ * every read instead of being asked per run.
+ */
+export interface WorkbenchRunCapabilities {
+  /** Whether the subagent service exposes `startActivation`. */
+  readonly startActivation: boolean
 }
 
 /** Complete configuration and result state, as read and as echoed after a write. */
@@ -373,6 +429,13 @@ export interface WorkbenchSkillCardPatch {
   readonly name?: string | null
   /** Selected skill; `null` clears it, omitted leaves it unchanged. */
   readonly skill?: string | null
+  /**
+   * Model the card runs on; `null` clears it back to inheriting the session's model.
+   *
+   * The pair travels whole for the reason it is stored whole: a provider id may contain
+   * a slash, so there is no string form of it to accept here.
+   */
+  readonly model?: WorkbenchCardModel | null
   /** Template to store alongside the selection. */
   readonly template?: { readonly skill: string; readonly html: string }
 }
@@ -431,7 +494,12 @@ export type WorkbenchRunMode =
 export interface WorkbenchRunRequest {
   /** Card the run is reported under; also how its state is polled. */
   readonly cardId: string
-  /** Session whose live agent supplies the skill scope and the child's model. */
+  /**
+   * Session whose live agent supplies the skill scope.
+   *
+   * The model is not here: it is the card's own stored selection, read by the Host, so a
+   * client cannot start a run on a route the card does not name.
+   */
   readonly sessionId: string
   /** What this run is asked to do. */
   readonly mode: WorkbenchRunMode
@@ -496,6 +564,13 @@ export interface WorkbenchCatalogResponse {
 export interface WorkbenchSkillCardResponse extends WorkbenchSkillCardSnapshot {
   /** Contract version this Host speaks. */
   readonly apiVersion: number
+  /**
+   * What this deployment can do.
+   *
+   * Carried on the read rather than asked by the client per run: a control that cannot
+   * work has to say so before it is pressed, not after.
+   */
+  readonly capabilities: WorkbenchRunCapabilities
 }
 
 /** Error body returned by every skill card route. */
@@ -528,5 +603,14 @@ export type WorkbenchSkillCardErrorCode =
   | 'template-missing'
   | 'catalog-failed'
   | 'provider-unavailable'
+  | 'model-unavailable'
   | 'schema-rejected'
   | 'run-in-progress'
+  /**
+   * Running is unavailable on this harness, not wrong with this card.
+   *
+   * The composition found no `startActivation` seam, so the run control is disabled and
+   * the card states why. A run that arrives anyway — a stale click, a direct route call,
+   * a template button — is refused with this same code rather than throwing.
+   */
+  | 'run-unavailable'

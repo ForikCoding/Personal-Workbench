@@ -11,9 +11,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { zh, en } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
-import type { WorkbenchCardResult } from '../src/skill-card-contract.ts'
+import type { WorkbenchCardResult, WorkbenchRunCapabilities } from '../src/skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../src/client/skill-card/api.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -68,11 +69,12 @@ function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResu
 
 /**
  * Build a transport for one card that is configured and ready to run.
- * @param options - the stored result.
+ * @param options - the stored result and what the Host recorded about running.
  * @returns the api.
  */
 function pageApi(options: {
   result?: WorkbenchCardResult
+  capabilities?: WorkbenchRunCapabilities
 } = {}): WorkbenchSkillCardApi {
   return {
     read: async () => ({
@@ -81,6 +83,8 @@ function pageApi(options: {
         revision: '1:0',
         cards: [{ cardId: 'skill-card', skill: 'git-repo', template: TEMPLATE, templateSkills: ['git-repo'] }],
         results: options.result === undefined ? [] : [options.result],
+        // Absent is the pre-field Host, which this page treats as able to run.
+        ...options.capabilities === undefined ? {} : { capabilities: options.capabilities },
       },
     }),
     write: async () => ({ status: 'failed', reason: 'no write is issued here' }),
@@ -105,6 +109,7 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
     api: pageApi(),
     cardId: 'skill-card',
     runSessionId: () => 'session-1',
+    models: fakeModelSeat(),
     fallbackTitle: '技能卡',
     onBack: () => {},
     openCard: () => {},
@@ -221,6 +226,28 @@ describe('the result page', () => {
     expect(block.querySelector('[data-run-stop-reason]')?.textContent).toBe(en.runStopCompleted)
   })
 
+  it('names the model the run used, and says nothing when it inherited one', async () => {
+    // Criterion 74. The row is the answer to "which model produced this": absent for a run
+    // that inherited the session's route, because the Host was never told what that was and
+    // printing a guess would be worse than printing nothing.
+    const pinned = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({ result: result({ model: { provider: 'vendor/gateway', model: 'large' } }) }),
+        })}
+      />,
+    )
+    const block = await detail(pinned.container)
+    const row = block.querySelector('[data-run-model]')
+    expect(row?.textContent).toBe('vendor/gateway / large')
+    expect([...block.querySelectorAll('dt')].map(element => element.textContent)).toContain(zh.runModel)
+
+    const inherited = render(<SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />)
+    const plain = await detail(inherited.container)
+    expect(plain.querySelector('[data-run-model]')).toBeNull()
+    expect([...plain.querySelectorAll('dt')].map(element => element.textContent)).not.toContain(zh.runModel)
+  })
+
   it('removes the template region’s indentation from the code block', async () => {
     // The model returns the region with the indentation the region had in the template,
     // so the block used to start several hundred pixels in on every line.
@@ -313,6 +340,38 @@ describe('the result page', () => {
         .join('')
       expect(rendered).toContain('要点')
     })
+  })
+
+  it('keeps the card readable and disables only the run control without the seam', async () => {
+    // A harness that predates startActivation — 0.2.0-rc.2 on the stable channel — still
+    // loads the workbench and shows the card, its template and its result. Running is the
+    // one thing it cannot do, and the sentence beside the disabled control says why.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({ result: result(), capabilities: { startActivation: false } }),
+        })}
+      />,
+    )
+    await detail(container)
+    const notice = await waitFor(() => {
+      const element = container.querySelector('[data-run-unavailable]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(notice.textContent).toBe(zh.skillCardProblemRunUnavailable)
+    // The copy names the member the harness must provide, not just that something failed.
+    expect(notice.textContent).toContain('startActivation')
+    expect(notice.textContent).toContain('0.2.1-alpha.2')
+
+    const run = [...container.querySelectorAll('button')]
+      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
+    expect(run?.disabled).toBe(true)
+
+    // Nothing else closed: the stored result is still rendered, and editing it by hand is
+    // still offered. Only running is unavailable.
+    expect(container.querySelector('[data-result-surface]')).not.toBeNull()
+    expect(container.querySelector('[data-result-edit-start]')).not.toBeNull()
   })
 
   it('demotes the permission note to the last line of the page', async () => {

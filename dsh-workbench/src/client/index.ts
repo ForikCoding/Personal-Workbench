@@ -20,6 +20,8 @@ import type { WorkbenchCardSelection } from './contract.ts'
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
 import { en, zh } from './locales.ts'
 import { createWorkbenchSkillCardApi } from './skill-card/api.ts'
+import { createModelSeat } from './skill-card/model.ts'
+import type { WorkbenchModelDirectoryResolver, WorkbenchModelSeat } from './skill-card/model.ts'
 import { SKILL_CARD_ID, SkillCard } from './skill-card/SkillCard.tsx'
 import type { SkillCardFace } from './skill-card/SkillCard.tsx'
 import { pickRunSession } from './skill-card/session.ts'
@@ -70,6 +72,11 @@ interface SessionListHost {
   }
 }
 
+/** Context member carrying the model directory resolver, narrowed to what this reads. */
+interface ModelDirectoryHost {
+  readonly modelDirectories: WorkbenchModelDirectoryResolver
+}
+
 /** Injected share of the panel registration. */
 export interface WorkbenchPanelFace {
   /** Card facts and the full-panel selection, bound to `useCards` and `useSelection`. */
@@ -88,6 +95,8 @@ export interface WorkbenchPanelFace {
      * @returns the session id, or undefined when none is available.
      */
     readonly runSessionId: () => string | undefined
+    /** Model catalog the card's field and its run control read. */
+    readonly models: WorkbenchModelSeat
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
@@ -113,6 +122,15 @@ export function apply(ctx: ClientContext): void {
   const cards = createSnapshotStore<readonly WorkbenchCardFact[]>([])
   const api = createWorkbenchLayoutApi()
   const skillCardApi = createWorkbenchSkillCardApi()
+  // The model directory is read through a getter rather than captured: the service is
+  // injected scoped below, so a composition without it simply answers "no model known",
+  // which is a card that cannot run rather than a plugin left pending.
+  const modelResolver: { current: WorkbenchModelDirectoryResolver | undefined } = { current: undefined }
+  const models = createModelSeat(() => modelResolver.current)
+  ctx.inject(['modelDirectories'], (scoped) => {
+    modelResolver.current = (scoped as unknown as ModelDirectoryHost).modelDirectories
+    scoped.effect(() => () => { modelResolver.current = undefined }, 'workbench: model directory')
+  })
   const sessionList = (ctx as unknown as SessionListHost).sessions.list
   // Read when a card asks, not when it renders: the freshest list is the one that
   // finds a session the user opened after the card appeared.
@@ -171,7 +189,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): WorkbenchPanelFace => ({
       hooks: { cards, selection },
       api,
-      skillCards: { api: skillCardApi, runSessionId },
+      skillCards: { api: skillCardApi, runSessionId, models },
       closeCard,
       openCard,
     }),

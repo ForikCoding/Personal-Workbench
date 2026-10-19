@@ -12,6 +12,7 @@ import { createWorkbenchLayoutApi } from './layout-api.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
 import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
+import type { WorkbenchModelSeat } from './skill-card/model.ts';
 export { WORKBENCH_PANEL_ID } from './workbench-panel.ts';
 export type { WorkbenchCardInput, WorkbenchCardOccurrenceProps, WorkbenchCardSlots, WorkbenchCardSpan, WorkbenchCardState, WorkbenchCardsOwnerProps, } from './contract.ts';
 export type { WorkbenchLocaleKey } from './locales.ts';
@@ -40,6 +41,8 @@ export interface WorkbenchPanelFace {
          * @returns the session id, or undefined when none is available.
          */
         readonly runSessionId: () => string | undefined;
+        /** Model catalog the card's field and its run control read. */
+        readonly models: WorkbenchModelSeat;
     };
     /** Return to the grid from whichever full-panel view is open. */
     readonly closeCard: () => void;

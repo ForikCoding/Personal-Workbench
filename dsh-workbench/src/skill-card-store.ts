@@ -19,6 +19,7 @@ import type {
 } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_NAME_MAX_LENGTH,
+  isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchSkillName,
   parseTemplateKey,
@@ -175,12 +176,14 @@ export class WorkbenchSkillCardStore {
       const record = this.options.card.get(cardId)
       const selected = record?.skill
       const name = record?.name
+      const model = record?.model
       const bySkill = templatesByCard.get(cardId)
       const template = selected === undefined ? undefined : bySkill?.get(selected)
       cards.push({
         cardId,
         ...name === undefined ? {} : { name },
         ...selected === undefined ? {} : { skill: selected },
+        ...model === undefined ? {} : { model },
         templateSkills: bySkill === undefined ? [] : [...bySkill.keys()].sort(),
         ...template === undefined ? {} : { template },
       })
@@ -243,12 +246,17 @@ export class WorkbenchSkillCardStore {
     const skill = patchedSkill === undefined
       ? current?.skill
       : patchedSkill === null ? undefined : patchedSkill
-    if (name === undefined && skill === undefined) {
+    const patchedModel = patch.model
+    const model = patchedModel === undefined
+      ? current?.model
+      : patchedModel === null ? undefined : patchedModel
+    if (name === undefined && skill === undefined && model === undefined) {
       await this.run('delete', () => this.options.card.delete(patch.cardId))
     } else {
       await this.run('put', () => this.options.card.put(patch.cardId, {
         ...name === undefined ? {} : { name },
         ...skill === undefined ? {} : { skill },
+        ...model === undefined ? {} : { model },
       }))
     }
 
@@ -343,9 +351,18 @@ export class WorkbenchSkillCardStore {
     if (name !== undefined && name !== null && !isWorkbenchCardName(name)) {
       return `card name must hold visible text within ${String(WORKBENCH_CARD_NAME_MAX_LENGTH)} characters`
     }
+    const model = patch.model
+    // The pair is validated as a pair: two non-empty ids, never a joined string that a
+    // later reader would have to split on a slash a provider id may itself contain.
+    if (model !== undefined && model !== null && !isWorkbenchCardModel(model)) {
+      return 'model must name a non-empty provider and model id'
+    }
     if (patch.remove === true
-      && (patch.name !== undefined || patch.skill !== undefined || patch.template !== undefined)) {
-      return 'a removal cannot carry a name, a skill, or a template'
+      && (patch.name !== undefined
+        || patch.skill !== undefined
+        || patch.model !== undefined
+        || patch.template !== undefined)) {
+      return 'a removal cannot carry a name, a skill, a model, or a template'
     }
     const template = patch.template
     if (template === undefined) return undefined
@@ -452,6 +469,10 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
     skill: record.skill,
     executedAt: record.executedAt,
     stopReason: record.stopReason,
+    // The route is part of what the result *is*, not payload that may be shed: it is two
+    // short ids, and a trimmed record that lost it would leave the user guessing which
+    // model produced the result it still shows.
+    ...record.model === undefined ? {} : { model: record.model },
   }
   const withStructured: WorkbenchResultRecord = record.structured === undefined
     ? base

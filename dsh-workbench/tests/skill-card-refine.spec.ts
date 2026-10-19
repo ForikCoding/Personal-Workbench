@@ -82,7 +82,7 @@ async function settle(runner: WorkbenchSkillCardRunner): Promise<ReturnType<Work
 }
 
 describe('the refine prompt', () => {
-  it('carries the document, then the previous result, then the request', () => {
+  it('carries the document, then the previous result, then the request', async () => {
     const prompt = renderWorkbenchRefinePrompt(SKILL, TEMPLATE, PREVIOUS, INSTRUCTION)
     expect(prompt).toContain('<skill_content name="git-repo">')
     expect(prompt).toContain('Inspect the repository and report its state.')
@@ -105,7 +105,7 @@ describe('the refine prompt', () => {
     expect(prompt).not.toContain('<row_data>')
   })
 
-  it('carries the row it was given, as the other prompts do', () => {
+  it('carries the row it was given, as the other prompts do', async () => {
     const row = { task_number: 'CP-2025-001' }
     const prompt = renderWorkbenchRefinePrompt(SKILL, TEMPLATE, PREVIOUS, INSTRUCTION, row)
     expect(prompt).toContain(`<row_data>\n${JSON.stringify(row, null, 2)}\n</row_data>`)
@@ -121,7 +121,7 @@ describe('a refine run', () => {
     const { runner, fake, saved } = setup({
       outcomes: [{ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed', structured: { html: '<b>新</b>' } }],
     })
-    expect(runner.start(refine())).toMatchObject({ status: 'started' })
+    expect(await runner.start(refine())).toMatchObject({ status: 'started' })
     const state = await settle(runner)
 
     const spec = fake.activations[0]
@@ -147,9 +147,9 @@ describe('a refine run', () => {
     }])
   })
 
-  it('refuses a refine run with no template stored', () => {
+  it('refuses a refine run with no template stored', async () => {
     const { runner, fake } = setup({ selection: { skill: 'git-repo' } })
-    expect(runner.start(refine())).toEqual({
+    expect(await runner.start(refine())).toEqual({
       status: 'rejected',
       code: 'template-missing',
       detail: 'no template is stored for skill "git-repo"',
@@ -157,11 +157,11 @@ describe('a refine run', () => {
     expect(fake.activations).toEqual([])
   })
 
-  it('refuses a refine run with no output contract', () => {
+  it('refuses a refine run with no output contract', async () => {
     // A refinement returns a region, so it has a contract to satisfy; without one it
     // would spend a model call before failing.
     const { runner, fake } = setup()
-    expect(runner.start(refine({ outputSchema: undefined }))).toMatchObject({
+    expect(await runner.start(refine({ outputSchema: undefined }))).toMatchObject({
       status: 'rejected',
       code: 'schema-rejected',
     })
@@ -175,7 +175,7 @@ describe('a refine run', () => {
         { output: [], stopReason: 'completed', structured: { html: '<b>新</b>' } },
       ],
     })
-    runner.start(refine())
+    await runner.start(refine())
     const state = await settle(runner)
     expect(fake.activations).toHaveLength(2)
     expect(state?.retried).toBe(true)

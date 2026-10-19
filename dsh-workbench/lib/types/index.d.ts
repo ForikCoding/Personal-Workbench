@@ -26,6 +26,10 @@ export declare const name = "workbench";
  * pinned harness predates it, so requiring it would leave the whole plugin
  * pending there. The runner reads it optionally and falls back to the session
  * header.
+ *
+ * `llm` IS named: a card that pins a model has to be checked against what the
+ * deployment can route before a child is created, and a composition without an LLM
+ * registry could not answer that at all.
  */
 export declare const inject: string[];
 /**

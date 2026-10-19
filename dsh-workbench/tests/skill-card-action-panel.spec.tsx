@@ -10,6 +10,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { fakeModelSeat } from './support/fake-model-seat.ts'
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
@@ -188,6 +189,9 @@ function fixture(options: {
     api,
     cardId,
     runSessionId: options.runSessionId ?? (() => 'session-1'),
+    // A live catalog with a known selection: these cases are about clicked actions, and a
+    // card that cannot name a model would refuse to run for a reason they are not testing.
+    models: fakeModelSeat(),
     fallbackTitle: cardId,
     onBack: () => {},
     openCard: (id, view) => {

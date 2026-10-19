@@ -1,11 +1,11 @@
-# dsh-workbench 2.0.17 · 安装指南
+# dsh-workbench 2.0.19 · 安装指南
 
 把工作台面板装进一个已有的 DSH Desktop。**整个过程不需要联网**（除非你的环境本来就能访问 npm）。
 
 包只有一个文件：
 
 ```
-dsh-workbench-2.0.17.tgz    约 173 KB
+dsh-workbench-2.0.19.tgz    约 192 KB
 ```
 
 ---
@@ -14,11 +14,13 @@ dsh-workbench-2.0.17.tgz    约 173 KB
 
 | 项 | 要求 |
 |---|---|
-| DSH Desktop | 宿主依赖版本为 `0.2.0-rc.2` 或 `0.2.1-alpha.2` |
+| DSH Desktop | 宿主必须提供子代理的 `startActivation`，即 **`0.2.1-alpha.2`（beta 通道）**。稳定通道的 `0.2.0-rc.2` 没有这个方法：插件照样加载、卡片能读能改，但**不能运行** |
 | Cordis | `4.0.4` 或 `4.0.5-alpha.1` |
 | Node | `^22.19.0` 或 `>=24.0.0`（插件本身不装 Node，但 DSH 要求） |
 
 **版本不匹配是这类插件最常见的事故**：装得上，启动时解析失败，而界面上只会"什么都不出现"。
+
+**harness 版本不够是另一回事，这里必须说清**：`0.2.0-rc.2` 上没有 `subagents.startActivation`，但工作台**不会**消失。它照常加载，卡片、模板与已存结果照常显示和保存，只有结果页的「运行」是灰的，旁边写着缺的是 `startActivation`、需要 `0.2.1-alpha.2`（beta 通道）。绕过界面直接调运行路由，得到的也是一句同样的说明，而不是崩溃。要让卡片真的能跑，换用 `0.2.1-alpha.2`。
 
 ---
 
@@ -59,7 +61,7 @@ Get-ChildItem "$env:USERPROFILE\.dsh","$env:USERPROFILE\.dsh-beta","$env:APPDATA
   "name": "dsh-profile-web",
   "private": true,
   "dependencies": {
-    "dsh-workbench": "file:<把 tarball 放在哪>/dsh-workbench-2.0.17.tgz"
+    "dsh-workbench": "file:<把 tarball 放在哪>/dsh-workbench-2.0.19.tgz"
   },
   "dsh": {
     "profile": {
@@ -82,8 +84,8 @@ Get-ChildItem "$env:USERPROFILE\.dsh","$env:USERPROFILE\.dsh-beta","$env:APPDATA
 
 ### 路径写法
 
-- 用**正斜杠**：`file:D:/pkgs/dsh-workbench-2.0.17.tgz`
-- 或相对路径：`file:./vendor/dsh-workbench-2.0.17.tgz`
+- 用**正斜杠**：`file:D:/pkgs/dsh-workbench-2.0.19.tgz`
+- 或相对路径：`file:./vendor/dsh-workbench-2.0.19.tgz`
 - 也接受**解压后的目录**：`file:D:/pkgs/dsh-workbench`
 
 ### 然后重启应用
@@ -111,7 +113,7 @@ corepack pnpm install
 ```powershell
 $p = "%PROFILE%"
 New-Item -ItemType Directory -Force -Path "$p\node_modules\dsh-workbench" | Out-Null
-tar -xzf .\dsh-workbench-2.0.17.tgz -C "$p\node_modules\dsh-workbench" --strip-components=1
+tar -xzf .\dsh-workbench-2.0.19.tgz -C "$p\node_modules\dsh-workbench" --strip-components=1
 ```
 
 然后重启。
@@ -161,6 +163,7 @@ Remove-Item "%PROFILE%\node_modules\dsh-workbench" -Recurse -Force
 | 安装命令"执行了但什么都没变" | `package.json.lock` 里有**死进程 PID** | 删掉这个锁文件再装 |
 | `pnpm install` 报 `TypeError: terminated` | 拉不到 registry | 走第 4 步离线安装 |
 | 启动日志里报解析/版本错误 | peer 版本不匹配 | 核对第 0 节的版本 |
+| 卡片能打开、能配置，但「运行」是灰的，旁边提到 `startActivation` | 宿主 harness 没有 `startActivation`（`0.2.0-rc.2` 就是这种） | 换用 `0.2.1-alpha.2`（beta 通道）；卡片与已存结果不受影响 |
 
 ---
 
@@ -168,13 +171,13 @@ Remove-Item "%PROFILE%\node_modules\dsh-workbench" -Recurse -Force
 
 装完后他得到的是**工作台这个面板本身**：
 
-- 可以建卡片、选 skill、写模板、运行、微调结果、手工编辑结果
+- 可以建卡片、选 skill、给每张卡选模型、写模板、运行、微调结果、手工编辑结果（**运行需要 `0.2.1-alpha.2` 的宿主**，见第 0 节；宿主不够时其余都能用，只有「运行」不可用）
 - 面板自带存储域，卡片是**他自己的**，不会带上你机器上的内容
 
 **不会跟过去的东西**：
 
 - **MCP 服务**（例如小能效能平台）—— 在 profile 的 `cordis.patch.yml` 里配，不属于插件
-- **模型选择**、**技能目录** —— 同上，属于 profile
+- **会话的模型选择**、**技能目录** —— 同上，属于 profile。每张卡自己选的那个模型是**卡片存盘数据的一部分**，跟着卡片走，不跟着插件走
 - **已建的卡片与结果** —— 属于各自机器的存储域
 
 要让对方复现你的具体用法，还得单独给他这几样配置。

@@ -30,6 +30,17 @@ export const WORKBENCH_TEMPLATE_TABLE = 'template'
 export const WORKBENCH_RESULT_TABLE = 'result'
 
 /**
+ * Stored form of one provider/model route.
+ *
+ * The pair is stored as two fields rather than one `"provider/model"` string, so no
+ * reader ever has to split it back apart: a provider id may itself contain a slash.
+ */
+export const workbenchCardModelSchema = z.object({
+  provider: z.string(),
+  model: z.string(),
+})
+
+/**
  * Stored schema for one card's selection and name; absence means "not configured yet".
  *
  * Every field the store writes has to appear here. Zod drops a key this schema does not
@@ -39,6 +50,7 @@ export const WORKBENCH_RESULT_TABLE = 'result'
 export const workbenchCardConfigSchema = z.object({
   skill: z.string().optional(),
   name: z.string().optional(),
+  model: workbenchCardModelSchema.optional(),
 })
 
 /** Stored schema for one template. */
@@ -56,11 +68,16 @@ export const workbenchTemplateSchema = z.object({
  * `editedAt` is declared here in the same change that writes it. A field the store
  * writes and this schema does not know is dropped on the next load, which reads to the
  * user as "it saved, then reverted after a restart" — the bug that once lost card names.
+ *
+ * `model` is declared for the same reason: the runner stamps the route it ran on, and a
+ * result that silently lost it would put the user back to guessing which model produced
+ * what they are reading.
  */
 export const workbenchResultSchema = z.object({
   skill: z.string(),
   executedAt: z.number().finite().nonnegative(),
   stopReason: z.string(),
+  model: workbenchCardModelSchema.optional(),
   structured: z.unknown().optional(),
   outputText: z.string().optional(),
   diagnostic: z.string().optional(),

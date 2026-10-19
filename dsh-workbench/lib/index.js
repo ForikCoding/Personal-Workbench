@@ -455,6 +455,17 @@ function parseTemplateKey(key) {
 		skill
 	};
 }
+/**
+* Whether a value is a usable card route.
+* @param value - candidate value.
+* @returns whether it holds two non-empty ids.
+*/
+function isWorkbenchCardModel(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const provider = Reflect.get(value, "provider");
+	const model = Reflect.get(value, "model");
+	return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
+}
 //#endregion
 //#region src/skill-card-spec.ts
 /**
@@ -477,6 +488,16 @@ const WORKBENCH_TEMPLATE_TABLE = "template";
 /** Table holding one execution result per card. */
 const WORKBENCH_RESULT_TABLE = "result";
 /**
+* Stored form of one provider/model route.
+*
+* The pair is stored as two fields rather than one `"provider/model"` string, so no
+* reader ever has to split it back apart: a provider id may itself contain a slash.
+*/
+const workbenchCardModelSchema = z.object({
+	provider: z.string(),
+	model: z.string()
+});
+/**
 * Stored schema for one card's selection and name; absence means "not configured yet".
 *
 * Every field the store writes has to appear here. Zod drops a key this schema does not
@@ -485,7 +506,8 @@ const WORKBENCH_RESULT_TABLE = "result";
 */
 const workbenchCardConfigSchema = z.object({
 	skill: z.string().optional(),
-	name: z.string().optional()
+	name: z.string().optional(),
+	model: workbenchCardModelSchema.optional()
 });
 /** Stored schema for one template. */
 const workbenchTemplateSchema = z.object({ html: z.string() });
@@ -499,11 +521,16 @@ const workbenchTemplateSchema = z.object({ html: z.string() });
 * `editedAt` is declared here in the same change that writes it. A field the store
 * writes and this schema does not know is dropped on the next load, which reads to the
 * user as "it saved, then reverted after a restart" — the bug that once lost card names.
+*
+* `model` is declared for the same reason: the runner stamps the route it ran on, and a
+* result that silently lost it would put the user back to guessing which model produced
+* what they are reading.
 */
 const workbenchResultSchema = z.object({
 	skill: z.string(),
 	executedAt: z.number().finite().nonnegative(),
 	stopReason: z.string(),
+	model: workbenchCardModelSchema.optional(),
 	structured: z.unknown().optional(),
 	outputText: z.string().optional(),
 	diagnostic: z.string().optional(),
@@ -558,6 +585,19 @@ function assertSubagentProvider(subagents, providerName) {
 	const provider = subagents.getProvider(providerName);
 	if (provider === void 0) throw new Error(`workbench: subagent provider "${providerName}" is not registered`);
 	if (!provider.capabilities.outputSchema) throw new Error(`workbench: subagent provider "${providerName}" does not support structured output`);
+}
+/**
+* Record whether the subagent service exposes the seam a card run needs.
+*
+* The answer is a property of the composition, so it is read once, where the Host half is
+* assembled, and never again per run: it is the same for every card and every click. The
+* recorded value travels to the client, which disables its run control and states the
+* requirement, and the runner keeps its own refusal for a call that arrives anyway.
+* @param subagents - the subagent service.
+* @returns the recorded capability; `startActivation: false` on a harness that predates it.
+*/
+function probeSubagentSeam(subagents) {
+	return { startActivation: typeof subagents.startActivation === "function" };
 }
 //#endregion
 //#region src/skill-card-prompt.ts
@@ -756,6 +796,13 @@ function escapeText(value) {
 //#endregion
 //#region src/skill-card-runner.ts
 /**
+* Why a card run cannot start on a harness without the activation seam.
+*
+* One sentence naming the exact member the harness must provide and where it exists: this
+* text is an operator's remedy, so it says which version and channel has the seam.
+*/
+const SUBAGENT_SEAM_DETAIL = "this harness provides no subagents.startActivation, so a card run cannot start; card runs need a harness that exposes it (0.2.1-alpha.2, the beta channel)";
+/**
 * Run one card's skill and own the outcome.
 *
 * One run at a time per card, bounded globally by the deployment's concurrency
@@ -829,11 +876,14 @@ var WorkbenchSkillCardRunner = class {
 	* @param request - card, session, what the run is asked to do, and the client's contract.
 	* @returns the started run's state, or why it was refused.
 	*/
-	start(request) {
+	async start(request) {
+		const subagents = this.options.host.subagents;
+		const activation = subagents.startActivation;
+		if (typeof activation !== "function") return reject("run-unavailable", SUBAGENT_SEAM_DETAIL);
 		const mode = request.mode;
 		if (mode.kind !== "bare" && !looksLikeContract(request.outputSchema)) return reject("schema-rejected", "the run carried no object-rooted output contract");
-		const selection = mode.kind === "bare" ? void 0 : this.options.selection(request.cardId);
-		const skill = mode.kind === "bare" ? mode.skill : selection?.skill;
+		const selection = this.options.selection(request.cardId);
+		const skill = mode.kind === "bare" ? mode.skill : selection.skill;
 		if (skill === void 0) return reject("not-configured", "no skill is configured for this card");
 		const agent = this.options.host.agents.get(request.sessionId);
 		if (agent === void 0) return reject("session-not-live", `session "${request.sessionId}" has no live agent`);
@@ -841,22 +891,30 @@ var WorkbenchSkillCardRunner = class {
 		const provider = this.options.host.subagents.getProvider(providerName);
 		if (provider === void 0) return reject("provider-unavailable", `subagent provider "${providerName}" is not registered`);
 		if (request.outputSchema !== void 0 && !provider.capabilities.outputSchema) return reject("provider-unavailable", `subagent provider "${providerName}" cannot return structured output`);
+		const model = selection.model;
+		if (model !== void 0) {
+			const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model);
+			if (refusal !== void 0) return refusal;
+		}
 		if (this.runs.get(request.cardId)?.phase === "running" || this.active >= this.options.maxConcurrentRuns) return reject("run-in-progress", "another run is already in flight");
+		const pinned = model === void 0 ? {} : { model };
 		let input;
 		if (mode.kind === "bare") input = {
 			kind: "bare",
 			agent,
 			skill,
+			...pinned,
 			...request.payload === void 0 ? {} : { payload: request.payload }
 		};
 		else {
-			const template = selection?.template;
+			const template = selection.template;
 			if (template === void 0) return reject("template-missing", `no template is stored for skill "${skill}"`);
 			input = mode.kind === "refine" ? {
 				kind: "refine",
 				agent,
 				skill,
 				template,
+				...pinned,
 				previous: mode.previous,
 				instruction: mode.instruction,
 				...request.payload === void 0 ? {} : { payload: request.payload },
@@ -866,6 +924,7 @@ var WorkbenchSkillCardRunner = class {
 				agent,
 				skill,
 				template,
+				...pinned,
 				...request.payload === void 0 ? {} : { payload: request.payload },
 				outputSchema: request.outputSchema
 			};
@@ -885,7 +944,7 @@ var WorkbenchSkillCardRunner = class {
 		}, this.options.runTimeoutMs);
 		this.runs.set(request.cardId, run);
 		this.active += 1;
-		const execution = this.execute(run, input);
+		const execution = this.execute(run, input, activation.bind(subagents));
 		this.inflight.add(execution);
 		execution.catch((error) => {
 			this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`);
@@ -896,6 +955,31 @@ var WorkbenchSkillCardRunner = class {
 			status: "started",
 			state: this.stateOf(run)
 		};
+	}
+	/**
+	* Answer whether a card's route can actually be run here.
+	*
+	* Three separate reasons, and each refuses rather than falling back to the session's
+	* model: a backend that cannot take a route, a provider this deployment does not route,
+	* and a provider that no longer offers that model. The last two are told apart by the
+	* registry itself — `listModels` rejects for a provider it does not have — and the
+	* message names the route in every case, because "the model is gone" is only actionable
+	* when it says which one.
+	* @param providerName - configured subagent backend name.
+	* @param canChooseModel - whether that backend advertises the `agentOptions` capability.
+	* @param model - the route the card names.
+	* @returns the refusal, or undefined when the route can be used.
+	*/
+	async modelRefusal(providerName, canChooseModel, model) {
+		const route = `"${model.provider}/${model.model}"`;
+		if (!canChooseModel) return reject("provider-unavailable", `subagent provider "${providerName}" cannot run a chosen model, so ${route} cannot be used`);
+		let offered;
+		try {
+			offered = await this.options.host.llm.listModels(model.provider);
+		} catch (error) {
+			return reject("provider-unavailable", `model provider "${model.provider}" is not available, so ${route} cannot be used: ${messageOf(error)}`);
+		}
+		if (!offered.some((entry) => entry.id === model.model)) return reject("model-unavailable", `provider "${model.provider}" does not offer the model ${route}`);
 	}
 	/**
 	* Record a child agent's failure against the run that started it.
@@ -945,9 +1029,10 @@ var WorkbenchSkillCardRunner = class {
 	* Run one card's skill to a terminal state.
 	* @param run - the run record to settle.
 	* @param input - resolved agent, skill name, and output contract.
+	* @param activate - the activation seam, already known to exist and bound to its service.
 	* @returns resolution after the run reaches a terminal phase.
 	*/
-	async execute(run, input) {
+	async execute(run, input, activate) {
 		const signal = run.controller.signal;
 		try {
 			const cwd = await this.cwdFor(input.agent, signal);
@@ -960,10 +1045,10 @@ var WorkbenchSkillCardRunner = class {
 				});
 				return;
 			}
-			let outcome = await this.attempt(run, input, cwd, skill);
+			let outcome = await this.attempt(run, input, cwd, skill, activate);
 			if (outcome.kind === "unusable" && outcome.retryable && !signal.aborted) {
 				run.retried = true;
-				outcome = await this.attempt(run, input, cwd, skill);
+				outcome = await this.attempt(run, input, cwd, skill, activate);
 			}
 			await this.finish(run, outcome);
 		} catch (error) {
@@ -988,11 +1073,12 @@ var WorkbenchSkillCardRunner = class {
 	* @param input - the agent, skill, and either the card's template and contract or nothing.
 	* @param cwd - the agent's working directory.
 	* @param skill - the loaded skill.
+	* @param activate - the activation seam, known to exist.
 	* @returns the attempt's outcome.
 	*/
-	async attempt(run, input, cwd, skill) {
+	async attempt(run, input, cwd, skill, activate) {
 		const signal = run.controller.signal;
-		const activation = await this.options.host.subagents.startActivation({
+		const activation = await activate({
 			provider: this.options.subagentProvider,
 			label: `workbench:${run.cardId}`,
 			signal,
@@ -1004,14 +1090,15 @@ var WorkbenchSkillCardRunner = class {
 					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
 				...cwd === void 0 ? {} : { cwd },
-				...input.kind === "bare" ? {} : { outputSchema: input.outputSchema }
+				...input.kind === "bare" ? {} : { outputSchema: input.outputSchema },
+				...input.model === void 0 ? {} : { agentOptions: input.model }
 			}
 		});
 		run.childId = activation.childId;
 		run.childError = void 0;
 		try {
 			const result = await activation.result;
-			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now()) : toResultRecord(input.skill, result, this.now());
+			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model) : toResultRecord(input.skill, result, this.now(), input.model);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
 				...stored,
 				diagnostic: run.childError
@@ -1166,14 +1253,16 @@ function toCatalogEntry(skill) {
 * @param skill - the skill that ran.
 * @param result - the child's terminal result.
 * @param executedAt - completion time.
+* @param model - the route the run was pinned to, when the card named one.
 * @returns the stored record.
 */
-function toResultRecord(skill, result, executedAt) {
+function toResultRecord(skill, result, executedAt, model) {
 	const text = textOf(result.output);
 	return {
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
+		...model === void 0 ? {} : { model },
 		...result.structured === void 0 ? {} : { structured: result.structured },
 		...text === "" ? {} : { outputText: text },
 		...result.diagnostic === void 0 ? {} : { diagnostic: result.diagnostic }
@@ -1185,17 +1274,19 @@ function toResultRecord(skill, result, executedAt) {
 * Deliberately narrower than {@link toResultRecord}: a bare run answers only whether
 * it worked, so neither a structured value nor the output text is kept. Keeping them
 * would put a model's prose one field away from a surface that must show only the
-* verdict.
+* verdict. The route is kept, because it is provenance rather than content.
 * @param skill - the skill that ran.
 * @param result - the child's terminal result.
 * @param executedAt - completion time.
+* @param model - the route the run was pinned to, when the card named one.
 * @returns the in-memory record.
 */
-function toBareRecord(skill, result, executedAt) {
+function toBareRecord(skill, result, executedAt, model) {
 	return {
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
+		...model === void 0 ? {} : { model },
 		...result.diagnostic === void 0 ? {} : { diagnostic: result.diagnostic }
 	};
 }
@@ -1301,7 +1392,7 @@ function createWorkbenchSkillCardHandler(options) {
 			return;
 		}
 		if (request.method === "GET") {
-			sendJson(response, 200, responseBody(options.store));
+			sendJson(response, 200, responseBody(options.store, options.capabilities));
 			return;
 		}
 		if (request.method === "PATCH") {
@@ -1328,10 +1419,10 @@ async function handlePatch(options, request, response) {
 			return;
 		}
 		if (result.status === "conflict") {
-			sendJson(response, 409, responseBody(options.store));
+			sendJson(response, 409, responseBody(options.store, options.capabilities));
 			return;
 		}
-		sendJson(response, 200, responseBody(options.store));
+		sendJson(response, 200, responseBody(options.store, options.capabilities));
 	} catch (error) {
 		if (error instanceof SkillCardRequestError) {
 			sendError(response, error.status, error.code, error.message);
@@ -1365,6 +1456,11 @@ function parsePatch(value, maxTemplateBytes) {
 	else if (body.skill === null) skill = null;
 	else if (typeof body.skill === "string" && isWorkbenchSkillName(body.skill)) skill = body.skill;
 	else throw new SkillCardRequestError(400, "invalid-request", "skill must be null or a kebab-case skill name");
+	let model;
+	if (body.model === void 0) model = void 0;
+	else if (body.model === null) model = null;
+	else if (isWorkbenchCardModel(body.model)) model = body.model;
+	else throw new SkillCardRequestError(400, "invalid-request", "model must be null or an object naming a provider and a model");
 	let template;
 	if (body.template !== void 0) {
 		const raw = body.template;
@@ -1384,6 +1480,7 @@ function parsePatch(value, maxTemplateBytes) {
 		...body.remove === void 0 ? {} : { remove: true },
 		...name === void 0 ? {} : { name },
 		...skill === void 0 ? {} : { skill },
+		...model === void 0 ? {} : { model },
 		...template === void 0 ? {} : { template }
 	};
 }
@@ -1473,15 +1570,17 @@ function parseResultEdit(value, maxResultBytes) {
 /**
 * Project the store's current state onto the response body.
 * @param store - the configuration store.
+* @param capabilities - what this deployment can do, probed at composition.
 * @returns the wire body.
 */
-function responseBody(store) {
+function responseBody(store, capabilities) {
 	const snapshot = store.read();
 	return {
 		apiVersion: 1,
 		revision: snapshot.revision,
 		cards: snapshot.cards,
-		results: snapshot.results
+		results: snapshot.results,
+		capabilities
 	};
 }
 /**
@@ -1505,8 +1604,10 @@ const STATUS_BY_CODE = {
 	"template-missing": 400,
 	"catalog-failed": 500,
 	"provider-unavailable": 500,
+	"model-unavailable": 409,
 	"schema-rejected": 400,
-	"run-in-progress": 409
+	"run-in-progress": 409,
+	"run-unavailable": 501
 };
 /**
 * Build the route handler for the session-scoped skill catalog.
@@ -1583,7 +1684,7 @@ async function handleStart(options, request, response) {
 		const body = await readJsonBody(request, WORKBENCH_SKILL_CARD_MAX_BODY_BYTES);
 		if (body.status === "too-large") throw new SkillCardRequestError(413, "too-large", "request body is too large");
 		if (body.status === "invalid") throw new SkillCardRequestError(400, "invalid-request", body.reason);
-		const outcome = options.runner.start(parseRunRequest(body.value));
+		const outcome = await options.runner.start(parseRunRequest(body.value));
 		if (outcome.status === "rejected") {
 			sendError(response, STATUS_BY_CODE[outcome.code], outcome.code, outcome.detail);
 			return;
@@ -1798,12 +1899,14 @@ var WorkbenchSkillCardStore = class {
 			const record = this.options.card.get(cardId);
 			const selected = record?.skill;
 			const name = record?.name;
+			const model = record?.model;
 			const bySkill = templatesByCard.get(cardId);
 			const template = selected === void 0 ? void 0 : bySkill?.get(selected);
 			cards.push({
 				cardId,
 				...name === void 0 ? {} : { name },
 				...selected === void 0 ? {} : { skill: selected },
+				...model === void 0 ? {} : { model },
 				templateSkills: bySkill === void 0 ? [] : [...bySkill.keys()].sort(),
 				...template === void 0 ? {} : { template }
 			});
@@ -1860,10 +1963,13 @@ var WorkbenchSkillCardStore = class {
 		const name = patchedName === void 0 ? current?.name : patchedName === null ? void 0 : patchedName.trim();
 		const patchedSkill = patch.skill;
 		const skill = patchedSkill === void 0 ? current?.skill : patchedSkill === null ? void 0 : patchedSkill;
-		if (name === void 0 && skill === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
+		const patchedModel = patch.model;
+		const model = patchedModel === void 0 ? current?.model : patchedModel === null ? void 0 : patchedModel;
+		if (name === void 0 && skill === void 0 && model === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
 		else await this.run("put", () => this.options.card.put(patch.cardId, {
 			...name === void 0 ? {} : { name },
-			...skill === void 0 ? {} : { skill }
+			...skill === void 0 ? {} : { skill },
+			...model === void 0 ? {} : { model }
 		}));
 		return {
 			status: "written",
@@ -1951,7 +2057,9 @@ var WorkbenchSkillCardStore = class {
 		if (skill !== void 0 && skill !== null && !isWorkbenchSkillName(skill)) return `skill ${JSON.stringify(skill)} is not a kebab-case skill name`;
 		const name = patch.name;
 		if (name !== void 0 && name !== null && !isWorkbenchCardName(name)) return `card name must hold visible text within ${String(60)} characters`;
-		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, or a template";
+		const model = patch.model;
+		if (model !== void 0 && model !== null && !isWorkbenchCardModel(model)) return "model must name a non-empty provider and model id";
+		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, or a template";
 		const template = patch.template;
 		if (template === void 0) return void 0;
 		if (!isWorkbenchSkillName(template.skill)) return `template skill ${JSON.stringify(template.skill)} is not a kebab-case skill name`;
@@ -2039,7 +2147,8 @@ function trimResult(record, maxBytes) {
 	const base = {
 		skill: record.skill,
 		executedAt: record.executedAt,
-		stopReason: record.stopReason
+		stopReason: record.stopReason,
+		...record.model === void 0 ? {} : { model: record.model }
 	};
 	const withStructured = record.structured === void 0 ? base : {
 		...base,
@@ -2119,6 +2228,10 @@ const name = "workbench";
 * pinned harness predates it, so requiring it would leave the whole plugin
 * pending there. The runner reads it optionally and falls back to the session
 * header.
+*
+* `llm` IS named: a card that pins a model has to be checked against what the
+* deployment can route before a child is created, and a composition without an LLM
+* registry could not answer that at all.
 */
 const inject = [
 	"storageDomain",
@@ -2127,7 +2240,8 @@ const inject = [
 	"storage",
 	"agents",
 	"skills",
-	"subagents"
+	"subagents",
+	"llm"
 ];
 /**
 * Open the layout domain and register the layout route.
@@ -2176,6 +2290,8 @@ function apply(ctx, config) {
 		const host = ctx;
 		const runtime = ctx;
 		assertSubagentProvider(runtime.subagents, config.subagentProvider);
+		const capabilities = probeSubagentSeam(runtime.subagents);
+		if (!capabilities.startActivation) ctx.logger.warn("workbench: this harness exposes no subagents.startActivation, so skill card runs are unavailable; card runs need 0.2.1-alpha.2 (the beta channel)");
 		const domain = await ctx.storageDomain.open(WORKBENCH_SKILL_CARD_DOMAIN);
 		let store;
 		try {
@@ -2210,7 +2326,8 @@ function apply(ctx, config) {
 				const card = store.read().cards.find((entry) => entry.cardId === cardId);
 				return {
 					...card?.skill === void 0 ? {} : { skill: card.skill },
-					...card?.template === void 0 ? {} : { template: card.template }
+					...card?.template === void 0 ? {} : { template: card.template },
+					...card?.model === void 0 ? {} : { model: card.model }
 				};
 			},
 			saveResult: (cardId, record) => store.putResult(cardId, record),
@@ -2227,6 +2344,7 @@ function apply(ctx, config) {
 					store,
 					fence: host.connection,
 					maxTemplateBytes: config.maxTemplateBytes,
+					capabilities,
 					warn
 				})
 			}), "workbench: skill card route"),

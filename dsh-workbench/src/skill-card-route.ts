@@ -10,9 +10,11 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type {
+  WorkbenchCardModel,
   WorkbenchCatalogResponse,
   WorkbenchResultEditRequest,
   WorkbenchResultEditResponse,
+  WorkbenchRunCapabilities,
   WorkbenchRunMode,
   WorkbenchRunRequest,
   WorkbenchRunResponse,
@@ -26,6 +28,7 @@ import {
   WORKBENCH_RESULT_MAX_BYTES,
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
+  isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchSkillName,
 } from './skill-card-contract.ts'
@@ -63,6 +66,13 @@ export interface WorkbenchSkillCardRouteOptions {
    * rather than the wire contract's ceiling; the store enforces it again.
    */
   readonly maxTemplateBytes: number
+  /**
+   * What this deployment can do, probed once at composition.
+   *
+   * Carried on every read and write body so the card can state a missing seam as a state
+   * instead of discovering it when a click lands.
+   */
+  readonly capabilities: WorkbenchRunCapabilities
   /** Host logger for storage failures. */
   readonly warn: (message: string) => void
 }
@@ -100,7 +110,7 @@ export function createWorkbenchSkillCardHandler(
       return
     }
     if (request.method === 'GET') {
-      sendJson(response, 200, responseBody(options.store))
+      sendJson(response, 200, responseBody(options.store, options.capabilities))
       return
     }
     if (request.method === 'PATCH') {
@@ -137,10 +147,10 @@ async function handlePatch(
     }
     if (result.status === 'conflict') {
       // The loser reconciles against the current state instead of retrying blind.
-      sendJson(response, 409, responseBody(options.store))
+      sendJson(response, 409, responseBody(options.store, options.capabilities))
       return
     }
-    sendJson(response, 200, responseBody(options.store))
+    sendJson(response, 200, responseBody(options.store, options.capabilities))
   } catch (error) {
     if (error instanceof SkillCardRequestError) {
       sendError(response, error.status, error.code, error.message)
@@ -169,6 +179,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     name?: unknown
     remove?: unknown
     skill?: unknown
+    model?: unknown
     template?: unknown
   }
   if (typeof body.baseRevision !== 'string') {
@@ -204,6 +215,21 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     throw new SkillCardRequestError(400, 'invalid-request', 'skill must be null or a kebab-case skill name')
   }
 
+  let model: WorkbenchCardModel | null | undefined
+  if (body.model === undefined) {
+    model = undefined
+  } else if (body.model === null) {
+    model = null
+  } else if (isWorkbenchCardModel(body.model)) {
+    model = body.model
+  } else {
+    throw new SkillCardRequestError(
+      400,
+      'invalid-request',
+      'model must be null or an object naming a provider and a model',
+    )
+  }
+
   let template: { readonly skill: string; readonly html: string } | undefined
   if (body.template !== undefined) {
     const raw = body.template
@@ -231,6 +257,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     ...body.remove === undefined ? {} : { remove: true as const },
     ...name === undefined ? {} : { name },
     ...skill === undefined ? {} : { skill },
+    ...model === undefined ? {} : { model },
     ...template === undefined ? {} : { template },
   }
 }
@@ -363,15 +390,20 @@ function parseResultEdit(value: unknown, maxResultBytes: number): WorkbenchResul
 /**
  * Project the store's current state onto the response body.
  * @param store - the configuration store.
+ * @param capabilities - what this deployment can do, probed at composition.
  * @returns the wire body.
  */
-function responseBody(store: WorkbenchSkillCardStore): WorkbenchSkillCardResponse {
+function responseBody(
+  store: WorkbenchSkillCardStore,
+  capabilities: WorkbenchRunCapabilities,
+): WorkbenchSkillCardResponse {
   const snapshot = store.read()
   return {
     apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
     revision: snapshot.revision,
     cards: snapshot.cards,
     results: snapshot.results,
+    capabilities,
   }
 }
 
@@ -396,8 +428,14 @@ const STATUS_BY_CODE: Record<WorkbenchSkillCardErrorCode, number> = {
   'template-missing': 400,
   'catalog-failed': 500,
   'provider-unavailable': 500,
+  // The card names a route the deployment no longer offers, so the request conflicts with
+  // the state the card was configured against rather than being malformed.
+  'model-unavailable': 409,
   'schema-rejected': 400,
   'run-in-progress': 409,
+  // Not implemented here rather than a bad request: the deployment, not the request, is
+  // missing the seam a run needs, so no change to the request would make it succeed.
+  'run-unavailable': 501,
 }
 
 /** Everything the catalog route needs. */
@@ -520,7 +558,7 @@ async function handleStart(
     if (body.status === 'invalid') {
       throw new SkillCardRequestError(400, 'invalid-request', body.reason)
     }
-    const outcome = options.runner.start(parseRunRequest(body.value))
+    const outcome = await options.runner.start(parseRunRequest(body.value))
     if (outcome.status === 'rejected') {
       sendError(response, STATUS_BY_CODE[outcome.code], outcome.code, outcome.detail)
       return

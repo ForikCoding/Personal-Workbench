@@ -12,6 +12,7 @@
  * @module dsh-workbench/client/skill-card/SkillCardSettings
  */
 import { type ReactNode } from 'react';
+import type { WorkbenchCardModel } from '../../skill-card-contract.ts';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchCardView } from './controller.ts';
 /** Props of the editor. */
@@ -27,6 +28,8 @@ export interface SkillCardSettingsProps {
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
     /** Store a new skill selection. */
     readonly onChoose: (skill: string) => void;
+    /** Store the model this card's runs use. */
+    readonly onChooseModel: (model: WorkbenchCardModel) => void;
     /** Store the template. */
     readonly onSave: (template: string, name: string) => void;
     /** Store the card's name; an empty value clears it back to the registered label. */

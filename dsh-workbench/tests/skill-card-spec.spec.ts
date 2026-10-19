@@ -59,4 +59,40 @@ describe('workbench storage schemas', () => {
     expect(workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, editedAt: 0, stopReason: 'completed' }))
       .toHaveProperty('editedAt', 0)
   })
+
+  it('keeps the card model across a load, as a pair rather than one string', () => {
+    // Criterion 71. The route is written by the configuration page, so it has to be
+    // declared in the same change: an undeclared field survives the write and is dropped on
+    // the next load, which the user reads as "the model reverted after a restart".
+    // The provider id deliberately contains a slash: a `"provider/model"` string could not
+    // be split back into these two fields without guessing.
+    const stored = { skill: 'xiaoneng-task-detail', name: '效能任务', model: { provider: 'vendor/gateway', model: 'large' } }
+    expect(workbenchCardConfigSchema.parse(stored)).toEqual(stored)
+  })
+
+  it('leaves a card that names no model without one', () => {
+    // Absent means "this card inherits the session's model", which is the state every card
+    // created before this field existed is in. The schema must not invent a route.
+    const parsed = workbenchCardConfigSchema.parse({ skill: 'git-repo' })
+    expect(parsed).not.toHaveProperty('model')
+  })
+
+  it('keeps the model a result ran on across a load', () => {
+    // Criterion 72. The runner stamps the route it used, so the result page can name it
+    // after a restart; a record written with the field and read without it would leave the
+    // user guessing which model produced what they are reading.
+    const result = {
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      model: { provider: 'deepseek', model: 'deepseek-chat' },
+      structured: { html: '<p>a</p>' },
+    }
+    expect(workbenchResultSchema.parse(result)).toEqual(result)
+  })
+
+  it('leaves a result that inherited a model without one', () => {
+    const parsed = workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed' })
+    expect(parsed).not.toHaveProperty('model')
+  })
 })

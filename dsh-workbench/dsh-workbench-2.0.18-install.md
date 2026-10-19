@@ -1,11 +1,11 @@
-# dsh-workbench 2.0.17 · 安装指南
+# dsh-workbench 2.0.18 · 安装指南
 
 把工作台面板装进一个已有的 DSH Desktop。**整个过程不需要联网**（除非你的环境本来就能访问 npm）。
 
 包只有一个文件：
 
 ```
-dsh-workbench-2.0.17.tgz    约 173 KB
+dsh-workbench-2.0.18.tgz    约 187 KB
 ```
 
 ---
@@ -59,7 +59,7 @@ Get-ChildItem "$env:USERPROFILE\.dsh","$env:USERPROFILE\.dsh-beta","$env:APPDATA
   "name": "dsh-profile-web",
   "private": true,
   "dependencies": {
-    "dsh-workbench": "file:<把 tarball 放在哪>/dsh-workbench-2.0.17.tgz"
+    "dsh-workbench": "file:<把 tarball 放在哪>/dsh-workbench-2.0.18.tgz"
   },
   "dsh": {
     "profile": {
@@ -82,8 +82,8 @@ Get-ChildItem "$env:USERPROFILE\.dsh","$env:USERPROFILE\.dsh-beta","$env:APPDATA
 
 ### 路径写法
 
-- 用**正斜杠**：`file:D:/pkgs/dsh-workbench-2.0.17.tgz`
-- 或相对路径：`file:./vendor/dsh-workbench-2.0.17.tgz`
+- 用**正斜杠**：`file:D:/pkgs/dsh-workbench-2.0.18.tgz`
+- 或相对路径：`file:./vendor/dsh-workbench-2.0.18.tgz`
 - 也接受**解压后的目录**：`file:D:/pkgs/dsh-workbench`
 
 ### 然后重启应用
@@ -111,7 +111,7 @@ corepack pnpm install
 ```powershell
 $p = "%PROFILE%"
 New-Item -ItemType Directory -Force -Path "$p\node_modules\dsh-workbench" | Out-Null
-tar -xzf .\dsh-workbench-2.0.17.tgz -C "$p\node_modules\dsh-workbench" --strip-components=1
+tar -xzf .\dsh-workbench-2.0.18.tgz -C "$p\node_modules\dsh-workbench" --strip-components=1
 ```
 
 然后重启。
@@ -168,13 +168,13 @@ Remove-Item "%PROFILE%\node_modules\dsh-workbench" -Recurse -Force
 
 装完后他得到的是**工作台这个面板本身**：
 
-- 可以建卡片、选 skill、写模板、运行、微调结果、手工编辑结果
+- 可以建卡片、选 skill、给每张卡选模型、写模板、运行、微调结果、手工编辑结果
 - 面板自带存储域，卡片是**他自己的**，不会带上你机器上的内容
 
 **不会跟过去的东西**：
 
 - **MCP 服务**（例如小能效能平台）—— 在 profile 的 `cordis.patch.yml` 里配，不属于插件
-- **模型选择**、**技能目录** —— 同上，属于 profile
+- **会话的模型选择**、**技能目录** —— 同上，属于 profile。每张卡自己选的那个模型是**卡片存盘数据的一部分**，跟着卡片走，不跟着插件走
 - **已建的卡片与结果** —— 属于各自机器的存储域
 
 要让对方复现你的具体用法，还得单独给他这几样配置。

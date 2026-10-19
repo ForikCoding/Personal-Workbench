@@ -7,6 +7,8 @@
 > **本轮（第十版）加的是手工编辑结果**：结果表面里就地打开一个编辑器，改的是**存盘的那段区间片段**（不是模板、不是 DOM），保存后它就是这张卡的结果，记录上多一个 `editedAt`，运行详情里多一行「手工编辑」，而它**不进修改记录**、仍可用「回到上一版」退回一步。它落在本文的 **M10**（结果页与 `SkillCardResultEditor.tsx`、`text-editing.ts`、`violation-copy.ts`）、**M8**（`saveResultEdit` 与 `api.saveResult`）、**M1**（`editedAt`、结果写请求与回执）、**M4**（`workbenchResultSchema`）与 **M6**（`PUT /api/workbench/skill-card/result`）上；验收标准由 60 条增至 **70 条**，本批落地时整个包是 **505 个测试 / 37 个 spec 文件**，`corepack yarn workspace dsh-workbench check` exit 0。需求侧的条目编号、决策表与验收分组见[需求方案 §19 与 §14.6](workbench-card-requirements.md#146-已实现并验收6170)。
 >
 > **本轮（第十一版）撤掉结果页的两处噪音。** 产品负责人判定两样东西都是噪音：结果面上方那行**状态行**（`✓ 已完成 · 14:28:36 · 用时 42s`，连带 `data-run-status` 钩子、`runStatusLine` 一族函数，以及四个状态词与 `runDuration` 这些失去读者的 locale key），以及结果表面里那行**「结果」`h3`**（连同它的 `resultHead` 头部行、细线与 `useId`/`aria-labelledby` 配对、`skillCardResultHeading` 这个 key）。两处都整行删除，**没有被任何东西替代**；结果表面的边框、圆角与内边距留下，容器的边界从此只靠内边距把渲染文档挡在边框之外。状态与时间这两个事实没有丢——结束原因与开始时间一直在「运行详情」里。需求侧的验收标准 **52** 因此撤回、编号保留（并顺带撤回 FR-38）。这一批落地时整个包是 **501 个测试 / 37 个 spec 文件**。
+>
+> **本轮（第十二版）加的是每张卡自己选模型。** 配置页「基本信息」多了第三个控件：**模型**——按 provider 分组的 `select`，选项文本是模型名，默认选中当前会话的模型（一张卡永远显示一个具体模型，没有空选项）。路由以 **`{ provider, model }` 这一对**存储（provider id 可能自带斜杠，拼成字符串就拆不回来），v1 不带 `reasoningEffort`。运行路径在**卡片写了模型时**把这一对作为子代理的 `agentOptions` 传下去，并把用到的路由记进结果记录；「运行详情」因此多一行「模型」。**不可用就拒绝，不回退**：provider 不存在、模型不在其目录里、后端不支持 `agentOptions`，三种都在启动前按**既有错误码通道**拒绝，消息点名那条路由。它落在本文的 **M1**（`WorkbenchCardModel`、配置与结果记录的新字段、`model-unavailable`）、**M4**（两张表的 schema 声明与合并语义）、**M5**（启动前的路由校验、`agentOptions`、记录落 `model`）、**M8**（`chooseModel` 与目录座位）、**M10**（字段三态与运行详情那一行）与 **M9/M7**（客户端 `ctx.inject(['modelDirectories'])`、宿主 `inject` 加 `llm`）上；验收标准由 70 条增至 **79 条**，本批落地时整个包是 **541 个测试 / 38 个 spec 文件**，`corepack yarn workspace dsh-workbench check` exit 0。需求侧的条目与分组见[需求方案 §14.7 与附录 A.7](workbench-card-requirements.md#147-已实现并验收7179)。
 
 ## 怎么读这份文档
 
@@ -189,16 +191,38 @@ export const WORKBENCH_OUTPUT_SCHEMA = {
 
 | 组 | 类型 | 说明 |
 | --- | --- | --- |
-| 存储 | `WorkbenchCardConfigRecord`、`WorkbenchTemplateRecord`、`WorkbenchResultRecord` | 落盘的东西；结果记录自本轮起带 `editedAt?: number` |
+| 存储 | `WorkbenchCardConfigRecord`、`WorkbenchTemplateRecord`、`WorkbenchResultRecord` | 落盘的东西；卡片记录自本轮起带 `model?: WorkbenchCardModel`，结果记录自本轮起也带 `model?` |
 | 读取 | `WorkbenchSkillCardSnapshot`、`WorkbenchCardConfigView` | 打开工作台时拿到的 |
-| 写入 | `WorkbenchSkillCardPatch` | 改配置 |
+| 写入 | `WorkbenchSkillCardPatch` | 改配置；`model` 与 `name`/`skill` 一样支持 `null`（表示"改回继承会话模型"） |
 | 结果写 | `WorkbenchResultEditRequest`、`WorkbenchResultEditResponse` | 手工编辑结果：`{ cardId, html }` 进，`{ apiVersion, revision, result }` 出 |
 | 运行 | `WorkbenchRunRequest`、`WorkbenchRunState`、`WorkbenchRunPhase` | 执行相关 |
+
+**卡片模型：一对 id，不是一个字符串**（第十二版）：
+
+```ts
+/** 一张卡运行所用的精确路由。 */
+export interface WorkbenchCardModel {
+  readonly provider: string
+  readonly model: string
+}
+
+/** 两个非空 id 才算一条路由。 */
+export function isWorkbenchCardModel(value: unknown): value is WorkbenchCardModel
+```
+
+三条理由写在类型旁边，这里重复一遍，因为后来的人一定会想"合成一个字符串多省事"：
+
+- **provider id 自身可能含斜杠**（`vendor/gateway`）。存成 `"provider/model"` 就必须在某个随机的位置把它拆回来——那是 bug 农场，不是解析。
+- **`reasoningEffort` 不在 v1 里。** 卡片没有选过思考档位，给它一个默认值就是给它一个它没有的值。
+- **这一对同时是 `ModelSelection` 的子集**（上游的那个类型还带 `reasoningEffort`），所以从客户端目录里读到的东西不用转换就能对齐，而不需要声明一个"我们比上游少一个字段"的平行类型。
+
+`WorkbenchRunRequest` **不带模型**：路由是卡片自己存的选择，由宿主从存储里读（M5）。客户端不能替一张卡决定它跑在哪条路由上——那会让"卡片写的是什么"和"跑的是什么"成为两件事。
 
 ```ts
 /** 启动一次运行。 */
 export interface WorkbenchRunRequest {
   readonly cardId: string
+  /** 只用来取活 Agent；模型来自卡片自己存的选择，不在这里。 */
   readonly sessionId: string
   /** 这次运行被要求做什么：card / bare / refine，见上表。 */
   readonly mode: WorkbenchRunMode
@@ -239,17 +263,21 @@ export type WorkbenchSkillCardErrorCode =
   | 'skill-not-found'       // skill 被删或改名
   | 'template-missing'      // 还没写模板
   | 'catalog-failed'        // 读 skill 目录失败
-  | 'provider-unavailable'  // 子代理后端不支持输出契约
+  | 'provider-unavailable'  // 子代理后端不支持输出契约，或没有这条模型 provider
+  | 'model-unavailable'     // provider 在，但它不再提供卡片写的那条模型（第十二版）
   | 'schema-rejected'       // 请求没带可用的对象根契约（形状预检）
   | 'run-in-progress'       // 这张卡已经在跑
 ```
 
-后八个是**可操作的降级原因**，对应需求 §8 的降级矩阵：每一个都告诉用户下一步该做什么。把它们折叠成一个通用错误，用户就会看到"出错了"却不知道该干什么——这正是需求明令禁止的。
+`model-unavailable` 是第十二版加的**唯一**一个新码。三种拒绝都要说得清楚，所以它们不合并成一个：后端不支持 `agentOptions` 与 provider 不存在共用 `provider-unavailable`（都是"这条后端/provider 走不通"），而**模型本身不在目录里**有自己的码——它对应的下一步动作不一样（换一个模型，还是换一条后端/provider）。路由把它映射成 **409**，与 `session-not-live` 同类：卡片配置时的事实和现在对不上，不是请求写错了。
+
+后九个是**可操作的降级原因**，对应需求 §8 的降级矩阵：每一个都告诉用户下一步该做什么。把它们折叠成一个通用错误，用户就会看到"出错了"却不知道该干什么——这正是需求明令禁止的。
 
 ### 结果 R
 
 - 两端编译期就对同一组常量与类型，字段名写错立刻是类型错误。
-- 错误码表成为 M12 与验收标准的公共词汇。
+- 错误码表成为 M12 与验收标准的公共词汇；新增一个码会同时在三张映射表里报错（路由的状态表、客户端的本地化表、卡片的失败文案表），漏一处编译不过。
+- **模型是一条路由，不是一段文本**：它以两个 id 的形态进出契约、存储与记录，中途没有任何一处需要拆分或拼接。
 - 契约模块本身零依赖，`vite` 构建时被内联进客户端包，不产生新的外部依赖。
 
 ---
@@ -497,11 +525,15 @@ export const WORKBENCH_SKILL_CARD_DOMAIN = defineDomain({
 
 | 表 | 键 | 值 |
 | --- | --- | --- |
-| `card` | cardId | `{ skill?: string; name?: string }` |
+| `card` | cardId | `{ skill?: string; name?: string; model?: WorkbenchCardModel }` |
 | `template` | `${cardId}_${skill}` | `{ html: string }` |
-| `result` | cardId | `{ skill, executedAt, stopReason, structured?, outputText?, diagnostic?, editedAt? }` |
+| `result` | cardId | `{ skill, executedAt, stopReason, model?, structured?, outputText?, diagnostic?, editedAt? }` |
 
-**`structured` 现在只装一个 `html`**（填好的那段区间）。旧版本存下的命名值仍是合法记录——存储层不校验契约，卡片那边发现没有 `html` 时按"尚未运行"呈现。`diagnostic` 是失败文本：提供方写的，或由 M5 从 `agent/error` 捕获到的。`editedAt` 是本轮加的：它只在有人**手工编辑**过这段区间时出现，缺席表示每个字节都来自一次运行（写入路径见 M10「结果的手工编辑」）。
+**`structured` 现在只装一个 `html`**（填好的那段区间）。旧版本存下的命名值仍是合法记录——存储层不校验契约，卡片那边发现没有 `html` 时按"尚未运行"呈现。`diagnostic` 是失败文本：提供方写的，或由 M5 从 `agent/error` 捕获到的。`editedAt` 是第十版加的：它只在有人**手工编辑**过这段区间时出现，缺席表示每个字节都来自一次运行（写入路径见 M10「结果的手工编辑」）。
+
+**`card.model` 与 `result.model` 是第十二版加的，两者是不同的事实。** 卡片的 `model` 是**用户的选择**：它决定下一次运行跑在哪条路由上，缺席表示"这张卡继承会话的模型"（也就是这一版之前所有卡片的状态）。结果的 `model` 是**那次运行的记录**：它由 M5 在启动时写死，只回答"这份结果出自哪条路由"。两者都存 `{ provider, model }` 这一对，都不带 `reasoningEffort`（见 M1）。
+
+两者的缺席也各不相同，而且都不能被"补一个默认值"糊过去：卡片没有 `model` 时运行**不传** `agentOptions`，因此子代理继承会话的路由——这时宿主并不知道解出来的路由是什么，所以结果里也**没有** `model`，运行详情里就没有那一行。这是这一版唯一一处"模型看不见"，它的成因是宿主没有第二个事实来源，而不是忘了写。
 
 模板用复合键，因为需求决策 15 要求**模板跟 skill 走**：切回原来的 skill，原来的模板还在。
 
@@ -514,6 +546,12 @@ P10 给卡片记录加了 `name`：store 会写它，写入也成功返回，但
 规则由此确定：**store 写入的每个字段都必须出现在 `src/skill-card-spec.ts` 的 schema 里**。这条不能靠"记得同步两处"来守，所以有一个专门的包级测试 `skill-card-spec.spec.ts`：它拿 `{ skill, name }` 整条解析并断言**逐字段相等**（不是"解析不报错"——那就正好漏掉被丢弃的字段）。
 
 **本轮第一次按这条规则新增字段**：手工编辑结果写 `editedAt`，`workbenchResultSchema` 与它**同一次改动**里声明，`skill-card-spec.spec.ts` 也加了对应用例（整条往返不丢字段；没有该字段的记录不会被凭空补上；`editedAt: 0` 也保留）。这条约束在过去是"补上漏掉的字段"，这一轮是它要守住的常规路径。
+
+**第十二版按同一条规则一次加了两个字段**：`workbenchCardConfigSchema.model` 与 `workbenchResultSchema.model`，共用同一个 `workbenchCardModelSchema`（`{ provider, model }` 两个字符串）。`skill-card-spec.spec.ts` 因此多了四条：卡片带模型整条往返（provider 取 `vendor/gateway`，专门用一个带斜杠的 id 钉住"存的是两字段"）、没模型不被凭空补上、结果带模型整条往返、继承来的结果没有 `model`。**这就是这条约束存在的意义**：加字段的人不会忘记 schema，因为他加完之后 spec 会告诉他。
+
+**清空不是删除。** 补丁里的 `model: null` 表示"这张卡改回继承会话的模型"，与 `name: null` / `skill: null` 同一套语义：三者一起写在一个记录里，所以写入是**合并**而不是覆盖——只改名字不会把模型打掉，只改模型也不会把 skill 打掉。三个字段都为空时整条记录被删除（否则会留下一条没有内容的卡片记录）。这一步由 `skill-card-store.spec.ts` 逐条钉住。
+
+**结果被裁剪时 `model` 不会丢。** `trimResult` 在超预算时先丢文本、再考虑结构化值，`model` 与 `skill`/`executedAt`/`stopReason` 一样属于**基础记录**：两个短 id，且它是"这份结果出自哪条路由"的答案，丢了就等于把用户送回猜的状态。
 
 **分隔符必须是下划线，不能用冒号。** `per-record` 布局把记录键编码成**文件名片段**，只接受 `[a-zA-Z0-9_-]`（[per-record-unit.ts:39](../deepseek-harness/packages/storage/storage-json/src/per-record-unit.ts#L39)）；冒号在 Windows 文件名里非法，会让整个写入被拒。卡片 id 与 skill 名都不允许下划线，所以第一个下划线永远是分隔符，解析无歧义。这条是 P6 真机验证时才暴露的——内存假表不会触发路径编码。
 
@@ -563,7 +601,8 @@ export class WorkbenchSkillCardStore {
 - 配置与结果互不影响，可以分别清理。
 - 已发布的布局域一字未改。
 - 损坏的单条记录不会导致工作台起不来。
-- 存储 schema 覆盖 store 写入的每个字段，所以"存进去、重启又回退"这类缺陷有专门用例守着（`skill-card-spec.spec.ts`）。
+- 存储 schema 覆盖 store 写入的每个字段，所以"存进去、重启又回退"这类缺陷有专门用例守着（`skill-card-spec.spec.ts`）。第十二版的两个 `model` 字段走的是同一条路。
+- 卡片的选择与结果的记录各自带着路由：前者决定下次跑在哪，后者说明这次出自哪，两者不在同一处被追认。
 
 ---
 
@@ -617,6 +656,13 @@ async function run(request: WorkbenchRunRequest): Promise<RunOutcome> {
   if (provider === undefined || !provider.capabilities.outputSchema)
     return { kind: 'provider-unavailable' }
 
+  // 4b. 卡片写了模型就先把这条路由验证掉（第十二版，见下一节）。验证是**异步**的，
+  //     所以它与"这张卡已经在跑"之间不能留缝隙：占用检查排在 await 之后、注册之前。
+  if (selection.model !== undefined) {
+    const refusal = await modelRefusal(provider, selection.model)
+    if (refusal !== undefined) return refusal
+  }
+
   const controller = new AbortController()
   const timer = setTimeout(() => { controller.abort() }, config.runTimeoutMs)
 
@@ -628,13 +674,20 @@ async function run(request: WorkbenchRunRequest): Promise<RunOutcome> {
   // 6. prompt = 技能正文 + 整份文档（逐字，注释在内）+ 任务说明。
   const text = renderWorkbenchSkillPrompt(skill, selection.template)
 
-  // 7. 启动。不传 agentOptions = 继承会话模型；不传 toolFilter = 不限制工具。
+  // 7. 启动。卡片写了模型就把那条路由作为 agentOptions 传下去；没写就**不传**这个字段，
+  //    子代理因此继承会话模型。不传 toolFilter = 不限制工具。
   const activation = await host.subagents.startActivation({
     provider: config.subagentProvider,
     label: `workbench:${request.cardId}`,
     signal: controller.signal,
     delivery: 'caller',
-    request: { parent: agent, prompt: [{ type: 'text', text }], cwd, outputSchema: request.outputSchema },
+    request: {
+      parent: agent,
+      prompt: [{ type: 'text', text }],
+      cwd,
+      outputSchema: request.outputSchema,
+      ...selection.model === undefined ? {} : { agentOptions: selection.model },
+    },
   })
 
   // 8. 先认领这个子代理，再等结果：它可能在等待期间就报错，而错误只走事件总线。
@@ -648,6 +701,28 @@ async function run(request: WorkbenchRunRequest): Promise<RunOutcome> {
 ```
 
 **注意第 2 步与第 6 步的关系。** 客户端在发起运行前已经查过一次模板（为了给用户即时反馈），但宿主**再查一次自己的存储**：进程边界不可信，而且"有没有模板"本来就是宿主自己的答案。整份模板文本正是从这里进入 prompt 的——它不经过客户端，也不经过任何重新序列化。
+
+#### 模型：钉住这次运行的路由（第十二版）
+
+**卡片写了模型，就按那条路由跑；写不通就拒绝，绝不回退到会话的模型。** 回退是最坏的一种"成功"：卡片显示 A，运行跑了 B，结果上写着看不懂的东西，而用户以为自己看到的是 A 的产出。
+
+三种拒绝，全部发生在**创建子代理之前**（`modelRefusal()`，因此也发生在任何模型调用之前）：
+
+| 情形 | 判据 | 错误码 | 消息里有什么 |
+| --- | --- | --- | --- |
+| 后端不支持选模型 | `provider.capabilities.agentOptions === false` | `provider-unavailable` | 后端名 + 那条路由（`"provider/model"`） |
+| 模型 provider 不存在 | `ctx.llm.listModels(provider)` 抛错 | `provider-unavailable` | provider 名 + 那条路由 + 上游的错误文本 |
+| 模型不在该 provider 的目录里 | 返回的 `id` 列表里没有它 | `model-unavailable` | 那条路由 |
+
+**为什么用 `ctx.llm.listModels(provider)` 而不是查一个本地表。** 这是宿主唯一能回答"这台部署现在到底能路由什么"的地方：目录由适配器给出，凭据、代理、模型下架都会改变它。契约里那个 `llm` 窄缝只要求一个 `listModels(provider): Promise<readonly { id: string }[]>`，多的一个字段都不读。
+
+**为什么拒绝要排在占用检查之前、而占用检查要排在 `await` 之后。** 校验是异步的，如果先在 `await` 之前查"这张卡是不是在跑"，那么两个同时开始的请求会**都**通过检查，然后都注册成运行——这正是 `run-in-progress` 想防的事。所以顺序是：同步前置条件 → `await` 路由校验 → 同步占用/并发检查 → 同步注册。`await` 之后到注册之间没有第二个异步点，检查与占位因此仍然是一次原子动作。
+
+**`agentOptions` 只在卡片写了模型时才出现在请求里。** 不是传一个空对象，也不是把 `provider`/`model` 分开传：上游的 `resolveChildAgentOptions` 会把请求里的字段整体铺在父路由之上，一个半截的覆盖会让子代理跑到一条不存在的路由上。上游也会在启动时校验这个能力（`SubagentCapabilities.agentOptions`），宿主这一份检查只是为了把拒绝提前到"还没起子代理"的地方，并让它带一句能读的话。
+
+**记录上写的是这次运行的路由，不是卡片当前的路由。** `toResultRecord` / `toBareRecord` 从 `RunInput.model` 取值——那是启动时定下的那一份。用户之后在配置页换一个模型，不会让昨天的结果改口。没有模型时两个函数都不写这个字段，`trimResult` 与手工编辑都把它当基础记录对待（M4）。
+
+**裸运行（skill 目标）用的是同一张卡的选择。** 一次裸运行由某张卡上的按钮触发，`cardId` 就是那张卡，所以它的路由、模板前置条件与卡片运行来自同一条 `selection`——只是 `skill` 取自按钮而不再取自卡片。三处提示词仍然各不相同，路由的取法只有一种。
 
 #### 整份文档怎么进 prompt
 
@@ -750,6 +825,8 @@ export interface WorkbenchSkillCardHost {
 readonly workingDirectory?: WorkbenchWorkingDirectory
 ```
 
+> **`startActivation` 也是 `0.2.1-alpha.2` 才有的方法。** 稳定通道钉的 `0.2.0-rc.2` 的子代理服务只有 `start` / `startContinuable`，没有激活入口。所以窄接口里的 `startActivation` 是**可选**的：装配时（`src/index.ts`）探测一次并把结论随卡片快照下发，客户端据此禁用「运行」并写明缺的是 `startActivation` 与需要的版本；`runner.start()` 里另有一道同名的拒绝，让早已发出的点击、直接的路由调用或模板按钮得到 `run-unavailable`，而不是 `undefined is not a function`。不回退到旧 API，也不改宿主版本。工作目录的降级是"换一种取法"，这一条是"没有就是没有"——能读能改，只有不能跑。
+
 #### 子代理自身的失败要单独捕获
 
 这是与区间语言同期的第二处改动，解决的是另一个具体问题：**失败曾经是黑箱。**
@@ -846,6 +923,7 @@ const retryable = !usable && (result.stopReason === 'completed' || result.stopRe
 - 用户会话里不会多出消息；重跑不会因为并发而互相干扰。
 - 取消与超时都走同一条 `AbortController` 路径，行为一致。
 - 子代理自己报错时，结果里带着它的失败文本，运行详情能显示——失败不再是黑箱。
+- 卡片写了模型时，跑的就是那条路由，且**结果上写着它**；写不通时第一步就拒绝，不会出现"卡片显示 A、实际跑 B"。
 
 ---
 
@@ -1379,7 +1457,7 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：运
 
 | 段 | 内容 | 为什么是这一层 |
 | --- | --- | --- |
-| 基本信息 | 卡片名称、skill 选择器，两个字段**同一行**、各 `width: 340px` | 整行宽的输入框只是一行标签旁边的大片空白；340px 够放一个长名字，又放得下两个 |
+| 基本信息 | 卡片名称、skill 选择器、**模型**，三个字段**同一行**（窄了就换行）、各 `width: 340px` | 整行宽的输入框只是一行标签旁边的大片空白；340px 够放一个长名字，又放得下两个 |
 | 模板 | 状态行、告警/构建器、行号栏 + 文本区、违例清单 | 一行行往下都是一个写文档的人要依次看的东西 |
 | 预览 | 自有边框表面上的影子根渲染，标签「骨架预览，区间尚未填充」 | 预览里的东西是用户的文档，只有这一个框是本产品的 |
 
@@ -1387,7 +1465,52 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：运
 
 写入失败由**页脚**呈现，见下面「粘性页脚」一节。
 
-**配置字段第一版只有两种类型**：枚举选择（skill 选择器）与长文本（模板）。需求 FR-13 的通用机制按这两种落地——机制是通用的，字段类型面先收窄。第二版这里还有第三项"字段清单"（列出上次结果里的真实字段、点击插入光标处），**已随字段一起删除**：今天没有字段可列，子代理回报的是一段 HTML，不是一组命名值。
+**配置字段第一版只有两种类型**：枚举选择（skill 选择器）与长文本（模板）。需求 FR-13 的通用机制按这两种落地——机制是通用的，字段类型面先收窄。第二版这里还有第三项"字段清单"（列出上次结果里的真实字段、点击插入光标处），**已随字段一起删除**：今天没有字段可列，子代理回报的是一段 HTML，不是一组命名值。第十二版加的**模型**仍然是枚举选择这一种类型（分组的选择器），它没有引入新的字段类型。
+
+#### 卡片的模型字段（第十二版）
+
+配置页「基本信息」的第三个控件，也是这一版唯一新增的控件。它的三分之二不是选择器：
+
+| 状态 | 判据 | 字段长什么样 | 运行控件 |
+| --- | --- | --- | --- |
+| 目录已加载 | 目录 `ready`/`selecting`，且至少有一组非空 | 按 provider 分组的 `select`，选项文本是 `ModelCatalogModel.name`，默认选中会话当前模型 | 可用 |
+| 只有已知模型 | 目录不可用，或目录里没有可用的组，但**知道一条路由** | 该模型的名字（或 id）作为**文本**，不可选 | **可用**——这张卡会用那条路由跑 |
+| 都没有 | 既没有存过的路由，也没有会话选择 | 「没有可用的模型，这张卡暂时不能运行」 | **不可用** |
+
+判断的问题是**"有没有一个能跑的模型"，不是"选择器加载了吗"**。这条差别是这一节的全部要点：目录会因为凭据缺失、适配器没起来、会话被寻址成子代理而不可用，而卡片自己存的那条路由并没有因此失效——把它也一起禁掉，是在用一个 UI 就绪信号去回答一个数据问题。反过来说，目录加载成功了但一条路由都没有，也不能凭空造一条出来让运行继续。
+
+实现分两层，**纯函数在前、React 在后**，这样状态判断可以被单测逐条钉住：
+
+```ts
+// src/client/skill-card/model.ts（不 import Cordis，不 import React）
+export function resolveModelField(
+  stored: WorkbenchCardModel | undefined,        // 卡片自己存的路由
+  directory: WorkbenchModelDirectoryView,        // 目录回答的窄视图
+): WorkbenchModelField                            // ready / fixed / unavailable
+
+export function modelKey(model: WorkbenchCardModel): string      // 选项的 value
+export function parseModelKey(value: string): WorkbenchCardModel | undefined
+```
+
+四条不显然的取舍：
+
+- **`stored` 永远压过会话选择。** 会话模型只是"卡片没写时显示什么"的默认值；卡片写了，那就是它要跑的路由。
+- **选项值是一个 JSON 数组**（`modelKey` → `["vendor/gateway","large"]`），不是 `"provider/model"`。理由与存储那一条完全相同：provider id 里有斜杠时，拼起来的字符串没有唯一的拆法。
+- **选中的路由一定出现在选项里。** 一个 `select` 的 `value` 在选项里找不到时渲染为空白，而"一张卡永远显示一个具体模型"是这一节的前提；所以 `resolveModelField` 会把目录已不再列出的那条已存路由补进它所属的分组（连 provider 都没了时补一个只有它的分组），名字用它自己的 id——除了 id 之外没有可信的名字，编一个不如直说。
+- **两种不可选状态用 `<p>` 而不是禁用的 `<select>`。** 禁用的选择器看起来仍然是"你可以选，只是现在不行"；而这两个状态的意思是"这里没有选择"。标签也随之从 `<label for>` 变成 `<p>`：不能指向一个不存在的控件。
+
+这一层之上，M8 的控制器把目录**读进 state 并订阅**（目录是外部 store，且它会在页面挂载之后才加载完），算出 `modelField` 放进视图，`runnable` 再与它 AND 一次：
+
+```ts
+runnable: sessionId !== undefined && card?.skill !== undefined && card.template !== undefined
+  && modelField.kind !== 'unavailable'
+```
+
+**运行控件的禁用必须与字段说的是同一句话。** 它们读的是同一个 `modelField`，所以不可能出现"字段说不可用、按钮还能按"。结果页在没有可用模型时，还在头部下面多画一句 `skillCardModelUnavailable`——一个禁用而不解释的按钮是同一个老缺陷的另一半（配置页的 skill 选择器早就因为同样的原因有了一行说明）。
+
+`SkillCardPageProps.models` 是**必填**的（`WorkbenchModelSeat`：`read(sessionId)` + `subscribe(sessionId, listener)`）。座位而不是服务本身，是这一层不接触 Cordis 的做法：`src/client/index.ts` 用 `ctx.inject(['modelDirectories'], …)` 拿一次 resolver 放进一个可变持有者，座位通过 getter 读它。**用作用域形式注入**：服务缺席时那条纤维保持 pending，插件其余部分照常工作，卡片读到的就是"没有可用模型"——而不是整个工作台因为一个可选目录而停摆。`directoryFor()` 对"被寻址的子代理会话"会抛错，座位把这个错读成"不可用"，与"服务没注册"同一个答案。
+
+**从不调用 `select()`。** 那个方法改的是**会话**的模型；这一版要的是"这张卡跑在哪条路由上"，两者混用会让卡片选择器偷偷改掉用户整个会话的模型。
 
 #### 结果页：结果表面与运行详情
 
@@ -1397,7 +1520,7 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：运
 | --- | --- | --- |
 | 结果表面 | 边框 + 圆角 + 内边距，里面是影子根渲染的文档 | 渲染的文档是用户模板的内容；没有框，它就没有归属 |
 | 微调编辑区 | 多行编辑区 + 「重新生成」（运行中变「停止」）+ 记录头部行 + 记录 + 只在本次会话 | 对结果的下一句话，紧跟结果 |
-| 运行详情 | 默认折叠的 `<details>`，开关写「运行详情」：结束原因、时间、结构化值、原始输出、诊断 | 调试信息，不是内容 |
+| 运行详情 | 默认折叠的 `<details>`，开关写「运行详情」：结束原因、**模型**（有才出现）、时间、结构化值、原始输出、诊断 | 调试信息，不是内容 |
 | 脚注 | `skillCardPermission` | 关于这一页的说明，不是这一页的内容 |
 
 **结果表面只加框，不改文档。** `.resultSurface` 只有 `border` / `border-radius` / `padding`，**没有背景色，也没有任何会进入影子根的样式**：用户模板的排版与配色一个字都不动。
@@ -1409,7 +1532,7 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：运
 **运行详情的五处修正**，都由"读不了"引起（前三处是第八版，后两处是第九版）：
 
 1. **`html` 不再是 JSON 里的一段字符串。** `readStructured` 把 `html` 抽出来单独渲染成 `<pre data-run-html>`（等宽、`overflow: auto`、**`white-space: pre`**），其余字段仍是 `JSON.stringify(rest, null, 2)`。抽字段时**按名字逐个拷贝**而不是解构重建，剩下的字段因此保持存储时的顺序——这是这次运行的原始记录，重排一次值就等于把记录改了一次。
-2. **缺失的字段整行不出现。** 没有输出文本就没有「原始输出」那一行（那句"这次运行没有留下输出"已从两本字典里删掉），没有诊断就没有诊断行，没有结构化值就没有结构化块。**一个空行说的是"空"，不是"发生了什么"。**
+2. **缺失的字段整行不出现。** 没有输出文本就没有「原始输出」那一行（那句"这次运行没有留下输出"已从两本字典里删掉），没有诊断就没有诊断行，没有结构化值就没有结构化块。**一个空行说的是"空"，不是"发生了什么"。** 第十二版加的「模型」行守着同一条规则：`result.model` 缺席时整行不存在——那是**继承了会话模型**的运行，宿主并不知道解出来的路由是什么，写一个猜出来的名字比不写更糟。
 3. **默认折叠。** `<details>` 不带 `open`：它是"为什么没有数据"的答案，不是数据本身。测试钉的是**没有 `open` 属性**，不只是 `open` 为假——后来被加回去的正是那个属性。
 4. **开关的文案是「运行详情」。** 它一度写作「原始输出」，可块里是四行：结束原因、开始时间、结构化值、原始输出。开关用一个子行的名字命名，等于只说了四分之一。今天两个含义用**两个 key**：`runDetailSummary`（开关）与 `runRawOutput`（那一行）。
 5. **代码块去掉区间的公共缩进，结束原因说中文。** 两件事都是显示层的：
@@ -1595,6 +1718,10 @@ setResultOverride(undefined)
 | 「可滚动、不折行」的 `html` 代码块 | 断言的是文本本身是原值（真实换行、无字面 `\n`；去缩进后的样例行）；`overflow` 与 `white-space` 是 CSS |
 | 结果编辑器里**行号与行的对齐**（等宽、字号、行高、内边距四处必须一致） | jsdom 不排版：能断言的只有"每行一个元素、数量与行数一致、点行号选中该行"，对齐与否只能人工看 |
 | 结果编辑器的**打开/关闭** | 它没有过渡：同一块结果表面的内容槽从渲染文档换成编辑器，是重渲染而不是浮层，因此没有"动画"可断言（与折叠动画不同，这里本来就没有） |
+| 模型选择器**展开后的样子**（下拉面板、`optgroup` 的分隔、截断与省略） | jsdom 只有 DOM：断言的是 `optgroup` 的 `label` 序列、选项文本序列、`select.value`，以及选择变化时回调拿到的那一对；原生弹出层与外观由浏览器决定 |
+| 模型的两种**不可选状态**的视觉密度（与选择器等高的 28px 文本框） | 高度、边框与颜色都是 CSS 声明，jsdom 不计算样式；断言的是"没有 `select`、`[data-model-fixed]` / `[data-model-unavailable]` 存在且文案正确、标签不再是 `for`" |
+
+模型字段本身没有引入新的"不可测"类别：它要断言的每一件事（三个状态、运行控件的可用性、写到存储的那一对、运行详情那一行）都在 DOM 或请求体里，而它的外观与原生控件行为与其它字段一样由 CSS/浏览器决定。
 
 #### 模板是前置条件
 
@@ -1930,31 +2057,32 @@ const escaped = useRef(false)
 1. 每一层各自可验，失败时能定位到层。
 2. 宿主执行链路用**假的上游窄接口**驱动，覆盖全部分支。
 3. 安全断言必须有独立用例（模板被拒、片段被清、样式不外泄）。
-4. 需求 §14 的 **70 条**验收标准中**在效的 69 条**逐条可验（第 52 条已撤回，见需求 §14.4）。**分工**：本设计负责 1–16（卡片模型与既有卡片能力）、35–48（编辑器与配置页，M10、M9、M4）、49–56（结果页与微调，M10、M8、M5、M1、M6）、57–60（第九版那批打磨，M10、M8 与面板标题所在的页面组件）与 61–70（第十版的手工编辑结果，M10、M8、M1、M4、M6），映射见[附录 B](#附录-b验收映射)；**17–34** 属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)自己映射，本文不重复。
+4. 需求 §14 的 **79 条**验收标准中**在效的 78 条**逐条可验（第 52 条已撤回，见需求 §14.4）。**分工**：本设计负责 1–16（卡片模型与既有卡片能力）、35–48（编辑器与配置页，M10、M9、M4）、49–56（结果页与微调，M10、M8、M5、M1、M6）、57–60（第九版那批打磨，M10、M8 与面板标题所在的页面组件）、61–70（第十版的手工编辑结果，M10、M8、M1、M4、M6）与 71–79（第十二版的每卡模型选择，M1、M4、M5、M6、M8、M9、M10），映射见[附录 B](#附录-b验收映射)；**17–34** 属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)自己映射，本文不重复。
 
 ### 行动 A
 
 | 层 | 文件 | 覆盖 |
 | --- | --- | --- |
 | 契约 | `skill-card-contract.spec.ts` | 常量不变量、区间标记正则（含无空白写法）、输出契约的形状与 `required`、错误码封闭性 |
-| 存储域 schema | `skill-card-spec.spec.ts` | 卡片记录（`skill` 与 `name`）整条往返、只带一侧的记录、空记录、模板与结果整条往返——**"store 写了但 schema 没声明"这一类缺陷的专门用例**；第十版增加 `editedAt` 的往返、`editedAt: 0` 与缺席的区别 |
-| 存储 | `skill-card-store.spec.ts` | 读写、revision、conflict、体积裁剪、模板复合键 |
+| 存储域 schema | `skill-card-spec.spec.ts` | 卡片记录（`skill` 与 `name`）整条往返、只带一侧的记录、空记录、模板与结果整条往返——**"store 写了但 schema 没声明"这一类缺陷的专门用例**；第十版增加 `editedAt` 的往返、`editedAt: 0` 与缺席的区别；第十二版增加卡片与结果两侧 `model` 的往返（provider 取 `vendor/gateway`）、以及两侧"没写就没有" |
+| 存储 | `skill-card-store.spec.ts` | 读写、revision、conflict、体积裁剪、模板复合键；第十二版增加模型的写入/读取、与 `name`/`skill` 的互相不覆盖、`model: null` 只清模型、三者都清空即删记录、以及非"两个非空 id"的拒绝 |
 | 存储（手工编辑） | `skill-card-result-edit.spec.ts` | `putEditedResult` 的合并语义（保 `skill`/`stopReason`/输出/诊断、只换 `structured.html`、刷新 `executedAt`、写 `editedAt`）、`missing`/`invalid`/`too-large` 三条拒绝且不写盘、片段与整条记录两道预算都不裁剪、再跑一次后 `editedAt` 消失；同文件还驱动 `PUT /result`：围栏优先、只认 `PUT`、字段校验、404、413、500 不回显记录 |
-| 执行 | `skill-card-runner.spec.ts` | 正常、无活会话、无契约、无模板、provider 不支持、skill 不存在、一次重试、取消、超时、`agent/error` 归因、提供方诊断不被覆盖 |
+| 执行 | `skill-card-runner.spec.ts` | 正常、无活会话、无契约、无模板、provider 不支持、skill 不存在、一次重试、取消、超时、`agent/error` 归因、提供方诊断不被覆盖；第十二版增加"卡片写了模型就把它作为 `agentOptions` 传下去并记进结果"、"没写就一个字段都不传"以及三条拒绝（后端无能力 / provider 不存在 / 模型不存在，且消息点名路由） |
 | 微调执行 | `skill-card-refine.spec.ts` | 微调提示词的三段与顺序（含 `<row_data>`）、模板取自存盘选择、契约与 `card` 一致、一次重试、落盘整条记录、无模板/无契约时拒绝 |
-| 路由 | `skill-card-route.spec.ts` | 围栏优先、6 条路径、400/401/403/409/413/500、错误体不回显请求体；微调请求的逐字段校验与超限码 |
+| 路由 | `skill-card-route.spec.ts` | 围栏优先、6 条路径、400/401/403/409/413/500、错误体不回显请求体；微调请求的逐字段校验与超限码；第十二版增加补丁里 `model` 的透传与形状拒绝、以及 `model-unavailable` 落到 409 |
+| 模型字段 | `skill-card-model.spec.ts` | `resolveModelField` 的三态与四条边界（卡片路由胜过会话选择、目录报错但仍有选择、已存路由不在目录里时补进选项、连 provider 都没了时补一个分组）、`modelKey`/`parseModelKey` 的往返与四种拒收、`createModelSeat` 对"没注册 / 会话被寻址为子代理 / 没有会话"的三种不可用回答与订阅转发 |
 | 模板 | `template.spec.ts` | 区间扫描的四种结果与位置、内容策略全部违规码、`placeholder-syntax` 及其 token、合法片段引用（`url(#id)`）不被误判 |
 | 声明写入 | `skill-card-declarations.spec.ts` | 声明行的文法、追加到既有块、无块时在区间前新建、块保持原缩进且条目对齐、逐次插入不漂移、已有空行的块被整块规整 |
 | 起手文档 | `skill-card-skeleton.spec.ts` | 中英两本字典生成的骨架都零违例、区间与空声明块都在、区间内含示例按钮与 `&#39;` 规则、没有残留占位符语法 |
 | 渲染 | `render.spec.ts` | 骨架逐字节不变（前缀比对）、片段清洗（`<script>`/`<img>`/事件属性被移除、外部 CSS 的 `<style>` 整块移除）、`resultHtml` 对无 `html` 的结果返回 undefined、样式不外泄；第九版增加了 `dedentedHtml` 的四条（公共前缀被去掉、空行不参与也不留缩进、无前缀时原样、返回新字符串而不改原值） |
 | 组件 | `SkillCard.spec.tsx` | 各状态呈现、有结果时回填区间、旧结果读作"尚未运行"、权限说明不再画在正文里（它属于结果页的脚注） |
-| 页面 | `SkillCardPages.spec.tsx` | 配置页（目录读取、名称/skill/模板、**卡片页自己的头部只有返回**）与结果页（运行中、失败原因） |
+| 页面 | `SkillCardPages.spec.tsx` | 配置页（目录读取、名称/skill/模板、**卡片页自己的头部只有返回**、模型的写入）与结果页（运行中、失败原因、运行控件的三态与"目录晚到"的订阅路径） |
 | 结果页 | `SkillCardResultPage.spec.tsx` | `html` 的真实换行与其余字段的 JSON、缺失字段整行不出现、默认折叠（**没有 `open` 属性**）、结果表面只框不命名（表层里没有 `header`、也没有 `aria-labelledby`）、权限脚注在页末；第九版增加了去缩进的显示值、影子根仍是原缩进、开关文案「运行详情」与 `原始输出` 的分离、结束原因的三行映射 + 未知值原样 + 英文侧；第十一版删掉了三个状态行用例，并把"框住并命名"改写为只断言框住 |
 | 微调界面 | `SkillCardRefine.spec.tsx` | 空输入不可按、请求形状、成功替换 + 记录 + 一步回退（轮询路径）、失败结果不变且告警只在编辑器一处、被拒启动同样报在那里、再微调的 `previous`、运行中的忙碌态与禁用、没有结果时不提供编辑器；第九版增加了 `Enter` 提交 / `Shift+Enter` 换行、`rows` 1→4 封顶、运行中主控件变「停止」并调用取消、记录头部行的条数与「回到上一版」的位置、提示行是整块最后一行 |
 | 卡片模型 | `WorkbenchCardShell.spec.tsx`、`WorkbenchCardGrid.spec.tsx`、`WorkbenchPage.spec.tsx`、`layout-controller.spec.tsx` | 外壳的标题/子标题/失败位与激活、X 只在有 `onRemove` 时渲染且只表示删除、**排序手柄在头部动作末位**、拖拽与键盘排序、创建卡片磁贴、存盘实例的投影、布局记录只剩排序（`hidden` 被忽略）与 reset 的删除语义。**注意它不覆盖卡片页上的面板标题**：每个用例都把 `useSelection` 定为 `undefined`（见附录 B 第 58 条） |
-| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行 |
+| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行；第十二版增加模型字段的三态、分组与名称、选择回调拿到的那一对 |
 | 结果编辑器 | `SkillCardResultEdit.spec.tsx` | 入口的四种状态（有结果、无结果、运行中、裸运行中）与打开期间运行不可按、初值来自存盘片段、行号与「没有文档级 affordance」、字节读数、保存的请求与视图、取消不写、内容策略五码逐个 + 跳转、空内容、超预算不截断、`editedAt` 那一行、回退一步且记录仍为 0 条、Tab/Shift+Tab/Escape+Tab |
-| 结果写传输 | `skill-card-result-api.spec.ts` | `PUT` 的路径与体、`parseResultEdit` 的契约版本/身份/`editedAt` 形状校验、拒绝与传输失败的两种结果 |
+| 结果写传输 | `skill-card-result-api.spec.ts` | `PUT` 的路径与体、`parseResultEdit` 的契约版本/身份/`editedAt`/`model` 形状校验、拒绝与传输失败的两种结果 |
 
 > 第二版这里的 `skill-card-api.spec.ts`（解析、非契约响应、串行队列）与"字段清单"用例已不存在：传输层没有独立 spec，它通过组件与页面 spec 以假 api 驱动。
 
@@ -2435,9 +2563,9 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 
 ## 附录 B：验收映射
 
-需求 §14 的 **1–16**（既有卡片能力）、**35–48**（编辑器与配置页）、**49–56**（结果页与微调，**其中 52 已撤回**）、**57–60**（第九版那批打磨）与 **61–70**（第十版的手工编辑结果）与本设计的对应关系：
+需求 §14 的 **1–16**（既有卡片能力）、**35–48**（编辑器与配置页）、**49–56**（结果页与微调，**其中 52 已撤回**）、**57–60**（第九版那批打磨）、**61–70**（第十版的手工编辑结果）与 **71–79**（第十二版的每卡模型选择）与本设计的对应关系：
 
-> **17–34 不在本附录里，这是故意的。** 它们属于「技能卡按钮触发执行」，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)逐条映射；那部分与本设计共用 M1、M2、M3 的同一批代码，但模块编排（M1–M8）在那一份文档里。看到 §14 一共 70 条、而本表 52 行，不是遗漏。**其中第 52 行已撤回**（第十一版，见需求 §14.4）：那一行留着，是为了让编号与历史对得上，它不主张任何东西已通过。
+> **17–34 不在本附录里，这是故意的。** 它们属于「技能卡按钮触发执行」，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)逐条映射；那部分与本设计共用 M1、M2、M3 的同一批代码，但模块编排（M1–M8）在那一份文档里。看到 §14 一共 79 条、而本表 61 行，不是遗漏。**其中第 52 行已撤回**（第十一版，见需求 §14.4）：那一行留着，是为了让编号与历史对得上，它不主张任何东西已通过。
 
 | 需求验收 | 落在哪个模块 |
 | --- | --- |
@@ -2493,6 +2621,15 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 68 记录带 `editedAt`，运行详情有一行「手工编辑」和时间 | M1 的 `editedAt` + M10「结果页」`RunOutput` 的新行 + M8 `parseResultEdit` 的形状校验；`SkillCardResultEdit.spec.tsx`、`skill-card-result-api.spec.ts` |
 | 69 保存不伪造运行：保 `skill`/`stopReason`/输出/诊断，只换 `structured.html`，刷新 `executedAt`、写 `editedAt`；下一次运行覆盖 | M10/store 的 `putEditedResult`（`moment()` 与 `structuredRecord()`）+ M10「结果的手工编辑」+ `putResult` 的既有语义；`skill-card-result-edit.spec.ts` |
 | 70 `editedAt` 在存储 schema 里声明，重启后仍在 | M4 的 `workbenchResultSchema` 与「约束：store 写入的每个字段都必须在 schema 里声明」；`skill-card-spec.spec.ts` |
+| 71 卡片模型以 `{ provider, model }` 存储并声明在 schema 里，重启后仍在 | M1「卡片模型：一对 id，不是一个字符串」+ M4（`workbenchCardModelSchema`、合并与清空语义）；`skill-card-spec.spec.ts`、`skill-card-store.spec.ts`、`skill-card-route.spec.ts` |
+| 72 结果的 `model` 同样在 schema 里声明 | M1（`WorkbenchResultRecord.model?`）+ M4（`workbenchResultSchema.model`、`trimResult` 的基础记录）+ M5（记录落 `model`）；`skill-card-spec.spec.ts`、`skill-card-runner.spec.ts` |
+| 73 模型字段三态与运行控件；从不提供自由文本 id | M10「卡片的模型字段」（`resolveModelField`、`modelKey`/`parseModelKey`、`ModelField` 组件）+ M8（目录读进 state 并订阅、`runnable` 与 `modelField` AND）+ M9（`ctx.inject(['modelDirectories'])` 与座位）；`skill-card-model.spec.ts`、`SkillCardSettings.spec.tsx`、`SkillCardPages.spec.tsx`（原生下拉的展开与像素高度不可测） |
+| 74 结果里的模型看得见（运行详情那一行） | M5（记录带路由）+ M10「结果页」的 `RunOutput`（`model` 缺席则整行不存在）；`SkillCardResultPage.spec.tsx`、`skill-card-runner.spec.ts` |
+| 75 卡片写了模型时以 `agentOptions` 启动子代理 | M5「模型：钉住这次运行的路由」（第 7 步的条件展开）；`skill-card-runner.spec.ts` |
+| 76 卡片没写模型时一个字段都不传（照旧继承） | M5 同一节（`selection.model === undefined` 时整个键不出现）；`skill-card-runner.spec.ts` |
+| 77 后端不支持 `agentOptions` 时拒绝，消息点名路由 | M5 `modelRefusal()` 的第一条；`skill-card-runner.spec.ts` |
+| 78 模型 provider 不存在时拒绝（`provider-unavailable`） | M5 `modelRefusal()` 的 `ctx.llm.listModels` 抛错分支；`skill-card-runner.spec.ts`、`skill-card-route.spec.ts` |
+| 79 模型不存在时拒绝（`model-unavailable`，409），并校验线上形状 | M1 的新错误码与三张映射表 + M5 `modelRefusal()` 的目录比对 + M6 的 `STATUS_BY_CODE` 与 `parsePatch` 的 `model` 校验；`skill-card-runner.spec.ts`、`skill-card-route.spec.ts`、`skill-card-result-api.spec.ts` |
 
 ## 附录 C：依据
 
@@ -2501,11 +2638,16 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 结论 | 出处 |
 | --- | --- |
 | 子代理服务名 `subagents`，宿主平面进程单例 | [index.ts:208](../deepseek-harness/packages/subagent/subagent/src/index.ts#L208)、[web-app/cordis.patch.yml:536](../deepseek-harness/packages/bundle/web-app/cordis.patch.yml#L536) |
-| 启动方法是 `startActivation(spec)`，不是 `start` | [index.ts:253](../deepseek-harness/packages/subagent/subagent/src/index.ts#L253) |
+| 启动方法是 `startActivation(spec)`，不是 `start`；它从 `0.2.1-alpha.2` 起才有，`0.2.0-rc.2` 没有 | [index.ts:253](../deepseek-harness/packages/subagent/subagent/src/index.ts#L253) |
 | `parent` 必填，且必须是 registry 里那个活的 Agent | [types.ts:147](../deepseek-harness/packages/subagent/subagent/src/types.ts#L147)、[index.ts:274](../deepseek-harness/packages/subagent/subagent/src/index.ts#L274) |
 | 按 sessionId 取活 Agent：`ctx.agents.get(id)` | [agent/src/index.ts:566](../deepseek-harness/packages/core/agent/src/index.ts#L566) |
 | `outputSchema` 是启动请求字段，启动时即校验 | [types.ts:169](../deepseek-harness/packages/subagent/subagent/src/types.ts#L169)、[index.ts:278](../deepseek-harness/packages/subagent/subagent/src/index.ts#L278) |
 | 不传 `agentOptions` = 继承父 agent 的模型与路由 | [types.ts:156](../deepseek-harness/packages/subagent/subagent/src/types.ts#L156) |
+| `agentOptions` 受 `SubagentCapabilities.agentOptions` 门控，`spawn` advertise 为真 | [types.ts:123](../deepseek-harness/packages/subagent/subagent/src/types.ts#L123) |
+| 请求里的路由**整体铺在父路由之上**，一个半截覆盖会跑到不存在的路由 | [child-agent.ts:97](../deepseek-harness/packages/subagent/subagent/src/child-agent.ts#L97) |
+| 会话模型目录是客户端服务 `ctx.modelDirectories`，`directoryFor(sessionId)` 对"被寻址的子代理会话"抛错 | [service.ts:66](../deepseek-harness/packages/client/ui-model-selection/src/client/service.ts#L66) |
+| 目录状态在 `ModelDirectory.store`（`current` / `groups` / `status` / `failures`）上，`select()` 改的是**会话**的模型 | [directory.ts:38](../deepseek-harness/packages/client/ui-model-selection/src/client/directory.ts#L38) |
+| 宿主侧查模型目录用 `ctx.llm.listModels(provider)`，未注册的 provider 直接抛错 | [llm/src/index.ts:695](../deepseek-harness/packages/llm/llm/src/index.ts#L695) |
 | 不传 `toolFilter` = 不限制子代理工具 | [types.ts:177](../deepseek-harness/packages/subagent/subagent/src/types.ts#L177) |
 | `stopReason==='completed'` 但无合法捕获时被改写成 `'error'` | [activation.ts:150](../deepseek-harness/packages/subagent/subagent/src/activation.ts#L150) |
 | 子代理自身的失败只以 `agent/error` 事件暴露（`{ agent, turn, step, error }`） | [core/agent/src/runtime-types.ts:393](../deepseek-harness/packages/core/agent/src/runtime-types.ts#L393) |

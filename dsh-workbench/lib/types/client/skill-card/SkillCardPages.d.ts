@@ -15,6 +15,7 @@
 import { type ReactNode } from 'react';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
+import type { WorkbenchModelSeat } from './model.ts';
 /** What both pages need to show and change one card. */
 export interface SkillCardPageProps {
     /** Transport. */
@@ -26,6 +27,13 @@ export interface SkillCardPageProps {
      * @returns the session id, or undefined when none is available.
      */
     readonly runSessionId: () => string | undefined;
+    /**
+     * Read the model catalog, and what it knows about one session.
+     *
+     * Required rather than optional: a page that cannot see the directory cannot say which
+     * model a run would use, and this feature never runs work it cannot name.
+     */
+    readonly models: WorkbenchModelSeat;
     /**
      * Shown in place of the name while the card has none.
      *

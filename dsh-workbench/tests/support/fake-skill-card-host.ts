@@ -58,9 +58,25 @@ export interface FakeHostOptions {
   readonly cwd?: string
   readonly skills?: readonly WorkbenchSkillSummary[]
   readonly definitions?: Readonly<Record<string, WorkbenchSkillDefinition>>
-  readonly providers?: Readonly<Record<string, { readonly outputSchema: boolean }>>
+  /**
+   * Registered backends and their capabilities.
+   *
+   * `agentOptions` defaults to true because that is what the `spawn` backend this
+   * deployment configures advertises; a case that exercises a backend without it says so.
+   */
+  readonly providers?: Readonly<Record<string, { readonly outputSchema: boolean; readonly agentOptions?: boolean }>>
+  /** Models the LLM registry answers with, per provider route; an unlisted route rejects. */
+  readonly models?: Readonly<Record<string, readonly string[]>>
   readonly outcomes?: readonly ScriptedResult[]
   readonly throwsOn?: 'ensure' | 'list'
+  /**
+   * Whether the double exposes the activation seam.
+   *
+   * `false` models a harness that predates it — `0.2.0-rc.2` on the stable channel, whose
+   * subagent service has `start` and `startContinuable` but no `startActivation`. Every
+   * case that does not say otherwise keeps the seam.
+   */
+  readonly startActivation?: boolean
 }
 
 /** The fake host plus what a spec wants to assert about. */
@@ -93,6 +109,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   const lookups: WorkbenchSkillLookup[] = []
   const disposed = { count: 0 }
   const providers = options.providers ?? { spawn: { outputSchema: true } }
+  const models = options.models ?? { deepseek: ['deepseek-chat'] }
   const outcomes = options.outcomes ?? [{ output: [], stopReason: 'completed', structured: { a: '1' } }]
   let call = 0
   let settleManual: ((result: WorkbenchSubagentResult) => void) | undefined
@@ -133,28 +150,41 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       list: () => Object.keys(providers),
       getProvider: (name) => {
         const capabilities = providers[name]
-        return capabilities === undefined ? undefined : { capabilities }
+        return capabilities === undefined
+          ? undefined
+          : { capabilities: { outputSchema: capabilities.outputSchema, agentOptions: capabilities.agentOptions ?? true } }
       },
-      startActivation: async (spec): Promise<WorkbenchActivation> => {
-        activations.push(spec)
-        const scripted = outcomes[call] ?? { output: [], stopReason: 'completed' }
-        call += 1
-        if (scripted === 'hang') {
-          const result = new Promise<WorkbenchSubagentResult>((resolve) => {
-            const abort = (): void => { resolve({ output: [], stopReason: 'aborted' }) }
-            // A cancel can land before the activation is even requested, so an
-            // already-aborted signal has to settle immediately rather than wait
-            // for an event that will never fire again.
-            if (spec.signal.aborted) { abort(); return }
-            spec.signal.addEventListener('abort', abort, { once: true })
-          })
-          return { childId: 'child', result, dispose: async () => { disposed.count += 1 } }
-        }
-        if (scripted === 'manual') {
-          const result = new Promise<WorkbenchSubagentResult>((resolve) => { settleManual = resolve })
-          return { childId: 'child', result, dispose: async () => { disposed.count += 1 } }
-        }
-        return { childId: 'child', result: Promise.resolve(scripted), dispose: async () => { disposed.count += 1 } }
+      ...options.startActivation === false ? {} : {
+        startActivation: async (spec: WorkbenchActivationSpec): Promise<WorkbenchActivation> => {
+          activations.push(spec)
+          const scripted = outcomes[call] ?? { output: [], stopReason: 'completed' }
+          call += 1
+          if (scripted === 'hang') {
+            const result = new Promise<WorkbenchSubagentResult>((resolve) => {
+              const abort = (): void => { resolve({ output: [], stopReason: 'aborted' }) }
+              // A cancel can land before the activation is even requested, so an
+              // already-aborted signal has to settle immediately rather than wait
+              // for an event that will never fire again.
+              if (spec.signal.aborted) { abort(); return }
+              spec.signal.addEventListener('abort', abort, { once: true })
+            })
+            return { childId: 'child', result, dispose: async () => { disposed.count += 1 } }
+          }
+          if (scripted === 'manual') {
+            const result = new Promise<WorkbenchSubagentResult>((resolve) => { settleManual = resolve })
+            return { childId: 'child', result, dispose: async () => { disposed.count += 1 } }
+          }
+          return { childId: 'child', result: Promise.resolve(scripted), dispose: async () => { disposed.count += 1 } }
+        },
+      },
+    },
+    llm: {
+      listModels: async (provider) => {
+        const offered = models[provider]
+        // A missing provider rejects here for the same reason the real registry does: the
+        // route is not mounted, which is a different refusal from a model that left.
+        if (offered === undefined) throw new Error(`no provider "${provider}" is mounted`)
+        return offered.map(id => ({ id }))
       },
     },
   }

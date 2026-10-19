@@ -20,6 +20,16 @@ export declare const WORKBENCH_TEMPLATE_TABLE = "template";
 /** Table holding one execution result per card. */
 export declare const WORKBENCH_RESULT_TABLE = "result";
 /**
+ * Stored form of one provider/model route.
+ *
+ * The pair is stored as two fields rather than one `"provider/model"` string, so no
+ * reader ever has to split it back apart: a provider id may itself contain a slash.
+ */
+export declare const workbenchCardModelSchema: z.ZodObject<{
+    provider: z.ZodString;
+    model: z.ZodString;
+}, z.core.$strip>;
+/**
  * Stored schema for one card's selection and name; absence means "not configured yet".
  *
  * Every field the store writes has to appear here. Zod drops a key this schema does not
@@ -29,6 +39,10 @@ export declare const WORKBENCH_RESULT_TABLE = "result";
 export declare const workbenchCardConfigSchema: z.ZodObject<{
     skill: z.ZodOptional<z.ZodString>;
     name: z.ZodOptional<z.ZodString>;
+    model: z.ZodOptional<z.ZodObject<{
+        provider: z.ZodString;
+        model: z.ZodString;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 /** Stored schema for one template. */
 export declare const workbenchTemplateSchema: z.ZodObject<{
@@ -44,11 +58,19 @@ export declare const workbenchTemplateSchema: z.ZodObject<{
  * `editedAt` is declared here in the same change that writes it. A field the store
  * writes and this schema does not know is dropped on the next load, which reads to the
  * user as "it saved, then reverted after a restart" — the bug that once lost card names.
+ *
+ * `model` is declared for the same reason: the runner stamps the route it ran on, and a
+ * result that silently lost it would put the user back to guessing which model produced
+ * what they are reading.
  */
 export declare const workbenchResultSchema: z.ZodObject<{
     skill: z.ZodString;
     executedAt: z.ZodNumber;
     stopReason: z.ZodString;
+    model: z.ZodOptional<z.ZodObject<{
+        provider: z.ZodString;
+        model: z.ZodString;
+    }, z.core.$strip>>;
     structured: z.ZodOptional<z.ZodUnknown>;
     outputText: z.ZodOptional<z.ZodString>;
     diagnostic: z.ZodOptional<z.ZodString>;

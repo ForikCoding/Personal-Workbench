@@ -10,6 +10,7 @@
  */
 
 import type {
+  WorkbenchCardModel,
   WorkbenchResultRecord,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
@@ -18,7 +19,9 @@ import type {
   WorkbenchSkillCatalogEntry,
 } from './skill-card-contract.ts'
 import type {
+  WorkbenchActivationSeam,
   WorkbenchAgent,
+  WorkbenchModelInfo,
   WorkbenchSkillCardHost,
   WorkbenchSkillDefinition,
   WorkbenchSkillLookup,
@@ -26,6 +29,15 @@ import type {
   WorkbenchWorkingDirectory,
 } from './skill-card-host.ts'
 import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
+
+/**
+ * Why a card run cannot start on a harness without the activation seam.
+ *
+ * One sentence naming the exact member the harness must provide and where it exists: this
+ * text is an operator's remedy, so it says which version and channel has the seam.
+ */
+const SUBAGENT_SEAM_DETAIL =
+  'this harness provides no subagents.startActivation, so a card run cannot start; card runs need a harness that exposes it (0.2.1-alpha.2, the beta channel)'
 
 /** Outcome of reading one session's skill catalog. */
 export type WorkbenchCatalogOutcome =
@@ -43,6 +55,13 @@ export interface WorkbenchCardSelection {
   readonly skill?: string
   /** Template stored for the selected skill; absent means the card cannot run. */
   readonly template?: string
+  /**
+   * Model the card runs on; absent means its runs inherit the session's model.
+   *
+   * Read from storage rather than from the request: the route a card runs on is part of
+   * what the card is, so a client cannot start a run on a route the card does not name.
+   */
+  readonly model?: WorkbenchCardModel
 }
 
 /** Everything the runner depends on. */
@@ -131,6 +150,8 @@ type RunInput =
     readonly skill: string
     /** The card's HTML for this skill, carried into the prompt as the output template. */
     readonly template: string
+    /** Route this run is pinned to; absent inherits the session's. */
+    readonly model?: WorkbenchCardModel
     /** The row that triggered this run, when a click did. */
     readonly payload?: Record<string, unknown>
     readonly outputSchema: unknown
@@ -141,6 +162,8 @@ type RunInput =
     readonly skill: string
     /** The card's HTML for this skill, the same document a card run fills. */
     readonly template: string
+    /** Route this run is pinned to; absent inherits the session's. */
+    readonly model?: WorkbenchCardModel
     /** The region HTML the revision starts from, verbatim. */
     readonly previous: string
     /** What to change, verbatim. */
@@ -153,6 +176,8 @@ type RunInput =
     readonly kind: 'bare'
     readonly agent: WorkbenchAgent
     readonly skill: string
+    /** Route this run is pinned to; absent inherits the session's. */
+    readonly model?: WorkbenchCardModel
     /** The row that triggered this run, when a click did. */
     readonly payload?: Record<string, unknown>
   }
@@ -243,17 +268,29 @@ export class WorkbenchSkillCardRunner {
    * @param request - card, session, what the run is asked to do, and the client's contract.
    * @returns the started run's state, or why it was refused.
    */
-  start(request: WorkbenchRunRequest): WorkbenchRunStartOutcome {
+  async start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome> {
+    // The activation seam is the first capability every mode needs, and the composition
+    // has already probed it once. This is the second line rather than a probe: a stale
+    // click, a direct route call, or a template button that arrives on a harness without
+    // the seam has to be refused here. Letting it through would reach the one call that
+    // needs the seam and throw `undefined is not a function` out of the request handler,
+    // which is a stack trace where a state belongs.
+    const subagents = this.options.host.subagents
+    const activation = subagents.startActivation
+    if (typeof activation !== 'function') {
+      return reject('run-unavailable', SUBAGENT_SEAM_DETAIL)
+    }
     const mode = request.mode
     // A bare run asks for no value, so a missing contract is not a defect there. Every
     // run that fills a template — a first fill or a revision — has one to satisfy.
     if (mode.kind !== 'bare' && !looksLikeContract(request.outputSchema)) {
       return reject('schema-rejected', 'the run carried no object-rooted output contract')
     }
-    // A refine run reads its document from the same stored selection a card run does:
-    // the request never carries the template.
-    const selection = mode.kind === 'bare' ? undefined : this.options.selection(request.cardId)
-    const skill = mode.kind === 'bare' ? mode.skill : selection?.skill
+    // Every mode reads the card's own selection: a bare run takes its skill from the
+    // button, but it still runs on the card that owns the button, so the route and the
+    // template precondition are answered from the same record a card run reads.
+    const selection = this.options.selection(request.cardId)
+    const skill = mode.kind === 'bare' ? mode.skill : selection.skill
     if (skill === undefined) {
       return reject('not-configured', 'no skill is configured for this card')
     }
@@ -271,20 +308,32 @@ export class WorkbenchSkillCardRunner {
     if (request.outputSchema !== undefined && !provider.capabilities.outputSchema) {
       return reject('provider-unavailable', `subagent provider "${providerName}" cannot return structured output`)
     }
+    const model = selection.model
+    // Refuse rather than fall back. A card that names a model the deployment cannot route
+    // must not quietly run on the session's model: the card says one thing, the run would
+    // do another, and the result would name a route it never used.
+    if (model !== undefined) {
+      const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model)
+      if (refusal !== undefined) return refusal
+    }
+    // Checked after the model query, never before it, so the reservation below stays
+    // synchronous: two starts that both awaited the same query must not both win.
     if (this.runs.get(request.cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns) {
       return reject('run-in-progress', 'another run is already in flight')
     }
 
+    const pinned = model === undefined ? {} : { model }
     let input: RunInput
     if (mode.kind === 'bare') {
       input = {
         kind: 'bare',
         agent,
         skill,
+        ...pinned,
         ...request.payload === undefined ? {} : { payload: request.payload },
       }
     } else {
-      const template = selection?.template
+      const template = selection.template
       if (template === undefined) {
         return reject('template-missing', `no template is stored for skill "${skill}"`)
       }
@@ -294,6 +343,7 @@ export class WorkbenchSkillCardRunner {
             agent,
             skill,
             template,
+            ...pinned,
             previous: mode.previous,
             instruction: mode.instruction,
             ...request.payload === undefined ? {} : { payload: request.payload },
@@ -304,6 +354,7 @@ export class WorkbenchSkillCardRunner {
             agent,
             skill,
             template,
+            ...pinned,
             ...request.payload === undefined ? {} : { payload: request.payload },
             outputSchema: request.outputSchema,
           }
@@ -327,13 +378,56 @@ export class WorkbenchSkillCardRunner {
     this.runs.set(request.cardId, run)
     this.active += 1
 
-    const execution = this.execute(run, input)
+    // Bound to the service it came from: the attempt path calls it from a different
+    // method, and the real one reads its own receiver.
+    const execution = this.execute(run, input, activation.bind(subagents))
     this.inflight.add(execution)
     void execution
       .catch((error: unknown) => { this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`) })
       .finally(() => { this.inflight.delete(execution) })
 
     return { status: 'started', state: this.stateOf(run) }
+  }
+
+  /**
+   * Answer whether a card's route can actually be run here.
+   *
+   * Three separate reasons, and each refuses rather than falling back to the session's
+   * model: a backend that cannot take a route, a provider this deployment does not route,
+   * and a provider that no longer offers that model. The last two are told apart by the
+   * registry itself — `listModels` rejects for a provider it does not have — and the
+   * message names the route in every case, because "the model is gone" is only actionable
+   * when it says which one.
+   * @param providerName - configured subagent backend name.
+   * @param canChooseModel - whether that backend advertises the `agentOptions` capability.
+   * @param model - the route the card names.
+   * @returns the refusal, or undefined when the route can be used.
+   */
+  private async modelRefusal(
+    providerName: string,
+    canChooseModel: boolean,
+    model: WorkbenchCardModel,
+  ): Promise<WorkbenchRunStartOutcome | undefined> {
+    const route = `"${model.provider}/${model.model}"`
+    if (!canChooseModel) {
+      return reject(
+        'provider-unavailable',
+        `subagent provider "${providerName}" cannot run a chosen model, so ${route} cannot be used`,
+      )
+    }
+    let offered: readonly WorkbenchModelInfo[]
+    try {
+      offered = await this.options.host.llm.listModels(model.provider)
+    } catch (error) {
+      return reject(
+        'provider-unavailable',
+        `model provider "${model.provider}" is not available, so ${route} cannot be used: ${messageOf(error)}`,
+      )
+    }
+    if (!offered.some(entry => entry.id === model.model)) {
+      return reject('model-unavailable', `provider "${model.provider}" does not offer the model ${route}`)
+    }
+    return undefined
   }
 
   /**
@@ -390,9 +484,14 @@ export class WorkbenchSkillCardRunner {
    * Run one card's skill to a terminal state.
    * @param run - the run record to settle.
    * @param input - resolved agent, skill name, and output contract.
+   * @param activate - the activation seam, already known to exist and bound to its service.
    * @returns resolution after the run reaches a terminal phase.
    */
-  private async execute(run: RunRecord, input: RunInput): Promise<void> {
+  private async execute(
+    run: RunRecord,
+    input: RunInput,
+    activate: WorkbenchActivationSeam,
+  ): Promise<void> {
     const signal = run.controller.signal
     try {
       const cwd = await this.cwdFor(input.agent, signal)
@@ -406,12 +505,12 @@ export class WorkbenchSkillCardRunner {
         return
       }
 
-      let outcome = await this.attempt(run, input, cwd, skill)
+      let outcome = await this.attempt(run, input, cwd, skill, activate)
       // One retry, and only when repeating the ask could plausibly help: the
       // sentinel that a capture was missed is `unusable` plus `retryable`.
       if (outcome.kind === 'unusable' && outcome.retryable && !signal.aborted) {
         run.retried = true
-        outcome = await this.attempt(run, input, cwd, skill)
+        outcome = await this.attempt(run, input, cwd, skill, activate)
       }
       await this.finish(run, outcome)
     } catch (error) {
@@ -437,6 +536,7 @@ export class WorkbenchSkillCardRunner {
    * @param input - the agent, skill, and either the card's template and contract or nothing.
    * @param cwd - the agent's working directory.
    * @param skill - the loaded skill.
+   * @param activate - the activation seam, known to exist.
    * @returns the attempt's outcome.
    */
   private async attempt(
@@ -444,12 +544,13 @@ export class WorkbenchSkillCardRunner {
     input: RunInput,
     cwd: string | undefined,
     skill: WorkbenchSkillDefinition,
+    activate: WorkbenchActivationSeam,
   ): Promise<AttemptOutcome> {
     const signal = run.controller.signal
-    // Omitting `agentOptions` and `toolFilter` is how this run inherits the
-    // session's model and its full tool permissions. Adding either would silently
-    // narrow the behaviour the feature promises.
-    const activation = await this.options.host.subagents.startActivation({
+    // Omitting `toolFilter` is how this run inherits the session's full tool permissions.
+    // Naming a route is the card's own choice: with no model configured nothing is passed
+    // and the child inherits the session's model exactly as it always did.
+    const activation = await activate({
       provider: this.options.subagentProvider,
       label: `workbench:${run.cardId}`,
       signal,
@@ -468,6 +569,7 @@ export class WorkbenchSkillCardRunner {
         // Conditional on purpose: a bare run sends no contract at all, and the seam
         // treats its absence as "nothing to capture" rather than as a default.
         ...input.kind === 'bare' ? {} : { outputSchema: input.outputSchema },
+        ...input.model === undefined ? {} : { agentOptions: input.model },
       },
     })
     // Bound before awaiting the result: the child may fault while it runs, and the bus
@@ -479,8 +581,8 @@ export class WorkbenchSkillCardRunner {
       // A refine run settles exactly like a card run: it captured `{ html }`, so the
       // record is the same shape and the store, retry and failure paths are reused.
       const stored = input.kind === 'bare'
-        ? toBareRecord(input.skill, result, this.now())
-        : toResultRecord(input.skill, result, this.now())
+        ? toBareRecord(input.skill, result, this.now(), input.model)
+        : toResultRecord(input.skill, result, this.now(), input.model)
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
       const record = result.stopReason === 'error'
@@ -649,14 +751,21 @@ function toCatalogEntry(skill: {
  * @param skill - the skill that ran.
  * @param result - the child's terminal result.
  * @param executedAt - completion time.
+ * @param model - the route the run was pinned to, when the card named one.
  * @returns the stored record.
  */
-function toResultRecord(skill: string, result: WorkbenchSubagentResult, executedAt: number): WorkbenchResultRecord {
+function toResultRecord(
+  skill: string,
+  result: WorkbenchSubagentResult,
+  executedAt: number,
+  model: WorkbenchCardModel | undefined,
+): WorkbenchResultRecord {
   const text = textOf(result.output)
   return {
     skill,
     executedAt,
     stopReason: result.stopReason,
+    ...model === undefined ? {} : { model },
     ...result.structured === undefined ? {} : { structured: result.structured },
     ...text === '' ? {} : { outputText: text },
     ...result.diagnostic === undefined ? {} : { diagnostic: result.diagnostic },
@@ -669,17 +778,24 @@ function toResultRecord(skill: string, result: WorkbenchSubagentResult, executed
  * Deliberately narrower than {@link toResultRecord}: a bare run answers only whether
  * it worked, so neither a structured value nor the output text is kept. Keeping them
  * would put a model's prose one field away from a surface that must show only the
- * verdict.
+ * verdict. The route is kept, because it is provenance rather than content.
  * @param skill - the skill that ran.
  * @param result - the child's terminal result.
  * @param executedAt - completion time.
+ * @param model - the route the run was pinned to, when the card named one.
  * @returns the in-memory record.
  */
-function toBareRecord(skill: string, result: WorkbenchSubagentResult, executedAt: number): WorkbenchResultRecord {
+function toBareRecord(
+  skill: string,
+  result: WorkbenchSubagentResult,
+  executedAt: number,
+  model: WorkbenchCardModel | undefined,
+): WorkbenchResultRecord {
   return {
     skill,
     executedAt,
     stopReason: result.stopReason,
+    ...model === undefined ? {} : { model },
     ...result.diagnostic === undefined ? {} : { diagnostic: result.diagnostic },
   }
 }

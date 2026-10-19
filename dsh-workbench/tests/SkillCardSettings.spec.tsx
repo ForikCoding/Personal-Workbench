@@ -4,6 +4,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { MODEL_CURRENT, MODEL_GROUPS } from './support/fake-model-seat.ts'
+import { modelKey } from '../src/client/skill-card/model.ts'
+import type { WorkbenchCardModel } from '../src/skill-card-contract.ts'
 import { SkillCardSettings } from '../src/client/skill-card/SkillCardSettings.tsx'
 import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
 import { zh } from '../src/client/locales.ts'
@@ -44,6 +47,9 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   return {
     status: 'ready',
     runnable: false,
+    // A catalog-backed picker with one route selected, which is what the field shows once
+    // the directory has answered. Cases that care about the other two states override it.
+    modelField: { kind: 'ready', groups: MODEL_GROUPS, selected: MODEL_CURRENT },
     catalog: [],
     catalogStatus: 'ready',
     catalogFailure: undefined,
@@ -67,12 +73,14 @@ function setup(
   container: HTMLElement
   onSave: ReturnType<typeof vi.fn>
   onChoose: ReturnType<typeof vi.fn>
+  onChooseModel: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
   onDelete: ReturnType<typeof vi.fn>
 } {
   const onSave = vi.fn()
   const onChoose = vi.fn()
+  const onChooseModel = vi.fn()
   const onRename = vi.fn()
   const onClose = vi.fn()
   const onDelete = vi.fn()
@@ -82,16 +90,20 @@ function setup(
       t={translator}
       onSave={onSave}
       onChoose={onChoose}
+      onChooseModel={onChooseModel}
       onRename={onRename}
       onClose={onClose}
       onDelete={onDelete}
     />,
   )
-  return { container, onSave, onChoose, onRename, onClose, onDelete }
+  return { container, onSave, onChoose, onChooseModel, onRename, onClose, onDelete }
 }
 
 /** A template that declares the one region a run fills. */
 const REGION = '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->'
+
+/** A route a card stores, chosen from the catalog the editor is given. */
+const STORED_MODEL: WorkbenchCardModel = { provider: 'deepseek', model: 'deepseek-reasoner' }
 
 describe('skill card editor', () => {
   it('offers only the skills a human may invoke', () => {
@@ -102,7 +114,11 @@ describe('skill card editor', () => {
         { name: 'hidden', description: 'b', userInvocable: false },
       ],
     })
-    const values = [...container.querySelectorAll('option')].map(option => option.getAttribute('value'))
+    // Scoped to the skill picker, which is the first select in the basics row: the model
+    // field is a second select with its own options, and asking the container for every
+    // option would compare both lists at once.
+    const skillPicker = container.querySelectorAll('select')[0] as HTMLSelectElement
+    const values = [...skillPicker.querySelectorAll('option')].map(option => option.getAttribute('value'))
     expect(values).toEqual(['', 'git-repo'])
   })
 
@@ -186,6 +202,20 @@ describe('skill card editor', () => {
     fireEvent.change(screen.getByPlaceholderText('skillCardNamePlaceholder'), { target: { value: '效能任务' } })
     fireEvent.click(screen.getByRole('button', { name: 'skillCardSave' }))
     expect(onSave).toHaveBeenCalledWith(REGION, '效能任务')
+  })
+
+  it('stays editable when the harness cannot run cards', () => {
+    // Running is the only thing a missing activation seam closes. The editor keeps
+    // saving, and the state does not become a false "save failed" alert here: its copy
+    // belongs beside the run control, on the page that owns one.
+    const { onSave } = setup({
+      skill: 'git-repo',
+      template: REGION,
+      runUnavailable: { code: 'run-unavailable' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'skillCardSave' }))
+    expect(onSave).toHaveBeenCalledWith(REGION, '')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('will not save before a skill is chosen', () => {
@@ -700,7 +730,7 @@ describe('the page groups', () => {
 
   it('pairs every label with its control', () => {
     setup({ skill: 'git-repo', template: REGION }, zhT)
-    for (const name of [zh.skillCardCardName, zh.skillCardSelectSkill]) {
+    for (const name of [zh.skillCardCardName, zh.skillCardSelectSkill, zh.skillCardModel]) {
       const label = screen.getByText(name)
       const control = screen.getByLabelText(name)
       expect(label.tagName).toBe('LABEL')
@@ -710,6 +740,66 @@ describe('the page groups', () => {
     // The template field is named by its own label attribute: the group heading is a
     // heading, and a second visible label over a code field is noise.
     expect(screen.getByRole('textbox', { name: zh.skillCardTemplateLabel }).tagName).toBe('TEXTAREA')
+  })
+})
+
+describe('the model field', () => {
+  it('offers the catalog grouped by provider, labelled with the model names', () => {
+    // Criterion 73, first state. The option text is `ModelCatalogModel.name`; the id is
+    // what a request carries and is never what the user is asked to read.
+    const { container } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-model-select]') as HTMLSelectElement
+    expect([...picker.querySelectorAll('optgroup')].map(group => group.getAttribute('label')))
+      .toEqual(['DeepSeek', 'Gateway'])
+    expect([...picker.querySelectorAll('option')].map(option => option.textContent))
+      .toEqual(['DeepSeek Chat', 'DeepSeek Reasoner', 'Large'])
+    // The default is the session's current model, so the field never renders blank.
+    expect(picker.value).toBe(modelKey(MODEL_CURRENT))
+  })
+
+  it('stores the chosen pair, not a joined string', () => {
+    // The provider id in the option value contains a slash: a `"provider/model"` option
+    // value could not be split back into these two fields.
+    const { container, onChooseModel } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-model-select]') as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: modelKey({ provider: 'vendor/gateway', model: 'large' }) } })
+    expect(onChooseModel).toHaveBeenCalledWith({ provider: 'vendor/gateway', model: 'large' })
+  })
+
+  it('shows a known route as text when the directory cannot answer', () => {
+    // Criterion 73, second state. Not a disabled picker: the card will run on this route,
+    // and offering other models would read as a choice the user still has.
+    const { container } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'fixed', model: STORED_MODEL, name: 'DeepSeek Reasoner' },
+    }, zhT)
+    expect(container.querySelector('[data-model-select]')).toBeNull()
+    const fixed = container.querySelector('[data-model-fixed]') as HTMLElement
+    expect(fixed.textContent).toBe('DeepSeek Reasoner')
+    // The label is text here, not a `for` pointing at a control that does not exist.
+    const label = screen.getByText(zh.skillCardModel)
+    expect(label.tagName).toBe('P')
+  })
+
+  it('falls back to the model id when no display name is known', () => {
+    const { container } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'fixed', model: STORED_MODEL },
+    }, zhT)
+    expect((container.querySelector('[data-model-fixed]') as HTMLElement).textContent).toBe(STORED_MODEL.model)
+  })
+
+  it('says the model is unavailable, and offers no control at all', () => {
+    // Criterion 73, third state. A free-text model id is never offered: the deployment
+    // decides which routes exist, and a typed one would only fail at run time.
+    const { container } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'unavailable' },
+    }, zhT)
+    expect(container.querySelector('[data-model-select]')).toBeNull()
+    expect(container.querySelector('[data-model-fixed]')).toBeNull()
+    expect(container.querySelector('[data-model-unavailable]')?.textContent).toBe(zh.skillCardModelUnavailable)
+    expect(container.querySelector('input[type="text"]')).not.toBeNull()
   })
 })
 

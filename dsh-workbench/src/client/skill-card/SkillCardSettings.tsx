@@ -19,11 +19,12 @@ import {
   WORKBENCH_REGION_END,
   WORKBENCH_TEMPLATE_MAX_BYTES,
 } from '../../skill-card-contract.ts'
-import type { WorkbenchActionTarget } from '../../skill-card-contract.ts'
+import type { WorkbenchActionTarget, WorkbenchCardModel } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import { ActionDeclarationPanel } from './ActionDeclarationPanel.tsx'
 import type { WorkbenchCardView } from './controller.ts'
 import { declarationLine, insertDeclaration } from './declarations.ts'
+import { modelKey, parseModelKey } from './model.ts'
 import { templateSkeleton } from './skeleton.ts'
 import { analyzeTemplate, findActionsBlock, findRegion } from './template.ts'
 import type { WorkbenchTemplateViolation, WorkbenchTemplateViolationCode } from './template.ts'
@@ -55,6 +56,8 @@ export interface SkillCardSettingsProps {
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   /** Store a new skill selection. */
   readonly onChoose: (skill: string) => void
+  /** Store the model this card's runs use. */
+  readonly onChooseModel: (model: WorkbenchCardModel) => void
   /** Store the template. */
   readonly onSave: (template: string, name: string) => void
   /** Store the card's name; an empty value clears it back to the registered label. */
@@ -119,7 +122,7 @@ function gutterLineClass(kind: GutterLineFact['kind']): string {
  * @returns the editor element.
  */
 export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
-  const { view, t, onChoose, onSave, onRename, onClose, onDelete } = props
+  const { view, t, onChoose, onChooseModel, onSave, onRename, onClose, onDelete } = props
   const [draft, setDraft] = useState(view.template ?? '')
   const [name, setName] = useState(view.name ?? '')
   // The declaration builder is closed until asked for: an editor whose first frame
@@ -133,6 +136,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const basicsId = `${base}-basics`
   const nameId = `${base}-name`
   const skillId = `${base}-skill`
+  const modelId = `${base}-model`
   const templateId = `${base}-template`
   const previewId = `${base}-preview`
 
@@ -415,6 +419,13 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               {options.map(entry => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
             </select>
           </div>
+          {/* The model sits beside the other two facts the card is made of. It is the one
+              field whose non-ready states are not a disabled control: a route that is known
+              but no longer offered is shown as text, because a disabled select offering
+              other models would read as a choice the user still has. */}
+          <div className={css.field}>
+            <ModelField view={view} t={t} labelId={modelId} onChooseModel={onChooseModel} />
+          </div>
         </div>
         {catalogNotice(view, options.length, t)}
       </section>
@@ -674,6 +685,83 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         </div>
       </footer>
     </div>
+  )
+}
+
+/**
+ * Render the model control for one card.
+ *
+ * Three states, and the picker is only one of them. A known route with no catalog behind
+ * it is stated as the name the card will run on, and no route at all is stated as
+ * unavailable — never as an empty picker, which would offer the user a choice that does
+ * not exist. The run control elsewhere reads the same three states, so this field can
+ * never say "unavailable" beside a live Run button.
+ * @param props - the card view, the translator, the label id, and the store action.
+ * @returns the field.
+ */
+function ModelField({
+  view,
+  t,
+  labelId,
+  onChooseModel,
+}: {
+  readonly view: WorkbenchCardView
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  /** Id the label points at while the field is a control. */
+  readonly labelId: string
+  readonly onChooseModel: (model: WorkbenchCardModel) => void
+}): ReactNode {
+  const field = view.modelField
+  // The label only points at a control: pointing it at a paragraph would announce a form
+  // field that is not there.
+  const label = field.kind === 'ready'
+    ? <label className={css.fieldLabel} htmlFor={labelId}>{t('skillCardModel')}</label>
+    : <p className={css.fieldLabel}>{t('skillCardModel')}</p>
+  if (field.kind === 'ready') {
+    return (
+      <>
+        {label}
+        <select
+          id={labelId}
+          className={css.select}
+          value={modelKey(field.selected)}
+          data-model-select=""
+          onChange={(event) => {
+            const chosen = parseModelKey(event.target.value)
+            if (chosen === undefined) return
+            onChooseModel(chosen)
+          }}
+        >
+          {field.groups.map(group => (
+            // Grouped by provider and labelled with the model's own name: the id is what a
+            // request carries, and the name is what a user recognises.
+            <optgroup key={group.id} label={group.name}>
+              {group.models.map(model => (
+                <option key={model.id} value={modelKey({ provider: group.id, model: model.id })}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </>
+    )
+  }
+  if (field.kind === 'fixed') {
+    return (
+      <>
+        {label}
+        <p className={css.fieldValue} data-model-fixed="">
+          {field.name ?? field.model.model}
+        </p>
+      </>
+    )
+  }
+  return (
+    <>
+      {label}
+      <p className={css.fieldValue} data-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+    </>
   )
 }
 

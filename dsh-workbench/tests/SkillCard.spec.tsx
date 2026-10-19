@@ -29,6 +29,9 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   return {
     status: 'ready',
     runnable: false,
+    // The face renders neither the model field nor a run control; the body cases below are
+    // about the content, so the card is stated without a route.
+    modelField: { kind: 'unavailable' },
     catalog: [],
     catalogStatus: 'idle',
     catalogFailure: undefined,

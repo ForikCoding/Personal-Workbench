@@ -14,6 +14,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
+import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { zh } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
 import { WORKBENCH_RESULT_MAX_BYTES } from '../src/skill-card-contract.ts'
@@ -151,6 +152,9 @@ function fixture(options: {
       api,
       cardId: 'skill-card',
       runSessionId: () => 'session-1',
+      // A hand edit spends no model call, but the page still resolves its run control from
+      // the model field: a known route keeps the states these cases assert reachable.
+      models: fakeModelSeat(),
       fallbackTitle: '技能卡',
       onBack: () => {},
       openCard: () => {},

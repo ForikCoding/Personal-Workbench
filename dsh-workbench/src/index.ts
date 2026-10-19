@@ -23,7 +23,7 @@ import {
   WORKBENCH_SKILL_CARD_DOMAIN,
   WORKBENCH_TEMPLATE_TABLE,
 } from './skill-card-spec.ts'
-import { assertSubagentProvider } from './skill-card-provider.ts'
+import { assertSubagentProvider, probeSubagentSeam } from './skill-card-provider.ts'
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts'
 import { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
 import {
@@ -55,10 +55,14 @@ export const name = 'workbench'
  * pinned harness predates it, so requiring it would leave the whole plugin
  * pending there. The runner reads it optionally and falls back to the session
  * header.
+ *
+ * `llm` IS named: a card that pins a model has to be checked against what the
+ * deployment can route before a child is created, and a composition without an LLM
+ * registry could not answer that at all.
  */
 export const inject = [
   'storageDomain', 'webServer', 'connection', 'storage',
-  'agents', 'skills', 'subagents',
+  'agents', 'skills', 'subagents', 'llm',
 ]
 
 /**
@@ -127,6 +131,16 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
     const host = ctx as unknown as WorkbenchHostContext
     const runtime = ctx as unknown as WorkbenchSkillCardHost
     assertSubagentProvider(runtime.subagents, config.subagentProvider)
+    // Probed here, once, because the answer belongs to this composition rather than to a
+    // run: it is the same for every card and every click. The client reads it off the card
+    // snapshot and states it before a control is pressed; the runner refuses a call that
+    // arrives anyway.
+    const capabilities = probeSubagentSeam(runtime.subagents)
+    if (!capabilities.startActivation) {
+      ctx.logger.warn(
+        'workbench: this harness exposes no subagents.startActivation, so skill card runs are unavailable; card runs need 0.2.1-alpha.2 (the beta channel)',
+      )
+    }
     const domain = await ctx.storageDomain.open(WORKBENCH_SKILL_CARD_DOMAIN)
     let store: WorkbenchSkillCardStore
     try {
@@ -164,6 +178,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
         return {
           ...card?.skill === undefined ? {} : { skill: card.skill },
           ...card?.template === undefined ? {} : { template: card.template },
+          ...card?.model === undefined ? {} : { model: card.model },
         }
       },
       saveResult: (cardId, record) => store.putResult(cardId, record),
@@ -184,6 +199,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
           store,
           fence: host.connection,
           maxTemplateBytes: config.maxTemplateBytes,
+          capabilities,
           warn,
         }),
       }), 'workbench: skill card route'),

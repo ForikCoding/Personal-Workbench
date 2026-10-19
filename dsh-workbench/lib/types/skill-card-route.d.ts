@@ -8,6 +8,7 @@
  * @module dsh-workbench/skill-card-route
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { WorkbenchRunCapabilities } from './skill-card-contract.ts';
 import type { WorkbenchSkillCardRunner } from './skill-card-runner.ts';
 import type { WorkbenchSkillCardStore } from './skill-card-store.ts';
 /**
@@ -38,6 +39,13 @@ export interface WorkbenchSkillCardRouteOptions {
      * rather than the wire contract's ceiling; the store enforces it again.
      */
     readonly maxTemplateBytes: number;
+    /**
+     * What this deployment can do, probed once at composition.
+     *
+     * Carried on every read and write body so the card can state a missing seam as a state
+     * instead of discovering it when a click lands.
+     */
+    readonly capabilities: WorkbenchRunCapabilities;
     /** Host logger for storage failures. */
     readonly warn: (message: string) => void;
 }

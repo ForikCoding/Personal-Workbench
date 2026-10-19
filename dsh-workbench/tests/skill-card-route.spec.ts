@@ -14,6 +14,7 @@ import {
   WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
 } from '../src/skill-card-contract.ts'
+import type { WorkbenchRunCapabilities } from '../src/skill-card-contract.ts'
 import { WorkbenchSkillCardStore } from '../src/skill-card-store.ts'
 import { FakeRequest, run } from './support/fake-http.ts'
 import { fakeSkillCardTables } from './support/fake-skill-card-tables.ts'
@@ -55,6 +56,7 @@ function setup(options: {
   seed?: FakeSkillCardSeed
   tables?: FakeSkillCardTables
   maxTemplateBytes?: number
+  capabilities?: WorkbenchRunCapabilities
 } = {}): Setup {
   const tables = options.tables ?? fakeSkillCardTables(options.seed)
   const store = new WorkbenchSkillCardStore({
@@ -73,6 +75,7 @@ function setup(options: {
     store,
     fence: fence(options.rejection),
     maxTemplateBytes: options.maxTemplateBytes ?? 1024,
+    capabilities: options.capabilities ?? { startActivation: true },
     warn,
   })
   return { handle, tables, warn, store }
@@ -114,8 +117,18 @@ describe('workbench skill card route', () => {
       revision: '7:0',
       cards: [{ cardId: 'skill-card', skill: 'git-repo', templateSkills: ['git-repo'], template: '<b>{{branch}}</b>' }],
       results: [{ cardId: 'skill-card', skill: 'git-repo', executedAt: 12, stopReason: 'completed' }],
+      capabilities: { startActivation: true },
     })
     expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('reports a harness without the activation seam on the same read', async () => {
+    // The card cannot run there, but it can still be read and edited: the verdict travels
+    // with the state so the surface disables one control instead of failing a click.
+    const { handle } = setup({ capabilities: { startActivation: false } })
+    const response = await run(handle, new FakeRequest('GET'))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).capabilities).toEqual({ startActivation: false })
   })
 
   it('writes a configuration patch and echoes the new state', async () => {
@@ -146,6 +159,30 @@ describe('workbench skill card route', () => {
     expect(JSON.parse(response.body)).toEqual({
       error: { code: 'invalid-request', message: 'skill must be null or a kebab-case skill name' },
     })
+    expect(tables.operations).toEqual([])
+  })
+
+  it('carries a model pair through the wire and stores it whole', async () => {
+    // The provider id contains a slash on purpose: a `"provider/model"` string would have
+    // to be split on a character the id may itself contain.
+    const { handle, tables } = setup()
+    const model = { provider: 'vendor/gateway', model: 'large' }
+    const response = await run(handle, new FakeRequest('PATCH', patch({ model })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', model, templateSkills: [] },
+    ])
+    expect(tables.operations).toEqual([{ table: 'card', kind: 'put', key: 'skill-card', value: { skill: 'git-repo', model } }])
+  })
+
+  it('refuses a model that is not two non-empty ids', async () => {
+    const { handle, tables } = setup()
+    for (const model of [{ provider: 'deepseek' }, 'deepseek/chat', { provider: '', model: 'chat' }]) {
+      const response = await run(handle, new FakeRequest('PATCH', patch({ model })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message)
+        .toBe('model must be null or an object naming a provider and a model')
+    }
     expect(tables.operations).toEqual([])
   })
 
@@ -391,6 +428,14 @@ describe('workbench skill card run route', () => {
       { options: { selection: { skill: 'git-repo' } }, status: 400, code: 'template-missing' },
       { options: { live: false }, status: 409, code: 'session-not-live' },
       { options: { providers: {} }, status: 500, code: 'provider-unavailable' },
+      // A card pinned to a route the deployment no longer offers. It conflicts with the
+      // state the card was configured against, so the client can say which model is gone
+      // instead of reading it as a malformed request.
+      {
+        options: { selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: { provider: 'deepseek', model: 'retired' } } },
+        status: 409,
+        code: 'model-unavailable',
+      },
     ]
     for (const item of cases) {
       const { run: handle, fake } = runtime(item.options)
@@ -399,6 +444,25 @@ describe('workbench skill card run route', () => {
       expect(JSON.parse(response.body).error.code).toBe(item.code)
       expect(fake.activations).toEqual([])
     }
+  })
+
+  it('refuses a run on a harness without the activation seam, naming it', async () => {
+    // A stale click, a direct route call, or a button inside a result reaches the route
+    // after the client already knows. The answer is a stated problem, not a thrown stack.
+    const { run: handle, fake } = runtime({ startActivation: false })
+    const card = await run(handle, at(RUN_PATH, 'POST', runBody()))
+    expect(card.statusCode).toBe(501)
+    expect(JSON.parse(card.body).error.code).toBe('run-unavailable')
+    expect(JSON.parse(card.body).error.message).toContain('startActivation')
+
+    // The bare mode is what a template button triggers, and it must land on the same
+    // refusal rather than a different one.
+    const bare = await run(handle, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'bare', skill: 'git-repo' },
+      outputSchema: undefined,
+    })))
+    expect(JSON.parse(bare.body).error.code).toBe('run-unavailable')
+    expect(fake.activations).toEqual([])
   })
 
   it('refuses a second run while one is in flight', async () => {

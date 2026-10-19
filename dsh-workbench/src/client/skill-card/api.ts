@@ -11,6 +11,7 @@
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
+  WorkbenchRunCapabilities,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
   WorkbenchRunState,
@@ -23,6 +24,7 @@ import {
   WORKBENCH_SKILL_CARD_PATH,
   WORKBENCH_SKILL_CARD_RESULT_PATH,
   WORKBENCH_SKILL_CARD_RUN_PATH,
+  isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchSkillName,
 } from '../../skill-card-contract.ts'
@@ -36,6 +38,14 @@ export interface WorkbenchCardSnapshot {
   readonly cards: readonly WorkbenchCardConfigView[]
   readonly results: readonly WorkbenchCardResult[]
   readonly revision: string
+  /**
+   * What the Host recorded about running a card, at composition.
+   *
+   * Absent means the Host sent no verdict — a build that predates the field — and the
+   * card is then treated as able to run: its run route answers for real, and refuses
+   * with `run-unavailable` when the seam is in fact missing.
+   */
+  readonly capabilities?: WorkbenchRunCapabilities
 }
 
 /** Outcome of one configuration read. */
@@ -386,10 +396,21 @@ function errorMessageOf(body: unknown): string | undefined {
  */
 export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const body = value as { apiVersion?: unknown; revision?: unknown; cards?: unknown; results?: unknown }
+  const body = value as {
+    apiVersion?: unknown
+    revision?: unknown
+    cards?: unknown
+    results?: unknown
+    capabilities?: unknown
+  }
   if (body.apiVersion !== WORKBENCH_SKILL_CARD_API_VERSION) return undefined
   if (typeof body.revision !== 'string') return undefined
   if (!Array.isArray(body.cards) || !Array.isArray(body.results)) return undefined
+  // A capability the client cannot read is refused whole rather than dropped: treating a
+  // malformed verdict as "no verdict" would enable a run control the Host may have
+  // disabled, and the card would then say two different things about the same harness.
+  const capabilities = body.capabilities === undefined ? undefined : parseCapabilities(body.capabilities)
+  if (body.capabilities !== undefined && capabilities === undefined) return undefined
 
   const cards: WorkbenchCardConfigView[] = []
   for (const raw of body.cards) {
@@ -398,6 +419,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       cardId?: unknown
       name?: unknown
       skill?: unknown
+      model?: unknown
       templateSkills?: unknown
       template?: unknown
     }
@@ -408,6 +430,10 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     if (entry.skill !== undefined && (typeof entry.skill !== 'string' || !isWorkbenchSkillName(entry.skill))) {
       return undefined
     }
+    const model = entry.model
+    // A route the contract would not accept is refused whole rather than rendered as a
+    // half-read pair: the field shows what the run will use, so it cannot hold junk.
+    if (model !== undefined && !isWorkbenchCardModel(model)) return undefined
     if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some(name => typeof name !== 'string')) {
       return undefined
     }
@@ -416,6 +442,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       cardId: entry.cardId,
       ...entry.name === undefined ? {} : { name: entry.name as string },
       ...entry.skill === undefined ? {} : { skill: entry.skill as string },
+      ...model === undefined ? {} : { model },
       templateSkills: entry.templateSkills as readonly string[],
       ...entry.template === undefined ? {} : { template: entry.template },
     })
@@ -424,15 +451,40 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
   const results: WorkbenchCardResult[] = []
   for (const raw of body.results) {
     if (typeof raw !== 'object' || raw === null) return undefined
-    const entry = raw as { cardId?: unknown; skill?: unknown; executedAt?: unknown; stopReason?: unknown }
+    const entry = raw as {
+      cardId?: unknown
+      skill?: unknown
+      executedAt?: unknown
+      stopReason?: unknown
+      model?: unknown
+    }
     if (typeof entry.cardId !== 'string' || !isWorkbenchCardId(entry.cardId)) return undefined
     if (typeof entry.skill !== 'string' || typeof entry.executedAt !== 'number' || typeof entry.stopReason !== 'string') {
       return undefined
     }
+    // The run-detail row names the route straight from this value, so a malformed one is
+    // refused here rather than printed as if it were real provenance.
+    if (entry.model !== undefined && !isWorkbenchCardModel(entry.model)) return undefined
     results.push({ ...(raw as WorkbenchCardResult), cardId: entry.cardId })
   }
 
-  return { cards, results, revision: body.revision }
+  return {
+    cards,
+    results,
+    revision: body.revision,
+    ...capabilities === undefined ? {} : { capabilities },
+  }
+}
+
+/**
+ * Validate the run capability the Host recorded.
+ * @param value - the decoded `capabilities` field.
+ * @returns the capability, or undefined when it is outside the contract.
+ */
+function parseCapabilities(value: unknown): WorkbenchRunCapabilities | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const startActivation = (value as { startActivation?: unknown }).startActivation
+  return typeof startActivation === 'boolean' ? { startActivation } : undefined
 }
 
 /**
@@ -480,12 +532,14 @@ export function parseResultEdit(
     skill?: unknown
     executedAt?: unknown
     stopReason?: unknown
+    model?: unknown
     editedAt?: unknown
   }
   if (typeof raw.cardId !== 'string' || !isWorkbenchCardId(raw.cardId)) return undefined
   if (typeof raw.skill !== 'string' || typeof raw.executedAt !== 'number' || typeof raw.stopReason !== 'string') {
     return undefined
   }
+  if (raw.model !== undefined && !isWorkbenchCardModel(raw.model)) return undefined
   // The provenance field is read rather than passed through blind: the row the page draws
   // from it must not render a value the contract would not accept.
   if (raw.editedAt !== undefined && (typeof raw.editedAt !== 'number' || !Number.isFinite(raw.editedAt))) {

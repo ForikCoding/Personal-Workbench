@@ -14,9 +14,10 @@
  * and a reload starts the conversation over.
  * @module dsh-workbench/client/skill-card/controller
  */
-import type { WorkbenchActionTarget, WorkbenchResultRecord, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchResultRecord, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 import type { WorkbenchActionErrorCode } from './actions.ts';
+import type { WorkbenchModelField, WorkbenchModelSeat } from './model.ts';
 import type { WorkbenchActionEvent } from './render.ts';
 /** Whether the editor's skill catalog has been read. */
 export type WorkbenchCatalogStatus = 'idle' | 'loading' | 'ready' | 'failed';
@@ -131,6 +132,14 @@ export interface WorkbenchCardView {
     readonly run?: WorkbenchRunState;
     /** Present when the card cannot show or do what it should. */
     readonly problem?: WorkbenchCardProblem;
+    /**
+     * Why this card cannot run at all, when the deployment cannot start a child.
+     *
+     * Separate from {@link problem} because it is not a fault of the card: reading,
+     * configuring, and hand-editing it all still work, so the card must keep rendering
+     * its content while this states what the run control waits for.
+     */
+    readonly runUnavailable?: WorkbenchCardProblem;
     /** The action waiting for confirmation; while present the panel replaces the body. */
     readonly pendingAction?: WorkbenchPendingAction;
     /** The last clicked action's refusal, shown as an alert. */
@@ -160,8 +169,15 @@ export interface WorkbenchCardView {
      * result, so hiding it removes the thing the user is reviewing.
      */
     readonly refining?: boolean;
-    /** Whether a run can start: a skill, a template, and a live session. */
+    /** Whether a run can start: a skill, a template, a live session, and a model to name. */
     readonly runnable: boolean;
+    /**
+     * What the model field offers, and whether a run can name its route.
+     *
+     * Carried on the view rather than read by each page, because the field's state and the
+     * run control's answer have to be the same answer.
+     */
+    readonly modelField: WorkbenchModelField;
     /** Skills the session's agent can invoke. */
     readonly catalog: readonly WorkbenchSkillCatalogEntry[];
     /** Whether the catalog has been read. */
@@ -216,6 +232,14 @@ export interface WorkbenchCardActions {
     /** Store a new skill selection. */
     chooseSkill(skill: string): void;
     /**
+     * Store the model this card's runs use.
+     *
+     * The pair travels whole: two ids, never a joined string, so a provider id containing a
+     * slash cannot be misread as a separator.
+     * @param model - the route the user chose.
+     */
+    chooseModel(model: WorkbenchCardModel): void;
+    /**
      * Store a template for the selected skill, together with the card's name.
      * @param template - the HTML to store.
      * @param name - the card's name as the editor shows it; an empty value clears it.
@@ -264,6 +288,14 @@ export interface WorkbenchSkillCardOptions {
      * issue a request per card for a list none of them shows.
      */
     readonly withCatalog?: boolean;
+    /**
+     * Read the model catalog this card's field offers.
+     *
+     * Omitted by the card face, which neither shows the field nor has a run control. A page
+     * that omits it resolves every card to "no model known", which is the honest answer for
+     * a view that cannot see the directory.
+     */
+    readonly models?: WorkbenchModelSeat;
     /**
      * Read the title one card face shows.
      *

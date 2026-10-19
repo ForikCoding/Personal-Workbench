@@ -8,7 +8,7 @@
  * bare run skips the store entirely, because its whole result is whether it worked.
  * @module dsh-workbench/skill-card-runner
  */
-import type { WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
+import type { WorkbenchCardModel, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts';
 /** Outcome of reading one session's skill catalog. */
 export type WorkbenchCatalogOutcome = {
@@ -34,6 +34,13 @@ export interface WorkbenchCardSelection {
     readonly skill?: string;
     /** Template stored for the selected skill; absent means the card cannot run. */
     readonly template?: string;
+    /**
+     * Model the card runs on; absent means its runs inherit the session's model.
+     *
+     * Read from storage rather than from the request: the route a card runs on is part of
+     * what the card is, so a client cannot start a run on a route the card does not name.
+     */
+    readonly model?: WorkbenchCardModel;
 }
 /** Everything the runner depends on. */
 export interface WorkbenchSkillCardRunnerOptions {
@@ -119,7 +126,22 @@ export declare class WorkbenchSkillCardRunner {
      * @param request - card, session, what the run is asked to do, and the client's contract.
      * @returns the started run's state, or why it was refused.
      */
-    start(request: WorkbenchRunRequest): WorkbenchRunStartOutcome;
+    start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome>;
+    /**
+     * Answer whether a card's route can actually be run here.
+     *
+     * Three separate reasons, and each refuses rather than falling back to the session's
+     * model: a backend that cannot take a route, a provider this deployment does not route,
+     * and a provider that no longer offers that model. The last two are told apart by the
+     * registry itself — `listModels` rejects for a provider it does not have — and the
+     * message names the route in every case, because "the model is gone" is only actionable
+     * when it says which one.
+     * @param providerName - configured subagent backend name.
+     * @param canChooseModel - whether that backend advertises the `agentOptions` capability.
+     * @param model - the route the card names.
+     * @returns the refusal, or undefined when the route can be used.
+     */
+    private modelRefusal;
     /**
      * Record a child agent's failure against the run that started it.
      *
@@ -151,6 +173,7 @@ export declare class WorkbenchSkillCardRunner {
      * Run one card's skill to a terminal state.
      * @param run - the run record to settle.
      * @param input - resolved agent, skill name, and output contract.
+     * @param activate - the activation seam, already known to exist and bound to its service.
      * @returns resolution after the run reaches a terminal phase.
      */
     private execute;
@@ -160,6 +183,7 @@ export declare class WorkbenchSkillCardRunner {
      * @param input - the agent, skill, and either the card's template and contract or nothing.
      * @param cwd - the agent's working directory.
      * @param skill - the loaded skill.
+     * @param activate - the activation seam, known to exist.
      * @returns the attempt's outcome.
      */
     private attempt;

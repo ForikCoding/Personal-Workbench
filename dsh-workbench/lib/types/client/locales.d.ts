@@ -38,6 +38,7 @@ export declare const zh: {
     skillCardProblemTemplateInvalid: string;
     skillCardProblemRunning: string;
     skillCardProblemRunFailed: string;
+    skillCardProblemRunUnavailable: string;
     skillCardProblemTooLarge: string;
     skillCardProblemUnavailable: string;
     skillCardProblemGeneric: string;
@@ -96,6 +97,9 @@ export declare const zh: {
     skillCardPermission: string;
     skillCardBack: string;
     skillCardCardName: string;
+    skillCardModel: string;
+    skillCardModelUnavailable: string;
+    skillCardProblemModelUnavailable: string;
     skillCardNamePlaceholder: string;
     createCard: string;
     createCardCancel: string;
@@ -107,6 +111,7 @@ export declare const zh: {
     runStatusRunning: string;
     runStartedAt: string;
     runStopReason: string;
+    runModel: string;
     runEditedAt: string;
     skillCardResultEdit: string;
     resultEditLabel: string;

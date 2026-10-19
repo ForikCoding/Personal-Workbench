@@ -107,10 +107,36 @@ export interface WorkbenchActivation {
 }
 
 /**
+ * One model a provider route advertises, narrowed to the field this feature checks.
+ *
+ * Only membership matters here: the display name a picker would show comes from the
+ * Client's own catalog, never from the Host's validation query.
+ */
+export interface WorkbenchModelInfo {
+  readonly id: string
+}
+
+/**
+ * Child Agent route override for one run.
+ *
+ * Structurally the upstream `AgentOptions` fields this feature sets, declared here for
+ * the same reason the rest of this module is: the plugin reads only these members. The
+ * upstream type also carries `reasoningEffort` and `maxTokens`, which v1 deliberately
+ * does not send — an effort the card never chose would be a value it never had.
+ */
+export interface WorkbenchAgentOptions {
+  /** Provider route owning the model. */
+  readonly provider: string
+  /** Model id the provider advertises. */
+  readonly model: string
+}
+
+/**
  * One requested child execution.
  *
- * `agentOptions` and `toolFilter` are deliberately absent: omitting them is how
- * a run inherits the session's model and its full tool permissions.
+ * `toolFilter` is deliberately absent: omitting it is how a run inherits the session's
+ * full tool permissions. `agentOptions` is present but optional, and a run that omits it
+ * inherits the session's model — which is what a card with no model selected does.
  */
 export interface WorkbenchActivationSpec {
   readonly provider: string
@@ -130,6 +156,15 @@ export interface WorkbenchActivationSpec {
      * child's own stop reason is the verdict.
      */
     readonly outputSchema?: unknown
+    /**
+     * Route the child runs on; omitted inherits the parent's route at start.
+     *
+     * The seam merges this over the parent's own route, so naming a provider and a model
+     * replaces both and a partial override cannot happen. The seam also rejects it
+     * outright for a backend without {@link WorkbenchSubagentHost.getProvider}'s
+     * `agentOptions` capability, which is why the runner checks that first.
+     */
+    readonly agentOptions?: WorkbenchAgentOptions
   }
 }
 
@@ -145,14 +180,34 @@ export interface WorkbenchSubagentHost {
    * @param name - provider name.
    * @returns the provider when registered, otherwise undefined.
    */
-  getProvider(name: string): { readonly capabilities: { readonly outputSchema: boolean } } | undefined
+  getProvider(name: string): {
+    readonly capabilities: {
+      readonly outputSchema: boolean
+      /** Whether the backend accepts a per-run {@link WorkbenchAgentOptions} override. */
+      readonly agentOptions: boolean
+    }
+  } | undefined
   /**
    * Start one child execution.
+   *
+   * Optional because the harness this plugin is installed into may predate the seam: the
+   * stable channel pins `0.2.0-rc.2`, whose subagent service offers `start` and
+   * `startContinuable` but no `startActivation`. A deployment without it is still a valid
+   * one — the workbench loads and its cards stay readable and editable — so the surface
+   * says so instead of pretending the method exists.
    * @param spec - provider, label, cancellation, delivery, and request.
    * @returns the started activation.
    */
-  startActivation(spec: WorkbenchActivationSpec): Promise<WorkbenchActivation>
+  startActivation?(spec: WorkbenchActivationSpec): Promise<WorkbenchActivation>
 }
+
+/**
+ * The activation seam itself, once the harness is known to provide it.
+ *
+ * Bound to the subagent service before it is carried around: the real method reads its
+ * own receiver, so a bare function reference would not be callable outside it.
+ */
+export type WorkbenchActivationSeam = (spec: WorkbenchActivationSpec) => Promise<WorkbenchActivation>
 
 /**
  * Working-directory service.
@@ -208,4 +263,22 @@ export interface WorkbenchSkillCardHost {
     get(name: string, options: WorkbenchSkillLookup): Promise<WorkbenchSkillDefinition | undefined>
   }
   readonly subagents: WorkbenchSubagentHost
+  /**
+   * LLM registry, narrowed to the one query a start consults.
+   *
+   * A card that names a model has to be checked against what the deployment can actually
+   * route *before* a child is created. Refusing here is what keeps a stale card from
+   * silently running on the session's model instead of the one it displays.
+   */
+  readonly llm: {
+    /**
+     * Discover models advertised by one provider route.
+     *
+     * Rejects for a provider this registry does not have, which is how a start tells a
+     * missing provider apart from a missing model.
+     * @param provider - provider route to inspect.
+     * @returns the advertised models.
+     */
+    listModels(provider: string): Promise<readonly WorkbenchModelInfo[]>
+  }
 }

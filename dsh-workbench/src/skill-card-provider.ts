@@ -1,15 +1,19 @@
 /**
- * Validation of the subagent backend the skill card is configured to run on.
+ * Load-time validation and capability probes for the subagent seam the card runs on.
  *
- * The check lives outside the plugin entry so it can be exercised without a
- * Cordis context, and so the entry stays a pure assembly step.
+ * The checks live outside the plugin entry so they can be exercised without a Cordis
+ * context, and so the entry stays a pure assembly step.
  * @module dsh-workbench/skill-card-provider
  */
 
+import type { WorkbenchRunCapabilities } from './skill-card-contract.ts'
 import type { WorkbenchSubagentHost } from './skill-card-host.ts'
 
 /** The part of the subagent surface this check reads. */
 export type SubagentProviderSource = Pick<WorkbenchSubagentHost, 'list' | 'getProvider'>
+
+/** The part of the subagent surface the seam probe reads. */
+export type SubagentSeamSource = Pick<WorkbenchSubagentHost, 'startActivation'>
 
 /**
  * Refuse a subagent backend that cannot produce structured output.
@@ -31,4 +35,18 @@ export function assertSubagentProvider(subagents: SubagentProviderSource, provid
   if (!provider.capabilities.outputSchema) {
     throw new Error(`workbench: subagent provider "${providerName}" does not support structured output`)
   }
+}
+
+/**
+ * Record whether the subagent service exposes the seam a card run needs.
+ *
+ * The answer is a property of the composition, so it is read once, where the Host half is
+ * assembled, and never again per run: it is the same for every card and every click. The
+ * recorded value travels to the client, which disables its run control and states the
+ * requirement, and the runner keeps its own refusal for a call that arrives anyway.
+ * @param subagents - the subagent service.
+ * @returns the recorded capability; `startActivation: false` on a harness that predates it.
+ */
+export function probeSubagentSeam(subagents: SubagentSeamSource): WorkbenchRunCapabilities {
+  return { startActivation: typeof subagents.startActivation === 'function' }
 }

@@ -12,6 +12,7 @@ import type { WorkbenchLayoutApi } from './layout-api.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
 import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
+import type { WorkbenchModelSeat } from './skill-card/model.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 /** Cards plus the transport the page drives, as the registration injects them. */
 export interface WorkbenchPageInjected {
@@ -30,6 +31,8 @@ export interface WorkbenchPageInjected {
          * @returns the session id, or undefined when none is available.
          */
         readonly runSessionId: () => string | undefined;
+        /** Model catalog the result and configuration pages read. */
+        readonly models: WorkbenchModelSeat;
     };
     /** Return to the grid from whichever full-panel view is open. */
     readonly closeCard: () => void;
