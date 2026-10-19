@@ -16,6 +16,7 @@ import { type ReactNode } from 'react';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 import type { WorkbenchModelSeat } from './model.ts';
+import type { WorkbenchWorkspacePicker } from './workspace-picker.ts';
 /** What both pages need to show and change one card. */
 export interface SkillCardPageProps {
     /** Transport. */
@@ -34,6 +35,13 @@ export interface SkillCardPageProps {
      * model a run would use, and this feature never runs work it cannot name.
      */
     readonly models: WorkbenchModelSeat;
+    /**
+     * Ask the user for a directory to use as this card's workspace.
+     *
+     * Required rather than optional: a page that silently offers no picker would leave a card
+     * permanently unable to run with no way to say so.
+     */
+    readonly workspacePicker: WorkbenchWorkspacePicker;
     /**
      * Shown in place of the name while the card has none.
      *

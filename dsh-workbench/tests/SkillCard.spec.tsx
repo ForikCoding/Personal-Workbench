@@ -32,6 +32,10 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // The face renders neither the model field nor a run control; the body cases below are
     // about the content, so the card is stated without a route.
     modelField: { kind: 'unavailable' },
+    // Same for the directory: the face shows no workspace field, and nothing on the grid
+    // gates a run on one.
+    workspaceField: { kind: 'missing' },
+    canChooseWorkspace: false,
     catalog: [],
     catalogStatus: 'idle',
     catalogFailure: undefined,

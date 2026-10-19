@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
 import type { WorkbenchRunRequest } from '../src/skill-card-contract.ts'
-import { AGENT, fakeHost } from './support/fake-skill-card-host.ts'
+import { AGENT, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHost, FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /**
@@ -34,10 +34,11 @@ function setup(options: FakeHostOptions & {
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
     workingDirectory: fake.workingDirectory,
+    statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: options.runTimeoutMs ?? 5_000,
     maxConcurrentRuns: 1,
-    selection: () => options.selection ?? { skill: 'git-repo', template: '<b>x</b>' },
+    selection: () => options.selection ?? { skill: 'git-repo', template: '<b>x</b>', workspace: { path: WORKSPACE_PATH } },
     saveResult: options.saveResult ?? (async (cardId, record) => { saved.push({ cardId, record }) }),
     warn: (message) => { warnings.push(message) },
     now: () => 42,
@@ -92,8 +93,10 @@ async function settle(
 describe('a bare skill run', () => {
   it('carries the skill and the task line, with no document', async () => {
     // Criterion 27: no template travels. The stored selection is not even consulted —
-    // a skill target is its own skill, which need not be the card's.
-    const { runner, fake, saved } = setup({ selection: {} })
+    // a skill target is its own skill, which need not be the card's. The one part of the
+    // selection a bare run does read is the directory it runs in, because a run happens
+    // somewhere and "somewhere" is the card's own answer.
+    const { runner, fake, saved } = setup({ selection: { workspace: { path: WORKSPACE_PATH } } })
     expect(await runner.start(bare())).toMatchObject({ status: 'started' })
     const state = await settle(runner)
 

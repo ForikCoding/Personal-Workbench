@@ -5,7 +5,7 @@ import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
 import type { WorkbenchRunRequest, WorkbenchResultRecord } from '../src/skill-card-contract.ts'
 import type { WorkbenchSubagentResult } from '../src/skill-card-host.ts'
-import { AGENT, fakeHost } from './support/fake-skill-card-host.ts'
+import { AGENT, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHost, FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /** Build a runner over a fresh fake host. */
@@ -28,10 +28,14 @@ function setup(options: FakeHostOptions & {
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
     ...options.withoutWorkingDirectory === true ? {} : { workingDirectory: fake.workingDirectory },
+    statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: options.runTimeoutMs ?? 5_000,
     maxConcurrentRuns: options.maxConcurrentRuns ?? 1,
-    selection: () => options.selection ?? { skill: 'git-repo', template: '<b>{{a}}</b>' },
+    // A card that is ready to run in every other respect: a directory is part of what
+    // "configured" means now, so the default has one and the workspace cases vary it.
+    selection: () => options.selection
+      ?? { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH } },
     saveResult: options.saveResult ?? (async (cardId, record) => { saved.push({ cardId, record }) }),
     warn: (message) => { warnings.push(message) },
     now: () => 42,
@@ -176,12 +180,56 @@ describe('workbench skill card runner', () => {
     })
 
     it('refuses a card with no template for its skill', async () => {
-      const { runner } = setup({ selection: { skill: 'git-repo' } })
+      const { runner } = setup({ selection: { skill: 'git-repo', workspace: { path: WORKSPACE_PATH } } })
       expect(await runner.start(request())).toEqual({
         status: 'rejected',
         code: 'template-missing',
         detail: 'no template is stored for skill "git-repo"',
       })
+    })
+
+    it('refuses a card with no workspace directory, instead of running in the session', async () => {
+      // The card is otherwise ready, so the one thing missing is where the run would happen.
+      // Falling back to the session's directory would execute work somewhere the user never
+      // chose and label the result as if they had.
+      const { runner, fake } = setup({ selection: { skill: 'git-repo', template: '<b>{{a}}</b>' } })
+      const outcome = await runner.start(request())
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-missing' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('skill-card')
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a card whose workspace is no longer a directory, naming the path', async () => {
+      // A moved or deleted folder is its own refusal: "somewhere else" is not an answer the
+      // user asked for, and the message has to say which directory went missing.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: '/gone/project' } },
+        directory: { exists: false, isDirectory: false, writable: false },
+      })
+      const outcome = await runner.start(request())
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-invalid' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('/gone/project')
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a path that exists but is a file', async () => {
+      // `exists` alone is not enough: a run needs a directory, and a file at that path is the
+      // same refusal as nothing at all.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: '/repo/README.md' } },
+        directory: { exists: true, isDirectory: false, writable: false },
+      })
+      expect(await runner.start(request())).toMatchObject({ status: 'rejected', code: 'workspace-invalid' })
+      expect(fake.activations).toEqual([])
+    })
+
+    it('refuses a bare run the same way, which is the template-button path', async () => {
+      // A template button runs on the card that owns the button, so it has to have a
+      // directory too — the check cannot live only on the "Run" control.
+      const { runner, fake } = setup({ selection: {} })
+      const outcome = await runner.start(request({ mode: { kind: 'bare', skill: 'git-repo' }, outputSchema: undefined }))
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-missing' })
+      expect(fake.activations).toEqual([])
     })
 
     it('refuses a session with no live agent', async () => {
@@ -230,7 +278,7 @@ describe('workbench skill card runner', () => {
       // prompt, which the child could not honour — and the record keeps it so the result
       // page can name the model that produced what the user is reading.
       const { runner, fake, saved } = setup({
-        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: MODEL },
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, model: MODEL },
         outcomes: [{ output: [], stopReason: 'completed', structured: { html: '<b>a</b>' } }],
       })
       expect((await runner.start(request())).status).toBe('started')
@@ -367,7 +415,9 @@ describe('workbench skill card runner', () => {
         '<!-- template-end -->',
         '</body></html>',
       ].join('\n')
-      const { runner, fake } = setup({ selection: { skill: 'git-repo', template } })
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template, workspace: { path: WORKSPACE_PATH } },
+      })
       await runner.start(request())
       await settle(runner)
       const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''

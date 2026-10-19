@@ -19,8 +19,10 @@ import type {
 } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_NAME_MAX_LENGTH,
+  WORKBENCH_WORKSPACE_PATH_MAX_LENGTH,
   isWorkbenchCardModel,
   isWorkbenchCardName,
+  isWorkbenchCardWorkspace,
   isWorkbenchSkillName,
   parseTemplateKey,
   templateKey,
@@ -177,6 +179,7 @@ export class WorkbenchSkillCardStore {
       const selected = record?.skill
       const name = record?.name
       const model = record?.model
+      const workspace = record?.workspace
       const bySkill = templatesByCard.get(cardId)
       const template = selected === undefined ? undefined : bySkill?.get(selected)
       cards.push({
@@ -184,6 +187,7 @@ export class WorkbenchSkillCardStore {
         ...name === undefined ? {} : { name },
         ...selected === undefined ? {} : { skill: selected },
         ...model === undefined ? {} : { model },
+        ...workspace === undefined ? {} : { workspace },
         templateSkills: bySkill === undefined ? [] : [...bySkill.keys()].sort(),
         ...template === undefined ? {} : { template },
       })
@@ -234,9 +238,10 @@ export class WorkbenchSkillCardStore {
       await this.run('put', () => this.options.template.put(key, { html: template.html }))
     }
 
-    // The name and the selection share one record, so a patch touching either has
-    // to merge against what is stored. Writing the record wholesale would drop the
-    // other field, and clearing the selection would take the name down with it.
+    // The name, the selection, the route, and the directory share one record, so a patch
+    // touching any of them has to merge against what is stored. Writing the record
+    // wholesale would drop the others, and clearing the selection would take the name —
+    // and now the workspace — down with it.
     const current = this.options.card.get(patch.cardId)
     const patchedName = patch.name
     const name = patchedName === undefined
@@ -250,13 +255,18 @@ export class WorkbenchSkillCardStore {
     const model = patchedModel === undefined
       ? current?.model
       : patchedModel === null ? undefined : patchedModel
-    if (name === undefined && skill === undefined && model === undefined) {
+    const patchedWorkspace = patch.workspace
+    const workspace = patchedWorkspace === undefined
+      ? current?.workspace
+      : patchedWorkspace === null ? undefined : patchedWorkspace
+    if (name === undefined && skill === undefined && model === undefined && workspace === undefined) {
       await this.run('delete', () => this.options.card.delete(patch.cardId))
     } else {
       await this.run('put', () => this.options.card.put(patch.cardId, {
         ...name === undefined ? {} : { name },
         ...skill === undefined ? {} : { skill },
         ...model === undefined ? {} : { model },
+        ...workspace === undefined ? {} : { workspace },
       }))
     }
 
@@ -357,12 +367,19 @@ export class WorkbenchSkillCardStore {
     if (model !== undefined && model !== null && !isWorkbenchCardModel(model)) {
       return 'model must name a non-empty provider and model id'
     }
+    const workspace = patch.workspace
+    // An absolute path or nothing: a relative one would name a different directory
+    // depending on who resolved it, and the card would run somewhere the user never chose.
+    if (workspace !== undefined && workspace !== null && !isWorkbenchCardWorkspace(workspace)) {
+      return `workspace must name one absolute directory path within ${String(WORKBENCH_WORKSPACE_PATH_MAX_LENGTH)} characters`
+    }
     if (patch.remove === true
       && (patch.name !== undefined
         || patch.skill !== undefined
         || patch.model !== undefined
+        || patch.workspace !== undefined
         || patch.template !== undefined)) {
-      return 'a removal cannot carry a name, a skill, a model, or a template'
+      return 'a removal cannot carry a name, a skill, a model, a workspace, or a template'
     }
     const template = patch.template
     if (template === undefined) return undefined

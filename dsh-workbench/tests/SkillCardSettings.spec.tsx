@@ -50,6 +50,10 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // A catalog-backed picker with one route selected, which is what the field shows once
     // the directory has answered. Cases that care about the other two states override it.
     modelField: { kind: 'ready', groups: MODEL_GROUPS, selected: MODEL_CURRENT },
+    // A card with no workspace: the editor is fully usable without one, and that is the
+    // state every card created before this field existed is in.
+    workspaceField: { kind: 'missing' },
+    canChooseWorkspace: true,
     catalog: [],
     catalogStatus: 'ready',
     catalogFailure: undefined,
@@ -74,6 +78,7 @@ function setup(
   onSave: ReturnType<typeof vi.fn>
   onChoose: ReturnType<typeof vi.fn>
   onChooseModel: ReturnType<typeof vi.fn>
+  onChooseWorkspace: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
   onDelete: ReturnType<typeof vi.fn>
@@ -81,6 +86,7 @@ function setup(
   const onSave = vi.fn()
   const onChoose = vi.fn()
   const onChooseModel = vi.fn()
+  const onChooseWorkspace = vi.fn()
   const onRename = vi.fn()
   const onClose = vi.fn()
   const onDelete = vi.fn()
@@ -91,12 +97,13 @@ function setup(
       onSave={onSave}
       onChoose={onChoose}
       onChooseModel={onChooseModel}
+      onChooseWorkspace={onChooseWorkspace}
       onRename={onRename}
       onClose={onClose}
       onDelete={onDelete}
     />,
   )
-  return { container, onSave, onChoose, onChooseModel, onRename, onClose, onDelete }
+  return { container, onSave, onChoose, onChooseModel, onChooseWorkspace, onRename, onClose, onDelete }
 }
 
 /** A template that declares the one region a run fills. */
@@ -800,6 +807,106 @@ describe('the model field', () => {
     expect(container.querySelector('[data-model-fixed]')).toBeNull()
     expect(container.querySelector('[data-model-unavailable]')?.textContent).toBe(zh.skillCardModelUnavailable)
     expect(container.querySelector('input[type="text"]')).not.toBeNull()
+  })
+})
+
+describe('the workspace field', () => {
+  /** A stored directory, Windows-shaped so the leaf computation is the interesting one. */
+  const WORKSPACE = { path: 'D:\\Git\\Personal-Workbench' }
+
+  it('shows the last segment as the value and the full path beneath it', () => {
+    // The leaf is what the user scans; the full path is the exact directory and is never
+    // dropped in its favour — a card that runs in `Personal-Workbench` must be
+    // distinguishable from one that runs in a sibling folder of the same name.
+    const { container } = setup({ skill: 'git-repo', workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' } }, zhT)
+    expect(container.querySelector('[data-workspace-leaf]')?.textContent).toBe('Personal-Workbench')
+    const path = container.querySelector('[data-workspace-path]') as HTMLElement
+    expect(path.textContent).toBe(WORKSPACE.path)
+    // Tertiary and small: present, and not competing with the name above it.
+    expect(path.className).toContain('workspacePath')
+    expect(container.querySelector('[data-workspace-invalid]')).toBeNull()
+    expect(container.querySelector('[data-workspace-picker-unavailable]')).toBeNull()
+  })
+
+  it('says nothing is selected yet, and keeps the picker reachable', () => {
+    // The state every card created before this field existed is in. The field has to be
+    // usable: the button is the only way out of it.
+    const { container, onChooseWorkspace } = setup({ skill: 'git-repo' }, zhT)
+    expect(container.querySelector('[data-workspace-leaf]')?.textContent).toBe(zh.skillCardWorkspaceNotSet)
+    expect(container.querySelector('[data-workspace-path]')).toBeNull()
+    const pick = container.querySelector('[data-workspace-pick]') as HTMLButtonElement
+    expect(pick.disabled).toBe(false)
+    fireEvent.click(pick)
+    expect(onChooseWorkspace).toHaveBeenCalledOnce()
+  })
+
+  it('states that the stored directory is gone, still showing which one', () => {
+    // The path stays on screen: the user has to know which folder to restore or replace, and
+    // the message alone would send them looking.
+    const { container } = setup({
+      skill: 'git-repo',
+      workspaceField: { kind: 'invalid', ...WORKSPACE, leaf: 'Personal-Workbench', checked: true },
+    }, zhT)
+    expect(container.querySelector('[data-workspace-path]')?.textContent).toBe(WORKSPACE.path)
+    expect(container.querySelector('[data-workspace-invalid]')?.textContent)
+      .toBe(zh.skillCardProblemWorkspaceInvalid)
+    // The control that fixes it stays available: this is the state it exists for.
+    expect((container.querySelector('[data-workspace-pick]') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('says nothing about a directory nobody has checked yet', () => {
+    // The check is asynchronous, so a stored path is unconfirmed for a frame. Claiming the
+    // folder is gone before anything looked at it would be a false statement on screen.
+    const { container } = setup({
+      skill: 'git-repo',
+      workspaceField: { kind: 'invalid', ...WORKSPACE, leaf: 'Personal-Workbench', checked: false },
+    }, zhT)
+    expect(container.querySelector('[data-workspace-path]')?.textContent).toBe(WORKSPACE.path)
+    expect(container.querySelector('[data-workspace-invalid]')).toBeNull()
+  })
+
+  it('offers no picker at all rather than a text field, and says why', () => {
+    // The product owner rejected free-text paths: a typed path is a directory nothing
+    // confirmed. So a page without a picker states that instead of inventing an input.
+    const { container } = setup({ skill: 'git-repo', canChooseWorkspace: false }, zhT)
+    const pick = container.querySelector('[data-workspace-pick]') as HTMLButtonElement
+    expect(pick.disabled).toBe(true)
+    expect(container.querySelector('[data-workspace-picker-unavailable]')?.textContent)
+      .toBe(zh.skillCardWorkspacePickerUnavailable)
+    // One text input, and it is the card's name.
+    expect(container.querySelectorAll('input[type="text"]')).toHaveLength(1)
+    expect((container.querySelector('input[type="text"]') as HTMLInputElement).placeholder)
+      .toBe(zh.skillCardNamePlaceholder)
+  })
+
+  it('lays the four facts out as two rows of two', () => {
+    // Adding a fourth field to the single row crowded every label against the next control
+    // and pushed the last one past the page's edge. The grid is what makes the shape two
+    // rows of two instead of whatever happens to wrap.
+    const { container } = setup({ skill: 'git-repo', workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' } }, zhT)
+    const grid = container.querySelector('.fieldGrid') as HTMLElement
+    expect(grid).not.toBeNull()
+    // Four cells, in the order the page states them: name, skill, model, workspace.
+    const cells = [...grid.children] as HTMLElement[]
+    expect(cells).toHaveLength(4)
+    expect(cells.map(cell => cell.querySelector('.fieldLabel')?.textContent)).toEqual([
+      zh.skillCardCardName,
+      zh.skillCardSelectSkill,
+      zh.skillCardModel,
+      zh.skillCardWorkspace,
+    ])
+    // jsdom computes no media queries, so the two-column shape is asserted where it lives.
+    expect(grid.className).toContain('fieldGrid')
+  })
+
+  it('names itself as text rather than as a label for a control', () => {
+    // The only control here is a button that opens a chooser. A `for` pointing at it would
+    // label the button, not the value the user is reading.
+    const { container } = setup({ skill: 'git-repo' }, zhT)
+    const label = [...container.querySelectorAll('.fieldLabel')]
+      .find(element => element.textContent === zh.skillCardWorkspace) as HTMLElement
+    expect(label.tagName).toBe('P')
+    expect(screen.queryByLabelText(zh.skillCardWorkspace)).toBeNull()
   })
 })
 

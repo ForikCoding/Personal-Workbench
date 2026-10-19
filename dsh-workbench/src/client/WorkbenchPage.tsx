@@ -17,6 +17,7 @@ import type { WorkbenchCardSelection, WorkbenchCardsOwnerProps } from './contrac
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
 import type { WorkbenchCardSnapshot } from './skill-card/api.ts'
 import type { WorkbenchModelSeat } from './skill-card/model.ts'
+import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
 import { WorkbenchCreateCard } from './WorkbenchCreateCard.tsx'
 import type { WorkbenchCardType } from './WorkbenchCreateCard.tsx'
@@ -43,6 +44,8 @@ export interface WorkbenchPageInjected {
     readonly runSessionId: () => string | undefined
     /** Model catalog the result and configuration pages read. */
     readonly models: WorkbenchModelSeat
+    /** Directory picker the configuration page offers for the card's workspace. */
+    readonly workspacePicker: WorkbenchWorkspacePicker
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
@@ -225,6 +228,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         cardId: selection.cardId,
         runSessionId: skillCards.runSessionId,
         models: skillCards.models,
+        workspacePicker: skillCards.workspacePicker,
         fallbackTitle: labelOf(selection.cardId),
         onBack: closeCard,
         openCard,

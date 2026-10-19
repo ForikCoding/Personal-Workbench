@@ -43,6 +43,14 @@ export const zh = {
   skillCardProblemRunFailed: '这次运行没有产出可用的结果',
   // 这张卡能读、能改，只有"运行"不行：宿主没有提供子代理的激活入口。
   skillCardProblemRunUnavailable: '当前 harness 不能运行卡片：卡片运行需要提供 startActivation 的 harness（0.2.1-alpha.2 / beta 通道），已安装的 harness 没有提供',
+  // The workspace. A card runs in the directory the user picked for it and nowhere else:
+  // no default, no inference from the session, and no free-text path.
+  skillCardProblemWorkspaceMissing: '这张卡还没有选择工作目录，先选一个目录再运行',
+  skillCardProblemWorkspaceInvalid: '工作目录不存在或不是文件夹',
+  skillCardWorkspace: '工作目录',
+  skillCardWorkspaceNotSet: '未选择',
+  skillCardChooseDirectory: '选择目录',
+  skillCardWorkspacePickerUnavailable: '这个环境没有目录选择器，无法选择工作目录',
   skillCardProblemTooLarge: '模板超出体积上限',
   skillCardProblemUnavailable: '暂时读不到这张卡的状态',
   skillCardProblemGeneric: '这张卡暂时不可用',
@@ -236,6 +244,14 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardProblemRunFailed: 'The run produced no usable result',
   // The card itself is fine: the harness under it is missing the seam a run needs.
   skillCardProblemRunUnavailable: 'This harness cannot run cards: a card run needs a harness that provides startActivation (0.2.1-alpha.2, the beta channel), and the installed harness does not',
+  // The workspace. A card runs in the directory the user picked for it and nowhere else:
+  // no default, no inference from the session, and no free-text path.
+  skillCardProblemWorkspaceMissing: 'No workspace directory is selected for this card; choose one before running',
+  skillCardProblemWorkspaceInvalid: 'The workspace directory does not exist or is not a folder',
+  skillCardWorkspace: 'Workspace',
+  skillCardWorkspaceNotSet: 'Not selected',
+  skillCardChooseDirectory: 'Choose directory',
+  skillCardWorkspacePickerUnavailable: 'This environment has no directory picker, so a workspace cannot be chosen',
   skillCardProblemTooLarge: 'The template is above the size limit',
   skillCardProblemUnavailable: 'This card’s state cannot be read right now',
   skillCardProblemGeneric: 'This card is unavailable right now',

@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { fakeWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
+import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import type { WorkbenchModelDirectoryView, WorkbenchModelSeat } from '../src/client/skill-card/model.ts'
 import { modelKey } from '../src/client/skill-card/model.ts'
 import type { WorkbenchCardModel, WorkbenchSkillCardPatch } from '../src/skill-card-contract.ts'
@@ -44,10 +46,14 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
       start: async () => ({ status: 'failed', code: 'unavailable', message: 'unused here' }),
       cancel: async () => {},
       saveResult: async () => ({ status: 'unavailable', reason: 'unused here' }),
+      // These cases are about the page's own structure. The default card states no
+      // directory, and a card that names one is answered with a present directory.
+      statDirectory: async () => ({ status: 'ok', stat: PRESENT_DIRECTORY }),
     },
     cardId: 'skill-card',
     runSessionId: () => undefined,
     models: fakeModelSeat(),
+    workspacePicker: fakeWorkspacePicker().picker,
     fallbackTitle: 'Skill card',
     onBack: () => {},
     openCard: () => {},
@@ -145,8 +151,69 @@ describe('skill card configuration page', () => {
     })
   })
 
-  it('checks a declared card target against the title the grid shows', async () => {
-    // A nameless card is titled by its registered label on the face, and that is the
+  it('stores the directory the picker chose, as the full path', async () => {
+    // The picker is the only way a card can name a directory, so this is the boundary that
+    // turns a choice into a stored path. What travels is the whole absolute path.
+    const writes: WorkbenchSkillCardPatch[] = []
+    const picker = fakeWorkspacePicker()
+    const { container } = render(<SkillCardConfigPage {...props({
+      workspacePicker: picker.picker,
+      api: {
+        ...props().api,
+        write: async (patch) => {
+          writes.push(patch)
+          return { status: 'ok', snapshot: { revision: '1:1', cards: [{ cardId: 'skill-card', templateSkills: [] }], results: [] } }
+        },
+      },
+    })} />)
+    fireEvent.click(container.querySelector('[data-workspace-pick]') as HTMLElement)
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    expect(writes[0]).toMatchObject({
+      baseRevision: '1:0',
+      cardId: 'skill-card',
+      workspace: { path: PICKED_PATH },
+    })
+  })
+
+  it('changes nothing when the chooser is cancelled', async () => {
+    // Closing the chooser is an answer, not a failure: the stored directory stays exactly as
+    // it was, and no write is issued for a decision the user did not make.
+    const writes: WorkbenchSkillCardPatch[] = []
+    const picker = fakeWorkspacePicker({ answer: { status: 'cancelled' } })
+    const { container } = render(<SkillCardConfigPage {...props({
+      workspacePicker: picker.picker,
+      api: {
+        ...props().api,
+        write: async (patch) => {
+          writes.push(patch)
+          return { status: 'ok', snapshot: { revision: '1:1', cards: [{ cardId: 'skill-card', templateSkills: [] }], results: [] } }
+        },
+      },
+    })} />)
+    fireEvent.click(container.querySelector('[data-workspace-pick]') as HTMLElement)
+    await waitFor(() => { expect(picker.picks()).toBe(1) })
+    expect(writes).toEqual([])
+    // The field still reads "not selected", because nothing was selected.
+    expect(container.querySelector('[data-workspace-leaf]')?.textContent).toBe('skillCardWorkspaceNotSet')
+  })
+
+  it('degrades a refused picker to a stated unavailable control', async () => {
+    // A route that is not there must not throw into the page: the button stops working and
+    // the field says there is no picker, which is the honest answer for this composition.
+    const picker = fakeWorkspacePicker({
+      answer: { status: 'unavailable', reason: 'DSH Desktop could not open the system folder picker' },
+    })
+    const { container } = render(<SkillCardConfigPage {...props({ workspacePicker: picker.picker })} />)
+    const button = container.querySelector('[data-workspace-pick]') as HTMLButtonElement
+    expect(button.disabled).toBe(false)
+    fireEvent.click(button)
+    await waitFor(() => {
+      expect(container.querySelector('[data-workspace-picker-unavailable]')).not.toBeNull()
+    })
+    expect((container.querySelector('[data-workspace-pick]') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('checks a declared card target against the title the grid shows', async () => {    // A nameless card is titled by its registered label on the face, and that is the
     // name a click resolves against — so the editor has to compare with the same rule
     // rather than reporting a target that exists as missing.
     const template = [
@@ -199,6 +266,9 @@ describe('skill card result page', () => {
           skill: 'git-repo',
           template: '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->',
           ...model === undefined ? {} : { model },
+          // "Ready to run" includes where: a card with no directory is refused before the
+          // click, which is the state the workspace cases in the settings spec cover.
+          workspace: { path: WORKSPACE_PATH },
           templateSkills: ['git-repo'],
         }],
         results: [],
@@ -225,6 +295,30 @@ describe('skill card result page', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('the child crashed')
     expect(alert.textContent).toContain('skillCardProblemRunFailed')
+  })
+
+  it('reports a run refused because the activation seam is missing', async () => {
+    // The stale click: the snapshot this page holds says the harness can run, and the route
+    // answers that it cannot. The refusal belongs on the page as its own state, localized
+    // by the same code table as every other failure, rather than escaping as a stack.
+    render(
+      <SkillCardResultPage
+        {...props({
+          runSessionId: () => 'session-1',
+          api: readyApi(async () => ({
+            status: 'rejected',
+            code: 'run-unavailable',
+            message: 'this harness provides no subagents.startActivation',
+          })),
+        })}
+      />,
+    )
+    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
+    fireEvent.click(run)
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('skillCardProblemRunUnavailable')
+    expect(alert.textContent).toContain('startActivation')
   })
 
   it('says a run is in flight instead of showing the not-run notice', async () => {

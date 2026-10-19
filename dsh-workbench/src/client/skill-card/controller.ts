@@ -22,6 +22,7 @@ import type {
   WorkbenchCardConfigView,
   WorkbenchCardModel,
   WorkbenchCardResult,
+  WorkbenchDirectoryStat,
   WorkbenchResultRecord,
   WorkbenchRunState,
   WorkbenchSkillCardErrorCode,
@@ -41,6 +42,9 @@ import type { WorkbenchActionEvent } from './render.ts'
 import { resultHtml } from './render.ts'
 import { startCardRefine, startCardRun } from './run-start.ts'
 import { analyzeTemplate } from './template.ts'
+import type { WorkbenchWorkspaceField } from './workspace.ts'
+import { NO_DIRECTORY_STAT, resolveWorkspaceField } from './workspace.ts'
+import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
 
 /** How often a running card asks the Host for its state. */
 const POLL_INTERVAL_MS = 1000
@@ -72,6 +76,15 @@ export type WorkbenchActionProblemCode =
   | WorkbenchActionErrorCode
   /** A click whose own key or payload could not be read; see {@link WorkbenchActionEvent}. */
   | Extract<WorkbenchActionEvent, { readonly kind: 'invalid' }>['reason']
+  /**
+   * The card that would run has no workspace directory.
+   *
+   * Its own codes rather than one generic "unavailable": a run refused for where it would
+   * happen is not a target that is missing or busy, and the user's remedy is to configure
+   * that card's directory.
+   */
+  | 'target-workspace-missing'
+  | 'target-workspace-invalid'
 
 /** Why one clicked action cannot run. */
 export interface WorkbenchActionProblem {
@@ -215,7 +228,7 @@ export interface WorkbenchCardView {
    * result, so hiding it removes the thing the user is reviewing.
    */
   readonly refining?: boolean
-  /** Whether a run can start: a skill, a template, a live session, and a model to name. */
+  /** Whether a run can start: a skill, a template, a live session, a model, and a directory. */
   readonly runnable: boolean
   /**
    * What the model field offers, and whether a run can name its route.
@@ -224,6 +237,21 @@ export interface WorkbenchCardView {
    * run control's answer have to be the same answer.
    */
   readonly modelField: WorkbenchModelField
+  /**
+   * Where this card runs, and whether that directory was confirmed.
+   *
+   * Carried on the view for the same reason as the model field: the picker's own state and
+   * the run control's answer are one answer, and both the configuration page and the result
+   * page read it from here.
+   */
+  readonly workspaceField: WorkbenchWorkspaceField
+  /**
+   * Whether a directory picker can be offered at all.
+   *
+   * False on a page whose composition has no picker, and after one refused: the field then
+   * states that instead of offering a button that cannot do anything.
+   */
+  readonly canChooseWorkspace: boolean
   /** Skills the session's agent can invoke. */
   readonly catalog: readonly WorkbenchSkillCatalogEntry[]
   /** Whether the catalog has been read. */
@@ -287,6 +315,13 @@ export interface WorkbenchCardActions {
    */
   chooseModel(model: WorkbenchCardModel): void
   /**
+   * Ask the user for a directory, and store it as this card's workspace.
+   *
+   * The picker is the only way in: there is no field to type a path into, because a typed
+   * path is a directory nobody confirmed. A cancelled pick writes nothing.
+   */
+  chooseWorkspace(): void
+  /**
    * Store a template for the selected skill, together with the card's name.
    * @param template - the HTML to store.
    * @param name - the card's name as the editor shows it; an empty value clears it.
@@ -345,6 +380,14 @@ export interface WorkbenchSkillCardOptions {
    */
   readonly models?: WorkbenchModelSeat
   /**
+   * Ask the user for this card's workspace directory.
+   *
+   * Omitted by a page with no picker to offer, which then states that instead of pretending
+   * a control exists. There is no fallback to a text field: the product owner rejected
+   * typing a path, because nothing would have confirmed it names a directory.
+   */
+  readonly workspacePicker?: WorkbenchWorkspacePicker
+  /**
    * Read the title one card face shows.
    *
    * A declaration addresses a card by the name the user sees, so resolution has to
@@ -393,6 +436,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     session,
     withCatalog = false,
     models,
+    workspacePicker,
     cardTitle = defaultCardTitle,
     openCard,
     watchRun = false,
@@ -447,6 +491,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const [catalogStatus, setCatalogStatus] = useState<WorkbenchCatalogStatus>('idle')
   const [catalogFailure, setCatalogFailure] = useState<WorkbenchSkillCardErrorCode | 'unavailable' | undefined>(undefined)
   const [directory, setDirectory] = useState<WorkbenchModelDirectoryView>(NO_MODEL_DIRECTORY)
+  // A pick that found no picker disables the control for the rest of the session: the
+  // composition cannot change under a mounted page, and a button that keeps failing reads
+  // as a broken control rather than as a platform without one.
+  const [pickerRefused, setPickerRefused] = useState(false)
 
   // The directory is an outside store, so it is read into state and watched rather than
   // read during render: it loads after the page mounts, and a field that never re-rendered
@@ -573,6 +621,42 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     () => resolveModelField(card?.model, directory),
     [card?.model, directory],
   )
+  // What the Host answered about this card's directory, tagged with the path it is about. The
+  // tag matters: a card that is pointed at another directory must not inherit the previous
+  // answer for a frame, and clearing state inside the effect would render exactly that.
+  const [workspaceCheck, setWorkspaceCheck] = useState<
+    { readonly path: string; readonly stat: WorkbenchDirectoryStat } | undefined
+  >(undefined)
+  // Whether the stored directory is still a directory is the Host's answer, so it is read
+  // once per stored path rather than during render.
+  const workspacePath = card?.workspace?.path
+  useEffect(() => {
+    if (workspacePath === undefined) return
+    let live = true
+    void api.statDirectory(workspacePath).then((outcome) => {
+      if (!live) return
+      // A check that never answered is "nothing is there": an unconfirmed directory is one a
+      // card may not run in. The field says nothing about it until an answer arrives, which is
+      // what the `checked` flag on the field is for.
+      setWorkspaceCheck({
+        path: workspacePath,
+        stat: outcome.status === 'ok' ? outcome.stat : NO_DIRECTORY_STAT,
+      })
+    })
+    return () => { live = false }
+  }, [api, workspacePath])
+  const workspaceStat = workspacePath !== undefined && workspaceCheck?.path === workspacePath
+    ? workspaceCheck.stat
+    : undefined
+  // The one place that decides whether this card has a directory to run in. The field, the
+  // run control, and every entry point read this answer.
+  const workspaceField = useMemo<WorkbenchWorkspaceField>(
+    () => resolveWorkspaceField(card?.workspace, workspaceStat),
+    [card?.workspace, workspaceStat],
+  )
+  // A pick that found no picker closes the control for this page: `pickerRefused` wins over
+  // the seat's own answer, which cannot change while the page is mounted.
+  const canChooseWorkspace = !pickerRefused && workspacePicker !== undefined && workspacePicker.available()
   // Recorded by the Host once, at composition, and read here rather than asked per click.
   // Memoized on the configuration so the view's own identity stays stable between renders.
   const runUnavailable = useMemo<WorkbenchCardProblem | undefined>(
@@ -607,6 +691,13 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setProblem({ code: 'session-not-live', detail: '' })
       return
     }
+    // Refuse rather than fall back to the session's directory. A run that happened somewhere
+    // the user did not choose would be a result about a different folder.
+    const refused = workspaceRefusal(workspaceField)
+    if (refused !== undefined) {
+      setProblem(refused)
+      return
+    }
     if (card?.skill === undefined) {
       setProblem({ code: 'not-configured', detail: '' })
       return
@@ -633,7 +724,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         ? { code: asErrorCode(outcome.code), detail: outcome.message }
         : { code: 'unavailable', detail: outcome.reason })
     })
-  }, [api, cardId, session, card?.skill, card?.template])
+  }, [api, cardId, session, card?.skill, card?.template, workspaceField])
 
   const cancel = useCallback(() => { void api.cancel(cardId) }, [api, cardId])
 
@@ -646,6 +737,13 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     const live = session()
     if (live === undefined) {
       setProblem({ code: 'session-not-live', detail: '' })
+      return
+    }
+    // A refinement is a card run with a narrower ask, so it happens in the same directory
+    // and is refused for the same reason: nowhere chosen means nowhere to revise.
+    const refused = workspaceRefusal(workspaceField)
+    if (refused !== undefined) {
+      setRefineProblem(refused)
       return
     }
     if (card?.skill === undefined) {
@@ -681,7 +779,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       settleRefinement(outcome.state)
       setRun(outcome.state)
     })
-  }, [api, card?.skill, card?.template, cardId, result, run?.phase, session, settleRefinement])
+  }, [api, card?.skill, card?.template, cardId, result, run?.phase, session, settleRefinement, workspaceField])
 
   const undoRefine = useCallback(() => {
     const kept = previousResult
@@ -756,6 +854,42 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     if (revision === undefined) return
     void api.write({ baseRevision: revision, cardId, model }).then(applyWrite)
   }, [api, applyWrite, cardId, revision])
+
+  const chooseWorkspace = useCallback(() => {
+    if (workspacePicker === undefined) {
+      // No picker means no way to name a directory. Saying so is the whole answer: there is
+      // deliberately no text field to fall back to, because a typed path is a directory
+      // nothing confirmed.
+      setPickerRefused(true)
+      return
+    }
+    void workspacePicker.pick().then((picked) => {
+      // A cancelled pick is not an error and not a change: the stored path stays exactly as
+      // it was, which is what the user asked for by closing the chooser.
+      if (picked.status === 'cancelled') return
+      if (picked.status === 'unavailable') {
+        setPickerRefused(true)
+        return
+      }
+      const send = (baseRevision: string): void => {
+        void api.write({ baseRevision, cardId, workspace: { path: picked.path } }).then(applyWrite)
+      }
+      if (revision !== undefined) {
+        send(revision)
+        return
+      }
+      // A page opened a moment ago may not hold a revision yet. Reading the missing one is
+      // what keeps the choice from being dropped on the floor, which is the bug the rename
+      // path had before it read the revision it needed.
+      void api.read().then((outcome) => {
+        if (outcome.status !== 'ok') {
+          setProblem({ code: 'unavailable', detail: outcome.reason })
+          return
+        }
+        send(outcome.snapshot.revision)
+      })
+    })
+  }, [api, applyWrite, cardId, revision, workspacePicker])
 
   const saveTemplate = useCallback((template: string, name: string) => {
     const skill = card?.skill
@@ -910,6 +1044,26 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setActionProblem({ code: 'target-unavailable', candidates: [] })
       return
     }
+    // Where the run will happen, resolved for the card that will actually run: a card
+    // target runs on its own stored directory, not on the directory of the card whose
+    // button was pressed. Confirming a run the Host is certain to refuse wastes the one
+    // thing the panel exists to protect — the user's attention.
+    const runnerCardId = resolution.target.kind === 'card' ? resolution.reference : cardId
+    const runnerCard = snapshot.cards.find(entry => entry.cardId === runnerCardId)
+    const stat = runnerCard?.workspace === undefined
+      ? undefined
+      : await api.statDirectory(runnerCard.workspace.path)
+    const field = resolveWorkspaceField(
+      runnerCard?.workspace,
+      stat === undefined ? undefined : stat.status === 'ok' ? stat.stat : NO_DIRECTORY_STAT,
+    )
+    if (field.kind !== 'ready') {
+      setPendingAction(undefined)
+      setActionProblem(field.kind === 'missing'
+        ? { code: 'target-workspace-missing', candidates: [] }
+        : { code: 'target-workspace-invalid', candidates: [], detail: field.path })
+      return
+    }
     setPendingAction({
       key: resolution.key,
       target: resolution.target,
@@ -943,12 +1097,26 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       // at, instead of moving them first and reporting the failure afterwards.
       // The confirmed row travels with the run, so the target card executes the row the
       // user saw rather than a run with no idea which row it was for.
+      //
+      // The target card's directory was resolved when the panel opened. A run that still
+      // arrives without one is refused by the route, which reads that card's own record —
+      // this page holds no stat for another card to re-check at confirm time.
       void startCardRun(api, pending.reference, pending.sessionId, pending.payload).then((outcome) => {
         if (outcome.status !== 'ok') {
           setActionProblem(startProblem(outcome))
           return
         }
         openCard?.(pending.reference, 'result')
+      })
+      return
+    }
+    // A skill target runs on this card, so this card's directory decides whether it can.
+    const refused = workspaceRefusal(workspaceField)
+    if (refused !== undefined) {
+      setActionProblem({
+        code: refused.code === 'workspace-missing' ? 'target-workspace-missing' : 'target-workspace-invalid',
+        candidates: [],
+        ...refused.detail === undefined || refused.detail === '' ? {} : { detail: refused.detail },
       })
       return
     }
@@ -969,7 +1137,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         startedAt: outcome.state.startedAt ?? Date.now(),
       })
     })
-  }, [api, cardId, openCard, pendingAction])
+  }, [api, cardId, openCard, pendingAction, workspaceField])
 
   const cancelAction = useCallback(() => {
     // Deliberately nothing else: no run, no write, no navigation. Cancelling is only
@@ -987,6 +1155,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       refresh,
       chooseSkill,
       chooseModel,
+      chooseWorkspace,
       saveTemplate,
       rename,
       remove,
@@ -1003,6 +1172,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       refresh,
       chooseSkill,
       chooseModel,
+      chooseWorkspace,
       saveTemplate,
       rename,
       remove,
@@ -1044,13 +1214,17 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // The deciding question is whether there is a model the run could name, never whether
     // the picker loaded: a known route keeps a card runnable with no catalog at all. A
     // harness without the activation seam is the one answer that closes this off for
-    // every card, and the view states it beside the disabled control.
+    // every card, and the view states it beside the disabled control. The directory is the
+    // same kind of answer: a card only runs where the user put it.
     runnable: runUnavailable === undefined
       && sessionId !== undefined
       && card?.skill !== undefined
       && card.template !== undefined
-      && modelField.kind !== 'unavailable',
+      && modelField.kind !== 'unavailable'
+      && workspaceField.kind === 'ready',
     modelField,
+    workspaceField,
+    canChooseWorkspace,
     catalog,
     catalogStatus,
     catalogFailure,
@@ -1068,6 +1242,8 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     card?.skill,
     card?.template,
     modelField,
+    workspaceField,
+    canChooseWorkspace,
     result,
     catalog,
     catalogStatus,
@@ -1116,6 +1292,23 @@ function replaceResult(
   })
   if (!found) next.push(written)
   return next.sort((left, right) => (left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : 0))
+}
+
+/**
+ * Read one workspace field as the refusal a run reports.
+ *
+ * One function for every entry point, so the header control, a refinement, and a template
+ * button cannot disagree about whether the card has somewhere to run.
+ * @param field - the resolved field.
+ * @returns the problem to report, or undefined when the directory is confirmed.
+ */
+function workspaceRefusal(field: WorkbenchWorkspaceField): WorkbenchCardProblem | undefined {
+  if (field.kind === 'ready') return undefined
+  return field.kind === 'missing'
+    ? { code: 'workspace-missing', detail: '' }
+    // The message carries the full path: "that directory is gone" is only actionable when
+    // it says which one.
+    : { code: 'workspace-invalid', detail: field.path }
 }
 
 /**
@@ -1178,6 +1371,8 @@ const LOCALIZED_CODES: Record<WorkbenchSkillCardErrorCode, true> = {
   'schema-rejected': true,
   'run-in-progress': true,
   'run-unavailable': true,
+  'workspace-missing': true,
+  'workspace-invalid': true,
 }
 
 /**

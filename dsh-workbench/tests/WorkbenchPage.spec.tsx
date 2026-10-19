@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
@@ -48,9 +49,11 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
         start: async () => ({ status: 'failed', code: 'unavailable', message: 'not used by these cases' }),
         cancel: async () => {},
         saveResult: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
+        statDirectory: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
       },
       runSessionId: () => undefined,
       models: fakeModelSeat(),
+      workspacePicker: fakeWorkspacePicker().picker,
     },
     closeCard: () => {},
     openCard: () => {},
@@ -147,6 +150,7 @@ describe('WorkbenchPage', () => {
             },
             runSessionId: () => undefined,
             models: fakeModelSeat(),
+            workspacePicker: fakeWorkspacePicker().picker,
           },
         })}
       />,
@@ -192,6 +196,7 @@ describe('WorkbenchPage', () => {
             },
             runSessionId: () => undefined,
             models: fakeModelSeat(),
+            workspacePicker: fakeWorkspacePicker().picker,
           },
           renderSlot: ((_name: string, owner: { cardId: string }, opts: { only?: string }) => {
             calls.push({ only: opts.only, cardId: owner.cardId })

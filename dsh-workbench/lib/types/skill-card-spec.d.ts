@@ -30,11 +30,24 @@ export declare const workbenchCardModelSchema: z.ZodObject<{
     model: z.ZodString;
 }, z.core.$strip>;
 /**
+ * Stored form of one card's workspace.
+ *
+ * One field holding the full absolute path, never a workspace id: the product decision is
+ * whichever directory the user picked, which need not be a registered workspace. An id
+ * would additionally make the card depend on a registry entry that can be renamed.
+ */
+export declare const workbenchCardWorkspaceSchema: z.ZodObject<{
+    path: z.ZodString;
+}, z.core.$strip>;
+/**
  * Stored schema for one card's selection and name; absence means "not configured yet".
  *
  * Every field the store writes has to appear here. Zod drops a key this schema does not
  * declare, so an undeclared field survives the write and vanishes on the next load —
  * which reads to the user as "it saved, then reverted after a restart".
+ *
+ * `workspace` is declared in the same change that writes it, for that same reason: a card
+ * that lost its directory would silently stop being runnable after a restart.
  */
 export declare const workbenchCardConfigSchema: z.ZodObject<{
     skill: z.ZodOptional<z.ZodString>;
@@ -42,6 +55,9 @@ export declare const workbenchCardConfigSchema: z.ZodObject<{
     model: z.ZodOptional<z.ZodObject<{
         provider: z.ZodString;
         model: z.ZodString;
+    }, z.core.$strip>>;
+    workspace: z.ZodOptional<z.ZodObject<{
+        path: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 /** Stored schema for one template. */

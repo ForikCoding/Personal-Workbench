@@ -30,6 +30,13 @@ export interface SkillCardSettingsProps {
     readonly onChoose: (skill: string) => void;
     /** Store the model this card's runs use. */
     readonly onChooseModel: (model: WorkbenchCardModel) => void;
+    /**
+     * Open a directory picker and store what it returns.
+     *
+     * The editor never sees the path: picking is the controller's, so a cancelled chooser
+     * leaves the stored directory exactly as it was.
+     */
+    readonly onChooseWorkspace: () => void;
     /** Store the template. */
     readonly onSave: (template: string, name: string) => void;
     /** Store the card's name; an empty value clears it back to the registered label. */

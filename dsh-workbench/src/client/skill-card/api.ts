@@ -11,6 +11,7 @@
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
+  WorkbenchDirectoryStat,
   WorkbenchRunCapabilities,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
@@ -21,11 +22,13 @@ import type {
 import {
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_CATALOG_PATH,
+  WORKBENCH_SKILL_CARD_DIRECTORY_PATH,
   WORKBENCH_SKILL_CARD_PATH,
   WORKBENCH_SKILL_CARD_RESULT_PATH,
   WORKBENCH_SKILL_CARD_RUN_PATH,
   isWorkbenchCardModel,
   isWorkbenchCardName,
+  isWorkbenchCardWorkspace,
   isWorkbenchSkillName,
 } from '../../skill-card-contract.ts'
 import { isWorkbenchCardId } from '../../layout-contract.ts'
@@ -75,6 +78,17 @@ export type WorkbenchConfigWrite =
 export type WorkbenchCatalogRead =
   | { readonly status: 'ok'; readonly entries: readonly WorkbenchSkillCatalogEntry[] }
   | { readonly status: 'failed'; readonly code: string; readonly message: string }
+
+/**
+ * Outcome of one directory check.
+ *
+ * There is no "this path is not a directory" failure: that is an `ok` answer holding
+ * `isDirectory: false`. Only a transport that could not answer lands in `unavailable`, and
+ * the caller reads it as "nothing was confirmed" rather than as an exception.
+ */
+export type WorkbenchDirectoryStatRead =
+  | { readonly status: 'ok'; readonly stat: WorkbenchDirectoryStat }
+  | { readonly status: 'unavailable'; readonly reason: string }
 
 /** Outcome of storing one hand-edited result. */
 export type WorkbenchResultWrite =
@@ -138,6 +152,16 @@ export interface WorkbenchSkillCardApi {
    * @returns the stored record and revision, or the refusal.
    */
   saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>
+  /**
+   * Ask the Host whether one path is a directory a card may run in.
+   *
+   * One narrow read rather than a filesystem bridge: this is the only filesystem fact the
+   * page needs, and it decides whether the run control opens.
+   * @param path - absolute directory path, as stored for the card.
+   * @param signal - caller-owned cancellation.
+   * @returns the three facts, or why the check could not be answered.
+   */
+  statDirectory(path: string, signal?: AbortSignal): Promise<WorkbenchDirectoryStatRead>
 }
 
 /** Queue depth above which the oldest waiting change is dropped. */
@@ -349,6 +373,35 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
         ? { status: 'unavailable', reason: `skill card route answered ${String(response.status)}` }
         : { status: 'rejected', code: error.code, message: error.message }
     },
+
+    async statDirectory(path, signal) {
+      const query = `?path=${encodeURIComponent(path)}`
+      let response: Response
+      try {
+        response = await fetcher(`${WORKBENCH_SKILL_CARD_DIRECTORY_PATH}${query}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          redirect: 'error',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          ...signal === undefined ? {} : { signal },
+        })
+      } catch (error) {
+        return { status: 'unavailable', reason: `skill card request failed: ${messageOf(error)}` }
+      }
+      const body = await readJson(response)
+      if (!response.ok) {
+        const error = errorOf(body)
+        return {
+          status: 'unavailable',
+          reason: error?.message ?? `skill card route answered ${String(response.status)}`,
+        }
+      }
+      const stat = parseDirectoryStat(body)
+      return stat === undefined
+        ? { status: 'unavailable', reason: 'directory response did not match the contract' }
+        : { status: 'ok', stat }
+    },
   }
 }
 
@@ -420,6 +473,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       name?: unknown
       skill?: unknown
       model?: unknown
+      workspace?: unknown
       templateSkills?: unknown
       template?: unknown
     }
@@ -434,6 +488,10 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     // A route the contract would not accept is refused whole rather than rendered as a
     // half-read pair: the field shows what the run will use, so it cannot hold junk.
     if (model !== undefined && !isWorkbenchCardModel(model)) return undefined
+    // Same rule for the directory: a path the Host could not have stored is not a workspace
+    // this page may show or gate a run on.
+    const workspace = entry.workspace
+    if (workspace !== undefined && !isWorkbenchCardWorkspace(workspace)) return undefined
     if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some(name => typeof name !== 'string')) {
       return undefined
     }
@@ -443,6 +501,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       ...entry.name === undefined ? {} : { name: entry.name as string },
       ...entry.skill === undefined ? {} : { skill: entry.skill as string },
       ...model === undefined ? {} : { model },
+      ...workspace === undefined ? {} : { workspace: { path: (workspace as { path: string }).path } },
       templateSkills: entry.templateSkills as readonly string[],
       ...entry.template === undefined ? {} : { template: entry.template },
     })
@@ -485,6 +544,31 @@ function parseCapabilities(value: unknown): WorkbenchRunCapabilities | undefined
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const startActivation = (value as { startActivation?: unknown }).startActivation
   return typeof startActivation === 'boolean' ? { startActivation } : undefined
+}
+
+/**
+ * Validate one directory-check body.
+ *
+ * The three answers are read as booleans rather than passed through: the field decides
+ * whether the run control opens from them, and a missing one would read as `false` by
+ * accident — a card that can never run for no stated reason.
+ * @param value - decoded body.
+ * @returns the three facts, or undefined when a field is outside the contract.
+ */
+export function parseDirectoryStat(value: unknown): WorkbenchDirectoryStat | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const body = value as {
+    apiVersion?: unknown
+    path?: unknown
+    exists?: unknown
+    isDirectory?: unknown
+    writable?: unknown
+  }
+  if (body.apiVersion !== WORKBENCH_SKILL_CARD_API_VERSION) return undefined
+  if (typeof body.path !== 'string') return undefined
+  if (typeof body.exists !== 'boolean' || typeof body.isDirectory !== 'boolean') return undefined
+  if (typeof body.writable !== 'boolean') return undefined
+  return { exists: body.exists, isDirectory: body.isDirectory, writable: body.writable }
 }
 
 /**

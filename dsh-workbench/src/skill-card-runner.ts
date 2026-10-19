@@ -11,6 +11,7 @@
 
 import type {
   WorkbenchCardModel,
+  WorkbenchCardWorkspace,
   WorkbenchResultRecord,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
@@ -28,6 +29,7 @@ import type {
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from './skill-card-host.ts'
+import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
 import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
 
 /**
@@ -62,6 +64,14 @@ export interface WorkbenchCardSelection {
    * what the card is, so a client cannot start a run on a route the card does not name.
    */
   readonly model?: WorkbenchCardModel
+  /**
+   * Directory the card runs in; absent means the card cannot run.
+   *
+   * Read from storage for the same reason the route is: where a card runs is part of what
+   * the card is. There is no fallback to the session's directory — a run would then happen
+   * somewhere the user never chose, and every result would be about a different folder.
+   */
+  readonly workspace?: WorkbenchCardWorkspace
 }
 
 /** Everything the runner depends on. */
@@ -75,6 +85,13 @@ export interface WorkbenchSkillCardRunnerOptions {
    * the directory from the agent's session header, as that channel does.
    */
   readonly workingDirectory?: WorkbenchWorkingDirectory
+  /**
+   * The one filesystem read a start performs.
+   *
+   * Required rather than defaulted: every run is gated on it, so a composition that
+   * forgot to wire it cannot quietly behave as if there were no gate.
+   */
+  readonly statDirectory: WorkbenchDirectoryProbe
   /** Configured child backend name. */
   readonly subagentProvider: string
   /** Milliseconds one run may take before it is cancelled. */
@@ -316,8 +333,28 @@ export class WorkbenchSkillCardRunner {
       const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model)
       if (refusal !== undefined) return refusal
     }
-    // Checked after the model query, never before it, so the reservation below stays
-    // synchronous: two starts that both awaited the same query must not both win.
+    // Where the run happens is the card's own answer, checked before anything is started.
+    // Refusing rather than falling back to the session's directory is the whole point: a
+    // card whose folder was moved must stop, not quietly run somewhere the user never
+    // picked and stamp a result that does not say so.
+    const workspace = selection.workspace
+    if (workspace === undefined) {
+      return reject(
+        'workspace-missing',
+        `no workspace directory is configured for card "${request.cardId}"`,
+      )
+    }
+    const found = await this.options.statDirectory(workspace.path)
+    if (!found.exists || !found.isDirectory) {
+      // The refusal names the full path, because "the directory is gone" is only actionable
+      // when it says which directory.
+      return reject(
+        'workspace-invalid',
+        `the workspace directory "${workspace.path}" does not exist or is not a directory`,
+      )
+    }
+    // Checked after the two queries above, never before them, so the reservation below
+    // stays synchronous: two starts that both awaited the same check must not both win.
     if (this.runs.get(request.cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns) {
       return reject('run-in-progress', 'another run is already in flight')
     }

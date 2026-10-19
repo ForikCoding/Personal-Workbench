@@ -12,9 +12,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
+import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import { zh, en } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
-import type { WorkbenchCardResult, WorkbenchRunCapabilities } from '../src/skill-card-contract.ts'
+import type { WorkbenchCardResult, WorkbenchDirectoryStat, WorkbenchRunCapabilities } from '../src/skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../src/client/skill-card/api.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -69,19 +71,31 @@ function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResu
 
 /**
  * Build a transport for one card that is configured and ready to run.
- * @param options - the stored result and what the Host recorded about running.
+ * @param options - the stored result, what the Host recorded about running, and the
+ * workspace the card was given.
  * @returns the api.
  */
 function pageApi(options: {
   result?: WorkbenchCardResult
   capabilities?: WorkbenchRunCapabilities
+  /** The card's stored workspace; absent models a card created before the field existed. */
+  workspace?: { readonly path: string }
+  /** What the directory check answers; defaults to "a directory is there". */
+  directory?: WorkbenchDirectoryStat
 } = {}): WorkbenchSkillCardApi {
+  const workspace = options.workspace === undefined ? undefined : options.workspace
   return {
     read: async () => ({
       status: 'ok',
       snapshot: {
         revision: '1:0',
-        cards: [{ cardId: 'skill-card', skill: 'git-repo', template: TEMPLATE, templateSkills: ['git-repo'] }],
+        cards: [{
+          cardId: 'skill-card',
+          skill: 'git-repo',
+          template: TEMPLATE,
+          templateSkills: ['git-repo'],
+          ...workspace === undefined ? {} : { workspace },
+        }],
         results: options.result === undefined ? [] : [options.result],
         // Absent is the pre-field Host, which this page treats as able to run.
         ...options.capabilities === undefined ? {} : { capabilities: options.capabilities },
@@ -96,6 +110,7 @@ function pageApi(options: {
     start: async () => ({ status: 'unavailable', reason: 'no run is started here' }),
     cancel: async () => {},
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
+    statDirectory: async () => ({ status: 'ok', stat: options.directory ?? PRESENT_DIRECTORY }),
   }
 }
 
@@ -110,6 +125,7 @@ function props(overrides: Partial<PageProps> = {}): PageProps {
     cardId: 'skill-card',
     runSessionId: () => 'session-1',
     models: fakeModelSeat(),
+    workspacePicker: fakeWorkspacePicker().picker,
     fallbackTitle: '技能卡',
     onBack: () => {},
     openCard: () => {},
@@ -374,8 +390,68 @@ describe('the result page', () => {
     expect(container.querySelector('[data-result-edit-start]')).not.toBeNull()
   })
 
-  it('demotes the permission note to the last line of the page', async () => {
-    // The note is a statement about the page, not part of the document: it belongs
+  it('disables the run control when no workspace is chosen, and says so', async () => {
+    // The card is otherwise completely ready: a skill, a template, a model, a live session.
+    // The one missing fact is where the run would happen, and there is no default for it.
+    const { container } = render(<SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />)
+    await detail(container)
+    const notice = await waitFor(() => {
+      const element = container.querySelector('[data-run-workspace-missing]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(notice.textContent).toBe(zh.skillCardProblemWorkspaceMissing)
+    const run = [...container.querySelectorAll('button')]
+      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
+    expect(run?.disabled).toBe(true)
+  })
+
+  it('disables the run control when the stored directory is gone, naming the path', async () => {
+    // The path is part of the message: "that directory is gone" is only actionable when it
+    // says which one, and the user needs to know which folder to restore or replace.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({
+            result: result(),
+            workspace: { path: 'D:\\Git\\Gone' },
+            directory: { exists: false, isDirectory: false, writable: false },
+          }),
+        })}
+      />,
+    )
+    await detail(container)
+    const notice = await waitFor(() => {
+      const element = container.querySelector('[data-run-workspace-invalid]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(notice.textContent).toContain(zh.skillCardProblemWorkspaceInvalid)
+    expect(notice.textContent).toContain('D:\\Git\\Gone')
+    const run = [...container.querySelectorAll('button')]
+      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
+    expect(run?.disabled).toBe(true)
+  })
+
+  it('enables the run control once the directory is confirmed', async () => {
+    // The third state, and the only one where a run may start. Without this case "disabled"
+    // could be a page that never enables anything.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({ api: pageApi({ result: result(), workspace: { path: WORKSPACE_PATH } }) })}
+      />,
+    )
+    await detail(container)
+    await waitFor(() => {
+      const run = [...container.querySelectorAll('button')]
+        .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
+      expect(run?.disabled).toBe(false)
+    })
+    expect(container.querySelector('[data-run-workspace-missing]')).toBeNull()
+    expect(container.querySelector('[data-run-workspace-invalid]')).toBeNull()
+  })
+
+  it('demotes the permission note to the last line of the page', async () => {    // The note is a statement about the page, not part of the document: it belongs
     // beneath everything, in every state the page can be in.
     const { container } = render(
       <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,

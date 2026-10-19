@@ -58,6 +58,13 @@ export interface SkillCardSettingsProps {
   readonly onChoose: (skill: string) => void
   /** Store the model this card's runs use. */
   readonly onChooseModel: (model: WorkbenchCardModel) => void
+  /**
+   * Open a directory picker and store what it returns.
+   *
+   * The editor never sees the path: picking is the controller's, so a cancelled chooser
+   * leaves the stored directory exactly as it was.
+   */
+  readonly onChooseWorkspace: () => void
   /** Store the template. */
   readonly onSave: (template: string, name: string) => void
   /** Store the card's name; an empty value clears it back to the registered label. */
@@ -122,7 +129,7 @@ function gutterLineClass(kind: GutterLineFact['kind']): string {
  * @returns the editor element.
  */
 export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
-  const { view, t, onChoose, onChooseModel, onSave, onRename, onClose, onDelete } = props
+  const { view, t, onChoose, onChooseModel, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props
   const [draft, setDraft] = useState(view.template ?? '')
   const [name, setName] = useState(view.name ?? '')
   // The declaration builder is closed until asked for: an editor whose first frame
@@ -384,9 +391,11 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     <div className={css.settings}>
       <section className={css.section} aria-labelledby={basicsId}>
         <h2 className={css.sectionTitle} id={basicsId}>{t('skillCardSectionBasics')}</h2>
-        {/* Two fields on one row, each wide enough for a long name and no wider: at the
-            page's width a full-width field is a line of empty space beside a label. */}
-        <div className={css.fieldRow}>
+        {/* Four fields rather than three. A single row crowded each label against the next
+            control and pushed the last one past the page's edge, so the group is a
+            two-column grid: two rows of two, each field wide enough for a long name or a
+            full path and no wider. */}
+        <div className={css.fieldGrid}>
           <div className={css.field}>
             <label className={css.fieldLabel} htmlFor={nameId}>{t('skillCardCardName')}</label>
             <input
@@ -419,12 +428,17 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               {options.map(entry => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
             </select>
           </div>
-          {/* The model sits beside the other two facts the card is made of. It is the one
+          {/* The model sits beside the other facts the card is made of. It is the one
               field whose non-ready states are not a disabled control: a route that is known
               but no longer offered is shown as text, because a disabled select offering
               other models would read as a choice the user still has. */}
           <div className={css.field}>
             <ModelField view={view} t={t} labelId={modelId} onChooseModel={onChooseModel} />
+          </div>
+          {/* Where the card runs. Its own control rather than a text field: a typed path is
+              a directory nothing confirmed, which the product owner rejected outright. */}
+          <div className={css.field}>
+            <WorkspaceField view={view} t={t} onChooseWorkspace={onChooseWorkspace} />
           </div>
         </div>
         {catalogNotice(view, options.length, t)}
@@ -761,6 +775,75 @@ function ModelField({
     <>
       {label}
       <p className={css.fieldValue} data-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+    </>
+  )
+}
+
+/**
+ * Render the directory control for one card.
+ *
+ * Three states, and the label is never a `for` pointing at a control that does not exist.
+ * The leaf name is the primary value because a path is a poor label to scan — except on a
+ * drive root, which has no last segment. The full path sits beneath it in tertiary type so
+ * the user can always see exactly which directory the card runs in, and a path that is no
+ * longer a directory says so in place, beside the control that would fix it.
+ * @param props - the card view, the translator, and the picker action.
+ * @returns the field.
+ */
+function WorkspaceField({
+  view,
+  t,
+  onChooseWorkspace,
+}: {
+  readonly view: WorkbenchCardView
+  readonly t: (key: WorkbenchLocaleKey) => string
+  readonly onChooseWorkspace: () => void
+}): ReactNode {
+  const field = view.workspaceField
+  return (
+    <>
+      {/* Text rather than a `label`: the only control here is a button that opens a
+          chooser, and a label pointing at it would name the button, not the value. */}
+      <p className={css.fieldLabel}>{t('skillCardWorkspace')}</p>
+      <div className={css.workspaceRow}>
+        <div
+          className={classes(
+            css.workspaceValue,
+            field.kind === 'invalid' ? css.workspaceValueInvalid : undefined,
+          )}
+          data-workspace-field={field.kind}
+        >
+          <span className={css.workspaceLeaf} data-workspace-leaf="">
+            {field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.leaf}
+          </span>
+          {/* The full path is never truncated away in favour of the leaf: the leaf is a
+              display convenience, and the directory that runs is the whole path. */}
+          {field.kind === 'missing' ? null : (
+            <span className={css.workspacePath} data-workspace-path="" title={field.path}>
+              {field.path}
+            </span>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!view.canChooseWorkspace}
+          onClick={onChooseWorkspace}
+          data-workspace-pick=""
+        >
+          {t('skillCardChooseDirectory')}
+        </Button>
+      </div>
+      {field.kind === 'invalid' && field.checked ? (
+        <p className={css.fieldNote} data-workspace-invalid="">{t('skillCardProblemWorkspaceInvalid')}</p>
+      ) : null}
+      {/* A page whose composition has no picker says so, rather than offering a control
+          that cannot do anything or — worse — a text field to type a path into. */}
+      {view.canChooseWorkspace ? null : (
+        <p className={css.fieldNote} data-workspace-picker-unavailable="">
+          {t('skillCardWorkspacePickerUnavailable')}
+        </p>
+      )}
     </>
   )
 }

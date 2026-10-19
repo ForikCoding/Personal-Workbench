@@ -11,7 +11,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type {
   WorkbenchCardModel,
+  WorkbenchCardWorkspace,
   WorkbenchCatalogResponse,
+  WorkbenchDirectoryStatResponse,
   WorkbenchResultEditRequest,
   WorkbenchResultEditResponse,
   WorkbenchRunCapabilities,
@@ -30,10 +32,13 @@ import {
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
   isWorkbenchCardModel,
   isWorkbenchCardName,
+  isWorkbenchCardWorkspace,
   isWorkbenchSkillName,
+  isWorkbenchWorkspacePath,
 } from './skill-card-contract.ts'
 import { isWorkbenchCardId } from './layout-contract.ts'
 import { readJsonBody, sendError, sendJson } from './route-io.ts'
+import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
 import type { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
 import type { WorkbenchSkillCardStore } from './skill-card-store.ts'
 
@@ -180,6 +185,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     remove?: unknown
     skill?: unknown
     model?: unknown
+    workspace?: unknown
     template?: unknown
   }
   if (typeof body.baseRevision !== 'string') {
@@ -230,6 +236,21 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     )
   }
 
+  let workspace: WorkbenchCardWorkspace | null | undefined
+  if (body.workspace === undefined) {
+    workspace = undefined
+  } else if (body.workspace === null) {
+    workspace = null
+  } else if (isWorkbenchCardWorkspace(body.workspace)) {
+    workspace = { path: body.workspace.path }
+  } else {
+    throw new SkillCardRequestError(
+      400,
+      'invalid-request',
+      'workspace must be null or an object naming one absolute directory path',
+    )
+  }
+
   let template: { readonly skill: string; readonly html: string } | undefined
   if (body.template !== undefined) {
     const raw = body.template
@@ -258,6 +279,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     ...name === undefined ? {} : { name },
     ...skill === undefined ? {} : { skill },
     ...model === undefined ? {} : { model },
+    ...workspace === undefined ? {} : { workspace },
     ...template === undefined ? {} : { template },
   }
 }
@@ -387,6 +409,86 @@ function parseResultEdit(value: unknown, maxResultBytes: number): WorkbenchResul
   return { cardId: body.cardId, html: body.html }
 }
 
+/** Everything the directory-check route needs. */
+export interface WorkbenchSkillCardDirectoryRouteOptions {
+  /** The one filesystem read this feature performs. */
+  readonly statDirectory: WorkbenchDirectoryProbe
+  /** Trust fence applied first. */
+  readonly fence: SkillCardRouteFence
+  /** Host logger for a probe that failed unexpectedly. */
+  readonly warn: (message: string) => void
+}
+
+/**
+ * Build the route handler for {@link WORKBENCH_SKILL_CARD_DIRECTORY_PATH}.
+ *
+ * A read, so `GET` with the path in the query. The answer is deliberately three booleans
+ * and never an error for a path that is simply not there: the client renders "this
+ * directory is gone" from the same body it renders "this directory is fine" from, so a
+ * missing folder cannot arrive as an exception.
+ * @param options - probe, fence, and logger.
+ * @returns a handler that owns the full response lifecycle.
+ */
+export function createWorkbenchSkillCardDirectoryHandler(
+  options: WorkbenchSkillCardDirectoryRouteOptions,
+): (request: IncomingMessage, response: ServerResponse) => void {
+  return (request, response) => {
+    const rejection = options.fence.requestRejection(request)
+    if (rejection !== undefined) {
+      sendError(response, rejection, rejection === 401 ? 'unauthorized' : 'forbidden', 'request rejected')
+      return
+    }
+    if (request.method !== 'GET') {
+      sendMethodNotAllowed(response, 'GET')
+      return
+    }
+    void handleDirectoryStat(options, request, response)
+  }
+}
+
+/**
+ * Answer one directory check.
+ * @param options - route dependencies.
+ * @param request - the GET request.
+ * @param response - the response to own.
+ */
+async function handleDirectoryStat(
+  options: WorkbenchSkillCardDirectoryRouteOptions,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  const path = queryParam(request, 'path')
+  // Validated before the filesystem is touched, and against the same rule the store
+  // applies: a relative path would name a different directory to whoever resolved it.
+  if (path === undefined || !isWorkbenchWorkspacePath(path)) {
+    sendError(response, 400, 'invalid-request', 'path must be one absolute directory path')
+    return
+  }
+  try {
+    const found = await options.statDirectory(path)
+    const body: WorkbenchDirectoryStatResponse = {
+      apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
+      path,
+      exists: found.exists,
+      isDirectory: found.isDirectory,
+      writable: found.writable,
+    }
+    sendJson(response, 200, body)
+  } catch (error) {
+    // A probe is expected to swallow its own failures; one that does not is still answered
+    // as a state rather than as a stack trace, because the card's field reads this body.
+    options.warn(`workbench skill card directory check failed: ${error instanceof Error ? error.message : String(error)}`)
+    const body: WorkbenchDirectoryStatResponse = {
+      apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
+      path,
+      exists: false,
+      isDirectory: false,
+      writable: false,
+    }
+    sendJson(response, 200, body)
+  }
+}
+
 /**
  * Project the store's current state onto the response body.
  * @param store - the configuration store.
@@ -436,6 +538,13 @@ const STATUS_BY_CODE: Record<WorkbenchSkillCardErrorCode, number> = {
   // Not implemented here rather than a bad request: the deployment, not the request, is
   // missing the seam a run needs, so no change to the request would make it succeed.
   'run-unavailable': 501,
+  // The card is otherwise ready and one fact is missing, which is the same shape as
+  // `not-configured`: nothing about the request is wrong.
+  'workspace-missing': 400,
+  // The stored directory is gone or is no longer a directory. That conflicts with the state
+  // the card was configured against rather than being malformed, exactly like a model route
+  // the deployment no longer offers.
+  'workspace-invalid': 409,
 }
 
 /** Everything the catalog route needs. */

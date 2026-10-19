@@ -16,9 +16,22 @@ import type {
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from '../../src/skill-card-host.ts'
+import type { WorkbenchDirectoryStat } from '../../src/skill-card-contract.ts'
+import type { WorkbenchDirectoryProbe } from '../../src/skill-card-directory.ts'
 
 /** The agent every double answers with; it carries a session header cwd. */
 export const AGENT: WorkbenchAgent = { id: 'session-1', session: { header: { cwd: '/header-repo' } } }
+
+/**
+ * The directory every double says exists and every default selection points at.
+ *
+ * A POSIX path, because the specs run wherever the suite runs and nothing here touches a
+ * real filesystem: the probe is a double too.
+ */
+export const WORKSPACE_PATH = '/repo'
+
+/** A directory check that found a writable directory. */
+export const PRESENT_DIRECTORY: WorkbenchDirectoryStat = { exists: true, isDirectory: true, writable: true }
 
 /** A loaded skill the fake registry can return. */
 export const SKILL: WorkbenchSkillDefinition = {
@@ -77,6 +90,13 @@ export interface FakeHostOptions {
    * case that does not say otherwise keeps the seam.
    */
   readonly startActivation?: boolean
+  /**
+   * What the directory probe answers.
+   *
+   * Defaults to a present, writable directory: a run in these specs is about something
+   * else, and the workspace cases say what they want instead.
+   */
+  readonly directory?: Partial<WorkbenchDirectoryStat>
 }
 
 /** The fake host plus what a spec wants to assert about. */
@@ -89,6 +109,8 @@ export interface FakeHost {
    * fallback that the older Desktop channel relies on.
    */
   readonly workingDirectory: WorkbenchWorkingDirectory
+  /** The one filesystem read the runner gates a start on. */
+  readonly statDirectory: WorkbenchDirectoryProbe
   readonly activations: WorkbenchActivationSpec[]
   readonly lookups: WorkbenchSkillLookup[]
   readonly disposed: { count: number }
@@ -128,6 +150,8 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       return options.cwd ?? '/repo'
     },
   }
+
+  const statDirectory: WorkbenchDirectoryProbe = async () => ({ ...PRESENT_DIRECTORY, ...options.directory })
 
   const host: WorkbenchSkillCardHost = {
     agents: {
@@ -188,5 +212,5 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
   }
-  return { host, workingDirectory, activations, lookups, disposed, settleChild }
+  return { host, workingDirectory, statDirectory, activations, lookups, disposed, settleChild }
 }

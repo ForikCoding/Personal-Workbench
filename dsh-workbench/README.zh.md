@@ -69,3 +69,4 @@ export function apply(ctx: Context): void {
 - 命令面板尚未接入重排命令；键盘路径通过卡片自己的手柄完成。
 - 页面暂不显示工作区上下文，因此 `useWorkspaces` 不在它的 props 里。
 - 技能卡的模型选择器读的是可选的 `modelDirectories` 客户端服务，用**作用域形式**注入。没有这个服务时，卡片仍能按它自己存过的模型运行，但运行会继承会话的模型，而这样的结果**说不出自己用的是哪条路由**：结果记录里的 `model` 只在卡片自己钉住了一条路由时才写。
+- 技能卡的工作目录是用户**选的目录**，不是已注册的工作区 id。Windows 上用的是 Desktop 插件自己的选择器（`window.__DSH_DESKTOP_PICK_DIRECTORY__`，背后是 `POST /_dsh/desktop/pick-directory`）；其他平台用可选的 `uiWorkspace` 客户端服务，同样以**作用域形式**注入。两者都没有时，字段直接说明没有选择器——不提供文本框，而没有工作目录的卡片不能运行。

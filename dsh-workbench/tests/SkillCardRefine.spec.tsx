@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
+import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import { zh } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
 import type {
@@ -103,7 +105,15 @@ function pageApi(options: {
       status: 'ok',
       snapshot: {
         revision: '1:0',
-        cards: [{ cardId: 'skill-card', skill: 'git-repo', template: TEMPLATE, templateSkills: ['git-repo'] }],
+        cards: [{
+          cardId: 'skill-card',
+          skill: 'git-repo',
+          template: TEMPLATE,
+          templateSkills: ['git-repo'],
+          // A refinement runs in the card's own directory, so the page is given one that is
+          // there; a refinement refused for where it would run is a different case.
+          workspace: { path: WORKSPACE_PATH },
+        }],
         results: stored === undefined ? [] : [stored],
       },
     }),
@@ -119,6 +129,7 @@ function pageApi(options: {
     },
     cancel: options.cancel ?? (async () => {}),
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
+    statDirectory: async () => ({ status: 'ok', stat: PRESENT_DIRECTORY }),
   }
   return { api, requests }
 }
@@ -136,6 +147,7 @@ function props(api: WorkbenchSkillCardApi): PageProps {
     // A live catalog with a known selection: a refinement is a model call, and a card
     // that cannot name a model would refuse it before these cases ever reach the composer.
     models: fakeModelSeat(),
+    workspacePicker: fakeWorkspacePicker().picker,
     fallbackTitle: '技能卡',
     onBack: () => {},
     openCard: () => {},

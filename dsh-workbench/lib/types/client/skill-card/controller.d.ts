@@ -19,6 +19,8 @@ import type { WorkbenchSkillCardApi } from './api.ts';
 import type { WorkbenchActionErrorCode } from './actions.ts';
 import type { WorkbenchModelField, WorkbenchModelSeat } from './model.ts';
 import type { WorkbenchActionEvent } from './render.ts';
+import type { WorkbenchWorkspaceField } from './workspace.ts';
+import type { WorkbenchWorkspacePicker } from './workspace-picker.ts';
 /** Whether the editor's skill catalog has been read. */
 export type WorkbenchCatalogStatus = 'idle' | 'loading' | 'ready' | 'failed';
 /** Why a card cannot show or do what it should. */
@@ -44,7 +46,15 @@ export type WorkbenchActionProblemCode = WorkbenchActionErrorCode
 /** A click whose own key or payload could not be read; see {@link WorkbenchActionEvent}. */
  | Extract<WorkbenchActionEvent, {
     readonly kind: 'invalid';
-}>['reason'];
+}>['reason']
+/**
+ * The card that would run has no workspace directory.
+ *
+ * Its own codes rather than one generic "unavailable": a run refused for where it would
+ * happen is not a target that is missing or busy, and the user's remedy is to configure
+ * that card's directory.
+ */
+ | 'target-workspace-missing' | 'target-workspace-invalid';
 /** Why one clicked action cannot run. */
 export interface WorkbenchActionProblem {
     /** Code the panel localizes. */
@@ -169,7 +179,7 @@ export interface WorkbenchCardView {
      * result, so hiding it removes the thing the user is reviewing.
      */
     readonly refining?: boolean;
-    /** Whether a run can start: a skill, a template, a live session, and a model to name. */
+    /** Whether a run can start: a skill, a template, a live session, a model, and a directory. */
     readonly runnable: boolean;
     /**
      * What the model field offers, and whether a run can name its route.
@@ -178,6 +188,21 @@ export interface WorkbenchCardView {
      * run control's answer have to be the same answer.
      */
     readonly modelField: WorkbenchModelField;
+    /**
+     * Where this card runs, and whether that directory was confirmed.
+     *
+     * Carried on the view for the same reason as the model field: the picker's own state and
+     * the run control's answer are one answer, and both the configuration page and the result
+     * page read it from here.
+     */
+    readonly workspaceField: WorkbenchWorkspaceField;
+    /**
+     * Whether a directory picker can be offered at all.
+     *
+     * False on a page whose composition has no picker, and after one refused: the field then
+     * states that instead of offering a button that cannot do anything.
+     */
+    readonly canChooseWorkspace: boolean;
     /** Skills the session's agent can invoke. */
     readonly catalog: readonly WorkbenchSkillCatalogEntry[];
     /** Whether the catalog has been read. */
@@ -240,6 +265,13 @@ export interface WorkbenchCardActions {
      */
     chooseModel(model: WorkbenchCardModel): void;
     /**
+     * Ask the user for a directory, and store it as this card's workspace.
+     *
+     * The picker is the only way in: there is no field to type a path into, because a typed
+     * path is a directory nobody confirmed. A cancelled pick writes nothing.
+     */
+    chooseWorkspace(): void;
+    /**
      * Store a template for the selected skill, together with the card's name.
      * @param template - the HTML to store.
      * @param name - the card's name as the editor shows it; an empty value clears it.
@@ -296,6 +328,14 @@ export interface WorkbenchSkillCardOptions {
      * a view that cannot see the directory.
      */
     readonly models?: WorkbenchModelSeat;
+    /**
+     * Ask the user for this card's workspace directory.
+     *
+     * Omitted by a page with no picker to offer, which then states that instead of pretending
+     * a control exists. There is no fallback to a text field: the product owner rejected
+     * typing a path, because nothing would have confirmed it names a directory.
+     */
+    readonly workspacePicker?: WorkbenchWorkspacePicker;
     /**
      * Read the title one card face shows.
      *

@@ -9,6 +9,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { WorkbenchRunCapabilities } from './skill-card-contract.ts';
+import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts';
 import type { WorkbenchSkillCardRunner } from './skill-card-runner.ts';
 import type { WorkbenchSkillCardStore } from './skill-card-store.ts';
 /**
@@ -77,6 +78,26 @@ export interface WorkbenchSkillCardResultRouteOptions {
  * @returns a handler that owns the full response lifecycle.
  */
 export declare function createWorkbenchSkillCardResultHandler(options: WorkbenchSkillCardResultRouteOptions): (request: IncomingMessage, response: ServerResponse) => void;
+/** Everything the directory-check route needs. */
+export interface WorkbenchSkillCardDirectoryRouteOptions {
+    /** The one filesystem read this feature performs. */
+    readonly statDirectory: WorkbenchDirectoryProbe;
+    /** Trust fence applied first. */
+    readonly fence: SkillCardRouteFence;
+    /** Host logger for a probe that failed unexpectedly. */
+    readonly warn: (message: string) => void;
+}
+/**
+ * Build the route handler for {@link WORKBENCH_SKILL_CARD_DIRECTORY_PATH}.
+ *
+ * A read, so `GET` with the path in the query. The answer is deliberately three booleans
+ * and never an error for a path that is simply not there: the client renders "this
+ * directory is gone" from the same body it renders "this directory is fine" from, so a
+ * missing folder cannot arrive as an exception.
+ * @param options - probe, fence, and logger.
+ * @returns a handler that owns the full response lifecycle.
+ */
+export declare function createWorkbenchSkillCardDirectoryHandler(options: WorkbenchSkillCardDirectoryRouteOptions): (request: IncomingMessage, response: ServerResponse) => void;
 /** Everything the catalog route needs. */
 export interface WorkbenchSkillCardCatalogRouteOptions {
     /** Session-scoped catalog reader. */

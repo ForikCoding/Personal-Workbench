@@ -16,7 +16,7 @@ import { WORKBENCH_LAYOUT_DOMAIN, WORKBENCH_LAYOUT_TABLE } from './layout-spec.t
 import { createWorkbenchLayoutHandler } from './layout-route.ts'
 import type { WorkbenchHostContext } from './layout-route.ts'
 import { WorkbenchLayoutService } from './layout-service.ts'
-import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
+import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_DIRECTORY_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_TABLE,
   WORKBENCH_RESULT_TABLE,
@@ -25,9 +25,11 @@ import {
 } from './skill-card-spec.ts'
 import { assertSubagentProvider, probeSubagentSeam } from './skill-card-provider.ts'
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts'
+import { statDirectory } from './skill-card-directory.ts'
 import { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
 import {
   createWorkbenchSkillCardCatalogHandler,
+  createWorkbenchSkillCardDirectoryHandler,
   createWorkbenchSkillCardHandler,
   createWorkbenchSkillCardResultHandler,
   createWorkbenchSkillCardRunHandler,
@@ -168,6 +170,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
     const runner = new WorkbenchSkillCardRunner({
       host: runtime,
       ...workingDirectory === undefined ? {} : { workingDirectory },
+      statDirectory,
       subagentProvider: config.subagentProvider,
       runTimeoutMs: config.runTimeoutMs,
       maxConcurrentRuns: config.maxConcurrentRuns,
@@ -179,6 +182,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
           ...card?.skill === undefined ? {} : { skill: card.skill },
           ...card?.template === undefined ? {} : { template: card.template },
           ...card?.model === undefined ? {} : { model: card.model },
+          ...card?.workspace === undefined ? {} : { workspace: card.workspace },
         }
       },
       saveResult: (cardId, record) => store.putResult(cardId, record),
@@ -223,6 +227,13 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
           warn,
         }),
       }), 'workbench: skill card result route'),
+      // The card's workspace is checked through the Host: the page cannot read a
+      // filesystem, and a run must be gated on the directory it would actually use.
+      ctx.effect(() => host.webServer.register({
+        kind: 'exact',
+        path: WORKBENCH_SKILL_CARD_DIRECTORY_PATH,
+        handler: createWorkbenchSkillCardDirectoryHandler({ statDirectory, fence: host.connection, warn }),
+      }), 'workbench: skill card directory route'),
     ]
     return async () => {
       for (const dispose of disposers) dispose()

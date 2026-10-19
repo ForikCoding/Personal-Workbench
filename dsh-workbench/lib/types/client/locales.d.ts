@@ -39,6 +39,12 @@ export declare const zh: {
     skillCardProblemRunning: string;
     skillCardProblemRunFailed: string;
     skillCardProblemRunUnavailable: string;
+    skillCardProblemWorkspaceMissing: string;
+    skillCardProblemWorkspaceInvalid: string;
+    skillCardWorkspace: string;
+    skillCardWorkspaceNotSet: string;
+    skillCardChooseDirectory: string;
+    skillCardWorkspacePickerUnavailable: string;
     skillCardProblemTooLarge: string;
     skillCardProblemUnavailable: string;
     skillCardProblemGeneric: string;

@@ -23,6 +23,15 @@ export declare const WORKBENCH_SKILL_CARD_RUN_PATH = "/api/workbench/skill-card/
  * anything.
  */
 export declare const WORKBENCH_SKILL_CARD_RESULT_PATH = "/api/workbench/skill-card/result";
+/**
+ * Directory-check route: `GET path=…` answers whether one directory can be a workspace.
+ *
+ * One narrow read rather than a filesystem bridge: the client needs existence, kind, and
+ * writability for exactly one path, which is the card's own workspace. Answers exist
+ * because a run is gated on them: a card whose directory was moved has to be stopped
+ * before it starts, not after it fails.
+ */
+export declare const WORKBENCH_SKILL_CARD_DIRECTORY_PATH = "/api/workbench/skill-card/directory";
 /** Contract version echoed in every response; a mismatched client refuses to parse. */
 export declare const WORKBENCH_SKILL_CARD_API_VERSION = 1;
 /** Maximum bytes of one template. */
@@ -205,11 +214,73 @@ export interface WorkbenchCardModel {
  */
 export declare function isWorkbenchCardModel(value: unknown): value is WorkbenchCardModel;
 /**
+ * Longest workspace path the workbench stores, in characters.
+ *
+ * A bound rather than a grammar: the platform decides what a legal path is, and this
+ * only keeps one stored record from carrying an unbounded string. Real picked paths sit
+ * far below it — Windows' own extended-length ceiling is 32,767.
+ */
+export declare const WORKBENCH_WORKSPACE_PATH_MAX_LENGTH = 4096;
+/**
+ * Whether a value can be stored as a card's workspace path.
+ *
+ * The full absolute path is the whole of the value — never a workspace id — because the
+ * product decision is "whatever directory the user picks", which need not be a registered
+ * workspace at all. A relative path is refused rather than resolved against something:
+ * resolved against the session it would be a different directory per run, and resolved
+ * against the Host it would be a directory the user never saw.
+ * @param value - candidate path, as a picker reported it.
+ * @returns whether it is an absolute path within the length limit.
+ */
+export declare function isWorkbenchWorkspacePath(value: string): boolean;
+/**
+ * One card's working directory.
+ *
+ * A one-field object rather than a bare string so the record can grow — a display name,
+ * a validation stamp — without making the stored value ambiguous. The path itself is
+ * stored verbatim, exactly as the picker reported it.
+ */
+export interface WorkbenchCardWorkspace {
+    /** Absolute directory path, as the platform wrote it. */
+    readonly path: string;
+}
+/**
+ * Whether a value is a usable card workspace.
+ * @param value - candidate value.
+ * @returns whether it holds one absolute directory path.
+ */
+export declare function isWorkbenchCardWorkspace(value: unknown): value is WorkbenchCardWorkspace;
+/**
+ * What one directory check found.
+ *
+ * Three facts and no error case: a path that cannot be read is reported as "nothing is
+ * there", because a card may not run in a directory nobody could confirm. `writable` is
+ * reported but does not decide validity — a card run reads its skill and writes its
+ * result into the workbench's own storage, so a read-only directory is usable.
+ */
+export interface WorkbenchDirectoryStat {
+    /** Whether anything occupies the path. */
+    readonly exists: boolean;
+    /** Whether what occupies it is a directory. */
+    readonly isDirectory: boolean;
+    /** Whether the process could create an entry in it. */
+    readonly writable: boolean;
+}
+/** Successful directory-check body. */
+export interface WorkbenchDirectoryStatResponse extends WorkbenchDirectoryStat {
+    /** Contract version this Host speaks. */
+    readonly apiVersion: number;
+    /** The path the answer is about, echoed so a client can attribute it. */
+    readonly path: string;
+}
+/**
  * One card's persisted configuration.
  *
  * An absent record means "no skill chosen yet": the card renders its empty
  * state rather than guessing a default. A card with no `model` runs on whatever the
- * session runs on, exactly as it did before this field existed.
+ * session runs on, exactly as it did before this field existed. A card with no
+ * `workspace` cannot run at all: that is the product decision, and there is deliberately
+ * no migration — nothing infers a directory on the user's behalf.
  */
 export interface WorkbenchCardConfigRecord {
     /** User-assigned card name; absent falls back to the card's registered label. */
@@ -218,6 +289,8 @@ export interface WorkbenchCardConfigRecord {
     readonly skill?: string;
     /** Model this card runs on; absent means the run inherits the session's model. */
     readonly model?: WorkbenchCardModel;
+    /** Directory this card runs in; absent means the card cannot run yet. */
+    readonly workspace?: WorkbenchCardWorkspace;
 }
 /** One card's template for one skill. */
 export interface WorkbenchTemplateRecord {
@@ -300,6 +373,8 @@ export interface WorkbenchCardConfigView {
     readonly skill?: string;
     /** Model this card runs on; absent means its runs inherit the session's model. */
     readonly model?: WorkbenchCardModel;
+    /** Directory this card runs in; absent means the card cannot run until one is chosen. */
+    readonly workspace?: WorkbenchCardWorkspace;
     /** Skills this card already holds a template for. */
     readonly templateSkills: readonly string[];
     /**
@@ -367,6 +442,14 @@ export interface WorkbenchSkillCardPatch {
      * a slash, so there is no string form of it to accept here.
      */
     readonly model?: WorkbenchCardModel | null;
+    /**
+     * Directory the card runs in; `null` clears it back to "no workspace chosen".
+     *
+     * Clearing is offered because a card may legitimately move: the user points it at
+     * another directory, and the old path is not kept anywhere. It is never cleared for the
+     * user, and nothing infers one from the session.
+     */
+    readonly workspace?: WorkbenchCardWorkspace | null;
     /** Template to store alongside the selection. */
     readonly template?: {
         readonly skill: string;
@@ -525,4 +608,19 @@ export type WorkbenchSkillCardErrorCode = 'unauthorized' | 'forbidden' | 'invali
  * the card states why. A run that arrives anyway — a stale click, a direct route call,
  * a template button — is refused with this same code rather than throwing.
  */
- | 'run-unavailable';
+ | 'run-unavailable'
+/**
+ * This card has no workspace directory chosen.
+ *
+ * Not the same as "not configured": the skill is chosen and the template exists, and the
+ * one missing fact is where the run would happen. It has its own code because the remedy
+ * is its own control.
+ */
+ | 'workspace-missing'
+/**
+ * The stored workspace directory is gone, or is no longer a directory.
+ *
+ * Refused rather than replaced by the session's directory: a silent fallback would run
+ * the card somewhere the user never chose, and the result would not say so.
+ */
+ | 'workspace-invalid';

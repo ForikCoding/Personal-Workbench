@@ -26,6 +26,7 @@ import type {
   WorkbenchPendingAction,
 } from './controller.ts'
 import type { WorkbenchModelSeat } from './model.ts'
+import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
 import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
@@ -316,6 +317,13 @@ export interface SkillCardPageProps {
    */
   readonly models: WorkbenchModelSeat
   /**
+   * Ask the user for a directory to use as this card's workspace.
+   *
+   * Required rather than optional: a page that silently offers no picker would leave a card
+   * permanently unable to run with no way to say so.
+   */
+  readonly workspacePicker: WorkbenchWorkspacePicker
+  /**
    * Shown in place of the name while the card has none.
    *
    * Only the result page reads it: the configuration page lets its own name field carry
@@ -482,7 +490,7 @@ function RefinePanel({
  * @returns the result page.
  */
 export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, models, fallbackTitle, onBack, openCard, t } = props
+  const { api, cardId, runSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props
   // The face's own naming rule, reused so an action declaration can address this card
   // by the title the user actually reads on it.
   const cardTitle = useCallback(
@@ -494,6 +502,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
     cardId,
     session: runSessionId,
     models,
+    workspacePicker,
     openCard,
     // This page is where another card's button lands after starting this card's run.
     watchRun: true,
@@ -551,6 +560,24 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
           notice fixes on the configuration page: the user cannot tell what is missing. */}
       {view.modelField.kind === 'unavailable'
         ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+        : null}
+      {/* Where the card would run, when it cannot. Its own line rather than part of the
+          model one: the two are separate configuration, and a user fixing one should not
+          read a sentence about the other. */}
+      {view.workspaceField.kind === 'missing'
+        ? (
+          <p className={css.runProblem} data-run-workspace-missing="">
+            {t(problemKey('workspace-missing'))}
+          </p>
+        )
+        : null}
+      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
+        ? (
+          <p className={css.runProblem} data-run-workspace-invalid="">
+            {t(problemKey('workspace-invalid'))}
+            {` · ${view.workspaceField.path}`}
+          </p>
+        )
         : null}
       {/* The run control is disabled because this harness has no activation seam. The
           sentence names what is missing and which harness provides it, so the state is
@@ -653,7 +680,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
  * @returns the configuration page.
  */
 export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, models, onBack, t } = props
+  const { api, cardId, runSessionId, models, workspacePicker, onBack, t } = props
   // The face's own naming rule, reused here so the editor checks a declared card target
   // against the title the user reads on the grid — which is the name the click path
   // resolves — instead of against the card id a nameless card would otherwise show as.
@@ -666,6 +693,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
     cardId,
     session: runSessionId,
     models,
+    workspacePicker,
     withCatalog: true,
     cardTitle,
   })
@@ -681,6 +709,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
         t={t}
         onChoose={actions.chooseSkill}
         onChooseModel={actions.chooseModel}
+        onChooseWorkspace={actions.chooseWorkspace}
         onSave={actions.saveTemplate}
         onRename={actions.rename}
         onClose={onBack}
@@ -717,4 +746,8 @@ const ACTION_PROBLEM_KEYS: Record<WorkbenchActionProblemCode, WorkbenchLocaleKey
   'target-skill-missing': 'actionProblemSkillMissing',
   'target-busy': 'actionProblemBusy',
   'target-unavailable': 'actionProblemUnavailable',
+  // The card that would run has nowhere to run. Same two messages the run control and the
+  // configuration field use, so one fact never gets two different sentences.
+  'target-workspace-missing': 'skillCardProblemWorkspaceMissing',
+  'target-workspace-invalid': 'skillCardProblemWorkspaceInvalid',
 }

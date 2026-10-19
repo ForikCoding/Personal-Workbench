@@ -8,8 +8,9 @@
  * bare run skips the store entirely, because its whole result is whether it worked.
  * @module dsh-workbench/skill-card-runner
  */
-import type { WorkbenchCardModel, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
+import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts';
+import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts';
 /** Outcome of reading one session's skill catalog. */
 export type WorkbenchCatalogOutcome = {
     readonly status: 'ok';
@@ -41,6 +42,14 @@ export interface WorkbenchCardSelection {
      * what the card is, so a client cannot start a run on a route the card does not name.
      */
     readonly model?: WorkbenchCardModel;
+    /**
+     * Directory the card runs in; absent means the card cannot run.
+     *
+     * Read from storage for the same reason the route is: where a card runs is part of what
+     * the card is. There is no fallback to the session's directory — a run would then happen
+     * somewhere the user never chose, and every result would be about a different folder.
+     */
+    readonly workspace?: WorkbenchCardWorkspace;
 }
 /** Everything the runner depends on. */
 export interface WorkbenchSkillCardRunnerOptions {
@@ -53,6 +62,13 @@ export interface WorkbenchSkillCardRunnerOptions {
      * the directory from the agent's session header, as that channel does.
      */
     readonly workingDirectory?: WorkbenchWorkingDirectory;
+    /**
+     * The one filesystem read a start performs.
+     *
+     * Required rather than defaulted: every run is gated on it, so a composition that
+     * forgot to wire it cannot quietly behave as if there were no gate.
+     */
+    readonly statDirectory: WorkbenchDirectoryProbe;
     /** Configured child backend name. */
     readonly subagentProvider: string;
     /** Milliseconds one run may take before it is cancelled. */

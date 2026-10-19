@@ -97,8 +97,7 @@ describe('workbench skill card store', () => {
     }])
   })
 
-  it('lists a template whose skill is no longer selected', async () => {
-    const { store } = setup({ seed: { template: { 'skill-card_other': { html: 'x' } } } })
+  it('lists a template whose skill is no longer selected', async () => {    const { store } = setup({ seed: { template: { 'skill-card_other': { html: 'x' } } } })
     expect(store.read().cards).toEqual([{ cardId: 'skill-card', templateSkills: ['other'] }])
   })
 
@@ -191,8 +190,59 @@ describe('workbench skill card store', () => {
     ])
   })
 
-  it('deletes the record once name, skill, and model are all cleared', async () => {
-    // An empty record would keep a card alive with nothing left to configure it with.
+  it('stores the workspace as one absolute path and reads it back', async () => {
+    // Not a workspace id: the card runs in whatever directory the user picked, which need
+    // not be a registered workspace at all.
+    const { store, tables } = setup()
+    const workspace = { path: 'D:\\Git\\Personal-Workbench' }
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: 'git-repo', workspace })
+    expect(tables.operations.at(-1)).toEqual({
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: { skill: 'git-repo', workspace },
+    })
+    expect(store.read().cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', workspace, templateSkills: [] },
+    ])
+  })
+
+  it('reads a card with no workspace without inventing one', async () => {
+    // Every card created before this field existed is in this state, and it is the state
+    // that means "cannot run yet" — not a directory inferred on the user's behalf.
+    const { store } = setup({ seed: { card: { 'skill-card': { skill: 'git-repo' } } } })
+    const [card] = store.read().cards
+    expect(card).not.toHaveProperty('workspace')
+  })
+
+  it('keeps the workspace when an unrelated field is written', async () => {
+    // Name, skill, model, and workspace share one record: a write of one must merge against
+    // the others, or choosing a model would silently un-configure the card's directory.
+    const workspace = { path: '/repo' }
+    const model = { provider: 'deepseek', model: 'deepseek-chat' }
+    const { store } = setup({ seed: { card: { 'skill-card': { skill: 'git-repo', workspace, name: 'Repo' } } } })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', model })
+    expect(store.read().cards).toEqual([{
+      cardId: 'skill-card',
+      name: 'Repo',
+      skill: 'git-repo',
+      model,
+      workspace,
+      templateSkills: [],
+    }])
+  })
+
+  it('clears the workspace alone, leaving the other fields in place', async () => {
+    const { store } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', name: 'Repo', workspace: { path: '/repo' } } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', workspace: null })
+    expect(store.read().cards).toEqual([
+      { cardId: 'skill-card', name: 'Repo', skill: 'git-repo', templateSkills: [] },
+    ])
+  })
+
+  it('deletes the record once name, skill, and model are all cleared', async () => {    // An empty record would keep a card alive with nothing left to configure it with.
     const { store, tables } = setup({
       seed: { card: { 'skill-card': { skill: 'git-repo', model: { provider: 'deepseek', model: 'deepseek-chat' } } } },
     })
@@ -255,13 +305,19 @@ describe('workbench skill card store', () => {
       },
       {
         patch: { baseRevision: '7:0', cardId: 'skill-card', remove: true, name: 'Repo overview' },
-        reason: 'a removal cannot carry a name, a skill, a model, or a template',
+        reason: 'a removal cannot carry a name, a skill, a model, a workspace, or a template',
       },
       {
         // A route is two ids or nothing. An empty half is not a route, and accepting it
         // would store a card that names a model it cannot run.
         patch: { baseRevision: '7:0', cardId: 'skill-card', model: { provider: 'deepseek', model: '' } },
         reason: 'model must name a non-empty provider and model id',
+      },
+      {
+        // The directory is one absolute path. A relative one would name a different
+        // directory to whoever resolved it, so it is refused rather than resolved.
+        patch: { baseRevision: '7:0', cardId: 'skill-card', workspace: { path: 'relative/dir' } },
+        reason: 'workspace must name one absolute directory path within 4096 characters',
       },
     ]
     for (const { patch, reason } of cases) {

@@ -77,6 +77,33 @@ describe('workbench storage schemas', () => {
     expect(parsed).not.toHaveProperty('model')
   })
 
+  it('keeps the card workspace across a load', () => {
+    // The directory is written by the configuration page, so it has to be declared here in
+    // the same change: a card that lost its path after a restart would silently stop being
+    // runnable, with nothing on screen to say why.
+    // The provider id in `model` deliberately contains a slash, and the path is a Windows
+    // one: neither field may be re-interpreted on the way through.
+    const stored = {
+      skill: 'xiaoneng-task-detail',
+      name: '效能任务',
+      model: { provider: 'vendor/gateway', model: 'large' },
+      workspace: { path: 'D:\\Git\\Personal-Workbench' },
+    }
+    expect(workbenchCardConfigSchema.parse(stored)).toEqual(stored)
+  })
+
+  it('keeps a workspace written on its own, and leaves an unrelated field alone', () => {
+    // Absence is the state of every card created before this field existed: they cannot run
+    // until one is configured, and the schema must not invent a directory for them.
+    expect(workbenchCardConfigSchema.parse({ workspace: { path: '/repo' } }))
+      .toEqual({ workspace: { path: '/repo' } })
+    const parsed = workbenchCardConfigSchema.parse({ skill: 'git-repo', name: 'Repo' })
+    expect(parsed).not.toHaveProperty('workspace')
+    // And the other fields survive a record that carries one.
+    const both = workbenchCardConfigSchema.parse({ name: 'Repo', workspace: { path: '/repo' } })
+    expect(both).toEqual({ name: 'Repo', workspace: { path: '/repo' } })
+  })
+
   it('keeps the model a result ran on across a load', () => {
     // Criterion 72. The runner stamps the route it used, so the result page can name it
     // after a restart; a record written with the field and read without it would leave the

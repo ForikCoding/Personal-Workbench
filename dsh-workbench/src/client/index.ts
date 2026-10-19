@@ -22,6 +22,8 @@ import { en, zh } from './locales.ts'
 import { createWorkbenchSkillCardApi } from './skill-card/api.ts'
 import { createModelSeat } from './skill-card/model.ts'
 import type { WorkbenchModelDirectoryResolver, WorkbenchModelSeat } from './skill-card/model.ts'
+import { createWorkspacePicker, readDesktopPicker } from './skill-card/workspace-picker.ts'
+import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import { SKILL_CARD_ID, SkillCard } from './skill-card/SkillCard.tsx'
 import type { SkillCardFace } from './skill-card/SkillCard.tsx'
 import { pickRunSession } from './skill-card/session.ts'
@@ -77,6 +79,23 @@ interface ModelDirectoryHost {
   readonly modelDirectories: WorkbenchModelDirectoryResolver
 }
 
+/**
+ * Context member carrying the workspace UI, narrowed to the one picker this reads.
+ *
+ * Declared here rather than imported: the service belongs to
+ * `@deepseek-ai/dsh-client-ui-workspace`, which this package does not depend on for types,
+ * and `pickDirectory()` is the whole of what the feature uses.
+ */
+interface WorkspacePickerHost {
+  readonly uiWorkspace: {
+    /**
+     * Open the platform's own directory chooser.
+     * @returns the selected directory, or null when the chooser was cancelled.
+     */
+    pickDirectory(): Promise<string | null>
+  }
+}
+
 /** Injected share of the panel registration. */
 export interface WorkbenchPanelFace {
   /** Card facts and the full-panel selection, bound to `useCards` and `useSelection`. */
@@ -97,6 +116,8 @@ export interface WorkbenchPanelFace {
     readonly runSessionId: () => string | undefined
     /** Model catalog the card's field and its run control read. */
     readonly models: WorkbenchModelSeat
+    /** Directory picker the configuration page offers for the card's workspace. */
+    readonly workspacePicker: WorkbenchWorkspacePicker
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
@@ -130,6 +151,23 @@ export function apply(ctx: ClientContext): void {
   ctx.inject(['modelDirectories'], (scoped) => {
     modelResolver.current = (scoped as unknown as ModelDirectoryHost).modelDirectories
     scoped.effect(() => () => { modelResolver.current = undefined }, 'workbench: model directory')
+  })
+  // The workspace UI is injected the same way and for the same reason: it is a service this
+  // plugin may run without, so a composition lacking it answers "no picker" rather than
+  // leaving the plugin pending. On Windows the Desktop plugin has already published its own
+  // picker on the window, and that one wins — see `createWorkspacePicker`.
+  const workspaceUi: { current: WorkspacePickerHost['uiWorkspace'] | undefined } = { current: undefined }
+  ctx.inject(['uiWorkspace'], (scoped) => {
+    workspaceUi.current = (scoped as unknown as WorkspacePickerHost).uiWorkspace
+    scoped.effect(() => () => { workspaceUi.current = undefined }, 'workbench: workspace picker')
+  })
+  const workspacePicker = createWorkspacePicker(() => {
+    const native = readDesktopPicker()
+    const workspace = workspaceUi.current
+    return {
+      ...native === undefined ? {} : { native },
+      ...workspace === undefined ? {} : { workspace: () => workspace.pickDirectory() },
+    }
   })
   const sessionList = (ctx as unknown as SessionListHost).sessions.list
   // Read when a card asks, not when it renders: the freshest list is the one that
@@ -189,7 +227,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): WorkbenchPanelFace => ({
       hooks: { cards, selection },
       api,
-      skillCards: { api: skillCardApi, runSessionId, models },
+      skillCards: { api: skillCardApi, runSessionId, models, workspacePicker },
       closeCard,
       openCard,
     }),

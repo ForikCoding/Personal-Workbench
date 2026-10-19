@@ -351,21 +351,28 @@
   line-height: 20px;
 }
 
-/* Two fields on one row. At this width a full-width field is a long empty box beside
-   a short label, so each is held to the width its content needs. */
-.fieldRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
+/* Four fields, laid out as two rows of two. One row of four crowded every label against
+   the next control and pushed the last field past the page's edge; a grid makes the shape
+   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide
+   enough for a long name or a full path. */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
   min-width: 0;
+}
+
+/* Narrower than two comfortable fields, one per row: half a phone's width per field is
+   worse than a longer page. */
+@media (max-width: 640px) {
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  /* 320–360px: wide enough for a long name, narrow enough for two on one row. */
-  width: 340px;
-  max-width: 100%;
   min-width: 0;
   gap: 6px;
 }
@@ -393,6 +400,68 @@
   margin: 0;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
+}
+
+/* The workspace value and the button that changes it share one row: the value is the
+   widest thing in the field, and the button reads as the action on it. */
+.workspaceRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Two lines in the space one control occupies: the leaf name is what the user scans, and
+   the full path underneath is the exact directory. It matches `.fieldValue`'s border and
+   background so the four fields of this group read as one set, but it is taller because it
+   carries two lines. */
+.workspaceValue {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
+}
+
+/* A path that is no longer a directory is stated by the value itself, in the same warn
+   colour the template's own warnings use: the field is a fact about the card, not an
+   alert to dismiss. */
+.workspaceValueInvalid {
+  border-color: var(--dsw-alias-state-warn-label);
+}
+
+.workspaceLeaf {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tertiary and small: the exact path, always readable, never competing with the name. */
+.workspacePath {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A field's own note: what is wrong with this value, or why the control beside it cannot
+   be used. Under the value, because that is what it is about. */
+.fieldNote {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .select,

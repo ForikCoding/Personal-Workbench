@@ -4,12 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   createWorkbenchSkillCardCatalogHandler,
+  createWorkbenchSkillCardDirectoryHandler,
   createWorkbenchSkillCardHandler,
   createWorkbenchSkillCardRunHandler,
 } from '../src/skill-card-route.ts'
 import type { SkillCardRouteFence } from '../src/skill-card-route.ts'
 import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection } from '../src/skill-card-runner.ts'
+import type { WorkbenchDirectoryProbe } from '../src/skill-card-directory.ts'
 import {
   WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
@@ -19,7 +21,7 @@ import { WorkbenchSkillCardStore } from '../src/skill-card-store.ts'
 import { FakeRequest, run } from './support/fake-http.ts'
 import { fakeSkillCardTables } from './support/fake-skill-card-tables.ts'
 import type { FakeSkillCardSeed, FakeSkillCardTables } from './support/fake-skill-card-tables.ts'
-import { fakeHost } from './support/fake-skill-card-host.ts'
+import { WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /** Fence double with a configurable rejection. */
@@ -186,6 +188,79 @@ describe('workbench skill card route', () => {
     expect(tables.operations).toEqual([])
   })
 
+  it('carries the workspace path through the wire and stores it whole', async () => {
+    // The full absolute path, not a workspace id: the card runs in whatever directory the
+    // user picked, whether or not it is a registered workspace.
+    const { handle, tables } = setup()
+    const workspace = { path: 'D:\\Git\\Personal-Workbench' }
+    const response = await run(handle, new FakeRequest('PATCH', patch({ workspace })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', workspace, templateSkills: [] },
+    ])
+    expect(tables.operations).toEqual([
+      { table: 'card', kind: 'put', key: 'skill-card', value: { skill: 'git-repo', workspace } },
+    ])
+  })
+
+  it('refuses a workspace that is not one absolute path', async () => {
+    // A relative path would name a different directory to whoever resolved it, so it is
+    // refused at the boundary rather than resolved against something nobody named.
+    const { handle, tables } = setup()
+    for (const workspace of [{ path: '' }, { path: 'relative/dir' }, { path: 7 }, 'D:\\Git', [], { id: 'ws-1' }]) {
+      const response = await run(handle, new FakeRequest('PATCH', patch({ workspace })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message)
+        .toBe('workspace must be null or an object naming one absolute directory path')
+    }
+    expect(tables.operations).toEqual([])
+  })
+
+  it('clears the workspace when the patch says null, leaving the rest of the record', async () => {
+    // Clearing is offered because a card may move onto another directory. It has to leave
+    // the name, the skill, and the model exactly as they were.
+    const { handle, tables } = setup({
+      seed: {
+        card: {
+          'skill-card': {
+            skill: 'git-repo',
+            name: '任务',
+            model: { provider: 'deepseek', model: 'chat' },
+            workspace: { path: '/old' },
+          },
+        },
+      },
+    })
+    const response = await run(handle, new FakeRequest('PATCH', patch({ workspace: null })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([{
+      cardId: 'skill-card',
+      name: '任务',
+      skill: 'git-repo',
+      model: { provider: 'deepseek', model: 'chat' },
+      templateSkills: [],
+    }])
+    expect(tables.operations.at(-1)).toEqual({
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: {
+        name: '任务',
+        skill: 'git-repo',
+        model: { provider: 'deepseek', model: 'chat' },
+      },
+    })
+  })
+
+  it('refuses a removal that also carries a workspace', async () => {
+    const { handle, tables } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', patch({ remove: true, workspace: { path: '/repo' } })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).error.message)
+      .toBe('a removal cannot carry a name, a skill, a model, a workspace, or a template')
+    expect(tables.operations).toEqual([])
+  })
+
   it('refuses a template above the wire limit with the size code', async () => {
     const { handle, tables } = setup()
     const oversized = 'x'.repeat(1025)
@@ -288,10 +363,14 @@ function runtime(options: RuntimeOptions = {}): {
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
     workingDirectory: fake.workingDirectory,
+    statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: 5_000,
     maxConcurrentRuns: 1,
-    selection: () => options.selection ?? { skill: 'git-repo', template: '<b>{{branch}}</b>' },
+    // A card that is ready to run: the workspace is part of "configured" now, and the
+    // refusals below say what they want instead.
+    selection: () => options.selection
+      ?? { skill: 'git-repo', template: '<b>{{branch}}</b>', workspace: { path: WORKSPACE_PATH } },
     saveResult: async () => undefined,
     warn,
     now: () => 42,
@@ -425,16 +504,44 @@ describe('workbench skill card run route', () => {
     }[] = [
       { options: {}, body: runBody({ outputSchema: undefined }), status: 400, code: 'schema-rejected' },
       { options: { selection: {} }, status: 400, code: 'not-configured' },
-      { options: { selection: { skill: 'git-repo' } }, status: 400, code: 'template-missing' },
+      {
+        options: { selection: { skill: 'git-repo', workspace: { path: WORKSPACE_PATH } } },
+        status: 400,
+        code: 'template-missing',
+      },
       { options: { live: false }, status: 409, code: 'session-not-live' },
       { options: { providers: {} }, status: 500, code: 'provider-unavailable' },
       // A card pinned to a route the deployment no longer offers. It conflicts with the
       // state the card was configured against, so the client can say which model is gone
       // instead of reading it as a malformed request.
       {
-        options: { selection: { skill: 'git-repo', template: '<b>{{a}}</b>', model: { provider: 'deepseek', model: 'retired' } } },
+        options: {
+          selection: {
+            skill: 'git-repo',
+            template: '<b>{{a}}</b>',
+            workspace: { path: WORKSPACE_PATH },
+            model: { provider: 'deepseek', model: 'retired' },
+          },
+        },
         status: 409,
         code: 'model-unavailable',
+      },
+      // A card with nothing chosen for "where": the request is fine and one fact is missing,
+      // exactly like `not-configured`.
+      {
+        options: { selection: { skill: 'git-repo', template: '<b>{{a}}</b>' } },
+        status: 400,
+        code: 'workspace-missing',
+      },
+      // A stored directory that no longer holds one. It conflicts with the state the card was
+      // configured against, so the client can say which path went missing.
+      {
+        options: {
+          selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: '/gone/project' } },
+          directory: { exists: false, isDirectory: false, writable: false },
+        },
+        status: 409,
+        code: 'workspace-invalid',
       },
     ]
     for (const item of cases) {
@@ -512,8 +619,9 @@ describe('workbench skill card run route', () => {
 
   it('accepts a bare run for a card with no template at all', async () => {
     // The skill target names the skill itself, so neither a configured skill nor a
-    // template is a precondition.
-    const { run: handle, fake, runner } = runtime({ selection: {}, outcomes: ['hang'] })
+    // template is a precondition. A directory still is: the run has to happen somewhere,
+    // and that somewhere is the card's own answer.
+    const { run: handle, fake, runner } = runtime({ selection: { workspace: { path: WORKSPACE_PATH } }, outcomes: ['hang'] })
     const response = await run(handle, at(RUN_PATH, 'POST', runBody({
       mode: { kind: 'bare', skill: 'git-repo' },
       outputSchema: undefined,
@@ -618,7 +726,7 @@ describe('workbench skill card run route', () => {
   })
 
   it('refuses a refine run for a card with no template', async () => {
-    const { run: handle, fake } = runtime({ selection: { skill: 'git-repo' } })
+    const { run: handle, fake } = runtime({ selection: { skill: 'git-repo', workspace: { path: WORKSPACE_PATH } } })
     const response = await run(handle, at(RUN_PATH, 'POST', runBody({
       mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
     })))
@@ -650,5 +758,82 @@ describe('workbench skill card run route', () => {
     const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card`, 'DELETE'))
     expect(response.statusCode).toBe(404)
     expect(JSON.parse(response.body).error.message).toBe('no run is in flight for this card')
+  })
+})
+
+describe('workbench skill card directory route', () => {
+  /** The path a case asks about; absolute, because the route refuses anything else. */
+  const DIRECTORY_PATH = '/repo/project'
+
+  /**
+   * Build the directory handler over one probe.
+   * @param probe - the answer the Host's filesystem read gives.
+   * @param rejection - a fence rejection, when the case is about the fence.
+   * @returns the handler and the paths it was asked about.
+   */
+  function directory(
+    probe: WorkbenchDirectoryProbe,
+    rejection?: 401 | 403,
+  ): { handle: (request: IncomingMessage, response: ServerResponse) => void; asked: string[] } {
+    const asked: string[] = []
+    const handle = createWorkbenchSkillCardDirectoryHandler({
+      statDirectory: async (path) => {
+        asked.push(path)
+        return await probe(path)
+      },
+      fence: fence(rejection),
+      warn: () => {},
+    })
+    return { handle, asked }
+  }
+
+  it('answers a fenced request without touching the filesystem', async () => {
+    const { handle, asked } = directory(async () => ({ exists: true, isDirectory: true, writable: true }), 403)
+    const response = await run(handle, at('/api/workbench/skill-card/directory?path=%2Frepo', 'GET'))
+    expect(response.statusCode).toBe(403)
+    expect(asked).toEqual([])
+  })
+
+  it('names the method it serves', async () => {
+    const { handle } = directory(async () => ({ exists: true, isDirectory: true, writable: true }))
+    const response = await run(handle, at('/api/workbench/skill-card/directory?path=%2Frepo', 'POST'))
+    expect(response.statusCode).toBe(405)
+    expect(response.headers.get('allow')).toBe('GET')
+  })
+
+  it('reports a directory that is there', async () => {
+    const { handle, asked } = directory(async () => ({ exists: true, isDirectory: true, writable: true }))
+    const response = await run(handle, at(`/api/workbench/skill-card/directory?path=${encodeURIComponent(DIRECTORY_PATH)}`))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toEqual({
+      apiVersion: 1,
+      path: DIRECTORY_PATH,
+      exists: true,
+      isDirectory: true,
+      writable: true,
+    })
+    expect(asked).toEqual([DIRECTORY_PATH])
+  })
+
+  it('answers a missing path as a state rather than an error', async () => {
+    // The client renders "this directory is gone" from the same body it renders "this is
+    // fine" from: a missing folder must not arrive as a failed request.
+    const { handle } = directory(async () => ({ exists: false, isDirectory: false, writable: false }))
+    const response = await run(handle, at(`/api/workbench/skill-card/directory?path=${encodeURIComponent('/gone')}`))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({ exists: false, isDirectory: false })
+  })
+
+  it('refuses a path that is not one absolute path, before reading anything', async () => {
+    const { handle, asked } = directory(async () => ({ exists: true, isDirectory: true, writable: true }))
+    for (const path of ['relative/dir', '', '.']) {
+      const response = await run(handle, at(`/api/workbench/skill-card/directory?path=${encodeURIComponent(path)}`))
+      expect(response.statusCode, path).toBe(400)
+      expect(JSON.parse(response.body).error.message).toBe('path must be one absolute directory path')
+    }
+    // A request with no path at all is the same refusal.
+    const missing = await run(handle, at('/api/workbench/skill-card/directory'))
+    expect(missing.statusCode).toBe(400)
+    expect(asked).toEqual([])
   })
 })

@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
 // The Loader never fetches a sibling stylesheet, so this one ships inside
 // the factory and installs on first evaluation.
 {
-  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_14mdo_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_14mdo_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_14mdo_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_14mdo_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_14mdo_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_14mdo_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_14mdo_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_14mdo_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_14mdo_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_14mdo_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_14mdo_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide. */\n._cell_14mdo_91 {\n  display: grid;\n  min-width: 0;\n}\n\n._createRoot_14mdo_96 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n._createTile_14mdo_105 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_14mdo_105:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. */\n._createMark_14mdo_134 {\n  font-size: 20px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._createTile_14mdo_105:hover ._createMark_14mdo_134 {\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_14mdo_105:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_14mdo_81 {\n    grid-template-columns: 1fr;\n  }\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1ts8y_4 {\n  display: block;\n}\n\n._body_1ts8y_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._cardActions_1ts8y_14 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1ts8y_22 {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n  width: 100%;\n  min-width: 0;\n}\n\n._pageViewHead_1ts8y_30 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._pageViewTitle_1ts8y_37 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 16px;\n  font-weight: 500;\n  line-height: 24px;\n  overflow-wrap: anywhere;\n}\n\n._pageViewSubtitle_1ts8y_47 {\n  flex: none;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runProblem_1ts8y_54 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The hairline that separates the run's debug detail from the result above it. */\n._runOutput_1ts8y_65 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  padding-top: 8px;\n}\n\n._runOutputSummary_1ts8y_70 {\n  cursor: pointer;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._runOutputLabel_1ts8y_76 {\n  margin: 8px 0 4px;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._runFacts_1ts8y_82 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 2px 12px;\n  margin: 8px 0 0;\n  font-size: 12px;\n}\n\n._runFacts_1ts8y_82 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runFacts_1ts8y_82 dd {\n  margin: 0;\n  overflow-wrap: anywhere;\n}\n\n._runPre_1ts8y_99 {\n  max-height: 320px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* The region HTML as the run produced it: real newlines, and long lines scroll rather\n   than fold. A folded tag reads as several lines of a different tag. */\n._runPreHtml_1ts8y_115 {\n  max-height: 320px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre;\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1ts8y_136 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1ts8y_148 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* Revising the result is a sentence about what is on screen, so the composer sits\n   directly under it: field and send on one line, the log of what was already asked\n   below. */\n._composer_1ts8y_158 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* The field grows upwards from one row and the regenerating control sits beside it, so\n   the control has to stay at the bottom edge rather than float beside the middle of a\n   four-row field. The gap is what keeps a disabled control reading as \"nothing written\n   yet\" instead of as part of the field. */\n._composerRow_1ts8y_169 {\n  display: flex;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because\n   this is the same kind of input as the conversation's: `min-height: 36px` and\n   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in\n   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value\n   `--dsw-radius-panel`, and the type is the card's own inherited\n   `var(--dsh-content-font-size, 14px)` over\n   `calc(24px + var(--dsh-content-font-delta, 0px))`.\n   The bottom inset is the one value restated rather than copied: the chat field's bottom\n   space comes from the toolbar row beneath it, while this field ends on its own border,\n   so it repeats the top inset instead of sitting its last line on the edge. */\n._composerInput_1ts8y_186 {\n  /* The chat card's own stroke colour, so the field's edge is the same hairline the\n     elevation token draws around the conversation's composer. */\n  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-width: 0;\n  min-height: 36px;\n  /* Four rows of the same line box, plus its own insets and border. Past that the field\n     scrolls rather than growing. */\n  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 8px 4px 14px;\n  border: 0;\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  box-shadow: var(--dsw-elevation-soft);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._composerInput_1ts8y_186::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The chat composer's own disabled treatment: the text it holds stays readable but stops\n   looking like something that can be written into. */\n._composerInput_1ts8y_186:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._composerInput_1ts8y_186:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1ts8y_227 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1ts8y_235 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1ts8y_243 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1ts8y_250 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1ts8y_260 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1ts8y_272 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1ts8y_277 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1ts8y_282 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1ts8y_291 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1ts8y_298 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1ts8y_305 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1ts8y_312 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1ts8y_321 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1ts8y_330 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 20px 0;\n}\n\n._section_1ts8y_330:first-child {\n  padding-top: 0;\n}\n\n._section_1ts8y_330 + ._section_1ts8y_330 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1ts8y_346 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Two fields on one row. At this width a full-width field is a long empty box beside\n   a short label, so each is held to the width its content needs. */\n._fieldRow_1ts8y_356 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 24px;\n  min-width: 0;\n}\n\n._field_1ts8y_356 {\n  display: flex;\n  flex-direction: column;\n  /* 320–360px: wide enough for a long name, narrow enough for two on one row. */\n  width: 340px;\n  max-width: 100%;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1ts8y_376 {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  height: 28px;\n  padding: 0 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1ts8y_392 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._select_1ts8y_398,\n._editor_1ts8y_399 {\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n}\n\n._select_1ts8y_398 {\n  height: 28px;\n  padding: 0 6px;\n}\n\n._editor_1ts8y_399 {\n  min-height: 320px;\n  padding: 6px;\n  font-family: monospace;\n  resize: vertical;\n}\n\n/* The editor is the page's main work surface, so one line above it carries the three\n   facts a writer needs while typing: where the region is, what the template declares,\n   and how much of the size budget it uses. */\n._editorStatus_1ts8y_422 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1ts8y_430 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1ts8y_435 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The one control this line carries: writing the missing markers. It inherits the\n   line's type so it reads as part of the sentence. */\n._editorStatusAction_1ts8y_441 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-link);\n  font: inherit;\n  text-decoration: underline;\n  cursor: pointer;\n}\n\n/* Gutter plus text area in one row. The two must share font, size, line height and\n   vertical padding, or the numbers stop lining up with the lines they label. */\n._editorPane_1ts8y_453 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1ts8y_466 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1ts8y_484 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1ts8y_484:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1ts8y_504 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1ts8y_512 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1ts8y_453 ._editor_1ts8y_399 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n}\n\n._editorPane_1ts8y_453 ._editor_1ts8y_399:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1ts8y_453:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1ts8y_399:focus-visible,\n._select_1ts8y_398:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1ts8y_541 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1ts8y_551 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1ts8y_551:hover,\n._violationJump_1ts8y_551:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The preview's own surface, inset from the page. What is inside is the user's\n   document in a shadow root, so only this frame is styled here. */\n._previewSurface_1ts8y_571 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._previewLabel_1ts8y_583 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._preview_1ts8y_571 {\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px;\n}\n\n._settingsActions_1ts8y_595 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1ts8y_602 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1ts8y_613 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1ts8y_620 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1ts8y_630 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1ts8y_637 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall. */\n._configFooter_1ts8y_643 {\n  position: sticky;\n  bottom: 0;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 12px 0 16px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n}\n\n._footerActions_1ts8y_657 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1ts8y_663 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1ts8y_668 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1ts8y_657 ._deleteCard_1ts8y_676 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1ts8y_657 ._deleteCard_1ts8y_676:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1ts8y_686 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The permission note, demoted to a footnote: it is a statement about the page, not\n   part of the document the card renders, and it stands beneath everything. */\n._permission_1ts8y_695 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1ts8y_705 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1ts8y_714 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1ts8y_714 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1ts8y_714 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1ts8y_734 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1ts8y_750 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1ts8y_750[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are\n   pointless; narrower, stacking them pushes whichever is second below the fold, so the\n   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */\n._panes_1ts8y_765 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 16px;\n  align-items: start;\n}\n\n/* A grid child defaults to min-width auto, which lets the editor's content widen the\n   column instead of scrolling inside it. */\n._panes_1ts8y_765 > ._section_1ts8y_330 {\n  min-width: 0;\n}\n\n._paneTabs_1ts8y_778 {\n  display: flex;\n  gap: 4px;\n  padding: 3px;\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._paneTab_1ts8y_778 {\n  flex: 1 1 auto;\n  padding: 5px 10px;\n  border: 0;\n  border-radius: calc(var(--dsw-radius-sm) - 1px);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._paneTab_1ts8y_778[aria-selected='true'] {\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n._paneTab_1ts8y_778:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (min-width: 1100px) {\n  ._panes_1ts8y_765 {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    gap: 24px;\n  }\n\n  /* Both panes are visible, so a tab strip would only repeat their headings. */\n  ._paneTabs_1ts8y_778 {\n    display: none;\n  }\n}\n\n@media (max-width: 1099px) {\n  /* The selected tab already names the pane, so the heading would say it twice. */\n  ._panes_1ts8y_765 ._sectionTitle_1ts8y_346 {\n    display: none;\n  }\n\n  ._panes_1ts8y_765[data-pane='edit'] > ._section_1ts8y_330:nth-of-type(2),\n  ._panes_1ts8y_765[data-pane='preview'] > ._section_1ts8y_330:nth-of-type(1) {\n    display: none;\n  }\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_1qbpg_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  box-sizing: border-box;\n  height: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_1qbpg_17 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_1qbpg_24 {\n  cursor: pointer;\n}\n\n._activatable_1qbpg_24:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_1qbpg_24:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_1qbpg_41 {\n  grid-row: span 2;\n}\n\n._spanLarge_1qbpg_45 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_1qbpg_50 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_1qbpg_62 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_1qbpg_69 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_1qbpg_81 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_1qbpg_94 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_1qbpg_104 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_1qbpg_111 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_1qbpg_3:hover ._iconButton_1qbpg_111,\n._card_1qbpg_3:focus-within ._iconButton_1qbpg_111 {\n  opacity: 1;\n}\n\n._iconButton_1qbpg_111:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_1qbpg_111:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_1qbpg_147 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_1qbpg_147:active {\n  cursor: grabbing;\n}\n\n._body_1qbpg_157 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n._failure_1qbpg_164 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_1qbpg_172 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
+  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_14mdo_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_14mdo_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_14mdo_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_14mdo_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_14mdo_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_14mdo_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_14mdo_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_14mdo_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_14mdo_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_14mdo_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_14mdo_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide. */\n._cell_14mdo_91 {\n  display: grid;\n  min-width: 0;\n}\n\n._createRoot_14mdo_96 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n._createTile_14mdo_105 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_14mdo_105:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. */\n._createMark_14mdo_134 {\n  font-size: 20px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._createTile_14mdo_105:hover ._createMark_14mdo_134 {\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_14mdo_105:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_14mdo_81 {\n    grid-template-columns: 1fr;\n  }\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1qy1p_4 {\n  display: block;\n}\n\n._body_1qy1p_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._cardActions_1qy1p_14 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1qy1p_22 {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n  width: 100%;\n  min-width: 0;\n}\n\n._pageViewHead_1qy1p_30 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._pageViewTitle_1qy1p_37 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 16px;\n  font-weight: 500;\n  line-height: 24px;\n  overflow-wrap: anywhere;\n}\n\n._pageViewSubtitle_1qy1p_47 {\n  flex: none;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runProblem_1qy1p_54 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The hairline that separates the run's debug detail from the result above it. */\n._runOutput_1qy1p_65 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  padding-top: 8px;\n}\n\n._runOutputSummary_1qy1p_70 {\n  cursor: pointer;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._runOutputLabel_1qy1p_76 {\n  margin: 8px 0 4px;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._runFacts_1qy1p_82 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 2px 12px;\n  margin: 8px 0 0;\n  font-size: 12px;\n}\n\n._runFacts_1qy1p_82 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runFacts_1qy1p_82 dd {\n  margin: 0;\n  overflow-wrap: anywhere;\n}\n\n._runPre_1qy1p_99 {\n  max-height: 320px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* The region HTML as the run produced it: real newlines, and long lines scroll rather\n   than fold. A folded tag reads as several lines of a different tag. */\n._runPreHtml_1qy1p_115 {\n  max-height: 320px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre;\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1qy1p_136 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1qy1p_148 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* Revising the result is a sentence about what is on screen, so the composer sits\n   directly under it: field and send on one line, the log of what was already asked\n   below. */\n._composer_1qy1p_158 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* The field grows upwards from one row and the regenerating control sits beside it, so\n   the control has to stay at the bottom edge rather than float beside the middle of a\n   four-row field. The gap is what keeps a disabled control reading as \"nothing written\n   yet\" instead of as part of the field. */\n._composerRow_1qy1p_169 {\n  display: flex;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because\n   this is the same kind of input as the conversation's: `min-height: 36px` and\n   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in\n   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value\n   `--dsw-radius-panel`, and the type is the card's own inherited\n   `var(--dsh-content-font-size, 14px)` over\n   `calc(24px + var(--dsh-content-font-delta, 0px))`.\n   The bottom inset is the one value restated rather than copied: the chat field's bottom\n   space comes from the toolbar row beneath it, while this field ends on its own border,\n   so it repeats the top inset instead of sitting its last line on the edge. */\n._composerInput_1qy1p_186 {\n  /* The chat card's own stroke colour, so the field's edge is the same hairline the\n     elevation token draws around the conversation's composer. */\n  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-width: 0;\n  min-height: 36px;\n  /* Four rows of the same line box, plus its own insets and border. Past that the field\n     scrolls rather than growing. */\n  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 8px 4px 14px;\n  border: 0;\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  box-shadow: var(--dsw-elevation-soft);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._composerInput_1qy1p_186::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The chat composer's own disabled treatment: the text it holds stays readable but stops\n   looking like something that can be written into. */\n._composerInput_1qy1p_186:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._composerInput_1qy1p_186:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1qy1p_227 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1qy1p_235 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1qy1p_243 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1qy1p_250 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1qy1p_260 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1qy1p_272 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1qy1p_277 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1qy1p_282 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1qy1p_291 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1qy1p_298 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1qy1p_305 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1qy1p_312 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1qy1p_321 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1qy1p_330 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 20px 0;\n}\n\n._section_1qy1p_330:first-child {\n  padding-top: 0;\n}\n\n._section_1qy1p_330 + ._section_1qy1p_330 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1qy1p_346 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1qy1p_358 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1qy1p_358 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1qy1p_358 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1qy1p_383 {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  height: 28px;\n  padding: 0 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1qy1p_399 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1qy1p_407 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n._workspaceValue_1qy1p_418 {\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 3px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1qy1p_435 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceLeaf_1qy1p_439 {\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1qy1p_449 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1qy1p_460 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._select_1qy1p_467,\n._editor_1qy1p_468 {\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n}\n\n._select_1qy1p_467 {\n  height: 28px;\n  padding: 0 6px;\n}\n\n._editor_1qy1p_468 {\n  min-height: 320px;\n  padding: 6px;\n  font-family: monospace;\n  resize: vertical;\n}\n\n/* The editor is the page's main work surface, so one line above it carries the three\n   facts a writer needs while typing: where the region is, what the template declares,\n   and how much of the size budget it uses. */\n._editorStatus_1qy1p_491 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1qy1p_499 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1qy1p_504 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The one control this line carries: writing the missing markers. It inherits the\n   line's type so it reads as part of the sentence. */\n._editorStatusAction_1qy1p_510 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-link);\n  font: inherit;\n  text-decoration: underline;\n  cursor: pointer;\n}\n\n/* Gutter plus text area in one row. The two must share font, size, line height and\n   vertical padding, or the numbers stop lining up with the lines they label. */\n._editorPane_1qy1p_522 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1qy1p_535 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1qy1p_553 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1qy1p_553:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1qy1p_573 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1qy1p_581 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1qy1p_522 ._editor_1qy1p_468 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n}\n\n._editorPane_1qy1p_522 ._editor_1qy1p_468:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1qy1p_522:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1qy1p_468:focus-visible,\n._select_1qy1p_467:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1qy1p_610 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1qy1p_620 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1qy1p_620:hover,\n._violationJump_1qy1p_620:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The preview's own surface, inset from the page. What is inside is the user's\n   document in a shadow root, so only this frame is styled here. */\n._previewSurface_1qy1p_640 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._previewLabel_1qy1p_652 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._preview_1qy1p_640 {\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px;\n}\n\n._settingsActions_1qy1p_664 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1qy1p_671 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1qy1p_682 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1qy1p_689 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1qy1p_699 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1qy1p_706 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall. */\n._configFooter_1qy1p_712 {\n  position: sticky;\n  bottom: 0;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 12px 0 16px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n}\n\n._footerActions_1qy1p_726 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1qy1p_732 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1qy1p_737 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1qy1p_726 ._deleteCard_1qy1p_745 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1qy1p_726 ._deleteCard_1qy1p_745:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1qy1p_755 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The permission note, demoted to a footnote: it is a statement about the page, not\n   part of the document the card renders, and it stands beneath everything. */\n._permission_1qy1p_764 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1qy1p_774 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1qy1p_783 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1qy1p_783 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1qy1p_783 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1qy1p_803 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1qy1p_819 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1qy1p_819[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are\n   pointless; narrower, stacking them pushes whichever is second below the fold, so the\n   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */\n._panes_1qy1p_834 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 16px;\n  align-items: start;\n}\n\n/* A grid child defaults to min-width auto, which lets the editor's content widen the\n   column instead of scrolling inside it. */\n._panes_1qy1p_834 > ._section_1qy1p_330 {\n  min-width: 0;\n}\n\n._paneTabs_1qy1p_847 {\n  display: flex;\n  gap: 4px;\n  padding: 3px;\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._paneTab_1qy1p_847 {\n  flex: 1 1 auto;\n  padding: 5px 10px;\n  border: 0;\n  border-radius: calc(var(--dsw-radius-sm) - 1px);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._paneTab_1qy1p_847[aria-selected='true'] {\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n._paneTab_1qy1p_847:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (min-width: 1100px) {\n  ._panes_1qy1p_834 {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    gap: 24px;\n  }\n\n  /* Both panes are visible, so a tab strip would only repeat their headings. */\n  ._paneTabs_1qy1p_847 {\n    display: none;\n  }\n}\n\n@media (max-width: 1099px) {\n  /* The selected tab already names the pane, so the heading would say it twice. */\n  ._panes_1qy1p_834 ._sectionTitle_1qy1p_346 {\n    display: none;\n  }\n\n  ._panes_1qy1p_834[data-pane='edit'] > ._section_1qy1p_330:nth-of-type(2),\n  ._panes_1qy1p_834[data-pane='preview'] > ._section_1qy1p_330:nth-of-type(1) {\n    display: none;\n  }\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_1qbpg_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  box-sizing: border-box;\n  height: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_1qbpg_17 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_1qbpg_24 {\n  cursor: pointer;\n}\n\n._activatable_1qbpg_24:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_1qbpg_24:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_1qbpg_41 {\n  grid-row: span 2;\n}\n\n._spanLarge_1qbpg_45 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_1qbpg_50 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_1qbpg_62 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_1qbpg_69 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_1qbpg_81 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_1qbpg_94 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_1qbpg_104 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_1qbpg_111 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_1qbpg_3:hover ._iconButton_1qbpg_111,\n._card_1qbpg_3:focus-within ._iconButton_1qbpg_111 {\n  opacity: 1;\n}\n\n._iconButton_1qbpg_111:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_1qbpg_111:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_1qbpg_147 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_1qbpg_147:active {\n  cursor: grabbing;\n}\n\n._body_1qbpg_157 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n._failure_1qbpg_164 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_1qbpg_172 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
   if (typeof document !== 'undefined' && document.querySelector("style[data-plugin-css=\"dsh-workbench\"]") === null) {
     const tag = document.createElement('style');
     tag.dataset.pluginCss = "dsh-workbench";
@@ -254,6 +254,12 @@ window.__ModuleLoader__.load({
 			skillCardProblemRunning: "已经有一个运行在进行",
 			skillCardProblemRunFailed: "这次运行没有产出可用的结果",
 			skillCardProblemRunUnavailable: "当前 harness 不能运行卡片：卡片运行需要提供 startActivation 的 harness（0.2.1-alpha.2 / beta 通道），已安装的 harness 没有提供",
+			skillCardProblemWorkspaceMissing: "这张卡还没有选择工作目录，先选一个目录再运行",
+			skillCardProblemWorkspaceInvalid: "工作目录不存在或不是文件夹",
+			skillCardWorkspace: "工作目录",
+			skillCardWorkspaceNotSet: "未选择",
+			skillCardChooseDirectory: "选择目录",
+			skillCardWorkspacePickerUnavailable: "这个环境没有目录选择器，无法选择工作目录",
 			skillCardProblemTooLarge: "模板超出体积上限",
 			skillCardProblemUnavailable: "暂时读不到这张卡的状态",
 			skillCardProblemGeneric: "这张卡暂时不可用",
@@ -406,6 +412,12 @@ window.__ModuleLoader__.load({
 			skillCardProblemRunning: "Another run is already in flight",
 			skillCardProblemRunFailed: "The run produced no usable result",
 			skillCardProblemRunUnavailable: "This harness cannot run cards: a card run needs a harness that provides startActivation (0.2.1-alpha.2, the beta channel), and the installed harness does not",
+			skillCardProblemWorkspaceMissing: "No workspace directory is selected for this card; choose one before running",
+			skillCardProblemWorkspaceInvalid: "The workspace directory does not exist or is not a folder",
+			skillCardWorkspace: "Workspace",
+			skillCardWorkspaceNotSet: "Not selected",
+			skillCardChooseDirectory: "Choose directory",
+			skillCardWorkspacePickerUnavailable: "This environment has no directory picker, so a workspace cannot be chosen",
 			skillCardProblemTooLarge: "The template is above the size limit",
 			skillCardProblemUnavailable: "This card’s state cannot be read right now",
 			skillCardProblemGeneric: "This card is unavailable right now",
@@ -540,6 +552,15 @@ window.__ModuleLoader__.load({
 		* anything.
 		*/
 		var WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`;
+		/**
+		* Directory-check route: `GET path=…` answers whether one directory can be a workspace.
+		*
+		* One narrow read rather than a filesystem bridge: the client needs existence, kind, and
+		* writability for exactly one path, which is the card's own workspace. Answers exist
+		* because a run is gated on them: a card whose directory was moved has to be stopped
+		* before it starts, not after it fails.
+		*/
+		var WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
 		/** Maximum bytes of one template. */
 		var WORKBENCH_TEMPLATE_MAX_BYTES = 32768;
 		/** Maximum bytes of one stored result, counted over the structured value and the text output. */
@@ -630,6 +651,38 @@ window.__ModuleLoader__.load({
 			const provider = Reflect.get(value, "provider");
 			const model = Reflect.get(value, "model");
 			return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
+		}
+		/** A drive-qualified Windows path: `C:\…`, `C:/…`, and the bare drive root. */
+		var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+		/** A UNC share: `\\server\share`, or the forward-slash spelling of the same thing. */
+		var UNC_ABSOLUTE_PATH = /^[\\/]{2}[^\\/]/;
+		/** A POSIX absolute path, including the root itself. */
+		var POSIX_ABSOLUTE_PATH = /^\//;
+		/**
+		* Whether a value can be stored as a card's workspace path.
+		*
+		* The full absolute path is the whole of the value — never a workspace id — because the
+		* product decision is "whatever directory the user picks", which need not be a registered
+		* workspace at all. A relative path is refused rather than resolved against something:
+		* resolved against the session it would be a different directory per run, and resolved
+		* against the Host it would be a directory the user never saw.
+		* @param value - candidate path, as a picker reported it.
+		* @returns whether it is an absolute path within the length limit.
+		*/
+		function isWorkbenchWorkspacePath(value) {
+			if (value.length === 0 || value.length > 4096) return false;
+			if (value.includes("\0")) return false;
+			return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
+		}
+		/**
+		* Whether a value is a usable card workspace.
+		* @param value - candidate value.
+		* @returns whether it holds one absolute directory path.
+		*/
+		function isWorkbenchCardWorkspace(value) {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+			const path = Reflect.get(value, "path");
+			return typeof path === "string" && isWorkbenchWorkspacePath(path);
 		}
 		//#endregion
 		//#region src/client/skill-card/api.ts
@@ -914,6 +967,38 @@ window.__ModuleLoader__.load({
 						code: error.code,
 						message: error.message
 					};
+				},
+				async statDirectory(path, signal) {
+					const query = `?path=${encodeURIComponent(path)}`;
+					let response;
+					try {
+						response = await fetcher(`${WORKBENCH_SKILL_CARD_DIRECTORY_PATH}${query}`, {
+							method: "GET",
+							credentials: "same-origin",
+							redirect: "error",
+							cache: "no-store",
+							headers: { "Accept": "application/json" },
+							...signal === void 0 ? {} : { signal }
+						});
+					} catch (error) {
+						return {
+							status: "unavailable",
+							reason: `skill card request failed: ${messageOf(error)}`
+						};
+					}
+					const body = await readJson(response);
+					if (!response.ok) return {
+						status: "unavailable",
+						reason: errorOf(body)?.message ?? `skill card route answered ${String(response.status)}`
+					};
+					const stat = parseDirectoryStat(body);
+					return stat === void 0 ? {
+						status: "unavailable",
+						reason: "directory response did not match the contract"
+					} : {
+						status: "ok",
+						stat
+					};
 				}
 			};
 		}
@@ -975,6 +1060,8 @@ window.__ModuleLoader__.load({
 				if (entry.skill !== void 0 && (typeof entry.skill !== "string" || !isWorkbenchSkillName(entry.skill))) return;
 				const model = entry.model;
 				if (model !== void 0 && !isWorkbenchCardModel(model)) return void 0;
+				const workspace = entry.workspace;
+				if (workspace !== void 0 && !isWorkbenchCardWorkspace(workspace)) return void 0;
 				if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some((name) => typeof name !== "string")) return;
 				if (entry.template !== void 0 && typeof entry.template !== "string") return void 0;
 				cards.push({
@@ -982,6 +1069,7 @@ window.__ModuleLoader__.load({
 					...entry.name === void 0 ? {} : { name: entry.name },
 					...entry.skill === void 0 ? {} : { skill: entry.skill },
 					...model === void 0 ? {} : { model },
+					...workspace === void 0 ? {} : { workspace: { path: workspace.path } },
 					templateSkills: entry.templateSkills,
 					...entry.template === void 0 ? {} : { template: entry.template }
 				});
@@ -1014,6 +1102,28 @@ window.__ModuleLoader__.load({
 			if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
 			const startActivation = value.startActivation;
 			return typeof startActivation === "boolean" ? { startActivation } : void 0;
+		}
+		/**
+		* Validate one directory-check body.
+		*
+		* The three answers are read as booleans rather than passed through: the field decides
+		* whether the run control opens from them, and a missing one would read as `false` by
+		* accident — a card that can never run for no stated reason.
+		* @param value - decoded body.
+		* @returns the three facts, or undefined when a field is outside the contract.
+		*/
+		function parseDirectoryStat(value) {
+			if (typeof value !== "object" || value === null) return void 0;
+			const body = value;
+			if (body.apiVersion !== 1) return void 0;
+			if (typeof body.path !== "string") return void 0;
+			if (typeof body.exists !== "boolean" || typeof body.isDirectory !== "boolean") return void 0;
+			if (typeof body.writable !== "boolean") return void 0;
+			return {
+				exists: body.exists,
+				isDirectory: body.isDirectory,
+				writable: body.writable
+			};
 		}
 		/**
 		* Validate one catalog response body.
@@ -1260,6 +1370,75 @@ window.__ModuleLoader__.load({
 				...group,
 				models: [...group.models, option]
 			} : group);
+		}
+		//#endregion
+		//#region src/client/skill-card/workspace-picker.ts
+		/**
+		* Asking the user for a directory, on whichever platform this page is running.
+		*
+		* Two sources, and the desktop one comes first. On Windows the Desktop plugin publishes a
+		* picker on the window ({@link WorkbenchDesktopPickerWindow}) and installs a same-origin
+		* route behind it; everywhere else the workspace UI's own `pickDirectory()` is the picker,
+		* which is the same call the app's own browse panel makes there. There is deliberately no
+		* third path: the product owner rejected free-text paths, and a text field would let a card
+		* name a directory no chooser ever confirmed.
+		*
+		* Nothing here throws. A route that is absent, refused, or answered with junk is reported
+		* as "no picker", so the page states a disabled control instead of an error boundary.
+		* @module dsh-workbench/client/skill-card/workspace-picker
+		*/
+		/**
+		* Read the Desktop plugin's picker off the window, when it published one.
+		* @param target - the object to read; the global scope by default.
+		* @returns the picker, or undefined when this page has none.
+		*/
+		function readDesktopPicker(target = globalThis) {
+			if (typeof target !== "object" || target === null) return void 0;
+			const candidate = target.__DSH_DESKTOP_PICK_DIRECTORY__;
+			return typeof candidate === "function" ? candidate : void 0;
+		}
+		/**
+		* Build the picker over sources that may arrive after the page exists.
+		*
+		* The sources are read through a getter rather than captured, because the workspace UI is
+		* injected scoped: a composition without it answers "no picker" for the whole session,
+		* which reads as a disabled control rather than as a missing plugin.
+		* @param sources - getter for the sources, read on every call.
+		* @returns the picker.
+		*/
+		function createWorkspacePicker(sources) {
+			const chosen = () => {
+				const available = sources();
+				return available.native ?? available.workspace;
+			};
+			return {
+				available: () => chosen() !== void 0,
+				async pick() {
+					const pick = chosen();
+					if (pick === void 0) return {
+						status: "unavailable",
+						reason: "this page has no directory picker"
+					};
+					let path;
+					try {
+						path = await pick();
+					} catch (error) {
+						return {
+							status: "unavailable",
+							reason: error instanceof Error ? error.message : String(error)
+						};
+					}
+					if (path === null) return { status: "cancelled" };
+					if (!isWorkbenchWorkspacePath(path)) return {
+						status: "unavailable",
+						reason: `the picker returned ${JSON.stringify(path)}, which is not an absolute directory path`
+					};
+					return {
+						status: "picked",
+						path
+					};
+				}
+			};
 		}
 		var workbench_module_default = {
 			page: "_page_14mdo_3",
@@ -2187,6 +2366,64 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region src/client/skill-card/workspace.ts
+		/**
+		* The answer when nothing could be read at all.
+		*
+		* A check that never answered is treated as "nothing is there" rather than as a fourth
+		* state: an unconfirmed directory is one a card may not run in, and inventing a "checking"
+		* state would let the run control open on a path nobody verified.
+		*/
+		var NO_DIRECTORY_STAT = {
+			exists: false,
+			isDirectory: false,
+			writable: false
+		};
+		/**
+		* The last segment of a directory path, for the field's primary value.
+		*
+		* Display only: the stored value is the full path and the run uses it as it is, so this
+		* never round-trips into storage or into a request. Trailing separators are dropped first,
+		* because a path is often written both ways and `Personal-Workbench/` must not read as an
+		* empty name.
+		* @param path - an absolute directory path, as stored.
+		* @returns the last segment; a drive root and a filesystem root are handled below.
+		*/
+		function workspaceLeaf$1(path) {
+			const trimmed = path.replace(/[\\/]+$/u, "");
+			if (trimmed === "") return path;
+			if (/^[A-Za-z]:$/u.test(trimmed)) return `${trimmed}${path.charAt(trimmed.length)}`;
+			const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+			return trimmed.slice(cut + 1);
+		}
+		/**
+		* Resolve the field from the card's stored directory and the Host's answer about it.
+		* @param stored - the directory this card stores, when it has one.
+		* @param stat - what the Host answered about it; undefined while no answer has arrived.
+		* @returns the field state.
+		*/
+		function resolveWorkspaceField(stored, stat) {
+			if (stored === void 0) return { kind: "missing" };
+			const leaf = workspaceLeaf$1(stored.path);
+			if (stat === void 0) return {
+				kind: "invalid",
+				path: stored.path,
+				leaf,
+				checked: false
+			};
+			if (!stat.exists || !stat.isDirectory) return {
+				kind: "invalid",
+				path: stored.path,
+				leaf,
+				checked: true
+			};
+			return {
+				kind: "ready",
+				path: stored.path,
+				leaf
+			};
+		}
+		//#endregion
 		//#region src/client/skill-card/controller.ts
 		/**
 		* Skill card state: what one card shows and what it can do.
@@ -2212,7 +2449,7 @@ window.__ModuleLoader__.load({
 		* @returns the card's view and actions.
 		*/
 		function useSkillCard(options) {
-			const { api, cardId, session, withCatalog = false, models, cardTitle = defaultCardTitle, openCard, watchRun = false } = options;
+			const { api, cardId, session, withCatalog = false, models, workspacePicker, cardTitle = defaultCardTitle, openCard, watchRun = false } = options;
 			const sessionId = session();
 			const [config, setConfig] = (0, react.useState)({ kind: "loading" });
 			const [run, setRun] = (0, react.useState)(void 0);
@@ -2257,6 +2494,7 @@ window.__ModuleLoader__.load({
 			const [catalogStatus, setCatalogStatus] = (0, react.useState)("idle");
 			const [catalogFailure, setCatalogFailure] = (0, react.useState)(void 0);
 			const [directory, setDirectory] = (0, react.useState)(NO_MODEL_DIRECTORY);
+			const [pickerRefused, setPickerRefused] = (0, react.useState)(false);
 			(0, react.useEffect)(() => {
 				if (models === void 0) return;
 				const read = () => {
@@ -2372,6 +2610,25 @@ window.__ModuleLoader__.load({
 			const card = config.kind === "ready" ? config.snapshot.cards.find((entry) => entry.cardId === cardId) : void 0;
 			const stored = config.kind === "ready" ? config.snapshot.results.find((entry) => entry.cardId === cardId) : void 0;
 			const modelField = (0, react.useMemo)(() => resolveModelField(card?.model, directory), [card?.model, directory]);
+			const [workspaceCheck, setWorkspaceCheck] = (0, react.useState)(void 0);
+			const workspacePath = card?.workspace?.path;
+			(0, react.useEffect)(() => {
+				if (workspacePath === void 0) return;
+				let live = true;
+				api.statDirectory(workspacePath).then((outcome) => {
+					if (!live) return;
+					setWorkspaceCheck({
+						path: workspacePath,
+						stat: outcome.status === "ok" ? outcome.stat : NO_DIRECTORY_STAT
+					});
+				});
+				return () => {
+					live = false;
+				};
+			}, [api, workspacePath]);
+			const workspaceStat = workspacePath !== void 0 && workspaceCheck?.path === workspacePath ? workspaceCheck.stat : void 0;
+			const workspaceField = (0, react.useMemo)(() => resolveWorkspaceField(card?.workspace, workspaceStat), [card?.workspace, workspaceStat]);
+			const canChooseWorkspace = !pickerRefused && workspacePicker !== void 0 && workspacePicker.available();
 			const runUnavailable = (0, react.useMemo)(() => config.kind === "ready" && config.snapshot.capabilities?.startActivation === false ? { code: "run-unavailable" } : void 0, [config]);
 			const result = resultOverride ?? run?.result ?? stored;
 			const previous = (0, react.useMemo)(() => {
@@ -2393,6 +2650,11 @@ window.__ModuleLoader__.load({
 						code: "session-not-live",
 						detail: ""
 					});
+					return;
+				}
+				const refused = workspaceRefusal(workspaceField);
+				if (refused !== void 0) {
+					setProblem(refused);
 					return;
 				}
 				if (card?.skill === void 0) {
@@ -2437,7 +2699,8 @@ window.__ModuleLoader__.load({
 				cardId,
 				session,
 				card?.skill,
-				card?.template
+				card?.template,
+				workspaceField
 			]);
 			const cancel = (0, react.useCallback)(() => {
 				api.cancel(cardId);
@@ -2452,6 +2715,11 @@ window.__ModuleLoader__.load({
 						code: "session-not-live",
 						detail: ""
 					});
+					return;
+				}
+				const refused = workspaceRefusal(workspaceField);
+				if (refused !== void 0) {
+					setRefineProblem(refused);
 					return;
 				}
 				if (card?.skill === void 0) {
@@ -2500,7 +2768,8 @@ window.__ModuleLoader__.load({
 				result,
 				run?.phase,
 				session,
-				settleRefinement
+				settleRefinement,
+				workspaceField
 			]);
 			const undoRefine = (0, react.useCallback)(() => {
 				const kept = previousResult;
@@ -2592,6 +2861,46 @@ window.__ModuleLoader__.load({
 				applyWrite,
 				cardId,
 				revision
+			]);
+			const chooseWorkspace = (0, react.useCallback)(() => {
+				if (workspacePicker === void 0) {
+					setPickerRefused(true);
+					return;
+				}
+				workspacePicker.pick().then((picked) => {
+					if (picked.status === "cancelled") return;
+					if (picked.status === "unavailable") {
+						setPickerRefused(true);
+						return;
+					}
+					const send = (baseRevision) => {
+						api.write({
+							baseRevision,
+							cardId,
+							workspace: { path: picked.path }
+						}).then(applyWrite);
+					};
+					if (revision !== void 0) {
+						send(revision);
+						return;
+					}
+					api.read().then((outcome) => {
+						if (outcome.status !== "ok") {
+							setProblem({
+								code: "unavailable",
+								detail: outcome.reason
+							});
+							return;
+						}
+						send(outcome.snapshot.revision);
+					});
+				});
+			}, [
+				api,
+				applyWrite,
+				cardId,
+				revision,
+				workspacePicker
 			]);
 			const saveTemplate = (0, react.useCallback)((template, name) => {
 				const skill = card?.skill;
@@ -2761,6 +3070,22 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
+				const runnerCardId = resolution.target.kind === "card" ? resolution.reference : cardId;
+				const runnerCard = snapshot.cards.find((entry) => entry.cardId === runnerCardId);
+				const stat = runnerCard?.workspace === void 0 ? void 0 : await api.statDirectory(runnerCard.workspace.path);
+				const field = resolveWorkspaceField(runnerCard?.workspace, stat === void 0 ? void 0 : stat.status === "ok" ? stat.stat : NO_DIRECTORY_STAT);
+				if (field.kind !== "ready") {
+					setPendingAction(void 0);
+					setActionProblem(field.kind === "missing" ? {
+						code: "target-workspace-missing",
+						candidates: []
+					} : {
+						code: "target-workspace-invalid",
+						candidates: [],
+						detail: field.path
+					});
+					return;
+				}
 				setPendingAction({
 					key: resolution.key,
 					target: resolution.target,
@@ -2802,6 +3127,15 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
+				const refused = workspaceRefusal(workspaceField);
+				if (refused !== void 0) {
+					setActionProblem({
+						code: refused.code === "workspace-missing" ? "target-workspace-missing" : "target-workspace-invalid",
+						candidates: [],
+						...refused.detail === void 0 || refused.detail === "" ? {} : { detail: refused.detail }
+					});
+					return;
+				}
 				api.start({
 					cardId,
 					sessionId: pending.sessionId,
@@ -2825,7 +3159,8 @@ window.__ModuleLoader__.load({
 				api,
 				cardId,
 				openCard,
-				pendingAction
+				pendingAction,
+				workspaceField
 			]);
 			const cancelAction = (0, react.useCallback)(() => {
 				setPendingAction(void 0);
@@ -2839,6 +3174,7 @@ window.__ModuleLoader__.load({
 				refresh,
 				chooseSkill,
 				chooseModel,
+				chooseWorkspace,
 				saveTemplate,
 				rename,
 				remove,
@@ -2854,6 +3190,7 @@ window.__ModuleLoader__.load({
 				refresh,
 				chooseSkill,
 				chooseModel,
+				chooseWorkspace,
 				saveTemplate,
 				rename,
 				remove,
@@ -2886,8 +3223,10 @@ window.__ModuleLoader__.load({
 					refinements,
 					previous,
 					...refineProblem === void 0 ? {} : { refineProblem },
-					runnable: runUnavailable === void 0 && sessionId !== void 0 && card?.skill !== void 0 && card.template !== void 0 && modelField.kind !== "unavailable",
+					runnable: runUnavailable === void 0 && sessionId !== void 0 && card?.skill !== void 0 && card.template !== void 0 && modelField.kind !== "unavailable" && workspaceField.kind === "ready",
 					modelField,
+					workspaceField,
+					canChooseWorkspace,
 					catalog,
 					catalogStatus,
 					catalogFailure,
@@ -2901,6 +3240,8 @@ window.__ModuleLoader__.load({
 					card?.skill,
 					card?.template,
 					modelField,
+					workspaceField,
+					canChooseWorkspace,
 					result,
 					catalog,
 					catalogStatus,
@@ -2944,6 +3285,24 @@ window.__ModuleLoader__.load({
 			});
 			if (!found) next.push(written);
 			return next.sort((left, right) => left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : 0);
+		}
+		/**
+		* Read one workspace field as the refusal a run reports.
+		*
+		* One function for every entry point, so the header control, a refinement, and a template
+		* button cannot disagree about whether the card has somewhere to run.
+		* @param field - the resolved field.
+		* @returns the problem to report, or undefined when the directory is confirmed.
+		*/
+		function workspaceRefusal(field) {
+			if (field.kind === "ready") return void 0;
+			return field.kind === "missing" ? {
+				code: "workspace-missing",
+				detail: ""
+			} : {
+				code: "workspace-invalid",
+				detail: field.path
+			};
 		}
 		/**
 		* Read one refused start as an action problem.
@@ -3005,7 +3364,9 @@ window.__ModuleLoader__.load({
 			"model-unavailable": true,
 			"schema-rejected": true,
 			"run-in-progress": true,
-			"run-unavailable": true
+			"run-unavailable": true,
+			"workspace-missing": true,
+			"workspace-invalid": true
 		};
 		/**
 		* Read one refused-start code as a localizable failure code.
@@ -3016,80 +3377,86 @@ window.__ModuleLoader__.load({
 			return Object.hasOwn(LOCALIZED_CODES, code) ? code : "unavailable";
 		}
 		var skill_card_module_default = {
-			template: "_template_1ts8y_4",
-			body: "_body_1ts8y_8",
-			cardActions: "_cardActions_1ts8y_14",
-			pageView: "_pageView_1ts8y_22",
-			pageViewHead: "_pageViewHead_1ts8y_30",
-			pageViewTitle: "_pageViewTitle_1ts8y_37",
-			pageViewSubtitle: "_pageViewSubtitle_1ts8y_47",
-			runProblem: "_runProblem_1ts8y_54",
-			runOutput: "_runOutput_1ts8y_65",
-			runOutputSummary: "_runOutputSummary_1ts8y_70",
-			runOutputLabel: "_runOutputLabel_1ts8y_76",
-			runFacts: "_runFacts_1ts8y_82",
-			runPre: "_runPre_1ts8y_99",
-			runPreHtml: "_runPreHtml_1ts8y_115",
-			resultSurface: "_resultSurface_1ts8y_136",
-			resultEditor: "_resultEditor_1ts8y_148",
-			composer: "_composer_1ts8y_158",
-			composerRow: "_composerRow_1ts8y_169",
-			composerInput: "_composerInput_1ts8y_186",
-			composerProblem: "_composerProblem_1ts8y_227",
-			refineLog: "_refineLog_1ts8y_235",
-			refineLogHead: "_refineLogHead_1ts8y_243",
-			refineLogTitle: "_refineLogTitle_1ts8y_250",
-			refineLogList: "_refineLogList_1ts8y_260",
-			refineLogItem: "_refineLogItem_1ts8y_272",
-			refineLogInstruction: "_refineLogInstruction_1ts8y_277",
-			refineLogTime: "_refineLogTime_1ts8y_282",
-			refineLogNote: "_refineLogNote_1ts8y_291",
-			notice: "_notice_1ts8y_298",
-			noticeTitle: "_noticeTitle_1ts8y_305",
-			noticeBody: "_noticeBody_1ts8y_312",
-			settings: "_settings_1ts8y_321",
-			section: "_section_1ts8y_330",
-			sectionTitle: "_sectionTitle_1ts8y_346",
-			fieldRow: "_fieldRow_1ts8y_356",
-			field: "_field_1ts8y_356",
-			fieldValue: "_fieldValue_1ts8y_376",
-			fieldLabel: "_fieldLabel_1ts8y_392",
-			select: "_select_1ts8y_398",
-			editor: "_editor_1ts8y_399",
-			editorStatus: "_editorStatus_1ts8y_422",
-			editorStatusMissing: "_editorStatusMissing_1ts8y_430",
-			editorStatusWarn: "_editorStatusWarn_1ts8y_435",
-			editorStatusAction: "_editorStatusAction_1ts8y_441",
-			editorPane: "_editorPane_1ts8y_453",
-			gutter: "_gutter_1ts8y_466",
-			gutterLine: "_gutterLine_1ts8y_484",
-			gutterLineRegion: "_gutterLineRegion_1ts8y_504",
-			gutterLineActions: "_gutterLineActions_1ts8y_512",
-			violations: "_violations_1ts8y_541",
-			violationJump: "_violationJump_1ts8y_551",
-			previewSurface: "_previewSurface_1ts8y_571",
-			previewLabel: "_previewLabel_1ts8y_583",
-			preview: "_preview_1ts8y_571",
-			settingsActions: "_settingsActions_1ts8y_595",
-			actionBuilder: "_actionBuilder_1ts8y_602",
-			builderRow: "_builderRow_1ts8y_613",
-			builderField: "_builderField_1ts8y_620",
-			hint: "_hint_1ts8y_630",
-			hintError: "_hintError_1ts8y_637",
-			configFooter: "_configFooter_1ts8y_643",
-			footerActions: "_footerActions_1ts8y_657",
-			footerSpacer: "_footerSpacer_1ts8y_663",
-			deletePrompt: "_deletePrompt_1ts8y_668",
-			deleteCard: "_deleteCard_1ts8y_676",
-			writeFailure: "_writeFailure_1ts8y_686",
-			permission: "_permission_1ts8y_695",
-			actionPanel: "_actionPanel_1ts8y_705",
-			actionFacts: "_actionFacts_1ts8y_714",
-			actionPayload: "_actionPayload_1ts8y_734",
-			bareRun: "_bareRun_1ts8y_750",
-			panes: "_panes_1ts8y_765",
-			paneTabs: "_paneTabs_1ts8y_778",
-			paneTab: "_paneTab_1ts8y_778"
+			template: "_template_1qy1p_4",
+			body: "_body_1qy1p_8",
+			cardActions: "_cardActions_1qy1p_14",
+			pageView: "_pageView_1qy1p_22",
+			pageViewHead: "_pageViewHead_1qy1p_30",
+			pageViewTitle: "_pageViewTitle_1qy1p_37",
+			pageViewSubtitle: "_pageViewSubtitle_1qy1p_47",
+			runProblem: "_runProblem_1qy1p_54",
+			runOutput: "_runOutput_1qy1p_65",
+			runOutputSummary: "_runOutputSummary_1qy1p_70",
+			runOutputLabel: "_runOutputLabel_1qy1p_76",
+			runFacts: "_runFacts_1qy1p_82",
+			runPre: "_runPre_1qy1p_99",
+			runPreHtml: "_runPreHtml_1qy1p_115",
+			resultSurface: "_resultSurface_1qy1p_136",
+			resultEditor: "_resultEditor_1qy1p_148",
+			composer: "_composer_1qy1p_158",
+			composerRow: "_composerRow_1qy1p_169",
+			composerInput: "_composerInput_1qy1p_186",
+			composerProblem: "_composerProblem_1qy1p_227",
+			refineLog: "_refineLog_1qy1p_235",
+			refineLogHead: "_refineLogHead_1qy1p_243",
+			refineLogTitle: "_refineLogTitle_1qy1p_250",
+			refineLogList: "_refineLogList_1qy1p_260",
+			refineLogItem: "_refineLogItem_1qy1p_272",
+			refineLogInstruction: "_refineLogInstruction_1qy1p_277",
+			refineLogTime: "_refineLogTime_1qy1p_282",
+			refineLogNote: "_refineLogNote_1qy1p_291",
+			notice: "_notice_1qy1p_298",
+			noticeTitle: "_noticeTitle_1qy1p_305",
+			noticeBody: "_noticeBody_1qy1p_312",
+			settings: "_settings_1qy1p_321",
+			section: "_section_1qy1p_330",
+			sectionTitle: "_sectionTitle_1qy1p_346",
+			fieldGrid: "_fieldGrid_1qy1p_358",
+			field: "_field_1qy1p_358",
+			fieldValue: "_fieldValue_1qy1p_383",
+			fieldLabel: "_fieldLabel_1qy1p_399",
+			workspaceRow: "_workspaceRow_1qy1p_407",
+			workspaceValue: "_workspaceValue_1qy1p_418",
+			workspaceValueInvalid: "_workspaceValueInvalid_1qy1p_435",
+			workspaceLeaf: "_workspaceLeaf_1qy1p_439",
+			workspacePath: "_workspacePath_1qy1p_449",
+			fieldNote: "_fieldNote_1qy1p_460",
+			select: "_select_1qy1p_467",
+			editor: "_editor_1qy1p_468",
+			editorStatus: "_editorStatus_1qy1p_491",
+			editorStatusMissing: "_editorStatusMissing_1qy1p_499",
+			editorStatusWarn: "_editorStatusWarn_1qy1p_504",
+			editorStatusAction: "_editorStatusAction_1qy1p_510",
+			editorPane: "_editorPane_1qy1p_522",
+			gutter: "_gutter_1qy1p_535",
+			gutterLine: "_gutterLine_1qy1p_553",
+			gutterLineRegion: "_gutterLineRegion_1qy1p_573",
+			gutterLineActions: "_gutterLineActions_1qy1p_581",
+			violations: "_violations_1qy1p_610",
+			violationJump: "_violationJump_1qy1p_620",
+			previewSurface: "_previewSurface_1qy1p_640",
+			previewLabel: "_previewLabel_1qy1p_652",
+			preview: "_preview_1qy1p_640",
+			settingsActions: "_settingsActions_1qy1p_664",
+			actionBuilder: "_actionBuilder_1qy1p_671",
+			builderRow: "_builderRow_1qy1p_682",
+			builderField: "_builderField_1qy1p_689",
+			hint: "_hint_1qy1p_699",
+			hintError: "_hintError_1qy1p_706",
+			configFooter: "_configFooter_1qy1p_712",
+			footerActions: "_footerActions_1qy1p_726",
+			footerSpacer: "_footerSpacer_1qy1p_732",
+			deletePrompt: "_deletePrompt_1qy1p_737",
+			deleteCard: "_deleteCard_1qy1p_745",
+			writeFailure: "_writeFailure_1qy1p_755",
+			permission: "_permission_1qy1p_764",
+			actionPanel: "_actionPanel_1qy1p_774",
+			actionFacts: "_actionFacts_1qy1p_783",
+			actionPayload: "_actionPayload_1qy1p_803",
+			bareRun: "_bareRun_1qy1p_819",
+			panes: "_panes_1qy1p_834",
+			paneTabs: "_paneTabs_1qy1p_847",
+			paneTab: "_paneTab_1qy1p_847"
 		};
 		//#endregion
 		//#region src/client/skill-card/SkillCard.tsx
@@ -3254,6 +3621,8 @@ window.__ModuleLoader__.load({
 			"run-in-progress": "skillCardProblemRunning",
 			"run-failed": "skillCardProblemRunFailed",
 			"run-unavailable": "skillCardProblemRunUnavailable",
+			"workspace-missing": "skillCardProblemWorkspaceMissing",
+			"workspace-invalid": "skillCardProblemWorkspaceInvalid",
 			"too-large": "skillCardProblemTooLarge",
 			"unavailable": "skillCardProblemUnavailable",
 			"unauthorized": "skillCardProblemGeneric",
@@ -4361,7 +4730,7 @@ window.__ModuleLoader__.load({
 		* @returns the editor element.
 		*/
 		function SkillCardSettings(props) {
-			const { view, t, onChoose, onChooseModel, onSave, onRename, onClose, onDelete } = props;
+			const { view, t, onChoose, onChooseModel, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props;
 			const [draft, setDraft] = (0, react.useState)(view.template ?? "");
 			const [name, setName] = (0, react.useState)(view.name ?? "");
 			const [builderOpen, setBuilderOpen] = (0, react.useState)(false);
@@ -4580,7 +4949,7 @@ window.__ModuleLoader__.load({
 								children: t("skillCardSectionBasics")
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: skill_card_module_default.fieldRow,
+								className: skill_card_module_default.fieldGrid,
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 										className: skill_card_module_default.field,
@@ -4637,6 +5006,14 @@ window.__ModuleLoader__.load({
 											t,
 											labelId: modelId,
 											onChooseModel
+										})
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: skill_card_module_default.field,
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(WorkspaceField, {
+											view,
+											t,
+											onChooseWorkspace
 										})
 									})
 								]
@@ -4930,6 +5307,60 @@ window.__ModuleLoader__.load({
 				"data-model-unavailable": "",
 				children: t("skillCardModelUnavailable")
 			})] });
+		}
+		/**
+		* Render the directory control for one card.
+		*
+		* Three states, and the label is never a `for` pointing at a control that does not exist.
+		* The leaf name is the primary value because a path is a poor label to scan — except on a
+		* drive root, which has no last segment. The full path sits beneath it in tertiary type so
+		* the user can always see exactly which directory the card runs in, and a path that is no
+		* longer a directory says so in place, beside the control that would fix it.
+		* @param props - the card view, the translator, and the picker action.
+		* @returns the field.
+		*/
+		function WorkspaceField({ view, t, onChooseWorkspace }) {
+			const field = view.workspaceField;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: skill_card_module_default.fieldLabel,
+					children: t("skillCardWorkspace")
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: skill_card_module_default.workspaceRow,
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: classes(skill_card_module_default.workspaceValue, field.kind === "invalid" ? skill_card_module_default.workspaceValueInvalid : void 0),
+						"data-workspace-field": field.kind,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: skill_card_module_default.workspaceLeaf,
+							"data-workspace-leaf": "",
+							children: field.kind === "missing" ? t("skillCardWorkspaceNotSet") : field.leaf
+						}), field.kind === "missing" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: skill_card_module_default.workspacePath,
+							"data-workspace-path": "",
+							title: field.path,
+							children: field.path
+						})]
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						variant: "ghost",
+						size: "sm",
+						disabled: !view.canChooseWorkspace,
+						onClick: onChooseWorkspace,
+						"data-workspace-pick": "",
+						children: t("skillCardChooseDirectory")
+					})]
+				}),
+				field.kind === "invalid" && field.checked ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: skill_card_module_default.fieldNote,
+					"data-workspace-invalid": "",
+					children: t("skillCardProblemWorkspaceInvalid")
+				}) : null,
+				view.canChooseWorkspace ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: skill_card_module_default.fieldNote,
+					"data-workspace-picker-unavailable": "",
+					children: t("skillCardWorkspacePickerUnavailable")
+				})
+			] });
 		}
 		/**
 		* Say what the catalog is doing, when it is not quietly ready with options.
@@ -5351,12 +5782,13 @@ window.__ModuleLoader__.load({
 		* @returns the result page.
 		*/
 		function SkillCardResultPage(props) {
-			const { api, cardId, runSessionId, models, fallbackTitle, onBack, openCard, t } = props;
+			const { api, cardId, runSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props;
 			const { view, actions } = useSkillCard({
 				api,
 				cardId,
 				session: runSessionId,
 				models,
+				workspacePicker,
 				openCard,
 				watchRun: true,
 				cardTitle: (0, react.useCallback)((id, name) => cardFaceTitle({
@@ -5411,6 +5843,16 @@ window.__ModuleLoader__.load({
 						className: skill_card_module_default.runProblem,
 						"data-run-model-unavailable": "",
 						children: t("skillCardModelUnavailable")
+					}) : null,
+					view.workspaceField.kind === "missing" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: skill_card_module_default.runProblem,
+						"data-run-workspace-missing": "",
+						children: t(problemKey("workspace-missing"))
+					}) : null,
+					view.workspaceField.kind === "invalid" && view.workspaceField.checked ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+						className: skill_card_module_default.runProblem,
+						"data-run-workspace-invalid": "",
+						children: [t(problemKey("workspace-invalid")), ` · ${view.workspaceField.path}`]
 					}) : null,
 					view.runUnavailable === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: skill_card_module_default.runProblem,
@@ -5487,12 +5929,13 @@ window.__ModuleLoader__.load({
 		* @returns the configuration page.
 		*/
 		function SkillCardConfigPage(props) {
-			const { api, cardId, runSessionId, models, onBack, t } = props;
+			const { api, cardId, runSessionId, models, workspacePicker, onBack, t } = props;
 			const { view, actions } = useSkillCard({
 				api,
 				cardId,
 				session: runSessionId,
 				models,
+				workspacePicker,
 				withCatalog: true,
 				cardTitle: (0, react.useCallback)((id, name) => cardFaceTitle({
 					cardId: id,
@@ -5514,6 +5957,7 @@ window.__ModuleLoader__.load({
 					t,
 					onChoose: actions.chooseSkill,
 					onChooseModel: actions.chooseModel,
+					onChooseWorkspace: actions.chooseWorkspace,
 					onSave: actions.saveTemplate,
 					onRename: actions.rename,
 					onClose: onBack,
@@ -5546,7 +5990,9 @@ window.__ModuleLoader__.load({
 			"target-card-ambiguous": "actionProblemCardAmbiguous",
 			"target-skill-missing": "actionProblemSkillMissing",
 			"target-busy": "actionProblemBusy",
-			"target-unavailable": "actionProblemUnavailable"
+			"target-unavailable": "actionProblemUnavailable",
+			"target-workspace-missing": "skillCardProblemWorkspaceMissing",
+			"target-workspace-invalid": "skillCardProblemWorkspaceInvalid"
 		};
 		//#endregion
 		//#region src/client/WorkbenchPage.tsx
@@ -5691,6 +6137,7 @@ window.__ModuleLoader__.load({
 					cardId: selection.cardId,
 					runSessionId: skillCards.runSessionId,
 					models: skillCards.models,
+					workspacePicker: skillCards.workspacePicker,
 					fallbackTitle: labelOf(selection.cardId),
 					onBack: closeCard,
 					openCard,
@@ -5952,6 +6399,21 @@ window.__ModuleLoader__.load({
 					modelResolver.current = void 0;
 				}, "workbench: model directory");
 			});
+			const workspaceUi = { current: void 0 };
+			ctx.inject(["uiWorkspace"], (scoped) => {
+				workspaceUi.current = scoped.uiWorkspace;
+				scoped.effect(() => () => {
+					workspaceUi.current = void 0;
+				}, "workbench: workspace picker");
+			});
+			const workspacePicker = createWorkspacePicker(() => {
+				const native = readDesktopPicker();
+				const workspace = workspaceUi.current;
+				return {
+					...native === void 0 ? {} : { native },
+					...workspace === void 0 ? {} : { workspace: () => workspace.pickDirectory() }
+				};
+			});
 			const sessionList = ctx.sessions.list;
 			const runSessionId = () => {
 				const snapshot = sessionList.getSnapshot();
@@ -6011,7 +6473,8 @@ window.__ModuleLoader__.load({
 					skillCards: {
 						api: skillCardApi,
 						runSessionId,
-						models
+						models,
+						workspacePicker
 					},
 					closeCard,
 					openCard

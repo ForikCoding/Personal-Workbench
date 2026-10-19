@@ -11,6 +11,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
+import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
@@ -150,8 +152,22 @@ function fixture(options: {
   readonly runSessionId?: () => string | undefined
 } = {}): Fixture {
   const cards = options.cards ?? [
-    { cardId: 'clicker', name: '每日任务', skill: CLICKER_SKILL, template: CLICKER_TEMPLATE, templateSkills: [CLICKER_SKILL] },
-    { cardId: 'target-card', name: '启动任务', skill: 'task-finish', template: TARGET_TEMPLATE, templateSkills: ['task-finish'] },
+    {
+      cardId: 'clicker',
+      name: '每日任务',
+      skill: CLICKER_SKILL,
+      template: CLICKER_TEMPLATE,
+      templateSkills: [CLICKER_SKILL],
+      workspace: { path: WORKSPACE_PATH },
+    },
+    {
+      cardId: 'target-card',
+      name: '启动任务',
+      skill: 'task-finish',
+      template: TARGET_TEMPLATE,
+      templateSkills: ['task-finish'],
+      workspace: { path: WORKSPACE_PATH },
+    },
   ]
   const results = options.results ?? [{
     cardId: 'clicker',
@@ -184,6 +200,12 @@ function fixture(options: {
     },
     cancel: async () => {},
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
+    // The default directory is there; any other path is not. A click refused for where it
+    // would run is its own case, and the rest of these cases must not trip over it.
+    statDirectory: async (path) => ({
+      status: 'ok',
+      stat: path === WORKSPACE_PATH ? PRESENT_DIRECTORY : { exists: false, isDirectory: false, writable: false },
+    }),
   }
   const props = (cardId: string): PageProps => ({
     api,
@@ -192,6 +214,7 @@ function fixture(options: {
     // A live catalog with a known selection: these cases are about clicked actions, and a
     // card that cannot name a model would refuse to run for a reason they are not testing.
     models: fakeModelSeat(),
+    workspacePicker: fakeWorkspacePicker().picker,
     fallbackTitle: cardId,
     onBack: () => {},
     openCard: (id, view) => {
@@ -558,6 +581,52 @@ describe('a confirmed card target', () => {
     expect(problem()?.text).toContain('another run is already in flight')
     expect(recorded.steps).toEqual(['start:target-card'])
   })
+  it('refuses a click whose target card has no directory, before asking to confirm', async () => {
+    // The card that would run is the target, and where it runs is its own stored fact. Opening
+    // the panel for a run the Host is certain to refuse spends the one thing the panel exists
+    // to protect: the user's attention.
+    const { recorded, renderPage } = fixture({
+      cards: [
+        { cardId: 'clicker', name: '每日任务', skill: CLICKER_SKILL, template: CLICKER_TEMPLATE, templateSkills: [CLICKER_SKILL] },
+        {
+          cardId: 'target-card',
+          name: '启动任务',
+          skill: 'task-finish',
+          template: TARGET_TEMPLATE,
+          templateSkills: ['task-finish'],
+        },
+      ],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(problem()?.code).toBe('target-workspace-missing') })
+    expect(problem()?.text).toContain(en.skillCardProblemWorkspaceMissing)
+    expect(document.querySelector('[data-action-panel]')).toBeNull()
+    expect(recorded.starts).toEqual([])
+  })
+
+  it('refuses a click whose target directory is gone, naming it', async () => {
+    const { recorded, renderPage } = fixture({
+      cards: [
+        { cardId: 'clicker', name: '每日任务', skill: CLICKER_SKILL, template: CLICKER_TEMPLATE, templateSkills: [CLICKER_SKILL] },
+        {
+          cardId: 'target-card',
+          name: '启动任务',
+          skill: 'task-finish',
+          template: TARGET_TEMPLATE,
+          templateSkills: ['task-finish'],
+          workspace: { path: 'D:\\Git\\Gone' },
+        },
+      ],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(problem()?.code).toBe('target-workspace-invalid') })
+    expect(problem()?.text).toContain('D:\\Git\\Gone')
+    expect(recorded.starts).toEqual([])
+  })
 })
 
 describe('a confirmed skill target', () => {
@@ -647,6 +716,30 @@ describe('a confirmed skill target', () => {
       { timeout: 3_000 },
     )
     expect(document.querySelector('[data-bare-run="settled"]')?.textContent).toContain('the model call was rejected')
+  })
+
+  it('refuses a skill-target click when this card has no directory', async () => {
+    // A skill target runs on this card, so this card's directory is the one that decides.
+    // The refusal lands where the click came from, and nothing is started.
+    const { recorded, renderPage } = fixture({
+      cards: [
+        { cardId: 'clicker', name: '每日任务', skill: CLICKER_SKILL, template: CLICKER_TEMPLATE, templateSkills: [CLICKER_SKILL] },
+        {
+          cardId: 'target-card',
+          name: '启动任务',
+          skill: 'task-finish',
+          template: TARGET_TEMPLATE,
+          templateSkills: ['task-finish'],
+          workspace: { path: WORKSPACE_PATH },
+        },
+      ],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('finish')
+    await waitFor(() => { expect(problem()?.code).toBe('target-workspace-missing') })
+    expect(recorded.starts).toEqual([])
+    expect(document.querySelector('[data-action-panel]')).toBeNull()
   })
 
   it('forgets the bare run when the page is opened again', async () => {

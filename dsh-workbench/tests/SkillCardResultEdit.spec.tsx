@@ -15,6 +15,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
+import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import { zh } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
 import { WORKBENCH_RESULT_MAX_BYTES } from '../src/skill-card-contract.ts'
@@ -97,8 +99,16 @@ function fixture(options: {
   readonly poll?: WorkbenchSkillCardApi['poll']
   readonly catalog?: readonly WorkbenchSkillCatalogEntry[]
   readonly template?: string
+  /**
+   * The card's stored directory; `null` models a card that has not been pointed anywhere.
+   *
+   * Present by default, because the cases that start a run need one. The case that proves
+   * editing survives without a workspace passes `null` and asserts exactly that.
+   */
+  readonly workspace?: { readonly path: string } | null
 } = {}): { readonly api: WorkbenchSkillCardApi; readonly recorded: Recorded; readonly props: PageProps } {
   const result = options.result === null ? undefined : options.result ?? stored()
+  const workspace = options.workspace === null ? undefined : options.workspace ?? { path: WORKSPACE_PATH }
   const recorded: Recorded = { saves: [], writes: [], starts: [] }
   const api: WorkbenchSkillCardApi = {
     read: async () => ({
@@ -110,6 +120,7 @@ function fixture(options: {
           skill: 'git-repo',
           template: options.template ?? TEMPLATE,
           templateSkills: ['git-repo'],
+          ...workspace === undefined ? {} : { workspace },
         }],
         results: result === undefined ? [] : [result],
       },
@@ -127,6 +138,9 @@ function fixture(options: {
         : await options.start(request)
     },
     cancel: async () => {},
+    // The directory the fixture's card is pointed at, when it has one. A check for a card
+    // without a workspace is never answered, because there is no path to check.
+    statDirectory: async () => ({ status: 'ok', stat: PRESENT_DIRECTORY }),
     saveResult: async (cardId, html) => {
       recorded.saves.push({ cardId, html })
       if (options.save !== undefined) return await options.save(cardId, html)
@@ -155,6 +169,7 @@ function fixture(options: {
       // A hand edit spends no model call, but the page still resolves its run control from
       // the model field: a known route keeps the states these cases assert reachable.
       models: fakeModelSeat(),
+      workspacePicker: fakeWorkspacePicker().picker,
       fallbackTitle: '技能卡',
       onBack: () => {},
       openCard: () => {},
@@ -237,6 +252,25 @@ describe('offering the result editor', () => {
     const { container } = render(<SkillCardResultPage {...props} />)
     await waitFor(() => { expect(container.textContent).toContain(zh.skillCardNotRunTitle) })
     expect(screen.queryByRole('button', { name: zh.skillCardResultEdit })).toBeNull()
+  })
+
+  it('keeps showing, editing, and storing a result without a workspace', async () => {
+    // Only running is gated on the directory. A card that has never been pointed anywhere
+    // still renders its stored result, still opens the editor, and still stores an edit: an
+    // edit is not a run, and spoiling the one screen that can show a card's history would be
+    // a much larger change than "the run control waits for a directory".
+    const { props, recorded } = fixture({ workspace: null })
+    await show(props)
+    // The run control waits, and says why.
+    const run = screen.getByRole('button', { name: zh.skillCardRun })
+    expect(run).toHaveProperty('disabled', true)
+    expect(document.querySelector('[data-run-workspace-missing]')).not.toBeNull()
+
+    const field = openEditor()
+    fireEvent.change(field, { target: { value: '<b>改过</b>' } })
+    fireEvent.click(saveButton())
+    await waitFor(() => { expect(recorded.saves).toHaveLength(1) })
+    expect(recorded.saves[0]).toEqual({ cardId: 'skill-card', html: '<b>改过</b>' })
   })
 
   it('takes the control away while a run holds the card', async () => {

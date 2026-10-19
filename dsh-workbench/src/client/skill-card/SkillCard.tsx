@@ -243,6 +243,10 @@ const PROBLEM_KEYS: Record<WorkbenchCardProblem['code'], WorkbenchLocaleKey> = {
   // A harness without the activation seam: the one failure that is about the deployment
   // rather than about this card, and the only one whose copy names a version to install.
   'run-unavailable': 'skillCardProblemRunUnavailable',
+  // A card with no directory chosen, and one whose directory is gone. Both close the run
+  // control, and both name the fact the user has to fix rather than a generic failure.
+  'workspace-missing': 'skillCardProblemWorkspaceMissing',
+  'workspace-invalid': 'skillCardProblemWorkspaceInvalid',
   'too-large': 'skillCardProblemTooLarge',
   'unavailable': 'skillCardProblemUnavailable',
   'unauthorized': 'skillCardProblemGeneric',

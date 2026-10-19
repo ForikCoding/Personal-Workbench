@@ -12,7 +12,7 @@ import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
 import type { WorkbenchRunRequest } from '../src/skill-card-contract.ts'
 import { renderWorkbenchRefinePrompt } from '../src/skill-card-prompt.ts'
-import { AGENT, SKILL, fakeHost } from './support/fake-skill-card-host.ts'
+import { AGENT, SKILL, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHost, FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /** A document whose region is the only part a run fills. */
@@ -42,10 +42,11 @@ function setup(options: FakeHostOptions & {
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
     workingDirectory: fake.workingDirectory,
+    statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: 5_000,
     maxConcurrentRuns: 1,
-    selection: () => options.selection ?? { skill: 'git-repo', template: TEMPLATE },
+    selection: () => options.selection ?? { skill: 'git-repo', template: TEMPLATE, workspace: { path: WORKSPACE_PATH } },
     saveResult: options.saveResult ?? (async (cardId, record) => { saved.push({ cardId, record }) }),
     warn: () => {},
     now: () => 42,
@@ -148,7 +149,7 @@ describe('a refine run', () => {
   })
 
   it('refuses a refine run with no template stored', async () => {
-    const { runner, fake } = setup({ selection: { skill: 'git-repo' } })
+    const { runner, fake } = setup({ selection: { skill: 'git-repo', workspace: { path: WORKSPACE_PATH } } })
     expect(await runner.start(refine())).toEqual({
       status: 'rejected',
       code: 'template-missing',

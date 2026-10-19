@@ -1,5 +1,7 @@
 import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
 import { z } from "zod";
+import { constants } from "node:fs";
+import { access, stat } from "node:fs/promises";
 import z$1 from "@deepseek-ai/schemastery";
 //#region src/layout-contract.ts
 /**
@@ -391,6 +393,15 @@ const WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`;
 * anything.
 */
 const WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`;
+/**
+* Directory-check route: `GET path=…` answers whether one directory can be a workspace.
+*
+* One narrow read rather than a filesystem bridge: the client needs existence, kind, and
+* writability for exactly one path, which is the card's own workspace. Answers exist
+* because a run is gated on them: a card whose directory was moved has to be stopped
+* before it starts, not after it fails.
+*/
+const WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
 /** Maximum bytes of one template. */
 const WORKBENCH_TEMPLATE_MAX_BYTES = 32 * 1024;
 /** Maximum bytes of one stored result, counted over the structured value and the text output. */
@@ -466,6 +477,46 @@ function isWorkbenchCardModel(value) {
 	const model = Reflect.get(value, "model");
 	return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
 }
+/**
+* Longest workspace path the workbench stores, in characters.
+*
+* A bound rather than a grammar: the platform decides what a legal path is, and this
+* only keeps one stored record from carrying an unbounded string. Real picked paths sit
+* far below it — Windows' own extended-length ceiling is 32,767.
+*/
+const WORKBENCH_WORKSPACE_PATH_MAX_LENGTH = 4096;
+/** A drive-qualified Windows path: `C:\…`, `C:/…`, and the bare drive root. */
+const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+/** A UNC share: `\\server\share`, or the forward-slash spelling of the same thing. */
+const UNC_ABSOLUTE_PATH = /^[\\/]{2}[^\\/]/;
+/** A POSIX absolute path, including the root itself. */
+const POSIX_ABSOLUTE_PATH = /^\//;
+/**
+* Whether a value can be stored as a card's workspace path.
+*
+* The full absolute path is the whole of the value — never a workspace id — because the
+* product decision is "whatever directory the user picks", which need not be a registered
+* workspace at all. A relative path is refused rather than resolved against something:
+* resolved against the session it would be a different directory per run, and resolved
+* against the Host it would be a directory the user never saw.
+* @param value - candidate path, as a picker reported it.
+* @returns whether it is an absolute path within the length limit.
+*/
+function isWorkbenchWorkspacePath(value) {
+	if (value.length === 0 || value.length > 4096) return false;
+	if (value.includes("\0")) return false;
+	return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
+}
+/**
+* Whether a value is a usable card workspace.
+* @param value - candidate value.
+* @returns whether it holds one absolute directory path.
+*/
+function isWorkbenchCardWorkspace(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const path = Reflect.get(value, "path");
+	return typeof path === "string" && isWorkbenchWorkspacePath(path);
+}
 //#endregion
 //#region src/skill-card-spec.ts
 /**
@@ -498,16 +549,28 @@ const workbenchCardModelSchema = z.object({
 	model: z.string()
 });
 /**
+* Stored form of one card's workspace.
+*
+* One field holding the full absolute path, never a workspace id: the product decision is
+* whichever directory the user picked, which need not be a registered workspace. An id
+* would additionally make the card depend on a registry entry that can be renamed.
+*/
+const workbenchCardWorkspaceSchema = z.object({ path: z.string() });
+/**
 * Stored schema for one card's selection and name; absence means "not configured yet".
 *
 * Every field the store writes has to appear here. Zod drops a key this schema does not
 * declare, so an undeclared field survives the write and vanishes on the next load —
 * which reads to the user as "it saved, then reverted after a restart".
+*
+* `workspace` is declared in the same change that writes it, for that same reason: a card
+* that lost its directory would silently stop being runnable after a restart.
 */
 const workbenchCardConfigSchema = z.object({
 	skill: z.string().optional(),
 	name: z.string().optional(),
-	model: workbenchCardModelSchema.optional()
+	model: workbenchCardModelSchema.optional(),
+	workspace: workbenchCardWorkspaceSchema.optional()
 });
 /** Stored schema for one template. */
 const workbenchTemplateSchema = z.object({ html: z.string() });
@@ -598,6 +661,75 @@ function assertSubagentProvider(subagents, providerName) {
 */
 function probeSubagentSeam(subagents) {
 	return { startActivation: typeof subagents.startActivation === "function" };
+}
+//#endregion
+//#region src/skill-card-directory.ts
+/**
+* The one filesystem read this feature performs: whether a directory a card was pointed
+* at is still there.
+*
+* One narrow question rather than a filesystem bridge. The card stores the path the user
+* picked, and a run is gated on that path still naming a directory — which is a fact only
+* the Host can answer. Every answer is a value: a path that cannot be read is reported as
+* "nothing is there" rather than thrown, because a refused run has to be a state the page
+* can show instead of an error boundary.
+* @module dsh-workbench/skill-card-directory
+*/
+/**
+* The answer when nothing could be read at that path.
+*
+* Frozen and shared, so every failed check — a missing path, a permission error, a path
+* the contract would not accept — produces the one value that means "a card may not run
+* here": there is no error shape for a caller to interpret differently.
+*/
+const NO_DIRECTORY_STAT = Object.freeze({
+	exists: false,
+	isDirectory: false,
+	writable: false
+});
+/**
+* Read one path's directory state.
+*
+* The validation is the contract's, not a second rule: a value the store would refuse is
+* refused here too, so the route and the store cannot disagree about what a workspace is.
+* Nothing is ever read about the directory's *contents* — existence, kind, and whether an
+* entry could be created are the whole of the question.
+* @param path - absolute directory path, as stored for the card.
+* @returns what is at that path; {@link NO_DIRECTORY_STAT} when nothing readable is.
+*/
+async function statDirectory(path) {
+	if (!isWorkbenchWorkspacePath(path)) return NO_DIRECTORY_STAT;
+	try {
+		if (!(await stat(path)).isDirectory()) return {
+			exists: true,
+			isDirectory: false,
+			writable: false
+		};
+		return {
+			exists: true,
+			isDirectory: true,
+			writable: await isWritable(path)
+		};
+	} catch {
+		return NO_DIRECTORY_STAT;
+	}
+}
+/**
+* Ask whether an entry could be created in one directory.
+*
+* Advisory only: it is reported beside the two facts that decide validity, because a
+* read-only directory is still a directory a run can start in — the run reads its skill
+* and stores its result elsewhere. A check that fails for any reason reads as not writable.
+* @param path - an existing directory.
+* @returns whether the process could create an entry in it.
+*/
+async function isWritable(path) {
+	try {
+		await access(path, constants.W_OK);
+		return true;
+	} catch {
+		return false;
+	}
 }
 //#endregion
 //#region src/skill-card-prompt.ts
@@ -896,6 +1028,10 @@ var WorkbenchSkillCardRunner = class {
 			const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model);
 			if (refusal !== void 0) return refusal;
 		}
+		const workspace = selection.workspace;
+		if (workspace === void 0) return reject("workspace-missing", `no workspace directory is configured for card "${request.cardId}"`);
+		const found = await this.options.statDirectory(workspace.path);
+		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspace.path}" does not exist or is not a directory`);
 		if (this.runs.get(request.cardId)?.phase === "running" || this.active >= this.options.maxConcurrentRuns) return reject("run-in-progress", "another run is already in flight");
 		const pinned = model === void 0 ? {} : { model };
 		let input;
@@ -1461,6 +1597,11 @@ function parsePatch(value, maxTemplateBytes) {
 	else if (body.model === null) model = null;
 	else if (isWorkbenchCardModel(body.model)) model = body.model;
 	else throw new SkillCardRequestError(400, "invalid-request", "model must be null or an object naming a provider and a model");
+	let workspace;
+	if (body.workspace === void 0) workspace = void 0;
+	else if (body.workspace === null) workspace = null;
+	else if (isWorkbenchCardWorkspace(body.workspace)) workspace = { path: body.workspace.path };
+	else throw new SkillCardRequestError(400, "invalid-request", "workspace must be null or an object naming one absolute directory path");
 	let template;
 	if (body.template !== void 0) {
 		const raw = body.template;
@@ -1481,6 +1622,7 @@ function parsePatch(value, maxTemplateBytes) {
 		...name === void 0 ? {} : { name },
 		...skill === void 0 ? {} : { skill },
 		...model === void 0 ? {} : { model },
+		...workspace === void 0 ? {} : { workspace },
 		...template === void 0 ? {} : { template }
 	};
 }
@@ -1568,6 +1710,62 @@ function parseResultEdit(value, maxResultBytes) {
 	};
 }
 /**
+* Build the route handler for {@link WORKBENCH_SKILL_CARD_DIRECTORY_PATH}.
+*
+* A read, so `GET` with the path in the query. The answer is deliberately three booleans
+* and never an error for a path that is simply not there: the client renders "this
+* directory is gone" from the same body it renders "this directory is fine" from, so a
+* missing folder cannot arrive as an exception.
+* @param options - probe, fence, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchSkillCardDirectoryHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method !== "GET") {
+			sendMethodNotAllowed(response, "GET");
+			return;
+		}
+		handleDirectoryStat(options, request, response);
+	};
+}
+/**
+* Answer one directory check.
+* @param options - route dependencies.
+* @param request - the GET request.
+* @param response - the response to own.
+*/
+async function handleDirectoryStat(options, request, response) {
+	const path = queryParam(request, "path");
+	if (path === void 0 || !isWorkbenchWorkspacePath(path)) {
+		sendError(response, 400, "invalid-request", "path must be one absolute directory path");
+		return;
+	}
+	try {
+		const found = await options.statDirectory(path);
+		sendJson(response, 200, {
+			apiVersion: 1,
+			path,
+			exists: found.exists,
+			isDirectory: found.isDirectory,
+			writable: found.writable
+		});
+	} catch (error) {
+		options.warn(`workbench skill card directory check failed: ${error instanceof Error ? error.message : String(error)}`);
+		sendJson(response, 200, {
+			apiVersion: 1,
+			path,
+			exists: false,
+			isDirectory: false,
+			writable: false
+		});
+	}
+}
+/**
 * Project the store's current state onto the response body.
 * @param store - the configuration store.
 * @param capabilities - what this deployment can do, probed at composition.
@@ -1607,7 +1805,9 @@ const STATUS_BY_CODE = {
 	"model-unavailable": 409,
 	"schema-rejected": 400,
 	"run-in-progress": 409,
-	"run-unavailable": 501
+	"run-unavailable": 501,
+	"workspace-missing": 400,
+	"workspace-invalid": 409
 };
 /**
 * Build the route handler for the session-scoped skill catalog.
@@ -1900,6 +2100,7 @@ var WorkbenchSkillCardStore = class {
 			const selected = record?.skill;
 			const name = record?.name;
 			const model = record?.model;
+			const workspace = record?.workspace;
 			const bySkill = templatesByCard.get(cardId);
 			const template = selected === void 0 ? void 0 : bySkill?.get(selected);
 			cards.push({
@@ -1907,6 +2108,7 @@ var WorkbenchSkillCardStore = class {
 				...name === void 0 ? {} : { name },
 				...selected === void 0 ? {} : { skill: selected },
 				...model === void 0 ? {} : { model },
+				...workspace === void 0 ? {} : { workspace },
 				templateSkills: bySkill === void 0 ? [] : [...bySkill.keys()].sort(),
 				...template === void 0 ? {} : { template }
 			});
@@ -1965,11 +2167,14 @@ var WorkbenchSkillCardStore = class {
 		const skill = patchedSkill === void 0 ? current?.skill : patchedSkill === null ? void 0 : patchedSkill;
 		const patchedModel = patch.model;
 		const model = patchedModel === void 0 ? current?.model : patchedModel === null ? void 0 : patchedModel;
-		if (name === void 0 && skill === void 0 && model === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
+		const patchedWorkspace = patch.workspace;
+		const workspace = patchedWorkspace === void 0 ? current?.workspace : patchedWorkspace === null ? void 0 : patchedWorkspace;
+		if (name === void 0 && skill === void 0 && model === void 0 && workspace === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
 		else await this.run("put", () => this.options.card.put(patch.cardId, {
 			...name === void 0 ? {} : { name },
 			...skill === void 0 ? {} : { skill },
-			...model === void 0 ? {} : { model }
+			...model === void 0 ? {} : { model },
+			...workspace === void 0 ? {} : { workspace }
 		}));
 		return {
 			status: "written",
@@ -2059,7 +2264,9 @@ var WorkbenchSkillCardStore = class {
 		if (name !== void 0 && name !== null && !isWorkbenchCardName(name)) return `card name must hold visible text within ${String(60)} characters`;
 		const model = patch.model;
 		if (model !== void 0 && model !== null && !isWorkbenchCardModel(model)) return "model must name a non-empty provider and model id";
-		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, or a template";
+		const workspace = patch.workspace;
+		if (workspace !== void 0 && workspace !== null && !isWorkbenchCardWorkspace(workspace)) return `workspace must name one absolute directory path within ${String(WORKBENCH_WORKSPACE_PATH_MAX_LENGTH)} characters`;
+		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, a workspace, or a template";
 		const template = patch.template;
 		if (template === void 0) return void 0;
 		if (!isWorkbenchSkillName(template.skill)) return `template skill ${JSON.stringify(template.skill)} is not a kebab-case skill name`;
@@ -2319,6 +2526,7 @@ function apply(ctx, config) {
 		const runner = new WorkbenchSkillCardRunner({
 			host: runtime,
 			...workingDirectory === void 0 ? {} : { workingDirectory },
+			statDirectory,
 			subagentProvider: config.subagentProvider,
 			runTimeoutMs: config.runTimeoutMs,
 			maxConcurrentRuns: config.maxConcurrentRuns,
@@ -2327,7 +2535,8 @@ function apply(ctx, config) {
 				return {
 					...card?.skill === void 0 ? {} : { skill: card.skill },
 					...card?.template === void 0 ? {} : { template: card.template },
-					...card?.model === void 0 ? {} : { model: card.model }
+					...card?.model === void 0 ? {} : { model: card.model },
+					...card?.workspace === void 0 ? {} : { workspace: card.workspace }
 				};
 			},
 			saveResult: (cardId, record) => store.putResult(cardId, record),
@@ -2375,7 +2584,16 @@ function apply(ctx, config) {
 					maxResultBytes: config.maxResultBytes,
 					warn
 				})
-			}), "workbench: skill card result route")
+			}), "workbench: skill card result route"),
+			ctx.effect(() => host.webServer.register({
+				kind: "exact",
+				path: WORKBENCH_SKILL_CARD_DIRECTORY_PATH,
+				handler: createWorkbenchSkillCardDirectoryHandler({
+					statDirectory,
+					fence: host.connection,
+					warn
+				})
+			}), "workbench: skill card directory route")
 		];
 		return async () => {
 			for (const dispose of disposers) dispose();

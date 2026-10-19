@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchRunRequest } from '../src/skill-card-contract.ts'
 import type { WorkbenchActivationSpec } from '../src/skill-card-host.ts'
-import { AGENT, fakeHost } from './support/fake-skill-card-host.ts'
+import { AGENT, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /** The row a button would have carried: raw fields, one of them quoting text. */
@@ -32,10 +32,15 @@ function setup(outcomes?: FakeHostOptions['outcomes']): {
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
     workingDirectory: fake.workingDirectory,
+    statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: 5_000,
     maxConcurrentRuns: 1,
-    selection: () => ({ skill: 'git-repo', template: '<b>x</b><!-- template-begin --><!-- template-end -->' }),
+    selection: () => ({
+      skill: 'git-repo',
+      template: '<b>x</b><!-- template-begin --><!-- template-end -->',
+      workspace: { path: WORKSPACE_PATH },
+    }),
     saveResult: async () => undefined,
     warn: () => {},
     now: () => 42,

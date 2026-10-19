@@ -7,7 +7,7 @@
  * typed value.
  * @module dsh-workbench/client/skill-card/api
  */
-import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchRunCapabilities, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchDirectoryStat, WorkbenchRunCapabilities, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
 /** Fetch seam so tests can drive transport without a server. */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 /** Configuration and results the page renders from. */
@@ -74,6 +74,20 @@ export type WorkbenchCatalogRead = {
     readonly code: string;
     readonly message: string;
 };
+/**
+ * Outcome of one directory check.
+ *
+ * There is no "this path is not a directory" failure: that is an `ok` answer holding
+ * `isDirectory: false`. Only a transport that could not answer lands in `unavailable`, and
+ * the caller reads it as "nothing was confirmed" rather than as an exception.
+ */
+export type WorkbenchDirectoryStatRead = {
+    readonly status: 'ok';
+    readonly stat: WorkbenchDirectoryStat;
+} | {
+    readonly status: 'unavailable';
+    readonly reason: string;
+};
 /** Outcome of storing one hand-edited result. */
 export type WorkbenchResultWrite = {
     readonly status: 'ok';
@@ -139,6 +153,16 @@ export interface WorkbenchSkillCardApi {
      * @returns the stored record and revision, or the refusal.
      */
     saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>;
+    /**
+     * Ask the Host whether one path is a directory a card may run in.
+     *
+     * One narrow read rather than a filesystem bridge: this is the only filesystem fact the
+     * page needs, and it decides whether the run control opens.
+     * @param path - absolute directory path, as stored for the card.
+     * @param signal - caller-owned cancellation.
+     * @returns the three facts, or why the check could not be answered.
+     */
+    statDirectory(path: string, signal?: AbortSignal): Promise<WorkbenchDirectoryStatRead>;
 }
 /** What the API needs from its host. */
 export interface WorkbenchSkillCardApiOptions {
@@ -157,6 +181,16 @@ export declare function createWorkbenchSkillCardApi(options?: WorkbenchSkillCard
  * @returns the snapshot, or undefined when a field is outside the contract.
  */
 export declare function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined;
+/**
+ * Validate one directory-check body.
+ *
+ * The three answers are read as booleans rather than passed through: the field decides
+ * whether the run control opens from them, and a missing one would read as `false` by
+ * accident — a card that can never run for no stated reason.
+ * @param value - decoded body.
+ * @returns the three facts, or undefined when a field is outside the contract.
+ */
+export declare function parseDirectoryStat(value: unknown): WorkbenchDirectoryStat | undefined;
 /**
  * Validate one catalog response body.
  * @param value - decoded body.
