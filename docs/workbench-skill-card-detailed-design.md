@@ -274,7 +274,7 @@ export function isWorkbenchWorkspacePath(value: string): boolean
 export interface WorkbenchDirectoryStat {
   readonly exists: boolean
   readonly isDirectory: boolean
-  /** 报告，但**不**决定可用性：一次运行不往这张卡的目录里写东西。 */
+  /** 报告，但**不**决定可用性：一次运行的结果进的是工作台自己的存储，不是这张卡的目录。 */
   readonly writable: boolean
 }
 ```
@@ -283,7 +283,7 @@ export interface WorkbenchDirectoryStat {
 
 - **存路径不存 id。** 产品决定是"用户选哪个目录就是哪个目录"，那个目录**不必**是已注册的工作区；换成 id 就把卡片绑在一条会被改名、会被删掉的注册表记录上，而且用户看到的目录名和卡片上写的东西会分成两处。
 - **只接受绝对路径，不做"相对谁"的解析。** 相对路径解析到会话侧，同一个值每次运行都是另一个目录；解析到宿主侧，则是用户从没见过的那个。两种"帮你解析"都是错的，所以 `isWorkbenchWorkspacePath()` 直接拒（`C:\…`、`\\server\share`、`/…` 三种绝对形状 + 长度上限 + 无 NUL）。
-- **`writable` 只报告，不进判据。** 一次运行读的是 skill 正文、写的是工作台自己的存储，卡片目录只回答"这里能不能跑"，不回答"这里能不能写"。把它当判据会让一个只读的仓库目录莫名其妙地跑不了——而它本来是能跑的（**注意**：这一条说的是"不往卡目录写"，它不是"运行被限制在卡目录里"，后者今天根本没实现，见 M5）。
+- **`writable` 只报告，不进判据。** 一次运行的结果进的是工作台自己的存储（`result` 表），不是这张卡的目录；所以目录只回答"这里能不能跑"，不回答"这里能不能写"。把它当判据会让一个只读的仓库目录莫名其妙地跑不了——而它本来是能跑的。（**注意**：这说的是"结果不写进卡目录"，**不是**"运行被限制在卡目录里"——后者今天根本没实现，见 M5。）
 
 **错误码**——封闭联合，且刻意分得细：
 
@@ -590,9 +590,9 @@ P10 给卡片记录加了 `name`：store 会写它，写入也成功返回，但
 
 **第十二版按同一条规则一次加了两个字段**：`workbenchCardConfigSchema.model` 与 `workbenchResultSchema.model`，共用同一个 `workbenchCardModelSchema`（`{ provider, model }` 两个字符串）。`skill-card-spec.spec.ts` 因此多了四条：卡片带模型整条往返（provider 取 `vendor/gateway`，专门用一个带斜杠的 id 钉住"存的是两字段"）、没模型不被凭空补上、结果带模型整条往返、继承来的结果没有 `model`。**这就是这条约束存在的意义**：加字段的人不会忘记 schema，因为他加完之后 spec 会告诉他。
 
-**第十三版在同一条规则上加了第三个字段**：`workbenchCardConfigSchema.workspace`（`{ path }` 单字段对象），与 store 写入**同一次改动**里声明，`skill-card-spec.spec.ts` 同步多了三条：卡片带目录整条往返、只写了目录的记录也保留（且不带别人的字段）、没有目录的记录不会被凭空补上一个。它守的是同一个症状——目录写进去、重启后消失，卡片于是**毫无提示地变成不能运行**，而日志里没有一次失败。这一条把它与运行门槛直接连在一起：字段被丢 = 卡片静默不可运行，而这一次连一句失败都没有。
+**第十三版在同一条规则上再加一个字段**：`workbenchCardConfigSchema.workspace`（`{ path }` 单字段对象），与 store 写入**同一次改动**里声明，`skill-card-spec.spec.ts` 同步多了两条：一条是带 `workspace` 的整条往返（同一份记录里还有带斜杠的 provider 与一条 Windows 路径，两样都不许在中途被重新解释），另一条同时钉住"只写了目录的记录也保留"与"没有目录的记录不会被凭空补上一个"。它守的是同一个症状——目录写进去、重启后消失，卡片于是**毫无提示地变成不能运行**，而日志里没有一次失败。这一条把它与运行门槛直接连在一起：字段被丢 = 卡片静默不可运行，而这一次连一句失败都没有。
 
-**清空不是删除。** 补丁里的 `model: null` 表示"这张卡改回继承会话的模型"，与 `name: null` / `skill: null` 同一套语义：三者一起写在一个记录里，所以写入是**合并**而不是覆盖——只改名字不会把模型打掉，只改模型也不会把 skill 打掉。三个字段都为空时整条记录被删除（否则会留下一条没有内容的卡片记录）。这一步由 `skill-card-store.spec.ts` 逐条钉住。
+**清空不是删除。** 补丁里的 `model: null` 表示"这张卡改回继承会话的模型"，与 `name: null` / `skill: null` 同一套语义；第十三版把 `workspace: null` 加进同一组（"清掉目录，退回不能运行"）。四个字段一起写在一个记录里，所以写入是**合并**而不是覆盖——只改名字不会把模型或目录打掉，只改目录也不会把 skill 打掉。四个字段都为空时整条记录被删除（否则会留下一条没有内容的卡片记录）。这一步由 `skill-card-store.spec.ts` 逐条钉住。
 
 **结果被裁剪时 `model` 不会丢。** `trimResult` 在超预算时先丢文本、再考虑结构化值，`model` 与 `skill`/`executedAt`/`stopReason` 一样属于**基础记录**：两个短 id，且它是"这份结果出自哪条路由"的答案，丢了就等于把用户送回猜的状态。
 
@@ -1309,13 +1309,22 @@ export interface WorkbenchCardActions {
 ```ts
 // ① 宿主对这个路径的回答，与它回答的是哪个路径一起存：卡片换了目录时，上一份答案不能
 //    被当成新目录的答案渲染一帧，所以在 effect 里清 state 是错的，打标才是对的。
+const workspacePath = card?.workspace?.path
 const [workspaceCheck, setWorkspaceCheck] = useState<{ path: string; stat: WorkbenchDirectoryStat } | undefined>(undefined)
 useEffect(() => {
   if (workspacePath === undefined) return
-  void api.statDirectory(workspacePath).then((outcome) => { … })
+  let live = true
+  void api.statDirectory(workspacePath).then((outcome) => {
+    if (!live) return
+    setWorkspaceCheck({ path: workspacePath, stat: outcome.status === 'ok' ? outcome.stat : NO_DIRECTORY_STAT })
+  })
+  return () => { live = false }
 }, [api, workspacePath])
+const workspaceStat = workspacePath !== undefined && workspaceCheck?.path === workspacePath
+  ? workspaceCheck.stat
+  : undefined
 // ② 一个纯函数把「存的目录 + 宿主的回答」读成三种状态，字段与运行控件都读它。
-const workspaceField = useMemo(() => resolveWorkspaceField(card?.workspace, workspaceStat), …)
+const workspaceField = useMemo(() => resolveWorkspaceField(card?.workspace, workspaceStat), [card?.workspace, workspaceStat])
 // ③ 运行、微调、确认面板共用同一个拒绝：三条入口不可能对"有没有地方跑"有不同答案。
 const refused = workspaceRefusal(workspaceField)
 ```
@@ -1323,7 +1332,6 @@ const refused = workspaceRefusal(workspaceField)
 - **没有存盘目录时一次请求都不发。** 这和"打开工作台只读存储"是同一条纪律：没有路径要问，就不发一个必然失败的请求。
 - **一次没答上的检查读成"那里什么都没有"，而不是第四个状态。** 请求降级时控制器把它读成 `NO_DIRECTORY_STAT`（三个 `false`），于是门是关的。加一个 `'checking'` 状态会让运行控件在一个谁都没确认过的路径上打开——这正是要防的。
 - **`chooseWorkspace()` 只在 `picked` 时写。** `cancelled` 直接返回（用户关掉选择器是一个回答，不是一次修改）；`unavailable` 把 `pickerRefused` 置上，按钮从此关掉——**没有文本框可以退回去**。目录写走的是既有的 `write({ workspace: { path } })`：一次配置写、不触发运行、不读目录。
-
 
 #### 微调状态：三个内存字段与一次记录
 
@@ -1687,7 +1695,7 @@ runnable: sessionId !== undefined && card?.skill !== undefined && card.template 
 | Windows + Desktop | `window.__DSH_DESKTOP_PICK_DIRECTORY__`，背后是 `POST /_dsh/desktop/pick-directory`（Electron 的 `dialog.showOpenDialog`） | Desktop 插件只在 `environment.platform === 'win32'` 时装上它（`ctx.effect`，释放时删掉）；本包只读窗口成员，不走任何导入 |
 | 其他平台 / 普通浏览器 | `ctx.uiWorkspace.pickDirectory()` | 本包用 `ctx.inject(['uiWorkspace'])` 的**作用域形式**拿一次；服务缺席时那根纤维保持 pending，插件其余部分照常工作 |
 
-**Windows 的两个须知。** 其一，两个来源可能同时在（桌面构建里的 Windows 同时有窗口成员与 `uiWorkspace`），**桌面那个赢**——应用自己的浏览面板打开的就是它，走 `pickDirectory()` 等于为同一个问题开第二条原生通道。其二，那条路由是桌面构建的、桌面版本的函数：**一个没有它的桌面构建会抛错**。这不是异常，我们把它读成"没有选择器"：按钮关掉、字段写一句"这个环境没有目录选择器"，而不是让异常逃进页面。
+**Windows 的两个须知。** 其一，两个来源可能同时在（桌面构建里的 Windows 同时有窗口成员与 `uiWorkspace`），**桌面那个赢**——应用自己的浏览面板打开的就是它，走 `pickDirectory()` 等于为同一个问题开第二条原生通道。其二，窗口成员与它背后的路由是两个版本各自答应的东西：**成员在、路由不被宿主承认**（桌面客户端比宿主新）时，调用会抛错。这不是异常，我们把它读成"没有选择器"：按钮关掉、字段写一句"这个环境没有目录选择器"，**不会**回头再去问 `uiWorkspace`——一个已经选定的来源失败时换一个再试，会让同一句话有两个答案。而成员根本不在（非 Windows、或没装桌面插件）时，按上一张表走 `uiWorkspace`。
 
 **为什么没有第三条路（一个文本框）。** 手打出来的路径是**没有被任何选择器确认过**的目录——可以打错一个字、可以指向一个不存在的盘、可以指向用户根本看不见的那台机器上的路径（如果宿主与浏览器不在同一台机器上）。产品负责人否掉了它，也否掉了工作区下拉（那要求目录先被注册成工作区，而产品要的是"用户选哪个就是哪个"）。所以"没有选择器"这个状态是**如实说出来**，而不是用一个输入框糊过去：`canChooseWorkspace` 为假时，按钮 `disabled` 且多一句说明。
 
@@ -2254,7 +2262,7 @@ const escaped = useRef(false)
 | 微调执行 | `skill-card-refine.spec.ts` | 微调提示词的三段与顺序（含 `<row_data>`）、模板取自存盘选择、契约与 `card` 一致、一次重试、落盘整条记录、无模板/无契约时拒绝 |
 | 路由 | `skill-card-route.spec.ts` | 围栏优先、8 条路径、400/401/403/409/413/500、错误体不回显请求体；微调请求的逐字段校验与超限码；第十二版增加补丁里 `model` 的透传与形状拒绝、以及 `model-unavailable` 落到 409；第十三版增加补丁里 `workspace` 的透传与六种坏形状的 400，以及目录检查那一组（围栏优先、只认 `GET`、200 的三种答案、路径不合法时一次 `stat` 都不发生、探测器抛错仍回 200） |
 | 模型字段 | `skill-card-model.spec.ts` | `resolveModelField` 的三态与四条边界（卡片路由胜过会话选择、目录报错但仍有选择、已存路由不在目录里时补进选项、连 provider 都没了时补一个分组）、`modelKey`/`parseModelKey` 的往返与四种拒收、`createModelSeat` 对"没注册 / 会话被寻址为子代理 / 没有会话"的三种不可用回答与订阅转发 |
-| 工作目录字段 | `workspace.spec.ts` | `workspaceLeaf` 的五种形状（Windows、UNC、POSIX、尾随分隔符、盘根、只有分隔符）与 `resolveWorkspaceField` 的六条（没选即 missing、未确认即 invalid 且 `checked: false`、不存在、是文件、确认即 ready、只读仍是 ready） |
+| 工作目录字段 | `workspace.spec.ts` | `workspaceLeaf` 的五条（Windows 与 UNC、POSIX、尾随分隔符、盘根、只有分隔符）与 `resolveWorkspaceField` 的六条（没选即 missing、未确认即 invalid 且 `checked: false`、不存在、是文件、确认即 ready、只读仍是 ready） |
 | 目录选择器 | `workspace-picker.spec.ts` | 桌面优先且只问一次、没有窗口 seam 时用 workspace、非函数成员不算 seam、抛错降级成 `unavailable`、取消自成一态、非绝对路径被拒、来源在页面建好之后才到达仍生效 |
 | 模板 | `template.spec.ts` | 区间扫描的四种结果与位置、内容策略全部违规码、`placeholder-syntax` 及其 token、合法片段引用（`url(#id)`）不被误判 |
 | 声明写入 | `skill-card-declarations.spec.ts` | 声明行的文法、追加到既有块、无块时在区间前新建、块保持原缩进且条目对齐、逐次插入不漂移、已有空行的块被整块规整 |
@@ -2265,7 +2273,7 @@ const escaped = useRef(false)
 | 结果页 | `SkillCardResultPage.spec.tsx` | `html` 的真实换行与其余字段的 JSON、缺失字段整行不出现、默认折叠（**没有 `open` 属性**）、结果表面只框不命名（表层里没有 `header`、也没有 `aria-labelledby`）、权限脚注在页末；第九版增加了去缩进的显示值、影子根仍是原缩进、开关文案「运行详情」与 `原始输出` 的分离、结束原因的三行映射 + 未知值原样 + 英文侧；第十一版删掉了三个状态行用例，并把"框住并命名"改写为只断言框住；第十三版增加目录三态与运行控件（`missing` / `invalid`（文案含路径）/ `ready`） |
 | 微调界面 | `SkillCardRefine.spec.tsx` | 空输入不可按、请求形状、成功替换 + 记录 + 一步回退（轮询路径）、失败结果不变且告警只在编辑器一处、被拒启动同样报在那里、再微调的 `previous`、运行中的忙碌态与禁用、没有结果时不提供编辑器；第九版增加了 `Enter` 提交 / `Shift+Enter` 换行、`rows` 1→4 封顶、运行中主控件变「停止」并调用取消、记录头部行的条数与「回到上一版」的位置、提示行是整块最后一行 |
 | 卡片模型 | `WorkbenchCardShell.spec.tsx`、`WorkbenchCardGrid.spec.tsx`、`WorkbenchPage.spec.tsx`、`layout-controller.spec.tsx` | 外壳的标题/子标题/失败位与激活、X 只在有 `onRemove` 时渲染且只表示删除、**排序手柄在头部动作末位**、拖拽与键盘排序、创建卡片磁贴、存盘实例的投影、布局记录只剩排序（`hidden` 被忽略）与 reset 的删除语义。**注意它不覆盖卡片页上的面板标题**：每个用例都把 `useSelection` 定为 `undefined`（见附录 B 第 58 条） |
-| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行；第十二版增加模型字段的三态、分组与名称、选择回调拿到的那一对；第十三版增加工作目录字段的五条（叶子 + 全路径同时在、失效时路径仍在并加一句、未确认时不多说话、没有选择器时按钮禁用且整页只有一个文本框、四个单元格的顺序与栅格类） |
+| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行；第十二版增加模型字段的三态、分组与名称、选择回调拿到的那一对；第十三版增加工作目录字段的七条（叶子 + 全路径同时在、失效时路径仍在并加一句、未确认时不多说话、没有选择器时按钮禁用且整页只有一个文本框、四个单元格的顺序与栅格类、标签是文本而非 `label`、缺省即「未选择」且按钮可用） |
 | 结果编辑器 | `SkillCardResultEdit.spec.tsx` | 入口的四种状态（有结果、无结果、运行中、裸运行中）与打开期间运行不可按、初值来自存盘片段、行号与「没有文档级 affordance」、字节读数、保存的请求与视图、取消不写、内容策略五码逐个 + 跳转、空内容、超预算不截断、`editedAt` 那一行、回退一步且记录仍为 0 条、Tab/Shift+Tab/Escape+Tab；第十三版增加"没有目录时只关运行、编辑与保存照常" |
 | 结果写传输 | `skill-card-result-api.spec.ts` | `PUT` 的路径与体、`parseResultEdit` 的契约版本/身份/`editedAt`/`model` 形状校验、拒绝与传输失败的两种结果 |
 
@@ -2315,7 +2323,7 @@ const escaped = useRef(false)
 | **P8** | 模板引擎、隔离渲染、`workbench.card` 工厂注册、卡片本体 | 有模板时按模板渲染；无模板时「运行」不可用并给出引导 |
 | **P9** | 配置对话框、编辑器、预览、降级态与文案 | 需求 §13 当时的验收标准逐条可验 |
 
-> **本节是当时的计划表。** P9 里列过的"字段清单"随后被删除（见下文"区间语言重构"），验收标准的条数也已随需求方案修订变化——**现在共 70 条，其中在效 69 条**（第 52 条已由产品负责人撤回，编号保留）：**1–16、17–34、35–48、49–51 与 53–56、57–60、61–70 六组都已实现并验收**（17–34 是按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md)负责；35–48 是编辑器与配置页，49–56 是结果页与微调，57–60 是第九版那批打磨，61–70 是第十版的手工编辑结果，见下面「P10 之后」）。那张表里的 P9 出口标准指的是当时那一版的需求 §13，不是今天的条数；当前映射见[附录 B](#附录-b验收映射)。
+> **本节是当时的计划表。** P9 里列过的"字段清单"随后被删除（见下文"区间语言重构"），验收标准的条数也已随需求方案修订变化——**现在共 92 条，其中在效 91 条**（第 52 条已由产品负责人撤回，编号保留）：**1–16、17–34、35–48、49–51 与 53–56、57–60、61–70 六组都已实现并验收**（17–34 是按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md)负责；35–48 是编辑器与配置页，49–56 是结果页与微调，57–60 是第九版那批打磨，61–70 是第十版的手工编辑结果，见下面「P10 之后」）。那张表里的 P9 出口标准指的是当时那一版的需求 §13，不是今天的条数；当前映射见[附录 B](#附录-b验收映射)。
 
 每阶段结束跑 `yarn workspace dsh-workbench check`（typecheck + test + build + verify:artifacts）。P8 起改动会影响客户端可见输出，追加两个变体的真实 profile 验证。
 
@@ -2536,7 +2544,7 @@ P9 的功能全部通过测试，真机也确认"卡片在、运行按钮禁用"
 
 #### 当前验收映射
 
-需求 §14 的 70 条里（第 52 条已撤回），**1–16、35–48、49–51 与 53–56、57–60 与 61–70** 逐条落在本设计的哪个模块见[附录 B](#附录-b验收映射)。**17–34 不在附录 B 里**：它们属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)逐条映射，本文不重复（那部分的共享地基与本文的 M1、M2、M3 是同一批代码）。
+需求 §14 的 92 条里（第 52 条已撤回），**1–16、35–48、49–51 与 53–56、57–60 与 61–70** 逐条落在本设计的哪个模块见[附录 B](#附录-b验收映射)。**17–34 不在附录 B 里**：它们属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)逐条映射，本文不重复（那部分的共享地基与本文的 M1、M2、M3 是同一批代码）。
 
 #### 仍未覆盖的两项（不变）
 
@@ -2595,7 +2603,7 @@ P10 把编辑器搬进整栏的配置页之后，这个模块又按用户实际�
 - 缺口（工厂未注册）在第一张真实卡片落地时被一并修掉。
 - 验收标准在 P9 结束时逐条可验；其条数与映射随后续修订更新，当前映射见[附录 B](#附录-b验收映射)。
 - P10 的卡片模型重构随后落地：卡片实例是存盘的用户数据，卡片正面只是索引，结果与配置各占一整栏。
-- 编辑器与配置页的三批改动随后落地（见上）：需求 §14 的 48 条因此全部有实现与包级测试；结果页与微调的第四批落地后共 56 条；第九版那批打磨落地后共 **60 条**；第十版的手工编辑结果落地后共 **70 条**，其中 **69 条在效**（第 52 条在第十一版撤回，编号保留），全部有实现与包级测试。样式与响应式那几项仍只能靠人工确认，映射里都标了；**卡片页上的面板标题**（第 58 条）是唯一"行为有、断言只有一半"的一条，见附录 B；结果编辑器里**行号与行的对齐**也是只能人工看的一处。
+- 编辑器与配置页的三批改动随后落地（见上）：需求 §14 的 48 条因此全部有实现与包级测试；结果页与微调的第四批落地后共 56 条；第九版那批打磨落地后共 **60 条**；第十版的手工编辑结果落地后共 **70 条**；第十二版的每卡选模型落地后共 **79 条**；第十三版的工作目录字段落地后共 **92 条**，其中 **91 条在效**（第 52 条在第十一版撤回，编号保留），全部有实现与包级测试。样式与响应式那几项仍只能靠人工确认，映射里都标了；**卡片页上的面板标题**（第 58 条）是唯一"行为有、断言只有一半"的一条，见附录 B；结果编辑器里**行号与行的对齐**也是只能人工看的一处；**第 92 条是负面标准**——它钉住的是工作目录尚未约束写入位置这个缺口，不该被"补上"成一句漂亮话。
 
 ---
 
@@ -2826,7 +2834,7 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 87 运行控件与字段读同一个值（`runnable` AND `ready`），禁用时有说明 | M8 的 `runnable` 与 `workspaceField` + M10 结果页头部那两条 `data-run-workspace-*`；`SkillCardResultPage.spec.tsx`、`SkillCardResultEdit.spec.tsx` |
 | 88 拒绝而不回退：三个客户端入口共用一个判断，宿主启动前再判一次；失效消息点名完整路径 | M8 的 `workspaceRefusal()` + M5「工作目录：一道门，还不是一间房」的门那一半（4c 与两条消息）+ M6 的 `STATUS_BY_CODE`（400 / 409）；`skill-card-runner.spec.ts`、`skill-card-route.spec.ts`、`skill-card-action-panel.spec.tsx`。**微调那条共用同一函数是源码事实，没有单独用例** |
 | 89 没有迁移：已有卡片没有目录，在配上之前不能运行 | M4「没有迁移，是刻意的」+ M10 的 `missing` 状态；`skill-card-store.spec.ts`、`workspace.spec.ts`、`SkillCardSettings.spec.tsx` |
-| 90 除运行以外全都照常（打开、改名 / skill / 模型 / 模板、预览、手工编辑、读结果） | M8（只有 `start` / `refine` / 确认面板读 `workspaceField`，`saveResultEdit` 不读）+ M10 + M9（卡片正面不画这个字段）；`SkillCardResultEdit.spec.tsx`、`SkillCardSettings.spec.tsx`、`SkillCard.spec.tsx` |
+| 90 除运行以外全都照常（打开、改名 / skill / 模型 / 模板、预览、手工编辑、读结果） | M8（只有 `start` / `refine` / 确认面板读 `workspaceField`，`saveResultEdit` 不读）+ M10 + M9（卡片正面不画这个字段，**源码结构、无 DOM 断言**）；`SkillCardResultEdit.spec.tsx`、`SkillCardSettings.spec.tsx` |
 | 91 两个新码进封闭联合，三张映射表各自表态；两码不合并 | M1 的错误码块与「结果 R」（`Record<码, …>` 的三张表）+ M6 的 `STATUS_BY_CODE` + M8 的 `LOCALIZED_CODES` + M10/SkillCard 的 `PROBLEM_KEYS`；`skill-card-route.spec.ts`、`SkillCardResultPage.spec.tsx`、`SkillCardSettings.spec.tsx`。**"漏一个编译不过"由类型系统保证** |
 | 92 **诚实的缺口：目录不约束写入**——运行仍在父会话目录里，`startActivation` 的 `cwd` 改不到沙箱根，收口需要 `agents.create({ meta: { cwd } })`，**未实现** | M5「工作目录：一道门，还不是一间房」的"房间：没有"那张表与三句话（**这一条不是待办，是这一版的交付边界**）；**没有用例能证明它成立**，能证明的只有门（`skill-card-runner.spec.ts` 四条拒绝均无 activation） |
 
