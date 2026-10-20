@@ -610,3 +610,80 @@ describe('workbench skill card runner', () => {
     })
   })
 })
+
+/**
+ * The card's own agent is what fences a run.
+ *
+ * A child inherits its parent's session header, and the sandbox derives its writable root
+ * from that header, so a card that names a workspace runs under an agent rooted there. The
+ * fence itself is out-of-process behaviour (see the skipped workspace-sandbox spec); what
+ * this block pins is the plugin's side of it: one agent per card, rooted at the directory,
+ * reused across runs, rebuilt when the directory changes, and archived so its session does
+ * not pile up in the sidebar.
+ */
+describe('the card agent that fences a run', () => {
+  it('creates one agent rooted at the card directory, and reuses it', async () => {
+    const { runner, fake } = setup()
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents[0]?.session?.header?.cwd).toBe(WORKSPACE_PATH)
+
+    await runner.start(request())
+    await settle(runner)
+    // Reuse is the point: the directory is fixed at creation, so a second run of the same
+    // card can only keep the fence by keeping the agent.
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.activations[1]?.request.parent?.session?.header?.cwd).toBe(WORKSPACE_PATH)
+  })
+
+  it('rebuilds it when the workspace changes, because the root cannot be moved', async () => {
+    const created = { ...fakeHostSelection('/repo') }
+    const fake = fakeHost({})
+    const runner = new WorkbenchSkillCardRunner({
+      host: fake.host,
+      workingDirectory: fake.workingDirectory,
+      statDirectory: fake.statDirectory,
+      subagentProvider: 'spawn',
+      runTimeoutMs: 5_000,
+      maxConcurrentRuns: 1,
+      selection: () => ({ skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: created.path } }),
+      saveResult: async () => {},
+      warn: () => {},
+      now: () => 42,
+    })
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.createdAgents[0]?.session?.header?.cwd).toBe('/repo')
+
+    created.path = '/elsewhere'
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.disposedAgents).toHaveLength(1)
+    expect(fake.createdAgents).toHaveLength(2)
+    expect(fake.createdAgents[1]?.session?.header?.cwd).toBe('/elsewhere')
+    await runner.dispose()
+  })
+
+  it('archives each card session so the sidebar does not fill up', async () => {
+    const { runner, fake } = setup()
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.archivedSessions).toEqual([fake.createdAgents[0]?.id])
+  })
+
+  it('creates no card agent for a card that names no directory', async () => {
+    // The workspace is mandatory, so this path is refused before any agent exists — the
+    // fallback inside the runner is a guard for a state the user cannot reach, not a
+    // behaviour. Asserting the refusal is what actually holds.
+    const { runner, fake } = setup({ selection: { skill: 'git-repo', template: '<b>{{a}}</b>' } })
+    const outcome = await runner.start(request())
+    expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-missing' })
+    expect(fake.createdAgents).toHaveLength(0)
+    expect(fake.activations).toHaveLength(0)
+  })
+})
+
+function fakeHostSelection(path: string): { path: string } {
+  return { path }
+}
