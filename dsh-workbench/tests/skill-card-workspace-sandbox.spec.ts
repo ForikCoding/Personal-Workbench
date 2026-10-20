@@ -36,12 +36,16 @@
  *   3. the child's header cwd — and therefore its sandbox root — is the card's directory
  *
  * The seam keeps doing prompt delivery, structured capture, retry, cancellation and
- * error attribution. Nothing of that needs re-implementing, and `cwd` does not have to
- * be passed at all.
+ * error attribution. Nothing of that needed re-implementing.
  *
- * Remaining work: the card agent's lifecycle (lazy create, reuse, dispose when the
- * workspace changes or the card is deleted) and archiving its session once the run
- * settles, so the sidebar stays clean.
+ * **The plugin side has since landed**: one card agent per card, created lazily and
+ * reused, rebuilt when the stored directory changes, its session archived after each
+ * settled run, and every handle released on teardown. Two gaps remain and are deliberate
+ * records rather than oversights: deleting a card does not dispose its agent yet (no hook
+ * exists; agents live until plugin teardown), and nothing asserts that teardown.
+ *
+ * What is still unverified is exactly what this file describes — nobody has run the real
+ * application and watched a write outside the card directory be refused.
  *
  * Still unverified: nothing load-bearing. A seam child parented to a card agent was
  * **measured** to inherit that agent's cwd: `cardSeamChildHeaderIsCardDir` and
