@@ -393,6 +393,46 @@ try {
   report('created agent own result accessors',
     Object.getOwnPropertyNames(Object.getPrototypeOf(created.agent)).filter(key => /result|structur|capture/i.test(key)))
 
+  // [5] The question that decides how the card fence is built: a seam child whose
+  // PARENT is an agents.create agent rooted at the card directory — does it inherit that
+  // directory as its own sandbox root? childSessionMeta copies the parent's header cwd,
+  // so it should; this is the measurement, not the inference.
+  log('[5] CARD AGENT AS PARENT: does a seam child inherit the card agent\'s cwd?')
+  if (typeof ctx.subagents.startActivation === 'function') {
+    const cardAgent = await ctx.agents.create({ sessionId: 'probe-card-parent', meta: { cwd: foreignDir } })
+    report('card agent header.cwd', cardAgent.agent.session.header.cwd)
+    const carded = await ctx.subagents.startActivation({
+      provider: 'spawn',
+      label: 'probe-card-parent',
+      delivery: 'caller',
+      signal: new AbortController().signal,
+      request: {
+        parent: cardAgent.agent,
+        prompt: [{ type: 'text', text: 'probe: say done' }],
+        outputSchema: { type: 'object', properties: { html: { type: 'string' } }, required: ['html'], additionalProperties: true },
+      },
+    })
+    const cardChild = ctx.agents.get(carded.childId)
+    const cardChildRoot = cardChild === undefined
+      ? 'no resident child'
+      : (() => {
+          try {
+            return ctx.sandboxPolicy.resolve({ session: cardChild.session }).workspaceRoot
+          } catch (error) {
+            return `resolve failed: ${error?.message ?? String(error)}`
+          }
+        })()
+    report('card seam child header.cwd', cardChild?.session?.header?.cwd ?? 'n/a')
+    report('card seam child sandbox root', cardChildRoot)
+    report('expected card directory', foreignDir)
+    check('cardSeamChildRootIsCardDir', String(cardChildRoot) === String(foreignDir))
+    check('cardSeamChildHeaderIsCardDir', String(cardChild?.session?.header?.cwd) === String(foreignDir))
+    await carded.dispose().catch(() => {})
+    await cardAgent.dispose()
+  } else {
+    report('card parent case', 'skipped: startActivation missing')
+  }
+
   await created.dispose()
   await parent.dispose()
 } catch (error) {

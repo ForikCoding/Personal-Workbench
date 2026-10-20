@@ -43,9 +43,11 @@
  * workspace changes or the card is deleted) and archiving its session once the run
  * settles, so the sidebar stays clean.
  *
- * Still unverified: that a seam child of a *card* agent inherits that agent's cwd. It
- * follows from `childSessionMeta` copying the parent header, but it was not measured —
- * measure it before trusting it.
+ * Still unverified: nothing load-bearing. A seam child parented to a card agent was
+ * **measured** to inherit that agent's cwd: `cardSeamChildHeaderIsCardDir` and
+ * `cardSeamChildRootIsCardDir` both hold, and the same run still captured
+ * `{ html }` through the seam (`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`, case
+ * [5]). Note `agents.create` needs an explicit `sessionId` per card agent.
  *
  * Acceptance criterion 92 pins this same gap from the requirements side.
  */
