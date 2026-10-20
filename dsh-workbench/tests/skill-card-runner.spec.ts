@@ -687,3 +687,15 @@ describe('the card agent that fences a run', () => {
 function fakeHostSelection(path: string): { path: string } {
   return { path }
 }
+describe('teardown', () => {
+  it('releases every card agent when the runner is disposed', async () => {
+    // Card agents outlive a run on purpose, so teardown is the only thing that frees them.
+    // Without this the handles leak for the lifetime of the plugin.
+    const { runner, fake } = setup()
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.disposedAgents).toHaveLength(0)
+    await runner.dispose()
+    expect(fake.disposedAgents).toEqual([fake.createdAgents[0]?.id])
+  })
+})
