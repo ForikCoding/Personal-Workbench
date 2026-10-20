@@ -1,11 +1,11 @@
-# dsh-workbench 2.0.22 · 安装指南
+# dsh-workbench 2.0.23 · 安装指南
 
 把工作台面板装进一个已有的 DSH Desktop。**整个过程不需要联网**（除非你的环境本来就能访问 npm）。
 
 包只有一个文件：
 
 ```
-dsh-workbench-2.0.22.tgz    约 192 KB
+dsh-workbench-2.0.23.tgz    约 192 KB
 ```
 
 ---
@@ -61,7 +61,7 @@ Get-ChildItem "$env:USERPROFILE\.dsh","$env:USERPROFILE\.dsh-beta","$env:APPDATA
   "name": "dsh-profile-web",
   "private": true,
   "dependencies": {
-    "dsh-workbench": "file:<把 tarball 放在哪>/dsh-workbench-2.0.22.tgz"
+    "dsh-workbench": "file:<把 tarball 放在哪>/dsh-workbench-2.0.23.tgz"
   },
   "dsh": {
     "profile": {
@@ -84,8 +84,8 @@ Get-ChildItem "$env:USERPROFILE\.dsh","$env:USERPROFILE\.dsh-beta","$env:APPDATA
 
 ### 路径写法
 
-- 用**正斜杠**：`file:D:/pkgs/dsh-workbench-2.0.22.tgz`
-- 或相对路径：`file:./vendor/dsh-workbench-2.0.22.tgz`
+- 用**正斜杠**：`file:D:/pkgs/dsh-workbench-2.0.23.tgz`
+- 或相对路径：`file:./vendor/dsh-workbench-2.0.23.tgz`
 - 也接受**解压后的目录**：`file:D:/pkgs/dsh-workbench`
 
 ### 然后重启应用
@@ -113,7 +113,7 @@ corepack pnpm install
 ```powershell
 $p = "%PROFILE%"
 New-Item -ItemType Directory -Force -Path "$p\node_modules\dsh-workbench" | Out-Null
-tar -xzf .\dsh-workbench-2.0.22.tgz -C "$p\node_modules\dsh-workbench" --strip-components=1
+tar -xzf .\dsh-workbench-2.0.23.tgz -C "$p\node_modules\dsh-workbench" --strip-components=1
 ```
 
 然后重启。
