@@ -955,6 +955,16 @@ var WorkbenchSkillCardRunner = class {
 		this.now = options.now ?? (() => Date.now());
 	}
 	/**
+	* One rooted agent per card, created on the card's first run and reused after that.
+	*
+	* Reuse is not an optimisation: the directory is fixed when the agent is created, so a
+	* second run of the same card can only keep the fence by keeping the agent. The path is
+	* stored beside the handle so a changed workspace is detected and rebuilt.
+	*/
+	cardAgents = /* @__PURE__ */ new Map();
+	/** Distinguishes successive card agents; a session id cannot be published twice. */
+	cardAgentSeq = 0;
+	/**
 	* Read the skill catalog a card can choose from.
 	*
 	* The read always goes through an agent scope. A scope-less read returns the
@@ -1160,6 +1170,44 @@ var WorkbenchSkillCardRunner = class {
 		for (const run of this.runs.values()) if (run.phase === "running") run.controller.abort();
 		await Promise.allSettled([...this.inflight]);
 		this.runs.clear();
+		const agents = [...this.cardAgents.values()];
+		this.cardAgents.clear();
+		await Promise.allSettled(agents.map(async (entry) => await entry.handle.dispose()));
+	}
+	/**
+	* The agent a card's run should hang from.
+	*
+	* A card that names a workspace gets an agent rooted at that directory, created once and
+	* reused; a card that does not falls back to the session's agent, which is what every run
+	* used before workspaces existed. The sandbox derives its writable root from the
+	* session header, and a child inherits its parent's header, so this is the whole
+	* mechanism that fences a run — no `cwd` is passed and the seam stays untouched.
+	* @param cardId - the card whose agent is wanted.
+	* @param fallback - the session's agent, used when the card names no directory.
+	* @returns the agent to start the run from.
+	*/
+	async cardParent(cardId, fallback) {
+		const path = this.options.selection(cardId).workspace?.path;
+		if (path === void 0) return fallback;
+		const existing = this.cardAgents.get(cardId);
+		if (existing !== void 0 && existing.path === path) return existing.handle.agent;
+		if (existing !== void 0) {
+			this.cardAgents.delete(cardId);
+			try {
+				await existing.handle.dispose();
+			} catch (error) {
+				this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`);
+			}
+		}
+		const handle = await this.options.host.agents.create({
+			sessionId: `workbench-card-${cardId}-${this.cardAgentSeq++}`,
+			meta: { cwd: path }
+		});
+		this.cardAgents.set(cardId, {
+			path,
+			handle
+		});
+		return handle.agent;
 	}
 	/**
 	* Run one card's skill to a terminal state.
@@ -1181,10 +1229,10 @@ var WorkbenchSkillCardRunner = class {
 				});
 				return;
 			}
-			let outcome = await this.attempt(run, input, cwd, skill, activate);
+			let outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent));
 			if (outcome.kind === "unusable" && outcome.retryable && !signal.aborted) {
 				run.retried = true;
-				outcome = await this.attempt(run, input, cwd, skill, activate);
+				outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent));
 			}
 			await this.finish(run, outcome);
 		} catch (error) {
@@ -1212,7 +1260,7 @@ var WorkbenchSkillCardRunner = class {
 	* @param activate - the activation seam, known to exist.
 	* @returns the attempt's outcome.
 	*/
-	async attempt(run, input, cwd, skill, activate) {
+	async attempt(run, input, cwd, skill, activate, parent) {
 		const signal = run.controller.signal;
 		const activation = await activate({
 			provider: this.options.subagentProvider,
@@ -1220,7 +1268,7 @@ var WorkbenchSkillCardRunner = class {
 			signal,
 			delivery: "caller",
 			request: {
-				parent: input.agent,
+				parent,
 				prompt: [{
 					type: "text",
 					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload) : renderWorkbenchBarePrompt(skill, input.payload)

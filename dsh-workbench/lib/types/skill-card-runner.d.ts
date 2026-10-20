@@ -113,6 +113,16 @@ export declare class WorkbenchSkillCardRunner {
      */
     constructor(options: WorkbenchSkillCardRunnerOptions);
     /**
+     * One rooted agent per card, created on the card's first run and reused after that.
+     *
+     * Reuse is not an optimisation: the directory is fixed when the agent is created, so a
+     * second run of the same card can only keep the fence by keeping the agent. The path is
+     * stored beside the handle so a changed workspace is detected and rebuilt.
+     */
+    private readonly cardAgents;
+    /** Distinguishes successive card agents; a session id cannot be published twice. */
+    private cardAgentSeq;
+    /**
      * Read the skill catalog a card can choose from.
      *
      * The read always goes through an agent scope. A scope-less read returns the
@@ -185,6 +195,19 @@ export declare class WorkbenchSkillCardRunner {
      * @returns resolution once no run is still executing.
      */
     dispose(): Promise<void>;
+    /**
+     * The agent a card's run should hang from.
+     *
+     * A card that names a workspace gets an agent rooted at that directory, created once and
+     * reused; a card that does not falls back to the session's agent, which is what every run
+     * used before workspaces existed. The sandbox derives its writable root from the
+     * session header, and a child inherits its parent's header, so this is the whole
+     * mechanism that fences a run — no `cwd` is passed and the seam stays untouched.
+     * @param cardId - the card whose agent is wanted.
+     * @param fallback - the session's agent, used when the card names no directory.
+     * @returns the agent to start the run from.
+     */
+    private cardParent;
     /**
      * Run one card's skill to a terminal state.
      * @param run - the run record to settle.

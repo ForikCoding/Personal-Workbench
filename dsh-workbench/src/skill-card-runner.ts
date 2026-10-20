@@ -22,6 +22,7 @@ import type {
 import type {
   WorkbenchActivationSeam,
   WorkbenchAgent,
+  WorkbenchAgentHandle,
   WorkbenchModelInfo,
   WorkbenchSkillCardHost,
   WorkbenchSkillDefinition,
@@ -230,6 +231,18 @@ export class WorkbenchSkillCardRunner {
   constructor(private readonly options: WorkbenchSkillCardRunnerOptions) {
     this.now = options.now ?? ((): number => Date.now())
   }
+
+  /**
+   * One rooted agent per card, created on the card's first run and reused after that.
+   *
+   * Reuse is not an optimisation: the directory is fixed when the agent is created, so a
+   * second run of the same card can only keep the fence by keeping the agent. The path is
+   * stored beside the handle so a changed workspace is detected and rebuilt.
+   */
+  private readonly cardAgents = new Map<string, { readonly path: string; readonly handle: WorkbenchAgentHandle }>()
+
+  /** Distinguishes successive card agents; a session id cannot be published twice. */
+  private cardAgentSeq = 0
 
   /**
    * Read the skill catalog a card can choose from.
@@ -515,6 +528,51 @@ export class WorkbenchSkillCardRunner {
     }
     await Promise.allSettled([...this.inflight])
     this.runs.clear()
+    // Card agents outlive a run on purpose (one per card, reused), so the runner owns
+    // their teardown: nothing else would ever release them.
+    const agents = [...this.cardAgents.values()]
+    this.cardAgents.clear()
+    await Promise.allSettled(agents.map(async (entry) => await entry.handle.dispose()))
+  }
+
+  /**
+   * The agent a card's run should hang from.
+   *
+   * A card that names a workspace gets an agent rooted at that directory, created once and
+   * reused; a card that does not falls back to the session's agent, which is what every run
+   * used before workspaces existed. The sandbox derives its writable root from the
+   * session header, and a child inherits its parent's header, so this is the whole
+   * mechanism that fences a run — no `cwd` is passed and the seam stays untouched.
+   * @param cardId - the card whose agent is wanted.
+   * @param fallback - the session's agent, used when the card names no directory.
+   * @returns the agent to start the run from.
+   */
+  private async cardParent(cardId: string, fallback: WorkbenchAgent): Promise<WorkbenchAgent> {
+    const path = this.options.selection(cardId).workspace?.path
+    // The route refuses a run without a valid workspace, so this is a guard for a state
+    // the user cannot reach rather than a policy.
+    if (path === undefined) return fallback
+    const existing = this.cardAgents.get(cardId)
+    if (existing !== undefined && existing.path === path) return existing.handle.agent
+    if (existing !== undefined) {
+      // The root is fixed at creation, so a changed directory cannot be applied to the
+      // agent already holding it: keeping it would fence the run somewhere the user did
+      // not choose.
+      this.cardAgents.delete(cardId)
+      try {
+        await existing.handle.dispose()
+      } catch (error) {
+        this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`)
+      }
+    }
+    const handle = await this.options.host.agents.create({
+      // Unique per creation: the same session id cannot be published twice, and a card's
+      // workspace may change more than once.
+      sessionId: `workbench-card-${cardId}-${this.cardAgentSeq++}`,
+      meta: { cwd: path },
+    })
+    this.cardAgents.set(cardId, { path, handle })
+    return handle.agent
   }
 
   /**
@@ -542,12 +600,12 @@ export class WorkbenchSkillCardRunner {
         return
       }
 
-      let outcome = await this.attempt(run, input, cwd, skill, activate)
+      let outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent))
       // One retry, and only when repeating the ask could plausibly help: the
       // sentinel that a capture was missed is `unusable` plus `retryable`.
       if (outcome.kind === 'unusable' && outcome.retryable && !signal.aborted) {
         run.retried = true
-        outcome = await this.attempt(run, input, cwd, skill, activate)
+        outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent))
       }
       await this.finish(run, outcome)
     } catch (error) {
@@ -582,6 +640,7 @@ export class WorkbenchSkillCardRunner {
     cwd: string | undefined,
     skill: WorkbenchSkillDefinition,
     activate: WorkbenchActivationSeam,
+    parent: WorkbenchAgent,
   ): Promise<AttemptOutcome> {
     const signal = run.controller.signal
     // Omitting `toolFilter` is how this run inherits the session's full tool permissions.
@@ -593,7 +652,11 @@ export class WorkbenchSkillCardRunner {
       signal,
       delivery: 'caller',
       request: {
-        parent: input.agent,
+        // The card's own agent when the card names a workspace, otherwise the session's.
+        // A child's session header is copied from its parent, and the sandbox derives its
+        // writable root from that header — so rooting the parent at the card's directory
+        // is what fences the run there. See docs/workbench-workspace-fence-plan.md.
+        parent,
         prompt: [{
           type: 'text',
           text: input.kind === 'card'

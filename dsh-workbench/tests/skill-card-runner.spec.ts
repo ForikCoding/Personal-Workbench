@@ -384,7 +384,11 @@ describe('workbench skill card runner', () => {
       const spec = fake.activations[0]
       expect(spec?.provider).toBe('spawn')
       expect(spec?.delivery).toBe('caller')
-      expect(spec?.request.parent).toBe(AGENT)
+      // The card names a workspace, so the run hangs from an agent rooted at that
+        // directory rather than from the session's: a child inherits its parent's
+        // session header, and the sandbox derives its writable root from that header.
+        expect(spec?.request.parent).not.toBe(AGENT)
+        expect(spec?.request.parent?.session?.header?.cwd).toBe('/repo')
       expect(spec?.request.cwd).toBe('/repo')
       expect(spec?.request.outputSchema).toEqual({ type: 'object', properties: {} })
       // Omitting these is how the run inherits the session's model and tools.
