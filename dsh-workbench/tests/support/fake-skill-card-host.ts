@@ -153,10 +153,29 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
 
   const statDirectory: WorkbenchDirectoryProbe = async () => ({ ...PRESENT_DIRECTORY, ...options.directory })
 
+  // Card agents the plugin asked for, and the ones it tore down. Both are read from
+  // `FakeSkillCardHost` so a case can prove creation and disposal actually happened.
+  const createdAgents: WorkbenchAgent[] = []
+  const disposedAgents: string[] = []
+
   const host: WorkbenchSkillCardHost = {
     agents: {
       get: (sessionId) => (options.live === false || sessionId !== AGENT.id ? undefined : AGENT),
       list: () => (options.live === false ? [] : [AGENT]),
+      // A card agent is only ever interesting for the cwd it roots its session at, so the
+      // fake keeps that and nothing else. `disposeCount` lets a case prove the plugin
+      // actually tears one down when the workspace changes.
+      create: async (createOptions) => {
+        const created: WorkbenchAgent = {
+          id: createOptions.sessionId,
+          session: { header: { cwd: createOptions.meta.cwd } },
+        }
+        createdAgents.push(created)
+        return {
+          agent: created,
+          dispose: async () => { disposedAgents.push(createOptions.sessionId) },
+        }
+      },
     },
     skills: {
       list: async (lookup) => {

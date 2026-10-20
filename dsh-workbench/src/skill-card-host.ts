@@ -246,6 +246,24 @@ export interface WorkbenchSkillCardHost {
      * @returns the live agents.
      */
     list(): readonly WorkbenchAgent[]
+    /**
+     * Create an agent whose session header carries its own `cwd`.
+     *
+     * This is the only way a card can own a file-sandbox root: the sandbox policy
+     * derives `workspaceRoot` from `session.header.cwd`, and the subagent seam copies a
+     * child's header from its **parent**. A card agent created here therefore fences
+     * every run started with it as `parent`, without teaching the seam anything new.
+     *
+     * `sessionId` is required: creating without one fails at publish time with
+     * `agent id "undefined" does not match session id`.
+     * @param options - session identity, the directory to root it at, and its parent.
+     * @returns the created agent and the handle that tears it down.
+     */
+    create(options: {
+      readonly sessionId: string
+      readonly meta: { readonly cwd: string }
+      readonly parentAgent?: WorkbenchAgent
+    }): Promise<WorkbenchAgentHandle>
   }
   readonly skills: {
     /**
@@ -281,4 +299,16 @@ export interface WorkbenchSkillCardHost {
      */
     listModels(provider: string): Promise<readonly WorkbenchModelInfo[]>
   }
+}
+
+/**
+ * A created agent and the handle that tears it down.
+ *
+ * The handle is separate because disposal is not the agent's concern: the plugin owns the
+ * lifetime — create on the card's first run, dispose when the card's workspace changes or
+ * the card is removed.
+ */
+export interface WorkbenchAgentHandle {
+  readonly agent: WorkbenchAgent
+  dispose(): Promise<void>
 }
