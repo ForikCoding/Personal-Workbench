@@ -18,9 +18,11 @@
 > - **第十一版**撤掉结果页的两处噪音，并撤回一条验收标准。产品负责人判定两样东西都是噪音：结果面上方那行**状态行**（`✓ 已完成 · 14:28:36 · 用时 42s`），以及结果表面里那行**「结果」标题**。两处都整行移除，**没有被任何东西替代**；结果表面的边框、圆角与内边距留下，容器的边界从此只靠内边距把渲染文档挡在边框之外。状态与时间这两个事实没有丢：结束原因与开始时间仍在「运行详情」里（FR-37）。因此**撤回验收标准 52**——它规定那一行显示什么，现在没有那一行——**编号保留、不顺移**（见 §14.4）。这是一次产品决定，**不是回归**：后来的人不要把它加回去。
 > - **第十二版让每张卡自己选模型。** 卡片配置的「基本信息」多一个字段：**模型**——按 provider 分组的 `select`，选项文本是 `ModelCatalogModel.name`，默认选中**当前会话的模型**（不是空选项：一张卡永远显示一个具体模型）。模型以 **`{ provider, model }` 这一对**存储，不存 `"provider/model"` 字符串（provider id 本身可能带斜杠，拆回去一定出错）；v1 **不带 `reasoningEffort`**。运行路径把这对值作为子代理的 `agentOptions` 传下去，结果记录以 `model?` **记下这次运行用的路由**，运行详情里因此多一行「模型」——用户不该猜一份结果出自哪个模型。**不可用就拒绝，不回退**：卡片写了模型而该 provider 不存在、模型不在其目录里、或子代理后端不支持 `agentOptions` 时，宿主在启动前就拒绝，并在消息里点名那条路由，**不会悄悄跑在会话的模型上**。新增验收标准 **71～79**，逐条覆盖见[附录 A.7](#a7-已实现并验收7179)。**1～70 的状态不变**：仍然全部已实现并验收（52 仍是撤回态）。
 > - **第十三版（当前）给每张卡一个自己的工作目录，并且运行前必须先有它。** 配置页「基本信息」从三个控件变成四个，排版改成**两行两列**（名称 / 技能，模型 / 工作目录）：新字段的主值是**目录名的最后一段**，完整路径是它下面那行次要文字，旁边一个按钮打开目录选择器。存的是**一条完整绝对路径**（`workspace?: { path: string }`），**不是工作区 id**——产品要的是"用户选哪个目录就是哪个目录"，而那个目录不必是已注册的工作区。**选择器按平台分派**：Windows 走 Desktop 插件发布在窗口上的 `__DSH_DESKTOP_PICK_DIRECTORY__`（桌面自己的同源路由），其他平台走应用自己的 `uiWorkspace.pickDirectory()`；**没有自由文本输入**——产品负责人明确否掉了手打路径，也否掉了工作区下拉，理由是手打出来的目录没有被任何选择器确认过。**一个纯函数 `resolveWorkspaceField()` 拥有三种状态**（`missing` / `invalid` / `ready`），字段与运行控件读的是同一个值，所以不会出现"字段说没有、按钮还能按"。**拒绝，绝不回退**：没有目录、或目录已不存在时运行被拒，失效的那条消息点名**完整路径**，绝不会悄悄跑在会话的目录里。**没有迁移**：已有卡片读回来没有工作目录，在配上之前不能运行——这是产品负责人的明确决定。**除运行以外全都照常**：打开卡片、改名称 / skill / 模型 / 模板、预览、手工编辑结果、读已存结果都不要这个字段。新增验收标准 **80～92**，逐条覆盖见[附录 A.8](#a8-已实现并验收8092)。**1～79 的状态不变**：仍然全部已实现并验收（52 仍是撤回态）。
-> - **第十三版有一条必须先读的缺口，写在这里而不是留给读者自己发现：工作目录还没有约束运行写到哪里。** 卡片记下这个目录、并据此放行或拒绝一次运行，但**运行仍然在父会话的目录里执行**：执行底座仍是 `ctx.subagents.startActivation`，它的 `cwd` 只改子代理的有效工作目录，**不改文件沙箱的根**（实测过两件事：子代理的 `session.header.cwd` 仍是父会话的，`sandboxPolicy.resolve().workspaceRoot` 也仍是父会话的；机制见[详细设计 M5 的「工作目录」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)与它附录 C 的四条出处）。真正的收口需要一次基于 `agents.create({ meta: { cwd } })` 的运行，**这一版没有实现**。所以这张卡的目录目前是**一道门**，不是**一间房**：任何一句话都不该读成"写入被限制在所选目录里"，它也不是沙箱隔离。另一条既有约束照旧：卡片能跑起来依赖宿主提供 `subagents.startActivation`（`0.2.1-alpha.2` / beta 通道；`0.2.0-rc.2` 能加载、能编辑，不能运行），见 `dsh-workbench/INSTALL.md` 第 0 节「前提」与 FR-5，这里不重复。已知限制的完整三条见 [§14.8](#148-已实现并验收8092)。
+> - **第十三版有一条必须先读的缺口，写在这里而不是留给读者自己发现：工作目录还没有约束运行写到哪里。** 卡片记下这个目录、并据此放行或拒绝一次运行，但**运行仍然在父会话的目录里执行**：执行底座仍是 `ctx.subagents.startActivation`，它的 `cwd` 只改子代理的有效工作目录，**不改文件沙箱的根**（实测过两件事：子代理的 `session.header.cwd` 仍是父会话的，`sandboxPolicy.resolve().workspaceRoot` 也仍是父会话的；机制见[详细设计 M5 的「工作目录」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)与它附录 C 的四条出处）。真正的收口需要一次基于 `agents.create({ meta: { cwd } })` 的运行，**这一版没有实现**。所以这张卡的目录目前是**一道门**，不是**一间房**：任何一句话都不该读成"写入被限制在所选目录里"，它也不是沙箱隔离。另一条既有约束照旧：卡片能跑起来依赖宿主提供 `subagents.startActivation`（`0.2.1-alpha.2` / beta 通道；`0.2.0-rc.2` 能加载、能编辑，不能运行），见 `dsh-workbench/INSTALL.md` 第 0 节「前提」与 FR-5，这里不重复。已知限制的完整三条见 [§14.8](#148-已实现并验收8092)。**（第十四版更新：这条缺口的插件侧已经落地——运行现在挂在一个根在卡片目录的 agent 上；但栅栏本身仍未被验证，也没有任何真实应用跑过，见 §14.9 的第 100、101 条。那段"这一版没有实现"读作历史。）**
+> - **第十四版把"一道门"往"一间房"推了一步，但只推到插件这一侧，而且两重限制必须先说。** 插件现在给每张卡**自己造一个 agent**，根在卡片目录（`agents.create({ sessionId, meta: { cwd } })`），并把它作为这次运行的**父**：文件沙箱的 `workspaceRoot` 取自 `session.header.cwd`，而子代理这条缝**把父的会话头复制给子**，所以父根在哪个目录，子就落在哪个目录。seam 本身一行没改——提示词投递、`{html}` 捕获、那一次重试、取消与 `agent/error` 归因都是它的。**一个 agent 只建一次、之后复用**（根在创建时固定，重建就等于换目录，所以复用是必需而不是优化）；**存的那条路径变了就拆掉旧的、按新目录重建**；`dispose()` 释放全部卡片 agent；每次运行结算后**归档**该 agent 的会话，让 `workbench-card-*` 不进侧边栏（归档是记账不是删除：agent 仍可复用、会话仍可读；归档失败只 `warn`，**绝不把已经捕获的结果变成一次失败**）。宿主表面因此多两项：`agents.create`（返回 `{ agent, dispose }`）与 **`workspaceRegistry.archiveSession`**——宿主对象是 `ctx` 的**宽 cast**，所以这个名字**没有任何一层能检查**：写成 `workspaces`（那是**客户端**服务名）照样编译、照样测试全绿，运行时只会走进那条 `warn`；同理它还必须写进插件的 `inject`，漏了会在运行时抛 `cannot get property … without inject`。这两件事都只能靠读源码与一次真实运行保证（见 §14.9 第 99 条）。**新增验收标准 93～101**，逐条覆盖见[附录 A.9](#a9-运行被钉在卡片目录上93101)。
+> - **第十四版的两重限制，写在这里而不是留给读者自己发现。** 其一，说"写入真的被限制在卡片目录里"的那个 spec —— `dsh-workbench/tests/skill-card-workspace-sandbox.spec.ts` —— 是**故意 skip 的 3 条**：它需要真实宿主、真实会话与真实文件写入，**它是规格，不是一条通过的测试**。其二，本功能**每一条结论都来自单元测试或探针脚本**（`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`），**从来没有在应用里点过一次**。所以准确的说法只有一句：**插件把运行挂在一个根在卡片目录的 agent 上；那之后沙箱是否真的拒绝越界写入，没有人验过。**
 >
-> **一句话区分：** §1–§19 共 **92 条**验收标准，其中 **91 条**描述**已实现并被验收**的行为（1–16、17–34、35–48、49–51、53–56、57–60、61–70、71–79、80–92 分列在[附录 A](#附录-a验收标准映射)的八块表里），第 **52** 条已撤回（第十一版，编号保留，见 §14.4）；每一块都注明覆盖它的包级测试。
+> **一句话区分：** §1–§19 共 **101 条**验收标准，其中 **97 条**描述**已实现并被验收**的行为（1–16、17–34、35–48、49–51、53–56、57–60、61–70、71–79、80–92、93–98 分列在[附录 A](#附录-a验收标准映射)的九块表里），第 **52** 条已撤回（第十一版，编号保留，见 §14.4），第 **99–101** 条**不是"通过"条目**（99 是一条命名约束，100 与 101 是两条验证限制，见 §14.9）；每一块都注明覆盖它的包级测试。
 
 ## 1. 需求陈述
 
@@ -638,7 +640,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 
 ## 14. 验收标准
 
-方案共 **92 条**验收标准，分八组；其中 **91 条**已实现并验收，**第 52 条已撤回**（第十一版，产品决定，编号保留——它不主张任何东西已通过）：
+方案共 **101 条**验收标准，分九组；其中 **97 条**已实现并验收，**第 52 条已撤回**（第十一版，产品决定，编号保留——它不主张任何东西已通过），**第 99–101 条不是"通过"条目**（99 是一条命名约束、今天没有已满足的证据；100 与 101 是两条验证限制，见 §14.9）：
 
 | 组 | 条数 | 状态 |
 | --- | --- | --- |
@@ -649,9 +651,10 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 | 14.5 已实现并验收（57–60） | 4 | ✅ **已通过**：代码是 `dsh-workbench` 的 M10（编辑区与运行详情、面板标题所在的 `WorkbenchPage.tsx`）、M8（取消走既有的 `cancel`）与 `skill-card.module.css`，`corepack yarn workspace dsh-workbench check`（第九版落地时 453 个测试 / 34 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.5](#a5-已实现并验收5760) |
 | 14.6 已实现并验收（61–70） | 10 | ✅ **已通过**：代码是 `dsh-workbench` 的 M10（结果页与结果编辑器 `SkillCardResultEditor.tsx`）、M8（`saveResultEdit` 与传输）、M1（`editedAt` 与结果写路由）、M4（存储 schema）与 M6（`PUT /result`），`corepack yarn workspace dsh-workbench check`（第十版落地时 505 个测试 / 37 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.6](#a6-已实现并验收6170) |
 | 14.7 已实现并验收（71–79） | 9 | ✅ **已通过**：代码是 `dsh-workbench` 的 M1（`WorkbenchCardModel`）、M4（两张表的 schema 声明与合并语义）、M5（启动前的路由校验与 `agentOptions`）、M8（`chooseModel` 与目录座位）、M9/M7（两端的注入）与 M10（字段三态与「运行详情」那一行），`corepack yarn workspace dsh-workbench check`（第十二版落地时 541 个测试 / 38 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.7](#a7-已实现并验收7179) |
-| 14.8 已实现并验收（80–92） | 13 | ✅ **已通过**：代码是 `dsh-workbench` 的 M1（`WorkbenchCardWorkspace`、`isWorkbenchWorkspacePath`、`WorkbenchDirectoryStat`、目录检查路由与两个新错误码）、M4（`workbenchCardWorkspaceSchema`）、M5（启动前的目录门）、M6（`GET /directory` 与两个码的 HTTP 状态）、M8（`workspaceField`、`chooseWorkspace`）与 M10（`workspace.ts`、`workspace-picker.ts`、`WorkspaceField` 与两行两列的栅格），`corepack yarn workspace dsh-workbench check`（第十三版落地时 604 个测试 / 40 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.8](#a8-已实现并验收8092)。**第 92 条是本组唯一一条负面标准**：它钉住的是一个**还没实现**的缺口，读法见那一条本身与 §14.8 末尾的已知限制 |
+| 14.8 已实现并验收（80–92） | 13 | ✅ **已通过**：代码是 `dsh-workbench` 的 M1（`WorkbenchCardWorkspace`、`isWorkbenchWorkspacePath`、`WorkbenchDirectoryStat`、目录检查路由与两个新错误码）、M4（`workbenchCardWorkspaceSchema`）、M5（启动前的目录门）、M6（`GET /directory` 与两个码的 HTTP 状态）、M8（`workspaceField`、`chooseWorkspace`）与 M10（`workspace.ts`、`workspace-picker.ts`、`WorkspaceField` 与两行两列的栅格），`corepack yarn workspace dsh-workbench check`（第十三版落地时 604 个测试 / 40 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.8](#a8-已实现并验收8092)。**第 92 条是本组唯一一条负面标准**：它钉住的是一个**当时还没实现**的缺口（第十四版落地了插件侧那一半，于是这一条被收窄成"没有被验证"，见 §14.9），读法见那一条本身与 §14.8 末尾的已知限制 |
+| 14.9 运行被钉在卡片目录上（93–101） | 9 | ⚠️ **部分**：93–98 是插件侧的实现，由 `tests/skill-card-runner.spec.ts` 的四个用例覆盖，`corepack yarn workspace dsh-workbench check`（第十四版落地时 608 个测试 / 40 个 spec 文件 / 3 跳过）exit 0；逐条对应的 spec 见[附录 A.9](#a9-运行被钉在卡片目录上93101)。**99–101 不能算"通过"**：99 的命名约束今天没有已满足的证据，100 说栅栏那个 spec 是**故意 skip 的规格**，101 说**没有任何真实应用跑过它** |
 
-逐条与功能需求、设计模块的对应关系见 [附录 A](#附录-a验收标准映射) 与[技能卡详细设计 · 附录 B](workbench-skill-card-detailed-design.md#附录-b验收映射)；17–34 的实现级设计见[技能卡按钮触发执行 · 详细设计](workbench-skill-card-actions-design.md)；35–48 的实现级设计见[技能卡详细设计 · M10](workbench-skill-card-detailed-design.md#m10-编辑器与配置页)与 [M9](workbench-skill-card-detailed-design.md#m9-卡片组件与装配)；49–60 的实现级设计见 [M10](workbench-skill-card-detailed-design.md#m10-编辑器与配置页)、[M8](workbench-skill-card-detailed-design.md#m8-客户端传输与状态)、[M5](workbench-skill-card-detailed-design.md#m5-执行服务)、[M1](workbench-skill-card-detailed-design.md#m1-共享契约) 与 [M6](workbench-skill-card-detailed-design.md#m6-私域路由)；57–60 另外落在结果页所属的面板标题（`WorkbenchPage.tsx`，见 [M10 的「页面的形状」](workbench-skill-card-detailed-design.md#页面的形状)）与 `skill-card.module.css` 上；61–70 的实现级设计见 M10 的[「结果的手工编辑」](workbench-skill-card-detailed-design.md#结果的手工编辑)一节，以及 M1（`editedAt`、`WorkbenchResultEditRequest`）、M4（`workbenchResultSchema`）与 M6（`PUT /api/workbench/skill-card/result`）。71–79 的实现级设计见 [M1](workbench-skill-card-detailed-design.md#m1-共享契约)（`WorkbenchCardModel`）、[M4](workbench-skill-card-detailed-design.md#m4-存储域与配置服务)（两张表的 `model`）、M5 的[「模型：钉住这次运行的路由」](workbench-skill-card-detailed-design.md#模型钉住这次运行的路由第十二版)与 M10 的「卡片的模型字段」。80–92 的实现级设计见 M1（`WorkbenchCardWorkspace` 与目录检查路由）、M4（`workbenchCardWorkspaceSchema`）、M5 的[「工作目录」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)一节（**那一节同时写着这个功能还没有做到的收口**）、[M6](workbench-skill-card-detailed-design.md#m6-私域路由) 的「目录检查」、[M8](workbench-skill-card-detailed-design.md#m8-客户端传输与状态) 的工作目录字段与 M10 的[「卡片的工作目录字段」](workbench-skill-card-detailed-design.md#卡片的工作目录字段第十三版)。
+逐条与功能需求、设计模块的对应关系见 [附录 A](#附录-a验收标准映射) 与[技能卡详细设计 · 附录 B](workbench-skill-card-detailed-design.md#附录-b验收映射)；17–34 的实现级设计见[技能卡按钮触发执行 · 详细设计](workbench-skill-card-actions-design.md)；35–48 的实现级设计见[技能卡详细设计 · M10](workbench-skill-card-detailed-design.md#m10-编辑器与配置页)与 [M9](workbench-skill-card-detailed-design.md#m9-卡片组件与装配)；49–60 的实现级设计见 [M10](workbench-skill-card-detailed-design.md#m10-编辑器与配置页)、[M8](workbench-skill-card-detailed-design.md#m8-客户端传输与状态)、[M5](workbench-skill-card-detailed-design.md#m5-执行服务)、[M1](workbench-skill-card-detailed-design.md#m1-共享契约) 与 [M6](workbench-skill-card-detailed-design.md#m6-私域路由)；57–60 另外落在结果页所属的面板标题（`WorkbenchPage.tsx`，见 [M10 的「页面的形状」](workbench-skill-card-detailed-design.md#页面的形状)）与 `skill-card.module.css` 上；61–70 的实现级设计见 M10 的[「结果的手工编辑」](workbench-skill-card-detailed-design.md#结果的手工编辑)一节，以及 M1（`editedAt`、`WorkbenchResultEditRequest`）、M4（`workbenchResultSchema`）与 M6（`PUT /api/workbench/skill-card/result`）。71–79 的实现级设计见 [M1](workbench-skill-card-detailed-design.md#m1-共享契约)（`WorkbenchCardModel`）、[M4](workbench-skill-card-detailed-design.md#m4-存储域与配置服务)（两张表的 `model`）、M5 的[「模型：钉住这次运行的路由」](workbench-skill-card-detailed-design.md#模型钉住这次运行的路由第十二版)与 M10 的「卡片的模型字段」。80–92 的实现级设计见 M1（`WorkbenchCardWorkspace` 与目录检查路由）、M4（`workbenchCardWorkspaceSchema`）、M5 的[「工作目录」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)一节（**那一节同时写着这个功能还没有做到的收口**）、[M6](workbench-skill-card-detailed-design.md#m6-私域路由) 的「目录检查」、[M8](workbench-skill-card-detailed-design.md#m8-客户端传输与状态) 的工作目录字段与 M10 的[「卡片的工作目录字段」](workbench-skill-card-detailed-design.md#卡片的工作目录字段第十三版)。93–101 的实现级设计见 [M5 的「父 agent：把根钉在卡片目录上」](workbench-skill-card-detailed-design.md#父-agent把根钉在卡片目录上第十四版)——**那一节同时写着 M13 的口径与两条限制**，以及 M13 的测试设计。
 
 ### 14.1 已实现并验收（1–16）
 
@@ -831,7 +834,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 
 ### 14.8 已实现并验收（80–92）✅
 
-> **这一组是「每张卡自己的工作目录」的验收证据。** 三条边界先说清楚：存的是**一条完整绝对路径**（不是工作区 id）、**拒绝而不回退**、**除运行以外都不受影响**。每一条后面写明覆盖它的 spec。凡标「jsdom 不参与断言」的地方，说明该条的视觉结果由 CSS 决定，测试断言的是 CSS 所依据的 DOM 结构与状态。**第 92 条与其余十二条方向相反**：它钉的是一个**还没有实现**的东西，读法见那一条与本节末尾的已知限制。
+> **这一组是「每张卡自己的工作目录」的验收证据。** 三条边界先说清楚：存的是**一条完整绝对路径**（不是工作区 id）、**拒绝而不回退**、**除运行以外都不受影响**。每一条后面写明覆盖它的 spec。凡标「jsdom 不参与断言」的地方，说明该条的视觉结果由 CSS 决定，测试断言的是 CSS 所依据的 DOM 结构与状态。**第 92 条与其余十二条方向相反**：它钉的是一个**还没有被验证**的东西（第十四版实现的是插件侧那一半），读法见那一条、§14.9 与本节末尾的已知限制。
 
 80. **卡片配置存一条完整绝对路径，并在存储 schema 里声明**：`card` 表里多一个 `workspace?: { path: string }`，值是选择器交回来的那条路径，**逐字保存**；**不是工作区 id**（也不是 `"provider/model"` 那种拼接串）。相对路径被**拒绝**，而不是被解析成某个"当前目录"：解析出来的目录要么随运行而变，要么是用户从没见过的那个。`workbenchCardConfigSchema` 与写入**同一次改动**里声明了它（§17.5 第 1 条），所以重启后目录仍在。
     <br>覆盖：`tests/skill-card-spec.spec.ts`（带 `workspace` 的整条往返；只写了 `workspace` 的记录也保留，且不会把别人的字段带上；没有该字段的记录不会被凭空补上）、`tests/skill-card-store.spec.ts`（写入即那条路径、读回即那条路径；与 `name` / `skill` / `model` 互不覆盖；`workspace: null` 只清目录；非绝对路径被拒且不写入）、`tests/skill-card-route.spec.ts`（线上带 `{ path }` 逐字透传；`{ path: '' }`、`relative/dir`、`{ path: 7 }`、字符串、数组与 `{ id: 'ws-1' }` 一律 400，且表里没有写入）。**"不是工作区 id"这一条没有专门的用例**：它是形状而不是行为——`{ id: 'ws-1' }` 在补丁里被拒，是因为它不是 `{ path }`，这一点上一条里就有。
@@ -845,7 +848,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
     <br>覆盖：`tests/workspace-picker.spec.ts`（`cancelled` 是独立状态，不是错误、也不是空路径）、`tests/SkillCardPages.spec.tsx`（取消后写入 0 次、字段仍写"未选择"）。
 85. **没有自由文本，也没有工作区下拉**：产品负责人明确否掉了手打路径与下拉，理由写在代码里——手打出来的路径是**没有被任何选择器确认过**的目录。没有选择器时按钮禁用并多一句说明；选择器中途报错时按钮关掉、说明出现。**整页的文本输入只有一个，就是卡片名。**
     <br>覆盖：`tests/SkillCardSettings.spec.tsx`（`canChooseWorkspace: false`：按钮 `disabled`、说明文案在、`input[type="text"]` 只有一个且它的 placeholder 是卡片名）、`tests/SkillCardPages.spec.tsx`（一次 `unavailable` 的挑法之后按钮被禁用并给出说明）。
-86. **一个纯解析器拥有三种状态**：`resolveWorkspaceField(stored, stat)` 返回 `missing` / `invalid` / `ready`，只有这三种。`invalid` 带 `path`、`leaf` 与 `checked`：宿主还没回答时 `checked` 为假，页面因此**不谎称目录已消失**，但门是关的——安全方向永远是关。只读目录仍是 `ready`：一次运行的结果进的是工作台自己的存储，**不写进这张卡的目录**，所以"能写"不是可用条件（这句话说的是结果落在哪，**不是**"运行被限制在卡目录里"——后者今天没有实现，见 92）。
+86. **一个纯解析器拥有三种状态**：`resolveWorkspaceField(stored, stat)` 返回 `missing` / `invalid` / `ready`，只有这三种。`invalid` 带 `path`、`leaf` 与 `checked`：宿主还没回答时 `checked` 为假，页面因此**不谎称目录已消失**，但门是关的——安全方向永远是关。只读目录仍是 `ready`：一次运行的结果进的是工作台自己的存储，**不写进这张卡的目录**，所以"能写"不是可用条件（这句话说的是结果落在哪，**不是**"运行被限制在卡目录里"——后者今天仍未被验证，见 92 与第 100 条）。
     <br>覆盖：`tests/workspace.spec.ts`（六条：没选就是 `missing`，无论检查结果是什么；未确认 = `invalid` + `checked: false` + 完整路径 + 叶子名；不存在 = `invalid` + `checked: true`；文件 = `invalid`；确认 = `ready`；`writable: false` 仍是 `ready`）。
 87. **运行控件与字段读同一个值**：`runnable` 里 AND 了 `workspaceField.kind === 'ready'`，所以字段说"没有"时按钮不可能还活着；缺目录与目录失效各有一句独立说明，就写在那块头部下面（一行禁用而不解释的按钮是这个面板一再修的那类缺陷）。
     <br>覆盖：`tests/SkillCardResultPage.spec.tsx`（`missing` → 按钮禁用 + 文案；失效 → 按钮禁用 + 文案**含完整路径**；确认后 → 按钮可用且两条说明都不在）、`tests/SkillCardResultEdit.spec.tsx`（没有工作目录时「运行」禁用，而结果照常渲染）。
@@ -857,14 +860,44 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
     <br>覆盖：`tests/SkillCardResultEdit.spec.tsx`（无目录：结果照常渲染、编辑器照常打开、保存照常发出并落盘，只有「运行」禁用）、`tests/SkillCardSettings.spec.tsx`（整个配置页在"没有目录"的视图下照常可用：名称、skill、模型、保存、删除都不看这个字段）。**"卡片正面不画这个字段"是源码结构，没有 DOM 断言**：`SkillCard.tsx` 的正面只画名称、skill 与「配置」；`SkillCard.spec.tsx` 的视图夹具带着 `workspaceField` 只是为了满足类型，不构成断言（这一半的证据是源码，不是用例）。
 91. **两个新错误码逼三张映射表各自表态**：`workspace-missing` 与 `workspace-invalid` 进的是**封闭联合**，于是路由的 `STATUS_BY_CODE`、客户端的 `LOCALIZED_CODES`、卡片的失败文案表都是穷举的 `Record<码, …>`——漏一个编译不过。两个码故意不合并：一个的下一步是"去选一个目录"，另一个的下一步是"去看看那个目录怎么了"。
     <br>覆盖：`tests/skill-card-route.spec.ts`（400 与 409 各一条，错误体带码与可读消息）、`tests/SkillCardResultPage.spec.tsx`（两个码各自的文案与 `data-run-workspace-missing` / `data-run-workspace-invalid` 钩子）、`tests/SkillCardSettings.spec.tsx`（失效时字段就地写出那一句）。**"漏一个编译不过"是类型系统的事，没有运行时用例可以断言它**：三张表都写成 `Record<WorkbenchSkillCardErrorCode, …>`，多一个码就是一次类型错误（实现见详细设计 M1 的「结果 R」、M6 的 `STATUS_BY_CODE` 与 M8 的 `LOCALIZED_CODES`）。
-92. **诚实的缺口：工作目录还没有约束"写在哪"。**（**本组唯一一条负面标准**：它钉住的是今天**没有**的东西，所以读法与上面十二条相反，它不是回归、也不许被"补上"成一句漂亮话。）卡片记下这个目录，并据此**放行或拒绝**一次运行；但**运行仍然在父会话的目录里执行**。执行底座仍是 `ctx.subagents.startActivation`，它的 `cwd` 只改子代理的**有效工作目录**，**不改文件沙箱的根**；`dsh-workbench` 里没有任何一处读 `sandboxPolicy`，也没有任何一处用 `agents.create({ meta: { cwd } })` 起一次运行——那一步**没有实现**。所以它**不是沙箱隔离**：任何一句话都不该读成"写入被限制在所选目录里"，也不该读成"卡片在自己的目录里跑"。说得准确只有一句：**它只在自己有目录时才跑。**
-    <br>覆盖：**这一条没有、也不需要一条"证明它成立"的用例**，因为要证明的是一个缺口。今天能被断言的只有**门**那一半：`tests/skill-card-runner.spec.ts` 的四条拒绝都断言 `fake.activations` 为空，即"没有放行"；而**没有任何用例断言卡片的路径进入了启动请求**。反过来，同一个文件里唯一断言启动请求 `cwd` 的地方（`expect(spec?.request.cwd).toBe('/repo')`）读到的是**会话的工作目录**，fake 里卡片目录恰好也叫 `/repo`——这个巧合让缺口在现有用例里看不出来，也正是它的形状。完整的现状与收口路径见详细设计 M5 的[「工作目录：一道门，还不是一间房」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)。
+92. **诚实的边界：插件侧的房间已经造好，但它有没有真的锁上没有被验证。**（**本组唯一一条负面标准**，第十四版把它收窄过一次：它钉的仍然是"不许读成沙箱隔离"，只是"没实现"换成了"没验证"。）第十三版时，卡片记下目录并据此**放行或拒绝**一次运行，而运行仍在父会话的目录里执行——`startActivation` 的 `cwd` 只改子代理的**有效工作目录**，不改文件沙箱的根。**第十四版改了这件事的一半**：运行现在挂在一个根在卡片目录的 agent 上（父 agent，见 §14.9 第 93 条），所以子会话头里的 `cwd`、以及沙箱根的来源，都落到卡片目录。但**没有任何一条用例断言 `sandboxPolicy.resolve().workspaceRoot` 真的变成了卡片目录，也没有任何一条用例断言越界写入真的被拒**——那三条断言在一个**故意 skip** 的 spec 里（第 100 条）；而且**没有任何真实应用跑过它**（第 101 条）。所以它今天仍然**不是**沙箱隔离的证据：任何一句话都不该读成"写入已被限制在所选目录里"，也不该读成"卡片在自己的沙箱里跑"。说得准确只有两句：**它只在自己有目录时才跑；插件把这次运行挂在一个根在该目录的 agent 上。**
+    <br>覆盖：门那一半有断言（四条拒绝都断言 `fake.activations` 为空）；父 agent 那一半有 93–97 的四个用例；**房间那一半没有，也不该有"断言它不成立"的用例**——它是下一步的规格，路径见 §14.9 第 100 条。
 
 > **本组的已知限制（三条，写在这里不留给读者猜）。**
 >
-> 1. **目录不约束写入。** 见第 92 条：门是有的，房间没有。真正的收口需要一次基于 `agents.create({ meta: { cwd } })` 的运行，**未实现**。
+> 1. **目录约束写入这件事没有被验证。** 见第 92 条与 §14.9：插件侧的父 agent 已经实现（运行挂在一个根在卡片目录的 agent 上），但那之后沙箱是否真的拒绝越界写入**没有测试**（`tests/skill-card-workspace-sandbox.spec.ts` 是 skip 的 3 条规格），也**没有任何真实应用跑过它**（第 100、101 条）。
 > 2. **卡片能跑起来仍然依赖宿主提供 `subagents.startActivation`**（`0.2.1-alpha.2` / beta 通道；稳定通道的 `0.2.0-rc.2` 能加载、能编辑、不能运行）。这不是本功能的限制，而是既有前提，写在 `dsh-workbench/INSTALL.md` 第 0 节「前提」与 FR-5 里，本节只指过去、不重复。
 > 3. **Windows 上的桌面选择器要一个装得上、对得上的桌面构建。** 那条同源路由只有 Desktop 插件在 `win32` 上装（`installDesktopDirectoryPickerBridge()`），所以：非 Windows、或者根本没装桌面插件时，页面用应用自己的 `uiWorkspace`（普通浏览器就是这一路）；窗口成员在、但背后的路由不被宿主承认（桌面客户端与宿主版本对不上）时，选择器报"没有选择器"——按钮禁用并写一句说明，**不会**回头再去问第二个来源，也没有一个能打字的地方。两种来源都没有的组合，是同一个状态。
+
+### 14.9 运行被钉在卡片目录上（93–101）
+
+> **这一组接在第十三版那道门后面，但只有前六条是"实现了并被测试证明"的东西，99–101 不是。** 93–98 由 `tests/skill-card-runner.spec.ts` 里「the card agent that fences a run」那四个用例覆盖，跑在今天 `corepack yarn workspace dsh-workbench check`（**608 个测试 / 40 个 spec 文件 / 3 跳过**，exit 0）里。**99 是一条命名约束，100 与 101 是两条验证限制**——三条都不主张"已通过"，读法写在条目里，本节末尾再说一遍。
+
+93. **运行挂在一个根在卡片目录的 agent 上。** 卡片有目录时，插件为它建一个 agent（`agents.create({ sessionId, meta: { cwd: 目录 } })`），并把它作为这次运行的 **`parent`**；seam 本身一行没改——提示词投递、`{html}` 捕获、那一次重试、取消与 `agent/error` 归因照旧是它的。**为什么这样就能限定**：文件沙箱的 `workspaceRoot` 取自 `session.header.cwd`，而子代理这条缝**把父的会话头复制给子**，所以父根在哪个目录，子就落在哪个目录；`startActivation` 的 `cwd` 只写子代理的"有效工作目录"、**不改会话头**，所以靠传 `cwd` 到不了沙箱根（三条出处见 §16）。
+    <br>覆盖：`tests/skill-card-runner.spec.ts`（`createdAgents[0].session.header.cwd` 就是卡片目录，第二次运行的 `request.parent` 仍带着那个目录）。**只证明到"父的会话头里是那个目录"为止**：`sandboxPolicy.resolve().workspaceRoot` 是进程外的事实，本包没有一条用例断言它——见第 100 条。
+94. **一个卡片 agent 只建一次，之后复用。** 第二次运行不新建 agent。**复用是必需的，不是优化**：目录在创建那一刻就固定，只有留住那个 agent 才能继续维持根的位置；重新建一个就等于换了一次目录。
+    <br>覆盖：同文件（两次运行之后 `createdAgents` 长度仍是 1，且第二次运行的 `parent` 仍是那个根在卡片目录的 agent）。
+95. **存的那条路径变了就拆掉旧的、按新目录重建。** 已存的路径与当前路径不一致时，旧 agent 先 `dispose`，再按新目录建一个新的；**不能就地改**——根在创建时固定，留着旧的等于把运行围在用户没有选择的目录里。
+    <br>覆盖：同文件（目录从 `/repo` 改成 `/elsewhere` 之后：`disposedAgents` 长度 1、`createdAgents` 长度 2，新 agent 的根是 `/elsewhere`）。
+96. **`dispose()` 释放每一个卡片 agent。** 卡片 agent 故意活过一次运行，所以没有任何别的地方会释放它们；runner 的 `dispose()` 在等全部运行收尾之后，逐个拆掉。
+    <br>覆盖：**只实现、没有被断言**——`dispose()` 里那段 `Promise.allSettled(agents.map(…))` 是源码事实，而 `skill-card-runner.spec.ts` 的 `dispose` 用例只断言运行状态被清空，**没有一条用例断言 `disposedAgents` 在 `dispose()` 之后有值**。要补它，得在现有的 `signals every in-flight run on dispose` 里加一行断言；这一版没有加。
+97. **每次运行结算后归档那张卡的会话。** 建一个已发布的 agent 也建了一个会话，而侧边栏列的是会话，所以 `finish` 之后插件调一次归档，让 `workbench-card-*` 不进默认列表。**归档是记账，不是删除**：agent 仍可复用，会话仍可读。**归档失败只 `warn`**：它绝不能把一次已经捕获的结果变成一次失败（`archiveCardSession()` 自己吞掉异常，位置在 `finish` 之后）。
+    <br>覆盖：`tests/skill-card-runner.spec.ts`（一次结算之后 `archivedSessions` 恰好等于刚建那个 agent 的 id）。**"侧边栏里真的少了这一行"没有断言**：那是应用与宿主的行为，本包只证明调用了归档。**而且这次调用在真实宿主上能不能落地，见第 99 条。**
+98. **没写目录的卡片不建 agent，运行在它之前就被拒。** 没有工作目录时运行被拒（`workspace-missing`），**没有任何 activation，也没有任何 agent**。runner 里"没有目录就退回会话的 agent"那一步，是**用户到不了的状态**的兜底，不是一条行为；能断言的只有拒绝本身。
+    <br>覆盖：同文件（`workspace-missing`；`createdAgents` 与 `activations` 都为空）。
+99. **宿主表面的名字只能是宿主真正提供的那个：`workspaceRegistry.archiveSession`——而这条约束没有任何一层能检查。** 宿主对象是 `ctx` 的**宽 cast**（`ctx as unknown as WorkbenchSkillCardHost`），成员名写错照样编译、照样测试全绿，运行时读到的是 `undefined`；M7 早就写过同一件事的另一半：宽 cast 只活在编译期，运行时它就是一次属性访问，**未在 `inject` 里声明的服务会直接抛 `cannot get property … without inject`**。宿主侧真正提供归档的是 `workspaceRegistry`（`archiveSession(sessionId)`）；`ctx.workspaces` 是**客户端**服务名（`IWorkspaces`），`workspaceController.archiveSession(request)` 是另一条远程入口——名字挑错一个，编译与测试都发现不了。所以插件读的是 `workspaceRegistry.archiveSession`，并且 `workspaceRegistry` 已经写进插件的 `inject`（与 `agents`、`skills`、`subagents` 同一张表）。**这两条都不由测试保证**：fake 只要有一个同名成员就够，名字写错、`inject` 漏写，它照样全绿。能拿出的是**测量证据**——探针 case `[3]` 在真实宿主组合里调过 `ctx.get('workspaceRegistry')` 的 `archiveSession` 并断言 `archivedSessionIds` 接受了它；没有的是"插件在应用里这样调用过"，而那次运行从来没有发生（第 101 条）。
+    <br>覆盖：**没有用例能证明它，也不该有**：fake 提供的 `workspaceRegistry.archiveSession` 与声明同形，所以那条用例证明的是"插件调了归档"，不是"宿主有这个成员、也没有漏掉 `inject`"。
+100. **栅栏本身没有被验证：`tests/skill-card-workspace-sandbox.spec.ts` 是规格，不是一条通过的测试。** 那三条断言（沙箱根解析成卡片目录、目录内写得出去而目录外被拒、结算后归档）**故意 skip**：它们需要真实宿主、真实会话与真实文件写入，而本包的测试全部由假窄接口驱动。**不要为了让构建变绿删掉它，也不要把断言改成今天的代码所做的事**——它是下一步的规格；真的接上之后，去掉 `.skip`，别的不动。所以今天能说的只有一句：**插件把运行挂在一个根在卡片目录的 agent 上；那之后沙箱是否真的拒绝越界写入，没有人验过。**
+    <br>覆盖：**这一条没有、也不需要"证明它成立"的用例**，因为要证明的正是"没有被证明"：`check` 的输出是 `40 passed | 1 skipped`、`608 passed | 3 skipped`，被跳过的就是这一个文件（3 条）。
+101. **没有任何一次真实应用跑过它。** 这一组的每一条结论都来自单元测试或探针脚本（`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`，用例 `[1]` / `[1b]` / `[5]`），**从来没有在应用里点过一次**：没有一次真实的"选目录 → 运行 → 看写入落在哪"。因此本组的"成立"都只是**单元级成立**；探针能给出的是"机制被测量过"，给不了"产品里这样跑通了"。
+    <br>覆盖：**没有用例能覆盖"有没有人点过"**。要结束这一条，得跑一次真实应用并留下记录——这一版没有做。
+
+> **本组的两条限制（再说一遍，因为它们最容易被读成"已隔离"）。**
+>
+> 1. **栅栏本身没有测试。** `tests/skill-card-workspace-sandbox.spec.ts` 是**故意 skip 的 3 条**，它是规格、不是通过项（第 100 条）。
+> 2. **没有任何真实应用跑过它。** 全部证据是单元测试与一份探针脚本，没有一次点击记录（第 101 条）。
+>
+> 合起来只有一句话：**插件侧的父 agent 是实现了的；"这间房真的锁住了"没有被验证过。** 另外，第 99 条那件命名的事也不是限制的修辞：它今天没有任何一层能检查。
 
 ## 15. 待确认项
 
@@ -898,6 +931,10 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 | skill 目录按会话获取（cwd + preset 决定） | [ui-skill/src/client/index.ts](../deepseek-harness/packages/client/ui-skill/src/client/index.ts) |
 | 应用窗口的 Electron 安全开关均已启用 | [dsh-plugin-desktop/src/window-options.ts:32](../dsh-plugin-desktop/src/window-options.ts#L32) |
 | 卡片契约与列表槽的现状 | [dsh-workbench/src/client/contract.ts](../dsh-workbench/src/client/contract.ts) |
+| `CreateAgentOptions.meta.cwd` 就是会话头的来源（会话边界按绝对路径校验它） | [agent/src/index.ts:80](../deepseek-harness/packages/core/agent/src/index.ts#L80) |
+| 子代理这条缝把**父**会话头的 `cwd` 复制给子：`childSessionMeta` 读的是 `parent.session.header`，这就是"换个父就换个根"的机制 | [child-agent.ts:144](../deepseek-harness/packages/subagent/subagent/src/child-agent.ts#L144)、[manager.ts:912](../deepseek-harness/packages/subagent/subagent/src/manager.ts#L912) |
+| 文件沙箱的根取自 `session.header.cwd`；`startActivation` 的 `cwd` 只经 `workingDirectory.set` 写"有效工作目录"，改不到它 | [sandbox-policy/src/index.ts:168](../deepseek-harness/packages/sandbox/sandbox-policy/src/index.ts#L168)、[manager.ts:890](../deepseek-harness/packages/subagent/subagent/src/manager.ts#L890) |
+| Host 侧能归档会话的是 `workspaceRegistry.archiveSession(sessionId)` 与 `workspaceController.archiveSession(request)`；`workspaces` 是**客户端**服务名（`IWorkspaces`）——第 99 条那件命名的事，出处在这里（插件因此读 `workspaceRegistry`，并把它写进 `inject`） | [workspace/src/index.ts:363](../deepseek-harness/packages/workspace/workspace/src/index.ts#L363)、[workspace-controller/src/index.ts:154](../deepseek-harness/packages/api/workspace-controller/src/index.ts#L154)、[workspace-controller/src/client/service.ts:126](../deepseek-harness/packages/api/workspace-controller/src/client/service.ts#L126) |
 
 ## 17. 模板编辑器与配置页
 
@@ -1307,7 +1344,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 
 ## 附录 A：验收标准映射
 
-§14 的 **92 条**逐条落在本方案的哪一节、以及由哪个包级测试覆盖。**表按组分成八块**：1–16 属于既有卡片能力，17–34 属于 §12 的按钮触发执行，35–48 属于 §17 的编辑器与配置页，49–56 属于 §18 的结果页与微调，57–60 属于第九版那批打磨（FR-37 / FR-41 / FR-42 / FR-43 / FR-44），61–70 属于第十版的手工编辑结果（§19、FR-45），71–79 属于第十二版的每卡模型选择，80–92 属于第十三版的每卡工作目录（§14.8）；**八块都已实现并验收**（第 52 条单独撤回，见 §14.4；第 92 条是负面标准，它钉住的是一个**未实现**的缺口，见第 92 行）。
+§14 的 **101 条**逐条落在本方案的哪一节、以及由哪个包级测试覆盖。**表按组分成九块**：1–16 属于既有卡片能力，17–34 属于 §12 的按钮触发执行，35–48 属于 §17 的编辑器与配置页，49–56 属于 §18 的结果页与微调，57–60 属于第九版那批打磨（FR-37 / FR-41 / FR-42 / FR-43 / FR-44），61–70 属于第十版的手工编辑结果（§19、FR-45），71–79 属于第十二版的每卡模型选择，80–92 属于第十三版的每卡工作目录（§14.8），93–101 属于第十四版把运行钉在卡片目录上（§14.9）；**前八块都已实现并验收，第九块只有 93–98 是，99–101 不是"通过"条目**（第 52 条单独撤回，见 §14.4；第 92 条是负面标准，它钉住的是一个**未被验证**的边界，见第 92 行）。
 
 ### A.1 已实现并验收（1–16）✅
 
@@ -1447,7 +1484,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 
 ### A.8 已实现并验收（80–92）✅
 
-> 这一块是「每张卡自己的工作目录」的映射。照旧：**"包级测试"一栏写的是覆盖它的 spec**；标「不可测」的地方说明视觉结果由 CSS 与 DOM 结构决定，测试断言的是 CSS 所依据的状态。**第 92 行与其余各行的方向相反**：它钉住的是一个**还没有实现**的缺口，那一行的"包级测试"写的是**能证明门、不能证明房间**。
+> 这一块是「每张卡自己的工作目录」的映射。照旧：**"包级测试"一栏写的是覆盖它的 spec**；标「不可测」的地方说明视觉结果由 CSS 与 DOM 结构决定，测试断言的是 CSS 所依据的状态。**第 92 行与其余各行的方向相反**：它钉住的是一个**还没有被验证**的边界（第十四版实现的是进程外那一半），那一行的"包级测试"写的是**能证明门、不能证明房间**。
 
 | # | 验收标准（简称） | 落在本方案 | 包级测试 |
 | --- | --- | --- | --- |
@@ -1463,6 +1500,24 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 | 89 | **没有迁移**：已有卡片没有目录、在配上之前不能运行；没有默认值也没有一次性写入 | §14.8、详细设计 M4 / M10 | `tests/skill-card-store.spec.ts`（没有该字段就不会被补上）、`tests/workspace.spec.ts`（`undefined` 恒为 missing，即使 stat 说可用）、`tests/SkillCardSettings.spec.tsx`（缺省即「未选择」且按钮可用） |
 | 90 | **除运行以外全都照常**：打开、改名 / skill / 模型 / 模板、预览、手工编辑结果、读已存结果；卡片正面不画该字段 | §14.8、详细设计 M8 / M10 / M9 | `tests/SkillCardResultEdit.spec.tsx`（无目录时结果照常渲染、编辑器照常打开、保存照常落盘）、`tests/SkillCardSettings.spec.tsx`（配置页在没有目录的视图下照常可用）。**"卡片正面不画该字段"是源码结构，没有 DOM 断言** |
 | 91 | 两个新码进**封闭联合**，逼路由状态表、客户端本地化表与卡片文案表各自表态；两码不合并 | §14.8、详细设计 M1（结果 R）/ M6 / M8 | `tests/skill-card-route.spec.ts`（400 与 409 各一条）、`tests/SkillCardResultPage.spec.tsx`（两个码的文案与 `data-run-workspace-*`）、`tests/SkillCardSettings.spec.tsx`（失效时就地文案）。**"漏一个编译不过"由 `Record<码, …>` 保证，没有运行时用例** |
-| 92 | **诚实的缺口：目录不约束写入**——运行仍在父会话目录里执行；`startActivation` 的 `cwd` 改不到沙箱根；收口需要 `agents.create({ meta: { cwd } })`，**未实现** | §14.8、详细设计 M5 的「工作目录：一道门，还不是一间房」 | **没有一条用例能证明它成立**（它钉的是缺口）。能证明的只有门：`tests/skill-card-runner.spec.ts` 四条拒绝都断言 `fake.activations` 为空；**没有任何用例断言卡片的路径进入启动请求**，而唯一断言 `request.cwd` 的那条读到的是会话的目录（fake 里卡片目录恰好同名） |
+| 92 | **诚实的边界：房间造好了，锁没验过**——`startActivation` 的 `cwd` 改不到沙箱根；第十四版改为把运行挂在一个根在卡片目录的父 agent 上，但沙箱是否真的拒绝越界写入**没有测试**（skip 的规格）、也没有真实应用跑过 | §14.8、详细设计 M5 的「工作目录：一道门，还不是一间房」与「父 agent：把根钉在卡片目录上」 | **没有一条用例能证明它成立**（它钉的是边界）。能证明的只有门（`tests/skill-card-runner.spec.ts` 四条拒绝都断言 `fake.activations` 为空）与父 agent（同文件「the card agent that fences a run」四个用例），房间那一半只有 `tests/skill-card-workspace-sandbox.spec.ts` 那 3 条 **skip** 的规格 |
+
+### A.9 运行被钉在卡片目录上（93–101）
+
+> 这一块是第十四版的映射。照旧：**"包级测试"一栏写的是覆盖它的 spec**。**99–101 三行与其余各行方向相反**：99 是一条今天没有已满足证据的命名约束，100 与 101 是两条验证限制——三行都不主张任何东西已通过。
+
+| # | 验收标准（简称） | 落在本方案 | 包级测试 |
+| --- | --- | --- | --- |
+| 93 | 运行挂在一个根在卡片目录的 agent 上（父 agent），子会话头因此落在卡片目录；seam 未改 | §14.9、详细设计 M5（父 agent） | `tests/skill-card-runner.spec.ts`（`createdAgents[0].session.header.cwd`；第二次运行的 `request.parent`）。**沙箱根是进程外事实，未断言**（见 100） |
+| 94 | 一个卡片 agent 建一次、之后复用；根在创建时固定，所以复用是必需 | §14.9、详细设计 M5（父 agent） | `tests/skill-card-runner.spec.ts`（两次运行后 `createdAgents` 仍为 1） |
+| 95 | 存的路径变了 → 旧 agent `dispose`、按新目录重建（不能就地改） | §14.9、详细设计 M5（父 agent） | `tests/skill-card-runner.spec.ts`（`/repo` → `/elsewhere`：`disposedAgents` 1、`createdAgents` 2、新根 `/elsewhere`） |
+| 96 | `dispose()` 释放每一个卡片 agent（它们活过一次运行，没有别处会释放） | §14.9、详细设计 M5（父 agent）+ M7 释放顺序 | **只实现、未断言**：`dispose()` 的 `Promise.allSettled(agents.map(…))` 是源码事实，现有 `dispose` 用例只断言运行状态被清空 |
+| 97 | 每次结算后归档那张卡的会话；归档是记账不是删除；失败只 `warn`，不影响结果 | §14.9、详细设计 M5（归档） | `tests/skill-card-runner.spec.ts`（`archivedSessions` 等于刚建 agent 的 id）。**"侧边栏真的少了这一行"是应用行为，没有断言** |
+| 98 | 没写目录的卡片不建 agent，运行在它之前被拒（`workspace-missing`） | §14.9、详细设计 M5（父 agent） | `tests/skill-card-runner.spec.ts`（`workspace-missing`；`createdAgents` 与 `activations` 都为空） |
+| 99 | **命名约束**：宿主表面只能是 `workspaceRegistry.archiveSession`，并且必须进 `inject`；宽 cast 让名字错了也全绿，测试证明不了它 | §14.9、详细设计 M5（命名约束）+ M7（归档服务要显式声明） | **没有用例能证明它**：fake 只要同名就够，名字写错或漏 `inject` 照样全绿；证据行见 §16 |
+| 100 | **栅栏本身没有被验证**：`tests/skill-card-workspace-sandbox.spec.ts` 是 3 条故意 skip 的规格，不是通过项 | §14.9、详细设计 M5（父 agent）与 M13 | **没有也不该有"证明它成立"的用例**；`check` 的输出是 `Test Files 40 passed, 1 skipped` 与 `Tests 608 passed, 3 skipped` |
+| 101 | **没有任何真实应用跑过它**：全部证据是单元测试与探针脚本 | §14.9、详细设计 M5 与 M13 | **没有用例能覆盖"有没有人点过"**；探针是 `dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`（用例 `[1]` / `[1b]` / `[5]`） |
+
+父 agent 那一侧另有一组节点级事实写在源码与设计里、但没有独立用例：`sessionId` 每次创建都不同（同一个 id 不能发布两次）、卡片 agent 不带 `parentAgent`（它是根 agent，不是会话的子代理）、归档只吞异常不改运行结果。工作目录字段那一侧（80–92）的映射见 A.8；两条限制的完整说法见 §14.9 末尾与详细设计 M5 的「父 agent：把根钉在卡片目录上」。
 
 工作目录的契约、存储、路由与传输四侧还有一组节点级用例：`tests/skill-card-store.spec.ts`（合并语义、清空语义、非绝对路径的拒绝）、`tests/skill-card-route.spec.ts`（补丁里的 `workspace` 与目录检查路由的围栏 / 方法 / 400 / 200 / 探测器抛错，见「workbench skill card directory route」那一组）、`tests/workspace-picker.spec.ts`（选择器的七条）、`tests/workspace.spec.ts`（叶子名五条与三态六条，共十一条）。**这一版没有新的渲染路径**：结果仍由存盘模板与 `{html}` 拼出来，卡片正面也不多画任何东西——新字段只出现在配置页。
