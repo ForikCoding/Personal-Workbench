@@ -15,7 +15,7 @@
 |---|---|
 | 卡片记下目录 | ✅ |
 | 没有目录 / 目录不存在时拒绝运行 | ✅（启动前一次 `stat()`，`workspace-missing` / `workspace-invalid`） |
-| 运行挂在**一个根在卡片目录的 agent** 上（作为 `parent`） | ✅ 已落地：`src/skill-card-runner.ts` 的 `cardAgents` / `cardParent` |
+| 运行挂在**一个根在卡片目录的 agent** 上（作为 `parent`） | ✅ 已落地：`src/skill-card-runner.ts` 的 `cardAgents` / `cardAgent`（第十五版起这段也承载每卡权限模式） |
 | 每卡一个 agent、建一次后复用、存的路径变了拆旧重建、`dispose()` 释放 | ✅ 已落地，四个用例覆盖 |
 | 结算后归档卡片会话，侧边栏保持干净 | ⚠️ 调用走 `workspaceRegistry.archiveSession`，`workspaceRegistry` 也在 `inject` 里（探针 case `[3]` 量过这个成员能被接受）；**但没有一次真实运行证明侧边栏真的少了那一行** |
 | 子会话头（以及沙箱根的来源）是卡片目录 | ❓ 机制成立（头从父复制），**没有断言、没有真机** |
@@ -83,7 +83,7 @@ cardSeamChildHeaderIsCardDir = true
 
 - ✅ 按 `cardId` 的缓存 `cardAgents: Map<cardId, { path, handle }>`
 - ✅ 取用前比对路径：变了就 `dispose` 旧的、按新目录重建
-- ✅ `attempt` 里 `parent` 换成 `cardParent(run.cardId, …)`
+- ✅ `attempt` 里 `parent` 换成 `cardAgent(run.cardId, …)`（第十五版起这一步在 `start()` 里，因为它同时把卡片记录的权限模式写在该 agent 上）
 - ✅ 有效工作目录跟着父走：`resolvedCwd = parent.session?.header?.cwd ?? cwd`（没有卡片 agent 时退回会话目录）
 - ✅ `dispose()` 清掉全部 handle（`Promise.allSettled`）
 - ⚠️ **卡片被删除时没有钩子**：`cardAgents` 里的 agent 会活到插件 `dispose()` 为止，而删卡片不会经过 runner。原方案写的"卡片删除时 dispose"**没有做**。

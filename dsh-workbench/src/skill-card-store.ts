@@ -19,10 +19,12 @@ import type {
 } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_NAME_MAX_LENGTH,
+  WORKBENCH_SANDBOX_MODES,
   WORKBENCH_WORKSPACE_PATH_MAX_LENGTH,
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
+  isWorkbenchSandboxMode,
   isWorkbenchSkillName,
   parseTemplateKey,
   templateKey,
@@ -180,6 +182,7 @@ export class WorkbenchSkillCardStore {
       const name = record?.name
       const model = record?.model
       const workspace = record?.workspace
+      const permission = record?.permission
       const bySkill = templatesByCard.get(cardId)
       const template = selected === undefined ? undefined : bySkill?.get(selected)
       cards.push({
@@ -188,6 +191,7 @@ export class WorkbenchSkillCardStore {
         ...selected === undefined ? {} : { skill: selected },
         ...model === undefined ? {} : { model },
         ...workspace === undefined ? {} : { workspace },
+        ...permission === undefined ? {} : { permission },
         templateSkills: bySkill === undefined ? [] : [...bySkill.keys()].sort(),
         ...template === undefined ? {} : { template },
       })
@@ -238,10 +242,10 @@ export class WorkbenchSkillCardStore {
       await this.run('put', () => this.options.template.put(key, { html: template.html }))
     }
 
-    // The name, the selection, the route, and the directory share one record, so a patch
-    // touching any of them has to merge against what is stored. Writing the record
-    // wholesale would drop the others, and clearing the selection would take the name —
-    // and now the workspace — down with it.
+    // The name, the selection, the route, the directory, and the permission mode share one
+    // record, so a patch touching any of them has to merge against what is stored. Writing
+    // the record wholesale would drop the others, and clearing the selection would take the
+    // name — and now the workspace and the mode — down with it.
     const current = this.options.card.get(patch.cardId)
     const patchedName = patch.name
     const name = patchedName === undefined
@@ -259,7 +263,15 @@ export class WorkbenchSkillCardStore {
     const workspace = patchedWorkspace === undefined
       ? current?.workspace
       : patchedWorkspace === null ? undefined : patchedWorkspace
-    if (name === undefined && skill === undefined && model === undefined && workspace === undefined) {
+    const patchedPermission = patch.permission
+    const permission = patchedPermission === undefined
+      ? current?.permission
+      : patchedPermission === null ? undefined : patchedPermission
+    if (name === undefined
+      && skill === undefined
+      && model === undefined
+      && workspace === undefined
+      && permission === undefined) {
       await this.run('delete', () => this.options.card.delete(patch.cardId))
     } else {
       await this.run('put', () => this.options.card.put(patch.cardId, {
@@ -267,6 +279,7 @@ export class WorkbenchSkillCardStore {
         ...skill === undefined ? {} : { skill },
         ...model === undefined ? {} : { model },
         ...workspace === undefined ? {} : { workspace },
+        ...permission === undefined ? {} : { permission },
       }))
     }
 
@@ -373,13 +386,20 @@ export class WorkbenchSkillCardStore {
     if (workspace !== undefined && workspace !== null && !isWorkbenchCardWorkspace(workspace)) {
       return `workspace must name one absolute directory path within ${String(WORKBENCH_WORKSPACE_PATH_MAX_LENGTH)} characters`
     }
+    const permission = patch.permission
+    // Refused rather than stored as given: an unknown mode would reach the sandbox as a
+    // mode nothing enforces, and the card would then claim a permission it never had.
+    if (permission !== undefined && permission !== null && !isWorkbenchSandboxMode(permission)) {
+      return `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(', ')}`
+    }
     if (patch.remove === true
       && (patch.name !== undefined
         || patch.skill !== undefined
         || patch.model !== undefined
         || patch.workspace !== undefined
+        || patch.permission !== undefined
         || patch.template !== undefined)) {
-      return 'a removal cannot carry a name, a skill, a model, a workspace, or a template'
+      return 'a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template'
     }
     const template = patch.template
     if (template === undefined) return undefined

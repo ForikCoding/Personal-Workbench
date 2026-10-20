@@ -19,6 +19,7 @@ import type {
   WorkbenchResultRecord,
   WorkbenchTemplateRecord,
 } from './skill-card-contract.ts'
+import { WORKBENCH_SANDBOX_MODES } from './skill-card-contract.ts'
 
 /** Table holding one skill selection per card. */
 export const WORKBENCH_CARD_TABLE = 'card'
@@ -60,12 +61,19 @@ export const workbenchCardWorkspaceSchema = z.object({
  *
  * `workspace` is declared in the same change that writes it, for that same reason: a card
  * that lost its directory would silently stop being runnable after a restart.
+ *
+ * `permission` follows the same rule. Losing it is the worst of the four: the card would
+ * come back under the default mode, so a card the user deliberately narrowed would quietly
+ * run with wider write access than the page showed.
  */
 export const workbenchCardConfigSchema = z.object({
   skill: z.string().optional(),
   name: z.string().optional(),
   model: workbenchCardModelSchema.optional(),
   workspace: workbenchCardWorkspaceSchema.optional(),
+  // The enum rather than a plain string: a stored mode this build does not know must fail
+  // loudly at load (backup-and-skip) instead of being handed to the sandbox later.
+  permission: z.enum(WORKBENCH_SANDBOX_MODES).optional(),
 })
 
 /** Stored schema for one template. */

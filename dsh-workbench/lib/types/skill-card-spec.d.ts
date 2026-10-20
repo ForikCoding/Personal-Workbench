@@ -48,6 +48,10 @@ export declare const workbenchCardWorkspaceSchema: z.ZodObject<{
  *
  * `workspace` is declared in the same change that writes it, for that same reason: a card
  * that lost its directory would silently stop being runnable after a restart.
+ *
+ * `permission` follows the same rule. Losing it is the worst of the four: the card would
+ * come back under the default mode, so a card the user deliberately narrowed would quietly
+ * run with wider write access than the page showed.
  */
 export declare const workbenchCardConfigSchema: z.ZodObject<{
     skill: z.ZodOptional<z.ZodString>;
@@ -59,6 +63,11 @@ export declare const workbenchCardConfigSchema: z.ZodObject<{
     workspace: z.ZodOptional<z.ZodObject<{
         path: z.ZodString;
     }, z.core.$strip>>;
+    permission: z.ZodOptional<z.ZodEnum<{
+        "read-only": "read-only";
+        "workspace-write": "workspace-write";
+        "danger-full-access": "danger-full-access";
+    }>>;
 }, z.core.$strip>;
 /** Stored schema for one template. */
 export declare const workbenchTemplateSchema: z.ZodObject<{

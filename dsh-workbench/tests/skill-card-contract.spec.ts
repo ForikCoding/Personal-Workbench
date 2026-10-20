@@ -3,6 +3,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   WORKBENCH_OUTPUT_SCHEMA,
+  WORKBENCH_DEFAULT_SANDBOX_MODE,
+  WORKBENCH_SANDBOX_MODES,
+  effectiveWorkbenchSandboxMode,
+  isWorkbenchSandboxMode,
   WORKBENCH_REGION_BEGIN,
   WORKBENCH_REGION_END,
   WORKBENCH_RESULT_MAX_BYTES,
@@ -89,5 +93,19 @@ describe('skill card contract', () => {
     // list: the only thing that can be validated about a result is that it is HTML.
     expect(WORKBENCH_OUTPUT_SCHEMA.properties.html).toEqual({ type: 'string' })
     expect(WORKBENCH_OUTPUT_SCHEMA.required).toEqual(['html'])
+  })
+
+  it('resolves an absent permission mode to the default and accepts only the known modes', () => {
+    // Criterion 103. Unset is not "inherit": it is one concrete mode, decided here so the
+    // page, the store and the runner cannot each default differently.
+    expect(effectiveWorkbenchSandboxMode(undefined)).toBe('workspace-write')
+    expect(WORKBENCH_DEFAULT_SANDBOX_MODE).toBe('workspace-write')
+    for (const mode of WORKBENCH_SANDBOX_MODES) {
+      expect(effectiveWorkbenchSandboxMode(mode)).toBe(mode)
+      expect(isWorkbenchSandboxMode(mode)).toBe(true)
+    }
+    for (const value of ['full-control', '', 'READ-ONLY', undefined, 3, { mode: 'read-only' }]) {
+      expect(isWorkbenchSandboxMode(value)).toBe(false)
+    }
   })
 })

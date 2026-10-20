@@ -315,7 +315,13 @@ window.__ModuleLoader__.load({
 			skillCardViolationActionKeyRepeated: "这个动作键被声明了两次",
 			skillCardViolationActionTarget: "动作目标必须写成 card \"名称\" 或 skill \"名称\"",
 			skillCardViolationActionInsideRegion: "动作声明不能写在区间内——区间每次运行都会被重写",
-			skillCardPermission: "运行时使用当前会话的完整工具权限",
+			skillCardPermissionLabel: "权限模式",
+			skillCardPermissionReadOnly: "仅可查看",
+			skillCardPermissionWorkspaceWrite: "工作区内修改",
+			skillCardPermissionFullAccess: "完全权限",
+			skillCardPermissionWarning: "完全权限：工作目录不再限制写入，这个 skill 可以修改工作目录以外的文件。",
+			skillCardRunsWithPermission: "运行时权限：{mode}",
+			skillCardProblemPermissionUnavailable: "这张卡要求的权限模式无法应用，运行已拒绝",
 			skillCardBack: "返回",
 			skillCardCardName: "卡片名称",
 			skillCardModel: "模型",
@@ -473,7 +479,13 @@ window.__ModuleLoader__.load({
 			skillCardViolationActionKeyRepeated: "that action key is declared twice",
 			skillCardViolationActionTarget: "an action target must read card \"name\" or skill \"name\"",
 			skillCardViolationActionInsideRegion: "declare actions outside the region: the region is rewritten on every run",
-			skillCardPermission: "Runs with the current session’s full tool permissions",
+			skillCardPermissionLabel: "Permission",
+			skillCardPermissionReadOnly: "Read Only",
+			skillCardPermissionWorkspaceWrite: "Workspace Write",
+			skillCardPermissionFullAccess: "Full access",
+			skillCardPermissionWarning: "Full access: the workspace no longer limits writes, so this skill can change files outside it.",
+			skillCardRunsWithPermission: "Runs with {mode} permission",
+			skillCardProblemPermissionUnavailable: "This card’s permission mode could not be applied, so the run was refused",
 			skillCardBack: "Back",
 			skillCardCardName: "Card name",
 			skillCardModel: "Model",
@@ -683,6 +695,38 @@ window.__ModuleLoader__.load({
 			if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 			const path = Reflect.get(value, "path");
 			return typeof path === "string" && isWorkbenchWorkspacePath(path);
+		}
+		/**
+		* Every permission mode a card may run under.
+		*
+		* The upstream sandbox vocabulary, repeated here because this module carries no runtime
+		* dependency. A mode added upstream that this list does not know is refused at the schema
+		* and at the route rather than stored and later ignored.
+		*/
+		var WORKBENCH_SANDBOX_MODES = [
+			"read-only",
+			"workspace-write",
+			"danger-full-access"
+		];
+		/**
+		* Whether a value is a mode a card may store.
+		* @param value - candidate value, read from storage or from a request body.
+		* @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
+		*/
+		function isWorkbenchSandboxMode(value) {
+			return typeof value === "string" && WORKBENCH_SANDBOX_MODES.includes(value);
+		}
+		/**
+		* Resolve the mode one run actually uses.
+		*
+		* This is the single place unset becomes a mode. The configuration page displays it, the
+		* runner applies it and the card-agent cache keys on it, so all three read the same answer
+		* instead of each defaulting differently.
+		* @param stored - the mode the card stores, when it stores one.
+		* @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
+		*/
+		function effectiveWorkbenchSandboxMode(stored) {
+			return stored ?? "workspace-write";
 		}
 		//#endregion
 		//#region src/client/skill-card/api.ts
@@ -1062,6 +1106,8 @@ window.__ModuleLoader__.load({
 				if (model !== void 0 && !isWorkbenchCardModel(model)) return void 0;
 				const workspace = entry.workspace;
 				if (workspace !== void 0 && !isWorkbenchCardWorkspace(workspace)) return void 0;
+				const permission = entry.permission;
+				if (permission !== void 0 && !isWorkbenchSandboxMode(permission)) return void 0;
 				if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some((name) => typeof name !== "string")) return;
 				if (entry.template !== void 0 && typeof entry.template !== "string") return void 0;
 				cards.push({
@@ -1070,6 +1116,7 @@ window.__ModuleLoader__.load({
 					...entry.skill === void 0 ? {} : { skill: entry.skill },
 					...model === void 0 ? {} : { model },
 					...workspace === void 0 ? {} : { workspace: { path: workspace.path } },
+					...permission === void 0 ? {} : { permission },
 					templateSkills: entry.templateSkills,
 					...entry.template === void 0 ? {} : { template: entry.template }
 				});
@@ -2902,6 +2949,19 @@ window.__ModuleLoader__.load({
 				revision,
 				workspacePicker
 			]);
+			const choosePermission = (0, react.useCallback)((mode) => {
+				if (revision === void 0) return;
+				api.write({
+					baseRevision: revision,
+					cardId,
+					permission: mode
+				}).then(applyWrite);
+			}, [
+				api,
+				applyWrite,
+				cardId,
+				revision
+			]);
 			const saveTemplate = (0, react.useCallback)((template, name) => {
 				const skill = card?.skill;
 				if (revision === void 0 || skill === void 0) return;
@@ -3175,6 +3235,7 @@ window.__ModuleLoader__.load({
 				chooseSkill,
 				chooseModel,
 				chooseWorkspace,
+				choosePermission,
 				saveTemplate,
 				rename,
 				remove,
@@ -3191,6 +3252,7 @@ window.__ModuleLoader__.load({
 				chooseSkill,
 				chooseModel,
 				chooseWorkspace,
+				choosePermission,
 				saveTemplate,
 				rename,
 				remove,
@@ -3226,6 +3288,7 @@ window.__ModuleLoader__.load({
 					runnable: runUnavailable === void 0 && sessionId !== void 0 && card?.skill !== void 0 && card.template !== void 0 && modelField.kind !== "unavailable" && workspaceField.kind === "ready",
 					modelField,
 					workspaceField,
+					permission: effectiveWorkbenchSandboxMode(card?.permission),
 					canChooseWorkspace,
 					catalog,
 					catalogStatus,
@@ -3241,6 +3304,7 @@ window.__ModuleLoader__.load({
 					card?.template,
 					modelField,
 					workspaceField,
+					card?.permission,
 					canChooseWorkspace,
 					result,
 					catalog,
@@ -3366,7 +3430,8 @@ window.__ModuleLoader__.load({
 			"run-in-progress": true,
 			"run-unavailable": true,
 			"workspace-missing": true,
-			"workspace-invalid": true
+			"workspace-invalid": true,
+			"permission-unavailable": true
 		};
 		/**
 		* Read one refused-start code as a localizable failure code.
@@ -3623,6 +3688,7 @@ window.__ModuleLoader__.load({
 			"run-unavailable": "skillCardProblemRunUnavailable",
 			"workspace-missing": "skillCardProblemWorkspaceMissing",
 			"workspace-invalid": "skillCardProblemWorkspaceInvalid",
+			"permission-unavailable": "skillCardProblemPermissionUnavailable",
 			"too-large": "skillCardProblemTooLarge",
 			"unavailable": "skillCardProblemUnavailable",
 			"unauthorized": "skillCardProblemGeneric",
@@ -4017,6 +4083,27 @@ window.__ModuleLoader__.load({
 					})
 				})
 			});
+		}
+		//#endregion
+		//#region src/client/skill-card/permission.ts
+		/**
+		* Locale key for each mode's label.
+		*
+		* A record rather than a lookup with a fallback: a mode added to the contract fails
+		* compilation here until both dictionaries have copy for it.
+		*/
+		var PERMISSION_LABEL_KEYS = {
+			"read-only": "skillCardPermissionReadOnly",
+			"workspace-write": "skillCardPermissionWorkspaceWrite",
+			"danger-full-access": "skillCardPermissionFullAccess"
+		};
+		/**
+		* Read the locale key naming one permission mode.
+		* @param mode - the mode to name.
+		* @returns the dictionary key holding its label.
+		*/
+		function permissionLabelKey(mode) {
+			return PERMISSION_LABEL_KEYS[mode];
 		}
 		/**
 		* Count the line a character offset falls on.
@@ -4730,7 +4817,7 @@ window.__ModuleLoader__.load({
 		* @returns the editor element.
 		*/
 		function SkillCardSettings(props) {
-			const { view, t, onChoose, onChooseModel, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props;
+			const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props;
 			const [draft, setDraft] = (0, react.useState)(view.template ?? "");
 			const [name, setName] = (0, react.useState)(view.name ?? "");
 			const [builderOpen, setBuilderOpen] = (0, react.useState)(false);
@@ -4740,6 +4827,7 @@ window.__ModuleLoader__.load({
 			const nameId = `${base}-name`;
 			const skillId = `${base}-skill`;
 			const modelId = `${base}-model`;
+			const permissionId = `${base}-permission`;
 			const templateId = `${base}-template`;
 			const previewId = `${base}-preview`;
 			const analysis = (0, react.useMemo)(() => analyzeTemplate(draft), [draft]);
@@ -5015,6 +5103,36 @@ window.__ModuleLoader__.load({
 											t,
 											onChooseWorkspace
 										})
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: skill_card_module_default.field,
+										children: [
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+												className: skill_card_module_default.fieldLabel,
+												htmlFor: permissionId,
+												children: t("skillCardPermissionLabel")
+											}),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+												id: permissionId,
+												className: skill_card_module_default.select,
+												value: view.permission,
+												"data-permission-select": "",
+												onChange: (event) => {
+													const chosen = event.target.value;
+													if (!isWorkbenchSandboxMode(chosen)) return;
+													onChoosePermission(chosen);
+												},
+												children: WORKBENCH_SANDBOX_MODES.map((mode) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+													value: mode,
+													children: t(permissionLabelKey(mode))
+												}, mode))
+											}),
+											view.permission === "danger-full-access" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+												className: skill_card_module_default.fieldNote,
+												"data-permission-warning": "",
+												children: t("skillCardPermissionWarning")
+											}) : null
+										]
 									})
 								]
 							}),
@@ -5913,7 +6031,8 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: skill_card_module_default.permission,
-						children: t("skillCardPermission")
+						"data-run-permission": view.permission,
+						children: t("skillCardRunsWithPermission", { mode: t(permissionLabelKey(view.permission)) })
 					})
 				]
 			});
@@ -5957,6 +6076,7 @@ window.__ModuleLoader__.load({
 					t,
 					onChoose: actions.chooseSkill,
 					onChooseModel: actions.chooseModel,
+					onChoosePermission: actions.choosePermission,
 					onChooseWorkspace: actions.chooseWorkspace,
 					onSave: actions.saveTemplate,
 					onRename: actions.rename,

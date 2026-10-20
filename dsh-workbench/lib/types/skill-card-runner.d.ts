@@ -8,7 +8,7 @@
  * bare run skips the store entirely, because its whole result is whether it worked.
  * @module dsh-workbench/skill-card-runner
  */
-import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
+import type { WorkbenchCardConfigView, WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts';
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts';
 /** Outcome of reading one session's skill catalog. */
@@ -50,9 +50,27 @@ export interface WorkbenchCardSelection {
      * somewhere the user never chose, and every result would be about a different folder.
      */
     readonly workspace?: WorkbenchCardWorkspace;
+    /**
+     * Sandbox mode the card's runs use; absent means the default mode applies.
+     *
+     * Read from storage for the same reason the route is: a permission is part of what the
+     * card is, so a client cannot start a run under a mode the card does not name.
+     */
+    readonly permission?: WorkbenchSandboxMode;
 }
-/** Everything the runner depends on. */
-export interface WorkbenchSkillCardRunnerOptions {
+/**
+ * Project one stored card onto the selection a run reads.
+ *
+ * One function rather than an inline object built at composition, because every field a run
+ * needs from the card record passes through here: a field the record holds and this
+ * projection forgets is one missing line, not something a reader has to notice inside a
+ * route assembly callback. Omitting `permission` here would leave every card on the default
+ * mode while the page still showed the stored one.
+ * @param card - the card as storage returns it, or undefined when none is stored.
+ * @returns the selection; an absent field stays absent rather than becoming `undefined`.
+ */
+export declare function cardSelection(card: WorkbenchCardConfigView | undefined): WorkbenchCardSelection;
+/** Everything the runner depends on. */ export interface WorkbenchSkillCardRunnerOptions {
     /** Host services, narrowed. */
     readonly host: WorkbenchSkillCardHost;
     /**
@@ -115,9 +133,11 @@ export declare class WorkbenchSkillCardRunner {
     /**
      * One rooted agent per card, created on the card's first run and reused after that.
      *
-     * Reuse is not an optimisation: the directory is fixed when the agent is created, so a
-     * second run of the same card can only keep the fence by keeping the agent. The path is
-     * stored beside the handle so a changed workspace is detected and rebuilt.
+     * Reuse is not an optimisation: the directory and the permission mode are fixed when the
+     * agent is created, so a second run of the same card can only keep both by keeping the
+     * agent. The path and the mode are stored beside the handle so a change to either is
+     * detected and rebuilt — a mode is a session event, and this runner never mutates a live
+     * agent's mode.
      */
     private readonly cardAgents;
     /** Distinguishes successive card agents; a session id cannot be published twice. */
@@ -153,6 +173,16 @@ export declare class WorkbenchSkillCardRunner {
      * @returns the started run's state, or why it was refused.
      */
     start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome>;
+    /**
+     * Whether one more start would exceed the card's or the deployment's limit.
+     *
+     * Asked twice per start: once before the card's agent is resolved, so a refused start
+     * cannot rebuild an agent a run still hangs from, and once immediately before the run is
+     * recorded, so the reservation itself stays synchronous.
+     * @param cardId - the card the run belongs to.
+     * @returns whether another run is already in flight or the limit is reached.
+     */
+    private congested;
     /**
      * Answer whether a card's route can actually be run here.
      *
@@ -196,18 +226,24 @@ export declare class WorkbenchSkillCardRunner {
      */
     dispose(): Promise<void>;
     /**
-     * The agent a card's run should hang from.
+     * The agent a card's run should hang from, with the card's permission mode applied.
      *
      * A card that names a workspace gets an agent rooted at that directory, created once and
      * reused; a card that does not falls back to the session's agent, which is what every run
-     * used before workspaces existed. The sandbox derives its writable root from the
-     * session header, and a child inherits its parent's header, so this is the whole
-     * mechanism that fences a run — no `cwd` is passed and the seam stays untouched.
+     * used before workspaces existed. The sandbox derives its writable root from the session
+     * header, and a child inherits its parent's header, so this is the whole mechanism that
+     * fences a run — no `cwd` is passed and the seam stays untouched.
+     *
+     * The mode is applied once, here, at creation. A child inherits its parent's explicit
+     * override, so recording it on this agent is what makes the card's permission govern
+     * every run started from it, refinements and template-button runs included.
      * @param cardId - the card whose agent is wanted.
      * @param fallback - the session's agent, used when the card names no directory.
      * @returns the agent to start the run from.
+     * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the new agent is
+     * disposed first, so a refused start leaves nothing running under no mode.
      */
-    private cardParent;
+    private cardAgent;
     /**
      * Run one card's skill to a terminal state.
      * @param run - the run record to settle.

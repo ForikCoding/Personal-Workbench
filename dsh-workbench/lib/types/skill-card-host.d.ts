@@ -6,6 +6,24 @@
  * makes for Connection's trust fence.
  * @module dsh-workbench/skill-card-host
  */
+import type { WorkbenchSandboxMode } from './skill-card-contract.ts';
+/**
+ * Raised when one session cannot take a sandbox mode.
+ *
+ * Typed rather than a plain `Error` so the runner can turn exactly this failure into a
+ * refusal naming the mode it could not apply, while a fault raised anywhere else still
+ * travels as itself instead of being reported as a permission problem.
+ */
+export declare class WorkbenchSandboxModeError extends Error {
+    readonly sessionId: string;
+    readonly mode: WorkbenchSandboxMode;
+    /**
+     * @param sessionId - the session the mode was meant for.
+     * @param mode - the mode that could not be recorded.
+     * @param detail - why, when the cause has a message of its own.
+     */
+    constructor(sessionId: string, mode: WorkbenchSandboxMode, detail?: string);
+}
 /** One live agent. The agent object doubles as the skill registry's scope key. */
 export interface WorkbenchAgent {
     /** Shared agent/session identity. */
@@ -258,6 +276,25 @@ export interface WorkbenchSkillCardHost {
             };
             readonly parentAgent?: WorkbenchAgent;
         }): Promise<WorkbenchAgentHandle>;
+    };
+    /**
+     * The sandbox mode a card's own agent runs under.
+     *
+     * A setter rather than a field on the created agent: a mode is recorded as a session
+     * event, and the policy service that reads it has no writer of its own. The card's agent
+     * is the session that decides every run started from it, because a child inherits its
+     * parent's explicit override — so this one call is what makes the card's mode govern its
+     * runs.
+     */
+    readonly sandbox: {
+        /**
+         * Record one sandbox mode on one live agent's session.
+         * @param sessionId - session whose mode changes; the card's own agent.
+         * @param mode - the mode every later confined call in that session runs under.
+         * @throws {WorkbenchSandboxModeError} when no live agent has that session, or the
+         * session refuses the event.
+         */
+        setMode(sessionId: string, mode: WorkbenchSandboxMode): void;
     };
     readonly skills: {
         /**

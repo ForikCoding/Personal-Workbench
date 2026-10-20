@@ -25,9 +25,11 @@ import type {
   WorkbenchDirectoryStat,
   WorkbenchResultRecord,
   WorkbenchRunState,
+  WorkbenchSandboxMode,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
 } from '../../skill-card-contract.ts'
+import { effectiveWorkbenchSandboxMode } from '../../skill-card-contract.ts'
 import type {
   WorkbenchCardSnapshot,
   WorkbenchConfigWrite,
@@ -246,6 +248,14 @@ export interface WorkbenchCardView {
    */
   readonly workspaceField: WorkbenchWorkspaceField
   /**
+   * The permission mode this card's runs use, as the effective one.
+   *
+   * Never absent: a card that stores no mode runs under the default, so the configuration
+   * page shows that mode rather than an empty option. The result page names it too, because
+   * a mode is a safety fact about the run the user is reading.
+   */
+  readonly permission: WorkbenchSandboxMode
+  /**
    * Whether a directory picker can be offered at all.
    *
    * False on a page whose composition has no picker, and after one refused: the field then
@@ -321,6 +331,15 @@ export interface WorkbenchCardActions {
    * path is a directory nobody confirmed. A cancelled pick writes nothing.
    */
   chooseWorkspace(): void
+  /**
+   * Store the permission mode this card's runs use.
+   *
+   * A run rebuilt from a changed mode is a different run: the Host disposes the card's
+   * agent and creates one under the new mode, so the next run cannot execute under the old
+   * one. Nothing here mutates a live run.
+   * @param mode - the mode the user chose.
+   */
+  choosePermission(mode: WorkbenchSandboxMode): void
   /**
    * Store a template for the selected skill, together with the card's name.
    * @param template - the HTML to store.
@@ -891,8 +910,15 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     })
   }, [api, applyWrite, cardId, revision, workspacePicker])
 
-  const saveTemplate = useCallback((template: string, name: string) => {
-    const skill = card?.skill
+  const choosePermission = useCallback((mode: WorkbenchSandboxMode) => {
+    if (revision === undefined) return
+    // The chosen mode is written as an absolute value, never merged with what was stored:
+    // the three modes are the whole choice, and "unset" is displayed as the default rather
+    // than picked separately.
+    void api.write({ baseRevision: revision, cardId, permission: mode }).then(applyWrite)
+  }, [api, applyWrite, cardId, revision])
+
+  const saveTemplate = useCallback((template: string, name: string) => {    const skill = card?.skill
     if (revision === undefined || skill === undefined) return
     // The name travels with the template: "保存" is the one action the user takes, and
     // persisting the name through a separate blur write meant a revision advance between
@@ -1156,6 +1182,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseSkill,
       chooseModel,
       chooseWorkspace,
+      choosePermission,
       saveTemplate,
       rename,
       remove,
@@ -1173,6 +1200,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseSkill,
       chooseModel,
       chooseWorkspace,
+      choosePermission,
       saveTemplate,
       rename,
       remove,
@@ -1224,6 +1252,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       && workspaceField.kind === 'ready',
     modelField,
     workspaceField,
+    // Never absent: a card that stores no mode runs under the default, and the page shows
+    // that mode rather than an empty choice.
+    permission: effectiveWorkbenchSandboxMode(card?.permission),
     canChooseWorkspace,
     catalog,
     catalogStatus,
@@ -1243,6 +1274,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     card?.template,
     modelField,
     workspaceField,
+    card?.permission,
     canChooseWorkspace,
     result,
     catalog,
@@ -1373,6 +1405,7 @@ const LOCALIZED_CODES: Record<WorkbenchSkillCardErrorCode, true> = {
   'run-unavailable': true,
   'workspace-missing': true,
   'workspace-invalid': true,
+  'permission-unavailable': true,
 }
 
 /**

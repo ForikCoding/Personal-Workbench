@@ -17,6 +17,7 @@ import { createWorkbenchLayoutHandler } from './layout-route.ts'
 import type { WorkbenchHostContext } from './layout-route.ts'
 import { WorkbenchLayoutService } from './layout-service.ts'
 import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_DIRECTORY_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
+import type { WorkbenchSandboxMode } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_TABLE,
   WORKBENCH_RESULT_TABLE,
@@ -25,8 +26,10 @@ import {
 } from './skill-card-spec.ts'
 import { assertSubagentProvider, probeSubagentSeam } from './skill-card-provider.ts'
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts'
+import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import { statDirectory } from './skill-card-directory.ts'
 import { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
+import { cardSelection } from './skill-card-runner.ts'
 import {
   createWorkbenchSkillCardCatalogHandler,
   createWorkbenchSkillCardDirectoryHandler,
@@ -88,6 +91,25 @@ interface WorkbenchAgentErrorBus {
 }
 
 /**
+ * The one member of a real agent's session this plugin writes to.
+ *
+ * A session records its sandbox mode as an event, and that event is the only write path:
+ * the policy service that reads it has no setter of its own. The narrowed
+ * `WorkbenchAgent.session` deliberately states only the header the runner reads, so this
+ * is declared here, at the one place that needs it.
+ */
+interface WorkbenchSandboxSession {
+  readonly session: {
+    /**
+     * Append one session event.
+     * @param type - event discriminator.
+     * @param data - the event's payload.
+     */
+    append(type: 'sandbox/mode', data: { readonly mode: WorkbenchSandboxMode }): void
+  }
+}
+
+/**
  * Open the layout domain and register the layout route.
  * @param ctx - Host context.
  * @param config - validated workbench configuration.
@@ -133,6 +155,40 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
   ctx.effect(async () => {
     const host = ctx as unknown as WorkbenchHostContext
     const runtime = ctx as unknown as WorkbenchSkillCardHost
+    // The narrow host is assembled here rather than handed on as the bare cast. Every other
+    // member is a service this composition provides, but the sandbox setter is not a service
+    // at all — it is one session event — so it has to be attached explicitly. Reading a
+    // member that no service provides off a wide cast compiles and does nothing at run time,
+    // and a permission that silently does nothing is the one outcome this feature refuses.
+    const cardHost: WorkbenchSkillCardHost = {
+      agents: runtime.agents,
+      skills: runtime.skills,
+      workspaceRegistry: runtime.workspaceRegistry,
+      subagents: runtime.subagents,
+      llm: runtime.llm,
+      sandbox: {
+        setMode: (sessionId, mode) => {
+          // A card's mode is recorded on its own agent's session, because a child inherits
+          // its parent's explicit override — that is what makes the card's mode govern its
+          // runs. Reaching the session is the one widening here: the narrowed agent states
+          // only the header, and keeping the cast at assembly means no consumer of the
+          // narrow host can reach a Session by accident.
+          const agent = runtime.agents.get(sessionId) as unknown as WorkbenchSandboxSession | undefined
+          if (agent === undefined) {
+            throw new WorkbenchSandboxModeError(sessionId, mode, 'no live agent has that session')
+          }
+          try {
+            agent.session.append('sandbox/mode', { mode })
+          } catch (error) {
+            throw new WorkbenchSandboxModeError(
+              sessionId,
+              mode,
+              error instanceof Error ? error.message : String(error),
+            )
+          }
+        },
+      },
+    }
     assertSubagentProvider(runtime.subagents, config.subagentProvider)
     // Probed here, once, because the answer belongs to this composition rather than to a
     // run: it is the same for every card and every click. The client reads it off the card
@@ -169,7 +225,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
     // predates this service, and naming it would keep the whole plugin pending.
     const workingDirectory = ctx.get('workingDirectory') as WorkbenchWorkingDirectory | undefined
     const runner = new WorkbenchSkillCardRunner({
-      host: runtime,
+      host: cardHost,
       ...workingDirectory === undefined ? {} : { workingDirectory },
       statDirectory,
       subagentProvider: config.subagentProvider,
@@ -177,15 +233,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
       maxConcurrentRuns: config.maxConcurrentRuns,
       // The run request carries only what the client knows; whether a template
       // exists is the Host's own answer, and it is the precondition for running.
-      selection: (cardId) => {
-        const card = store.read().cards.find(entry => entry.cardId === cardId)
-        return {
-          ...card?.skill === undefined ? {} : { skill: card.skill },
-          ...card?.template === undefined ? {} : { template: card.template },
-          ...card?.model === undefined ? {} : { model: card.model },
-          ...card?.workspace === undefined ? {} : { workspace: card.workspace },
-        }
-      },
+      selection: (cardId) => cardSelection(store.read().cards.find(entry => entry.cardId === cardId)),
       saveResult: (cardId, record) => store.putResult(cardId, record),
       warn,
     })

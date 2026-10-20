@@ -517,6 +517,38 @@ function isWorkbenchCardWorkspace(value) {
 	const path = Reflect.get(value, "path");
 	return typeof path === "string" && isWorkbenchWorkspacePath(path);
 }
+/**
+* Every permission mode a card may run under.
+*
+* The upstream sandbox vocabulary, repeated here because this module carries no runtime
+* dependency. A mode added upstream that this list does not know is refused at the schema
+* and at the route rather than stored and later ignored.
+*/
+const WORKBENCH_SANDBOX_MODES = [
+	"read-only",
+	"workspace-write",
+	"danger-full-access"
+];
+/**
+* Whether a value is a mode a card may store.
+* @param value - candidate value, read from storage or from a request body.
+* @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
+*/
+function isWorkbenchSandboxMode(value) {
+	return typeof value === "string" && WORKBENCH_SANDBOX_MODES.includes(value);
+}
+/**
+* Resolve the mode one run actually uses.
+*
+* This is the single place unset becomes a mode. The configuration page displays it, the
+* runner applies it and the card-agent cache keys on it, so all three read the same answer
+* instead of each defaulting differently.
+* @param stored - the mode the card stores, when it stores one.
+* @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
+*/
+function effectiveWorkbenchSandboxMode(stored) {
+	return stored ?? "workspace-write";
+}
 //#endregion
 //#region src/skill-card-spec.ts
 /**
@@ -565,12 +597,17 @@ const workbenchCardWorkspaceSchema = z.object({ path: z.string() });
 *
 * `workspace` is declared in the same change that writes it, for that same reason: a card
 * that lost its directory would silently stop being runnable after a restart.
+*
+* `permission` follows the same rule. Losing it is the worst of the four: the card would
+* come back under the default mode, so a card the user deliberately narrowed would quietly
+* run with wider write access than the page showed.
 */
 const workbenchCardConfigSchema = z.object({
 	skill: z.string().optional(),
 	name: z.string().optional(),
 	model: workbenchCardModelSchema.optional(),
-	workspace: workbenchCardWorkspaceSchema.optional()
+	workspace: workbenchCardWorkspaceSchema.optional(),
+	permission: z.enum(WORKBENCH_SANDBOX_MODES).optional()
 });
 /** Stored schema for one template. */
 const workbenchTemplateSchema = z.object({ html: z.string() });
@@ -662,6 +699,30 @@ function assertSubagentProvider(subagents, providerName) {
 function probeSubagentSeam(subagents) {
 	return { startActivation: typeof subagents.startActivation === "function" };
 }
+//#endregion
+//#region src/skill-card-host.ts
+/**
+* Raised when one session cannot take a sandbox mode.
+*
+* Typed rather than a plain `Error` so the runner can turn exactly this failure into a
+* refusal naming the mode it could not apply, while a fault raised anywhere else still
+* travels as itself instead of being reported as a permission problem.
+*/
+var WorkbenchSandboxModeError = class extends Error {
+	sessionId;
+	mode;
+	/**
+	* @param sessionId - the session the mode was meant for.
+	* @param mode - the mode that could not be recorded.
+	* @param detail - why, when the cause has a message of its own.
+	*/
+	constructor(sessionId, mode, detail) {
+		super(detail === void 0 ? `session "${sessionId}" cannot take permission mode "${mode}"` : `session "${sessionId}" cannot take permission mode "${mode}": ${detail}`);
+		this.sessionId = sessionId;
+		this.mode = mode;
+		this.name = "WorkbenchSandboxModeError";
+	}
+};
 //#endregion
 //#region src/skill-card-directory.ts
 /**
@@ -935,6 +996,26 @@ function escapeText(value) {
 */
 const SUBAGENT_SEAM_DETAIL = "this harness provides no subagents.startActivation, so a card run cannot start; card runs need a harness that exposes it (0.2.1-alpha.2, the beta channel)";
 /**
+* Project one stored card onto the selection a run reads.
+*
+* One function rather than an inline object built at composition, because every field a run
+* needs from the card record passes through here: a field the record holds and this
+* projection forgets is one missing line, not something a reader has to notice inside a
+* route assembly callback. Omitting `permission` here would leave every card on the default
+* mode while the page still showed the stored one.
+* @param card - the card as storage returns it, or undefined when none is stored.
+* @returns the selection; an absent field stays absent rather than becoming `undefined`.
+*/
+function cardSelection(card) {
+	return {
+		...card?.skill === void 0 ? {} : { skill: card.skill },
+		...card?.template === void 0 ? {} : { template: card.template },
+		...card?.model === void 0 ? {} : { model: card.model },
+		...card?.workspace === void 0 ? {} : { workspace: card.workspace },
+		...card?.permission === void 0 ? {} : { permission: card.permission }
+	};
+}
+/**
 * Run one card's skill and own the outcome.
 *
 * One run at a time per card, bounded globally by the deployment's concurrency
@@ -957,9 +1038,11 @@ var WorkbenchSkillCardRunner = class {
 	/**
 	* One rooted agent per card, created on the card's first run and reused after that.
 	*
-	* Reuse is not an optimisation: the directory is fixed when the agent is created, so a
-	* second run of the same card can only keep the fence by keeping the agent. The path is
-	* stored beside the handle so a changed workspace is detected and rebuilt.
+	* Reuse is not an optimisation: the directory and the permission mode are fixed when the
+	* agent is created, so a second run of the same card can only keep both by keeping the
+	* agent. The path and the mode are stored beside the handle so a change to either is
+	* detected and rebuilt — a mode is a session event, and this runner never mutates a live
+	* agent's mode.
 	*/
 	cardAgents = /* @__PURE__ */ new Map();
 	/** Distinguishes successive card agents; a session id cannot be published twice. */
@@ -1042,12 +1125,21 @@ var WorkbenchSkillCardRunner = class {
 		if (workspace === void 0) return reject("workspace-missing", `no workspace directory is configured for card "${request.cardId}"`);
 		const found = await this.options.statDirectory(workspace.path);
 		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspace.path}" does not exist or is not a directory`);
-		if (this.runs.get(request.cardId)?.phase === "running" || this.active >= this.options.maxConcurrentRuns) return reject("run-in-progress", "another run is already in flight");
+		if (this.congested(request.cardId)) return reject("run-in-progress", "another run is already in flight");
+		let parent;
+		try {
+			parent = await this.cardAgent(request.cardId, agent);
+		} catch (error) {
+			if (error instanceof WorkbenchSandboxModeError) return reject("permission-unavailable", `card "${request.cardId}" cannot apply its permission mode: ${error.message}`);
+			throw error;
+		}
+		if (this.congested(request.cardId)) return reject("run-in-progress", "another run is already in flight");
 		const pinned = model === void 0 ? {} : { model };
 		let input;
 		if (mode.kind === "bare") input = {
 			kind: "bare",
 			agent,
+			parent,
 			skill,
 			...pinned,
 			...request.payload === void 0 ? {} : { payload: request.payload }
@@ -1058,6 +1150,7 @@ var WorkbenchSkillCardRunner = class {
 			input = mode.kind === "refine" ? {
 				kind: "refine",
 				agent,
+				parent,
 				skill,
 				template,
 				...pinned,
@@ -1068,6 +1161,7 @@ var WorkbenchSkillCardRunner = class {
 			} : {
 				kind: "card",
 				agent,
+				parent,
 				skill,
 				template,
 				...pinned,
@@ -1101,6 +1195,18 @@ var WorkbenchSkillCardRunner = class {
 			status: "started",
 			state: this.stateOf(run)
 		};
+	}
+	/**
+	* Whether one more start would exceed the card's or the deployment's limit.
+	*
+	* Asked twice per start: once before the card's agent is resolved, so a refused start
+	* cannot rebuild an agent a run still hangs from, and once immediately before the run is
+	* recorded, so the reservation itself stays synchronous.
+	* @param cardId - the card the run belongs to.
+	* @returns whether another run is already in flight or the limit is reached.
+	*/
+	congested(cardId) {
+		return this.runs.get(cardId)?.phase === "running" || this.active >= this.options.maxConcurrentRuns;
 	}
 	/**
 	* Answer whether a card's route can actually be run here.
@@ -1175,22 +1281,30 @@ var WorkbenchSkillCardRunner = class {
 		await Promise.allSettled(agents.map(async (entry) => await entry.handle.dispose()));
 	}
 	/**
-	* The agent a card's run should hang from.
+	* The agent a card's run should hang from, with the card's permission mode applied.
 	*
 	* A card that names a workspace gets an agent rooted at that directory, created once and
 	* reused; a card that does not falls back to the session's agent, which is what every run
-	* used before workspaces existed. The sandbox derives its writable root from the
-	* session header, and a child inherits its parent's header, so this is the whole
-	* mechanism that fences a run — no `cwd` is passed and the seam stays untouched.
+	* used before workspaces existed. The sandbox derives its writable root from the session
+	* header, and a child inherits its parent's header, so this is the whole mechanism that
+	* fences a run — no `cwd` is passed and the seam stays untouched.
+	*
+	* The mode is applied once, here, at creation. A child inherits its parent's explicit
+	* override, so recording it on this agent is what makes the card's permission govern
+	* every run started from it, refinements and template-button runs included.
 	* @param cardId - the card whose agent is wanted.
 	* @param fallback - the session's agent, used when the card names no directory.
 	* @returns the agent to start the run from.
+	* @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the new agent is
+	* disposed first, so a refused start leaves nothing running under no mode.
 	*/
-	async cardParent(cardId, fallback) {
-		const path = this.options.selection(cardId).workspace?.path;
+	async cardAgent(cardId, fallback) {
+		const selection = this.options.selection(cardId);
+		const path = selection.workspace?.path;
 		if (path === void 0) return fallback;
+		const mode = effectiveWorkbenchSandboxMode(selection.permission);
 		const existing = this.cardAgents.get(cardId);
-		if (existing !== void 0 && existing.path === path) return existing.handle.agent;
+		if (existing !== void 0 && existing.path === path && existing.mode === mode) return existing.handle.agent;
 		if (existing !== void 0) {
 			this.cardAgents.delete(cardId);
 			try {
@@ -1203,8 +1317,19 @@ var WorkbenchSkillCardRunner = class {
 			sessionId: `workbench-card-${cardId}-${this.cardAgentSeq++}`,
 			meta: { cwd: path }
 		});
+		try {
+			this.options.host.sandbox.setMode(handle.agent.id, mode);
+		} catch (error) {
+			try {
+				await handle.dispose();
+			} catch (teardown) {
+				this.options.warn(`workbench card agent teardown failed: ${messageOf(teardown)}`);
+			}
+			throw error;
+		}
 		this.cardAgents.set(cardId, {
 			path,
+			mode,
 			handle
 		});
 		return handle.agent;
@@ -1229,10 +1354,10 @@ var WorkbenchSkillCardRunner = class {
 				});
 				return;
 			}
-			let outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent));
+			let outcome = await this.attempt(run, input, cwd, skill, activate);
 			if (outcome.kind === "unusable" && outcome.retryable && !signal.aborted) {
 				run.retried = true;
-				outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent));
+				outcome = await this.attempt(run, input, cwd, skill, activate);
 			}
 			await this.finish(run, outcome);
 			await this.archiveCardSession(run.cardId);
@@ -1261,8 +1386,9 @@ var WorkbenchSkillCardRunner = class {
 	* @param activate - the activation seam, known to exist.
 	* @returns the attempt's outcome.
 	*/
-	async attempt(run, input, cwd, skill, activate, parent) {
+	async attempt(run, input, cwd, skill, activate) {
 		const signal = run.controller.signal;
+		const parent = input.parent;
 		const resolvedCwd = parent.session?.header?.cwd ?? cwd;
 		const activation = await activate({
 			provider: this.options.subagentProvider,
@@ -1672,6 +1798,11 @@ function parsePatch(value, maxTemplateBytes) {
 	else if (body.workspace === null) workspace = null;
 	else if (isWorkbenchCardWorkspace(body.workspace)) workspace = { path: body.workspace.path };
 	else throw new SkillCardRequestError(400, "invalid-request", "workspace must be null or an object naming one absolute directory path");
+	let permission;
+	if (body.permission === void 0) permission = void 0;
+	else if (body.permission === null) permission = null;
+	else if (isWorkbenchSandboxMode(body.permission)) permission = body.permission;
+	else throw new SkillCardRequestError(400, "invalid-request", `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(", ")}`);
 	let template;
 	if (body.template !== void 0) {
 		const raw = body.template;
@@ -1693,6 +1824,7 @@ function parsePatch(value, maxTemplateBytes) {
 		...skill === void 0 ? {} : { skill },
 		...model === void 0 ? {} : { model },
 		...workspace === void 0 ? {} : { workspace },
+		...permission === void 0 ? {} : { permission },
 		...template === void 0 ? {} : { template }
 	};
 }
@@ -1877,7 +2009,8 @@ const STATUS_BY_CODE = {
 	"run-in-progress": 409,
 	"run-unavailable": 501,
 	"workspace-missing": 400,
-	"workspace-invalid": 409
+	"workspace-invalid": 409,
+	"permission-unavailable": 409
 };
 /**
 * Build the route handler for the session-scoped skill catalog.
@@ -2171,6 +2304,7 @@ var WorkbenchSkillCardStore = class {
 			const name = record?.name;
 			const model = record?.model;
 			const workspace = record?.workspace;
+			const permission = record?.permission;
 			const bySkill = templatesByCard.get(cardId);
 			const template = selected === void 0 ? void 0 : bySkill?.get(selected);
 			cards.push({
@@ -2179,6 +2313,7 @@ var WorkbenchSkillCardStore = class {
 				...selected === void 0 ? {} : { skill: selected },
 				...model === void 0 ? {} : { model },
 				...workspace === void 0 ? {} : { workspace },
+				...permission === void 0 ? {} : { permission },
 				templateSkills: bySkill === void 0 ? [] : [...bySkill.keys()].sort(),
 				...template === void 0 ? {} : { template }
 			});
@@ -2239,12 +2374,15 @@ var WorkbenchSkillCardStore = class {
 		const model = patchedModel === void 0 ? current?.model : patchedModel === null ? void 0 : patchedModel;
 		const patchedWorkspace = patch.workspace;
 		const workspace = patchedWorkspace === void 0 ? current?.workspace : patchedWorkspace === null ? void 0 : patchedWorkspace;
-		if (name === void 0 && skill === void 0 && model === void 0 && workspace === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
+		const patchedPermission = patch.permission;
+		const permission = patchedPermission === void 0 ? current?.permission : patchedPermission === null ? void 0 : patchedPermission;
+		if (name === void 0 && skill === void 0 && model === void 0 && workspace === void 0 && permission === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
 		else await this.run("put", () => this.options.card.put(patch.cardId, {
 			...name === void 0 ? {} : { name },
 			...skill === void 0 ? {} : { skill },
 			...model === void 0 ? {} : { model },
-			...workspace === void 0 ? {} : { workspace }
+			...workspace === void 0 ? {} : { workspace },
+			...permission === void 0 ? {} : { permission }
 		}));
 		return {
 			status: "written",
@@ -2336,7 +2474,9 @@ var WorkbenchSkillCardStore = class {
 		if (model !== void 0 && model !== null && !isWorkbenchCardModel(model)) return "model must name a non-empty provider and model id";
 		const workspace = patch.workspace;
 		if (workspace !== void 0 && workspace !== null && !isWorkbenchCardWorkspace(workspace)) return `workspace must name one absolute directory path within ${String(WORKBENCH_WORKSPACE_PATH_MAX_LENGTH)} characters`;
-		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, a workspace, or a template";
+		const permission = patch.permission;
+		if (permission !== void 0 && permission !== null && !isWorkbenchSandboxMode(permission)) return `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(", ")}`;
+		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.permission !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template";
 		const template = patch.template;
 		if (template === void 0) return void 0;
 		if (!isWorkbenchSkillName(template.skill)) return `template skill ${JSON.stringify(template.skill)} is not a kebab-case skill name`;
@@ -2567,6 +2707,22 @@ function apply(ctx, config) {
 	ctx.effect(async () => {
 		const host = ctx;
 		const runtime = ctx;
+		const cardHost = {
+			agents: runtime.agents,
+			skills: runtime.skills,
+			workspaceRegistry: runtime.workspaceRegistry,
+			subagents: runtime.subagents,
+			llm: runtime.llm,
+			sandbox: { setMode: (sessionId, mode) => {
+				const agent = runtime.agents.get(sessionId);
+				if (agent === void 0) throw new WorkbenchSandboxModeError(sessionId, mode, "no live agent has that session");
+				try {
+					agent.session.append("sandbox/mode", { mode });
+				} catch (error) {
+					throw new WorkbenchSandboxModeError(sessionId, mode, error instanceof Error ? error.message : String(error));
+				}
+			} }
+		};
 		assertSubagentProvider(runtime.subagents, config.subagentProvider);
 		const capabilities = probeSubagentSeam(runtime.subagents);
 		if (!capabilities.startActivation) ctx.logger.warn("workbench: this harness exposes no subagents.startActivation, so skill card runs are unavailable; card runs need 0.2.1-alpha.2 (the beta channel)");
@@ -2595,21 +2751,13 @@ function apply(ctx, config) {
 		};
 		const workingDirectory = ctx.get("workingDirectory");
 		const runner = new WorkbenchSkillCardRunner({
-			host: runtime,
+			host: cardHost,
 			...workingDirectory === void 0 ? {} : { workingDirectory },
 			statDirectory,
 			subagentProvider: config.subagentProvider,
 			runTimeoutMs: config.runTimeoutMs,
 			maxConcurrentRuns: config.maxConcurrentRuns,
-			selection: (cardId) => {
-				const card = store.read().cards.find((entry) => entry.cardId === cardId);
-				return {
-					...card?.skill === void 0 ? {} : { skill: card.skill },
-					...card?.template === void 0 ? {} : { template: card.template },
-					...card?.model === void 0 ? {} : { model: card.model },
-					...card?.workspace === void 0 ? {} : { workspace: card.workspace }
-				};
-			},
+			selection: (cardId) => cardSelection(store.read().cards.find((entry) => entry.cardId === cardId)),
 			saveResult: (cardId, record) => store.putResult(cardId, record),
 			warn
 		});

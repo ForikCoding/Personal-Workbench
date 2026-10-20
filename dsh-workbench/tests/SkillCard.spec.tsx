@@ -35,6 +35,9 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // Same for the directory: the face shows no workspace field, and nothing on the grid
     // gates a run on one.
     workspaceField: { kind: 'missing' },
+    // The mode is on the view (the result page states it), but the body renders only the
+    // document, so the face's cases never read it.
+    permission: 'workspace-write',
     canChooseWorkspace: false,
     catalog: [],
     catalogStatus: 'idle',
@@ -99,10 +102,10 @@ describe('skill card body', () => {
   })
 
   it('leaves the permission note to the page that owns it', () => {
-    // The note is a statement about the page — a run inherits the session's full tool
-    // permissions — so it is a footnote beneath the result page's content rather than
-    // part of the document this body renders. The page spec pins it in every state.
+    // The note states the mode this card's runs use, so it is a footnote beneath the result
+    // page's content rather than part of the document this body renders. The page spec pins
+    // it in every state.
     const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: RESULT })} t={t} />)
-    expect(container.textContent).not.toContain('skillCardPermission')
+    expect(container.textContent).not.toContain('skillCardRunsWithPermission')
   })
 })

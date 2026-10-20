@@ -12,7 +12,7 @@
  * @module dsh-workbench/client/skill-card/SkillCardSettings
  */
 import { type ReactNode } from 'react';
-import type { WorkbenchCardModel } from '../../skill-card-contract.ts';
+import type { WorkbenchCardModel, WorkbenchSandboxMode } from '../../skill-card-contract.ts';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchCardView } from './controller.ts';
 /** Props of the editor. */
@@ -30,6 +30,14 @@ export interface SkillCardSettingsProps {
     readonly onChoose: (skill: string) => void;
     /** Store the model this card's runs use. */
     readonly onChooseModel: (model: WorkbenchCardModel) => void;
+    /**
+     * Store the permission mode this card's runs use.
+     *
+     * The choice is a stored write like the model: the Host rebuilds the card's agent around
+     * it, so the next run cannot execute under the previous mode.
+     * @param mode - the mode the user chose.
+     */
+    readonly onChoosePermission: (mode: WorkbenchSandboxMode) => void;
     /**
      * Open a directory picker and store what it returns.
      *

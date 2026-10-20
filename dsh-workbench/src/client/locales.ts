@@ -117,7 +117,15 @@ export const zh = {
   skillCardViolationActionKeyRepeated: '这个动作键被声明了两次',
   skillCardViolationActionTarget: '动作目标必须写成 card "名称" 或 skill "名称"',
   skillCardViolationActionInsideRegion: '动作声明不能写在区间内——区间每次运行都会被重写',
-  skillCardPermission: '运行时使用当前会话的完整工具权限',
+  // The per-card permission mode. The three labels are the ones the application's own
+  // permission selector uses; the warning states the one loss full access causes.
+  skillCardPermissionLabel: '权限模式',
+  skillCardPermissionReadOnly: '仅可查看',
+  skillCardPermissionWorkspaceWrite: '工作区内修改',
+  skillCardPermissionFullAccess: '完全权限',
+  skillCardPermissionWarning: '完全权限：工作目录不再限制写入，这个 skill 可以修改工作目录以外的文件。',
+  skillCardRunsWithPermission: '运行时权限：{mode}',
+  skillCardProblemPermissionUnavailable: '这张卡要求的权限模式无法应用，运行已拒绝',
   skillCardBack: '返回',
   skillCardCardName: '卡片名称',
   // The model field. Its two non-selectable states say what the card knows: a route it
@@ -318,7 +326,15 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardViolationActionKeyRepeated: 'that action key is declared twice',
   skillCardViolationActionTarget: 'an action target must read card "name" or skill "name"',
   skillCardViolationActionInsideRegion: 'declare actions outside the region: the region is rewritten on every run',
-  skillCardPermission: 'Runs with the current session’s full tool permissions',
+  // The per-card permission mode. The three labels are the ones the application's own
+  // permission selector uses; the warning states the one loss full access causes.
+  skillCardPermissionLabel: 'Permission',
+  skillCardPermissionReadOnly: 'Read Only',
+  skillCardPermissionWorkspaceWrite: 'Workspace Write',
+  skillCardPermissionFullAccess: 'Full access',
+  skillCardPermissionWarning: 'Full access: the workspace no longer limits writes, so this skill can change files outside it.',
+  skillCardRunsWithPermission: 'Runs with {mode} permission',
+  skillCardProblemPermissionUnavailable: 'This card’s permission mode could not be applied, so the run was refused',
   skillCardBack: 'Back',
   skillCardCardName: 'Card name',
   // The model field. Its two non-selectable states say what the card knows: a route it

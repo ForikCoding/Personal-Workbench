@@ -14,7 +14,7 @@
  * and a reload starts the conversation over.
  * @module dsh-workbench/client/skill-card/controller
  */
-import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchResultRecord, WorkbenchRunState, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchResultRecord, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 import type { WorkbenchActionErrorCode } from './actions.ts';
 import type { WorkbenchModelField, WorkbenchModelSeat } from './model.ts';
@@ -197,6 +197,14 @@ export interface WorkbenchCardView {
      */
     readonly workspaceField: WorkbenchWorkspaceField;
     /**
+     * The permission mode this card's runs use, as the effective one.
+     *
+     * Never absent: a card that stores no mode runs under the default, so the configuration
+     * page shows that mode rather than an empty option. The result page names it too, because
+     * a mode is a safety fact about the run the user is reading.
+     */
+    readonly permission: WorkbenchSandboxMode;
+    /**
      * Whether a directory picker can be offered at all.
      *
      * False on a page whose composition has no picker, and after one refused: the field then
@@ -271,6 +279,15 @@ export interface WorkbenchCardActions {
      * path is a directory nobody confirmed. A cancelled pick writes nothing.
      */
     chooseWorkspace(): void;
+    /**
+     * Store the permission mode this card's runs use.
+     *
+     * A run rebuilt from a changed mode is a different run: the Host disposes the card's
+     * agent and creates one under the new mode, so the next run cannot execute under the old
+     * one. Nothing here mutates a live run.
+     * @param mode - the mode the user chose.
+     */
+    choosePermission(mode: WorkbenchSandboxMode): void;
     /**
      * Store a template for the selected skill, together with the card's name.
      * @param template - the HTML to store.

@@ -17,14 +17,17 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   WORKBENCH_REGION_BEGIN,
   WORKBENCH_REGION_END,
+  WORKBENCH_SANDBOX_MODES,
   WORKBENCH_TEMPLATE_MAX_BYTES,
+  isWorkbenchSandboxMode,
 } from '../../skill-card-contract.ts'
-import type { WorkbenchActionTarget, WorkbenchCardModel } from '../../skill-card-contract.ts'
+import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchSandboxMode } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import { ActionDeclarationPanel } from './ActionDeclarationPanel.tsx'
 import type { WorkbenchCardView } from './controller.ts'
 import { declarationLine, insertDeclaration } from './declarations.ts'
 import { modelKey, parseModelKey } from './model.ts'
+import { permissionLabelKey } from './permission.ts'
 import { templateSkeleton } from './skeleton.ts'
 import { analyzeTemplate, findActionsBlock, findRegion } from './template.ts'
 import type { WorkbenchTemplateViolation, WorkbenchTemplateViolationCode } from './template.ts'
@@ -58,6 +61,14 @@ export interface SkillCardSettingsProps {
   readonly onChoose: (skill: string) => void
   /** Store the model this card's runs use. */
   readonly onChooseModel: (model: WorkbenchCardModel) => void
+  /**
+   * Store the permission mode this card's runs use.
+   *
+   * The choice is a stored write like the model: the Host rebuilds the card's agent around
+   * it, so the next run cannot execute under the previous mode.
+   * @param mode - the mode the user chose.
+   */
+  readonly onChoosePermission: (mode: WorkbenchSandboxMode) => void
   /**
    * Open a directory picker and store what it returns.
    *
@@ -129,7 +140,7 @@ function gutterLineClass(kind: GutterLineFact['kind']): string {
  * @returns the editor element.
  */
 export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
-  const { view, t, onChoose, onChooseModel, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props
+  const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props
   const [draft, setDraft] = useState(view.template ?? '')
   const [name, setName] = useState(view.name ?? '')
   // The declaration builder is closed until asked for: an editor whose first frame
@@ -144,6 +155,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const nameId = `${base}-name`
   const skillId = `${base}-skill`
   const modelId = `${base}-model`
+  const permissionId = `${base}-permission`
   const templateId = `${base}-template`
   const previewId = `${base}-preview`
 
@@ -391,10 +403,10 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     <div className={css.settings}>
       <section className={css.section} aria-labelledby={basicsId}>
         <h2 className={css.sectionTitle} id={basicsId}>{t('skillCardSectionBasics')}</h2>
-        {/* Four fields rather than three. A single row crowded each label against the next
+        {/* Five fields rather than three. A single row crowded each label against the next
             control and pushed the last one past the page's edge, so the group is a
-            two-column grid: two rows of two, each field wide enough for a long name or a
-            full path and no wider. */}
+            two-column grid: two rows of two, then the permission mode on a row of its own,
+            each field wide enough for a long name or a full path and no wider. */}
         <div className={css.fieldGrid}>
           <div className={css.field}>
             <label className={css.fieldLabel} htmlFor={nameId}>{t('skillCardCardName')}</label>
@@ -439,6 +451,34 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               a directory nothing confirmed, which the product owner rejected outright. */}
           <div className={css.field}>
             <WorkspaceField view={view} t={t} onChooseWorkspace={onChooseWorkspace} />
+          </div>
+          {/* What the run may write, and the third row of the grid. Its own row rather than a
+              second control beside the directory: the two are separate configuration, and a
+              user fixing one should not have to read a sentence about the other. */}
+          <div className={css.field}>
+            <label className={css.fieldLabel} htmlFor={permissionId}>{t('skillCardPermissionLabel')}</label>
+            <select
+              id={permissionId}
+              className={css.select}
+              value={view.permission}
+              data-permission-select=""
+              onChange={(event) => {
+                const chosen = event.target.value
+                if (!isWorkbenchSandboxMode(chosen)) return
+                onChoosePermission(chosen)
+              }}
+            >
+              {WORKBENCH_SANDBOX_MODES.map(mode => (
+                <option key={mode} value={mode}>{t(permissionLabelKey(mode))}</option>
+              ))}
+            </select>
+            {/* Full access is allowed, so the one loss it causes is stated where it is
+                chosen: under this mode the workspace stops limiting writes. */}
+            {view.permission === 'danger-full-access' ? (
+              <p className={css.fieldNote} data-permission-warning="">
+                {t('skillCardPermissionWarning')}
+              </p>
+            ) : null}
           </div>
         </div>
         {catalogNotice(view, options.length, t)}

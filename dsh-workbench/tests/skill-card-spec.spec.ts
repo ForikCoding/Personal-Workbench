@@ -60,8 +60,41 @@ describe('workbench storage schemas', () => {
       .toHaveProperty('editedAt', 0)
   })
 
-  it('keeps the card model across a load, as a pair rather than one string', () => {
-    // Criterion 71. The route is written by the configuration page, so it has to be
+  it('keeps the card permission mode across a load', () => {
+    // Criterion 102. The mode is written by the configuration page, so it has to be declared
+    // here in the same change. Losing it is the worst of the four fields: the card would come
+    // back under the default and run with wider write access than the page showed.
+    const stored = { skill: 'git-repo', name: 'Repo', permission: 'read-only' }
+    expect(workbenchCardConfigSchema.parse(stored)).toEqual(stored)
+    // The whole record, because every field shares it: a mode may not cost another field.
+    const whole = {
+      skill: 'xiaoneng-task-detail',
+      name: '效能任务',
+      model: { provider: 'vendor/gateway', model: 'large' },
+      workspace: { path: 'D:\\Git\\Personal-Workbench' },
+      permission: 'danger-full-access',
+    }
+    expect(workbenchCardConfigSchema.parse(whole)).toEqual(whole)
+  })
+
+  it('leaves a card that names no permission mode without one', () => {
+    // Absence is the state of every card created before this field existed, and it is not
+    // the same fact as a card that chose the default: the schema must invent neither.
+    const parsed = workbenchCardConfigSchema.parse({ skill: 'git-repo' })
+    expect(parsed).not.toHaveProperty('permission')
+  })
+
+  it('refuses a permission mode this build does not know', () => {
+    // The enum is the sandbox vocabulary, so a mode outside it fails here (and the domain
+    // backs the record up and skips it) rather than reaching a session as an event nothing
+    // enforces.
+    for (const permission of ['full-control', '', 'READ-ONLY', 3]) {
+      expect(workbenchCardConfigSchema.safeParse({ skill: 'git-repo', permission }).success)
+        .toBe(false)
+    }
+  })
+
+  it('keeps the card model across a load, as a pair rather than one string', () => {    // Criterion 71. The route is written by the configuration page, so it has to be
     // declared in the same change: an undeclared field survives the write and is dropped on
     // the next load, which the user reads as "the model reverted after a restart".
     // The provider id deliberately contains a slash: a `"provider/model"` string could not

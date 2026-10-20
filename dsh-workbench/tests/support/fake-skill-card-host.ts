@@ -16,7 +16,8 @@ import type {
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from '../../src/skill-card-host.ts'
-import type { WorkbenchDirectoryStat } from '../../src/skill-card-contract.ts'
+import { WorkbenchSandboxModeError } from '../../src/skill-card-host.ts'
+import type { WorkbenchDirectoryStat, WorkbenchSandboxMode } from '../../src/skill-card-contract.ts'
 import type { WorkbenchDirectoryProbe } from '../../src/skill-card-directory.ts'
 
 /** The agent every double answers with; it carries a session header cwd. */
@@ -97,6 +98,13 @@ export interface FakeHostOptions {
    * else, and the workspace cases say what they want instead.
    */
   readonly directory?: Partial<WorkbenchDirectoryStat>
+  /**
+   * When set, applying a permission mode fails with this detail.
+   *
+   * The double throws the typed error the real wiring throws, so a case can prove the
+   * runner refuses the start rather than running under a mode nobody applied.
+   */
+  readonly modeFailure?: string
 }
 
 /** The fake host plus what a spec wants to assert about. */
@@ -118,6 +126,13 @@ export interface FakeHost {
     readonly disposedAgents: string[]
     /** Session ids the plugin archived to keep them out of the sidebar. */
     readonly archivedSessions: string[]
+  /**
+   * Permission modes the plugin applied, in order, with the session each was recorded on.
+   *
+   * The mode is a session event in the real host; here it is a recorded call, which is what
+   * lets a case prove it was applied once per card agent and under which mode.
+   */
+  readonly sandboxModes: { readonly sessionId: string; readonly mode: WorkbenchSandboxMode }[]
   readonly lookups: WorkbenchSkillLookup[]
   readonly disposed: { count: number }
   /**
@@ -164,6 +179,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   const createdAgents: WorkbenchAgent[] = []
   const disposedAgents: string[] = []
   const archivedSessions: string[] = []
+  const sandboxModes: { sessionId: string; mode: WorkbenchSandboxMode }[] = []
 
   const host: WorkbenchSkillCardHost = {
     agents: {
@@ -182,6 +198,17 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
           agent: created,
           dispose: async () => { disposedAgents.push(createOptions.sessionId) },
         }
+      },
+    },
+    // The mode is recorded, not simulated, for the same reason archiving is: the plugin's
+    // side of the permission mechanism is "applied once, under this mode", and the sandbox
+    // obeying it is out-of-process behaviour.
+    sandbox: {
+      setMode: (sessionId, mode) => {
+        if (options.modeFailure !== undefined) {
+          throw new WorkbenchSandboxModeError(sessionId, mode, options.modeFailure)
+        }
+        sandboxModes.push({ sessionId, mode })
       },
     },
     // Archiving is recorded, not simulated: a case can then prove the plugin hid the
@@ -243,5 +270,5 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
   }
-  return { host, workingDirectory, statDirectory, activations, lookups, disposed, createdAgents, disposedAgents, archivedSessions, settleChild }
+  return { host, workingDirectory, statDirectory, activations, lookups, disposed, createdAgents, disposedAgents, archivedSessions, sandboxModes, settleChild }
 }

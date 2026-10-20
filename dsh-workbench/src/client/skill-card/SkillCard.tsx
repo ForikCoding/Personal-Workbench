@@ -247,6 +247,9 @@ const PROBLEM_KEYS: Record<WorkbenchCardProblem['code'], WorkbenchLocaleKey> = {
   // control, and both name the fact the user has to fix rather than a generic failure.
   'workspace-missing': 'skillCardProblemWorkspaceMissing',
   'workspace-invalid': 'skillCardProblemWorkspaceInvalid',
+  // The card's permission mode could not be applied, so the run was refused rather than
+  // executed under a mode nobody chose.
+  'permission-unavailable': 'skillCardProblemPermissionUnavailable',
   'too-large': 'skillCardProblemTooLarge',
   'unavailable': 'skillCardProblemUnavailable',
   'unauthorized': 'skillCardProblemGeneric',

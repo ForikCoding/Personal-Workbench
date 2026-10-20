@@ -10,15 +10,18 @@
  */
 
 import type {
+  WorkbenchCardConfigView,
   WorkbenchCardModel,
   WorkbenchCardWorkspace,
   WorkbenchResultRecord,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
   WorkbenchRunState,
+  WorkbenchSandboxMode,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
 } from './skill-card-contract.ts'
+import { effectiveWorkbenchSandboxMode } from './skill-card-contract.ts'
 import type {
   WorkbenchActivationSeam,
   WorkbenchAgent,
@@ -30,6 +33,7 @@ import type {
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from './skill-card-host.ts'
+import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
 import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
 
@@ -73,10 +77,37 @@ export interface WorkbenchCardSelection {
    * somewhere the user never chose, and every result would be about a different folder.
    */
   readonly workspace?: WorkbenchCardWorkspace
+  /**
+   * Sandbox mode the card's runs use; absent means the default mode applies.
+   *
+   * Read from storage for the same reason the route is: a permission is part of what the
+   * card is, so a client cannot start a run under a mode the card does not name.
+   */
+  readonly permission?: WorkbenchSandboxMode
 }
 
-/** Everything the runner depends on. */
-export interface WorkbenchSkillCardRunnerOptions {
+/**
+ * Project one stored card onto the selection a run reads.
+ *
+ * One function rather than an inline object built at composition, because every field a run
+ * needs from the card record passes through here: a field the record holds and this
+ * projection forgets is one missing line, not something a reader has to notice inside a
+ * route assembly callback. Omitting `permission` here would leave every card on the default
+ * mode while the page still showed the stored one.
+ * @param card - the card as storage returns it, or undefined when none is stored.
+ * @returns the selection; an absent field stays absent rather than becoming `undefined`.
+ */
+export function cardSelection(card: WorkbenchCardConfigView | undefined): WorkbenchCardSelection {
+  return {
+    ...card?.skill === undefined ? {} : { skill: card.skill },
+    ...card?.template === undefined ? {} : { template: card.template },
+    ...card?.model === undefined ? {} : { model: card.model },
+    ...card?.workspace === undefined ? {} : { workspace: card.workspace },
+    ...card?.permission === undefined ? {} : { permission: card.permission },
+  }
+}
+
+/** Everything the runner depends on. */export interface WorkbenchSkillCardRunnerOptions {
   /** Host services, narrowed. */
   readonly host: WorkbenchSkillCardHost
   /**
@@ -165,6 +196,13 @@ type RunInput =
   | {
     readonly kind: 'card'
     readonly agent: WorkbenchAgent
+    /**
+     * The agent the child hangs from: the card's own agent when it names a workspace.
+     *
+     * Resolved before the run is recorded, because its permission mode is applied there:
+     * a mode that cannot be applied refuses the start instead of letting the run proceed.
+     */
+    readonly parent: WorkbenchAgent
     readonly skill: string
     /** The card's HTML for this skill, carried into the prompt as the output template. */
     readonly template: string
@@ -177,6 +215,8 @@ type RunInput =
   | {
     readonly kind: 'refine'
     readonly agent: WorkbenchAgent
+    /** The agent the child hangs from; see the card variant. */
+    readonly parent: WorkbenchAgent
     readonly skill: string
     /** The card's HTML for this skill, the same document a card run fills. */
     readonly template: string
@@ -193,6 +233,8 @@ type RunInput =
   | {
     readonly kind: 'bare'
     readonly agent: WorkbenchAgent
+    /** The agent the child hangs from; see the card variant. */
+    readonly parent: WorkbenchAgent
     readonly skill: string
     /** Route this run is pinned to; absent inherits the session's. */
     readonly model?: WorkbenchCardModel
@@ -235,11 +277,16 @@ export class WorkbenchSkillCardRunner {
   /**
    * One rooted agent per card, created on the card's first run and reused after that.
    *
-   * Reuse is not an optimisation: the directory is fixed when the agent is created, so a
-   * second run of the same card can only keep the fence by keeping the agent. The path is
-   * stored beside the handle so a changed workspace is detected and rebuilt.
+   * Reuse is not an optimisation: the directory and the permission mode are fixed when the
+   * agent is created, so a second run of the same card can only keep both by keeping the
+   * agent. The path and the mode are stored beside the handle so a change to either is
+   * detected and rebuilt — a mode is a session event, and this runner never mutates a live
+   * agent's mode.
    */
-  private readonly cardAgents = new Map<string, { readonly path: string; readonly handle: WorkbenchAgentHandle }>()
+  private readonly cardAgents = new Map<
+    string,
+    { readonly path: string; readonly mode: WorkbenchSandboxMode; readonly handle: WorkbenchAgentHandle }
+  >()
 
   /** Distinguishes successive card agents; a session id cannot be published twice. */
   private cardAgentSeq = 0
@@ -366,9 +413,35 @@ export class WorkbenchSkillCardRunner {
         `the workspace directory "${workspace.path}" does not exist or is not a directory`,
       )
     }
-    // Checked after the two queries above, never before them, so the reservation below
-    // stays synchronous: two starts that both awaited the same check must not both win.
-    if (this.runs.get(request.cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns) {
+    // Checked here as well as below, and the earlier check is load-bearing: resolving the
+    // card's agent can dispose the one a run in flight still hangs from, whenever the stored
+    // directory or permission changed since that run started. A start that will be refused
+    // must not tear down a session underneath a running child.
+    if (this.congested(request.cardId)) {
+      return reject('run-in-progress', 'another run is already in flight')
+    }
+    // The agent a card's run hangs from is resolved here, before anything starts, because
+    // its permission mode is applied while it is created: a mode this deployment cannot
+    // apply has to refuse the start rather than let the run proceed under whatever the
+    // session happens to be set to. Applying it inside the run would leave the user with a
+    // failed run and a setting that still looks enforced.
+    let parent: WorkbenchAgent
+    try {
+      parent = await this.cardAgent(request.cardId, agent)
+    } catch (error) {
+      if (error instanceof WorkbenchSandboxModeError) {
+        return reject(
+          'permission-unavailable',
+          `card "${request.cardId}" cannot apply its permission mode: ${error.message}`,
+        )
+      }
+      // Anything else is a fault from the agent layer, not a permission decision; it
+      // travels as itself rather than being reported as one.
+      throw error
+    }
+    // Checked again, immediately before the reservation: the agent resolution above awaits,
+    // and two starts that both awaited it must not both win.
+    if (this.congested(request.cardId)) {
       return reject('run-in-progress', 'another run is already in flight')
     }
 
@@ -378,6 +451,7 @@ export class WorkbenchSkillCardRunner {
       input = {
         kind: 'bare',
         agent,
+        parent,
         skill,
         ...pinned,
         ...request.payload === undefined ? {} : { payload: request.payload },
@@ -391,6 +465,7 @@ export class WorkbenchSkillCardRunner {
         ? {
             kind: 'refine',
             agent,
+            parent,
             skill,
             template,
             ...pinned,
@@ -402,6 +477,7 @@ export class WorkbenchSkillCardRunner {
         : {
             kind: 'card',
             agent,
+            parent,
             skill,
             template,
             ...pinned,
@@ -437,6 +513,19 @@ export class WorkbenchSkillCardRunner {
       .finally(() => { this.inflight.delete(execution) })
 
     return { status: 'started', state: this.stateOf(run) }
+  }
+
+  /**
+   * Whether one more start would exceed the card's or the deployment's limit.
+   *
+   * Asked twice per start: once before the card's agent is resolved, so a refused start
+   * cannot rebuild an agent a run still hangs from, and once immediately before the run is
+   * recorded, so the reservation itself stays synchronous.
+   * @param cardId - the card the run belongs to.
+   * @returns whether another run is already in flight or the limit is reached.
+   */
+  private congested(cardId: string): boolean {
+    return this.runs.get(cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns
   }
 
   /**
@@ -536,28 +625,38 @@ export class WorkbenchSkillCardRunner {
   }
 
   /**
-   * The agent a card's run should hang from.
+   * The agent a card's run should hang from, with the card's permission mode applied.
    *
    * A card that names a workspace gets an agent rooted at that directory, created once and
    * reused; a card that does not falls back to the session's agent, which is what every run
-   * used before workspaces existed. The sandbox derives its writable root from the
-   * session header, and a child inherits its parent's header, so this is the whole
-   * mechanism that fences a run — no `cwd` is passed and the seam stays untouched.
+   * used before workspaces existed. The sandbox derives its writable root from the session
+   * header, and a child inherits its parent's header, so this is the whole mechanism that
+   * fences a run — no `cwd` is passed and the seam stays untouched.
+   *
+   * The mode is applied once, here, at creation. A child inherits its parent's explicit
+   * override, so recording it on this agent is what makes the card's permission govern
+   * every run started from it, refinements and template-button runs included.
    * @param cardId - the card whose agent is wanted.
    * @param fallback - the session's agent, used when the card names no directory.
    * @returns the agent to start the run from.
+   * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the new agent is
+   * disposed first, so a refused start leaves nothing running under no mode.
    */
-  private async cardParent(cardId: string, fallback: WorkbenchAgent): Promise<WorkbenchAgent> {
-    const path = this.options.selection(cardId).workspace?.path
+  private async cardAgent(cardId: string, fallback: WorkbenchAgent): Promise<WorkbenchAgent> {
+    const selection = this.options.selection(cardId)
+    const path = selection.workspace?.path
     // The route refuses a run without a valid workspace, so this is a guard for a state
     // the user cannot reach rather than a policy.
     if (path === undefined) return fallback
+    const mode = effectiveWorkbenchSandboxMode(selection.permission)
     const existing = this.cardAgents.get(cardId)
-    if (existing !== undefined && existing.path === path) return existing.handle.agent
+    if (existing !== undefined && existing.path === path && existing.mode === mode) return existing.handle.agent
     if (existing !== undefined) {
       // The root is fixed at creation, so a changed directory cannot be applied to the
       // agent already holding it: keeping it would fence the run somewhere the user did
-      // not choose.
+      // not choose. A changed mode is rebuilt for its own reason: the mode is a session
+      // event with no setter this runner may call on a live agent, so the old session is
+      // released and the new mode starts on a new one.
       this.cardAgents.delete(cardId)
       try {
         await existing.handle.dispose()
@@ -571,7 +670,21 @@ export class WorkbenchSkillCardRunner {
       sessionId: `workbench-card-${cardId}-${this.cardAgentSeq++}`,
       meta: { cwd: path },
     })
-    this.cardAgents.set(cardId, { path, handle })
+    try {
+      this.options.host.sandbox.setMode(handle.agent.id, mode)
+    } catch (error) {
+      // The mode could not be recorded, so this agent must run nothing: it is disposed
+      // rather than cached, and the caller refuses the start. Falling back to the default
+      // mode here is the one thing this feature must not do — the card would execute with
+      // a permission the user did not choose and the page would still show the old one.
+      try {
+        await handle.dispose()
+      } catch (teardown) {
+        this.options.warn(`workbench card agent teardown failed: ${messageOf(teardown)}`)
+      }
+      throw error
+    }
+    this.cardAgents.set(cardId, { path, mode, handle })
     return handle.agent
   }
 
@@ -600,12 +713,12 @@ export class WorkbenchSkillCardRunner {
         return
       }
 
-      let outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent))
+      let outcome = await this.attempt(run, input, cwd, skill, activate)
       // One retry, and only when repeating the ask could plausibly help: the
       // sentinel that a capture was missed is `unusable` plus `retryable`.
       if (outcome.kind === 'unusable' && outcome.retryable && !signal.aborted) {
         run.retried = true
-        outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent))
+        outcome = await this.attempt(run, input, cwd, skill, activate)
       }
 await this.finish(run, outcome)
       await this.archiveCardSession(run.cardId)
@@ -641,9 +754,11 @@ await this.finish(run, outcome)
     cwd: string | undefined,
     skill: WorkbenchSkillDefinition,
     activate: WorkbenchActivationSeam,
-    parent: WorkbenchAgent,
   ): Promise<AttemptOutcome> {
     const signal = run.controller.signal
+    // The agent this run hangs from, already created with its permission mode applied. Its
+    // session header carries the card's directory, so the sandbox root follows it.
+    const parent = input.parent
     // The effective working directory must be the sandbox root, or relative paths resolve
     // where the fence forbids writing. The card's agent carries that directory in its
     // session header, so the parent decides and the request follows it; a card with no

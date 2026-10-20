@@ -1,9 +1,9 @@
 /** Execution behaviour of the skill card runner across every precondition and outcome. */
 
 import { describe, expect, it, vi } from 'vitest'
-import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
+import { WorkbenchSkillCardRunner, cardSelection } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
-import type { WorkbenchRunRequest, WorkbenchResultRecord } from '../src/skill-card-contract.ts'
+import type { WorkbenchRunRequest, WorkbenchResultRecord, WorkbenchSandboxMode } from '../src/skill-card-contract.ts'
 import type { WorkbenchSubagentResult } from '../src/skill-card-host.ts'
 import { AGENT, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHost, FakeHostOptions } from './support/fake-skill-card-host.ts'
@@ -681,6 +681,176 @@ describe('the card agent that fences a run', () => {
     expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-missing' })
     expect(fake.createdAgents).toHaveLength(0)
     expect(fake.activations).toHaveLength(0)
+  })
+})
+
+/**
+ * The permission mode a card's runs execute under.
+ *
+ * The mode is a session event on the card's own agent, and a child inherits its parent's
+ * explicit override — so recording it there is what governs every run started from that
+ * card, refinements and template-button runs included. What these cases pin is the plugin's
+ * side of it: which mode is applied, when it is applied, when the agent is rebuilt, and what
+ * happens when the mode cannot be applied at all. Whether the sandbox then refuses a write
+ * outside the directory is out of this package (see the skipped workspace-sandbox spec).
+ */
+describe('the selection a run reads from one card', () => {
+  it('carries every field the card record holds, and none the run does not read', () => {
+    // Criterion 105's wiring half. The runner never sees a card record, only this projection,
+    // so a field the record holds and this function forgets is a setting that silently stops
+    // applying — the failure mode this whole feature exists to avoid. `permission` is the
+    // field that made the split worth pinning.
+    const model = { provider: 'deepseek', model: 'deepseek-chat' }
+    const workspace = { path: '/repo' }
+    expect(cardSelection({
+      cardId: 'skill-card',
+      skill: 'git-repo',
+      template: '<b>x</b>',
+      model,
+      workspace,
+      permission: 'read-only',
+      templateSkills: ['git-repo'],
+    })).toEqual({ skill: 'git-repo', template: '<b>x</b>', model, workspace, permission: 'read-only' })
+    // A card with nothing stored selects nothing: no key holds `undefined`, which
+    // `exactOptionalPropertyTypes` would otherwise let through unnoticed.
+    expect(cardSelection(undefined)).toEqual({})
+    for (const value of Object.values(cardSelection(undefined))) expect(value).toBeUndefined()
+    expect(Object.hasOwn(cardSelection(undefined), 'permission')).toBe(false)
+  })
+})
+
+describe('the permission mode a card runs under', () => {
+  /** A selection a case can mutate between runs, as the configuration page would. */
+  interface MutableSelection {
+    skill: string
+    template: string
+    workspace: { path: string }
+    permission?: WorkbenchSandboxMode
+  }
+
+  /** A captured result, repeated per attempt so no case pays for a retry it did not ask for. */
+  const CAPTURED: WorkbenchSubagentResult = { output: [], stopReason: 'completed', structured: { a: '1' } }
+  const CAPTURED_EVERY_TIME = { outcomes: [CAPTURED, CAPTURED, CAPTURED, CAPTURED, CAPTURED, CAPTURED] }
+
+  it('applies the default mode to a card that names none', async () => {
+    // Criterion 103. "No mode stored" is not "inherit": it means workspace-write, and this
+    // is the one place that turns the absence into a mode.
+    const { runner, fake } = setup()
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.sandboxModes).toEqual([
+      { sessionId: fake.createdAgents[0]?.id, mode: 'workspace-write' },
+    ])
+  })
+
+  it('applies the card’s mode once, when it creates the agent', async () => {
+    // Criterion 105. The mode is recorded on the card's agent, not per run: every child
+    // started from that agent inherits the same override, so a second run must not append a
+    // second event.
+    const { runner, fake } = setup({
+      ...CAPTURED_EVERY_TIME,
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, permission: 'read-only' },
+    })
+    await runner.start(request())
+    await settle(runner)
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.sandboxModes).toEqual([
+      { sessionId: fake.createdAgents[0]?.id, mode: 'read-only' },
+    ])
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.activations[1]?.request.parent).toBe(fake.createdAgents[0])
+  })
+
+  it('rebuilds the agent when the mode changes, and reuses it when nothing does', async () => {
+    // Criterion 106. A live agent's mode is not mutated, and the cache key carries the mode
+    // for exactly that reason: a changed mode starts on a new session rather than quietly
+    // continuing under the old one.
+    const selection: MutableSelection = {
+      skill: 'git-repo',
+      template: '<b>{{a}}</b>',
+      workspace: { path: WORKSPACE_PATH },
+      permission: 'read-only',
+    }
+    const { runner, fake } = setup({ ...CAPTURED_EVERY_TIME, selection })
+    await runner.start(request())
+    await settle(runner)
+    // Nothing changed, so the second run keeps the agent it has.
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.createdAgents).toHaveLength(1)
+
+    selection.permission = 'danger-full-access'
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.disposedAgents).toHaveLength(1)
+    expect(fake.createdAgents).toHaveLength(2)
+    expect(fake.sandboxModes.map(entry => entry.mode)).toEqual(['read-only', 'danger-full-access'])
+    // The new mode is on the new agent: the run hangs from the session that carries it.
+    expect(fake.sandboxModes[1]?.sessionId).toBe(fake.createdAgents[1]?.id)
+    expect(fake.activations[2]?.request.parent).toBe(fake.createdAgents[1])
+  })
+
+  it('refuses the start when the mode cannot be applied, naming the card and the mode', async () => {
+    // Criterion 107. Refused rather than falling back to the default or to the session's
+    // mode: a permission setting that quietly does nothing is worse than an error, because
+    // the user reads it as enforced.
+    const { runner, fake } = setup({
+      modeFailure: 'the session is gone',
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, permission: 'read-only' },
+    })
+    const outcome = await runner.start(request())
+    expect(outcome).toMatchObject({ status: 'rejected', code: 'permission-unavailable' })
+    const detail = outcome.status === 'rejected' ? outcome.detail : ''
+    expect(detail).toContain('skill-card')
+    expect(detail).toContain('read-only')
+    expect(detail).toContain('the session is gone')
+    // Nothing ran, no run state was recorded, and the agent that could not take the mode was
+    // released instead of being kept for the next attempt.
+    expect(fake.activations).toEqual([])
+    expect(fake.disposedAgents).toEqual([fake.createdAgents[0]?.id])
+    expect(runner.state('skill-card')).toBeUndefined()
+  })
+
+  it('does not rebuild an agent a run in flight still hangs from', async () => {
+    // Applying a changed mode disposes the card's agent, so the overlap check has to run
+    // before the mode is applied: rebuilding on a start that is refused would tear down the
+    // session the running child hangs from.
+    const selection: MutableSelection = {
+      skill: 'git-repo',
+      template: '<b>{{a}}</b>',
+      workspace: { path: WORKSPACE_PATH },
+      permission: 'read-only',
+    }
+    const { runner, fake } = setup({ outcomes: ['hang'], selection })
+    await runner.start(request())
+    selection.permission = 'danger-full-access'
+    const outcome = await runner.start(request())
+    expect(outcome).toMatchObject({ status: 'rejected', code: 'run-in-progress' })
+    expect(fake.disposedAgents).toEqual([])
+    expect(fake.createdAgents).toHaveLength(1)
+    await runner.dispose()
+  })
+
+  it('runs a card that asks for danger-full-access', async () => {
+    // Criterion 108. Full access is allowed: the product decision is that a user may choose
+    // it, and the configuration page states what it gives up. What must not happen is the
+    // runner refusing or silently narrowing it.
+    const { runner, fake } = setup({
+      selection: {
+        skill: 'git-repo',
+        template: '<b>{{a}}</b>',
+        workspace: { path: WORKSPACE_PATH },
+        permission: 'danger-full-access',
+      },
+    })
+    await runner.start(request())
+    const state = await settle(runner)
+    expect(state?.phase).toBe('settled')
+    expect(fake.sandboxModes).toEqual([
+      { sessionId: fake.createdAgents[0]?.id, mode: 'danger-full-access' },
+    ])
+    expect(fake.activations).toHaveLength(1)
   })
 })
 

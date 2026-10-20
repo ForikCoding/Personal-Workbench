@@ -216,6 +216,53 @@ describe('workbench skill card route', () => {
     expect(tables.operations).toEqual([])
   })
 
+  it('carries the permission mode through the wire and stores it', async () => {
+    // One of the three modes, written as an absolute value: the picker is the whole choice,
+    // so a write states the mode rather than a diff against the stored one.
+    const { handle, tables } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', patch({ permission: 'read-only' })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', permission: 'read-only', templateSkills: [] },
+    ])
+    expect(tables.operations).toEqual([
+      { table: 'card', kind: 'put', key: 'skill-card', value: { skill: 'git-repo', permission: 'read-only' } },
+    ])
+  })
+
+  it('refuses a permission mode this build does not know', async () => {
+    // A mode the sandbox vocabulary does not contain would reach the session as an event no
+    // tool enforces, so it is refused at the boundary rather than stored.
+    const { handle, tables } = setup()
+    for (const permission of ['full-control', '', 7, true]) {
+      const response = await run(handle, new FakeRequest('PATCH', patch({ permission })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message)
+        .toBe('permission must be null or one of read-only, workspace-write, danger-full-access')
+    }
+    expect(tables.operations).toEqual([])
+  })
+
+  it('clears the permission mode when the patch says null, leaving the rest of the record', async () => {
+    const { handle, tables } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', name: '任务', permission: 'danger-full-access' } } },
+    })
+    const response = await run(handle, new FakeRequest('PATCH', patch({ permission: null })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([{
+      cardId: 'skill-card',
+      name: '任务',
+      skill: 'git-repo',
+      templateSkills: [],
+    }])
+    expect(tables.operations.at(-1)).toEqual({
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: { name: '任务', skill: 'git-repo' },
+    })
+  })
+
   it('clears the workspace when the patch says null, leaving the rest of the record', async () => {
     // Clearing is offered because a card may move onto another directory. It has to leave
     // the name, the skill, and the model exactly as they were.
@@ -257,7 +304,7 @@ describe('workbench skill card route', () => {
     const response = await run(handle, new FakeRequest('PATCH', patch({ remove: true, workspace: { path: '/repo' } })))
     expect(response.statusCode).toBe(400)
     expect(JSON.parse(response.body).error.message)
-      .toBe('a removal cannot carry a name, a skill, a model, a workspace, or a template')
+      .toBe('a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template')
     expect(tables.operations).toEqual([])
   })
 

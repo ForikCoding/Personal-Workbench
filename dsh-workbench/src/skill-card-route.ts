@@ -20,6 +20,7 @@ import type {
   WorkbenchRunMode,
   WorkbenchRunRequest,
   WorkbenchRunResponse,
+  WorkbenchSandboxMode,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCardPatch,
   WorkbenchSkillCardResponse,
@@ -28,11 +29,13 @@ import {
   WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
   WORKBENCH_RESULT_MAX_BYTES,
+  WORKBENCH_SANDBOX_MODES,
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
+  isWorkbenchSandboxMode,
   isWorkbenchSkillName,
   isWorkbenchWorkspacePath,
 } from './skill-card-contract.ts'
@@ -186,6 +189,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     skill?: unknown
     model?: unknown
     workspace?: unknown
+    permission?: unknown
     template?: unknown
   }
   if (typeof body.baseRevision !== 'string') {
@@ -251,6 +255,21 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     )
   }
 
+  let permission: WorkbenchSandboxMode | null | undefined
+  if (body.permission === undefined) {
+    permission = undefined
+  } else if (body.permission === null) {
+    permission = null
+  } else if (isWorkbenchSandboxMode(body.permission)) {
+    permission = body.permission
+  } else {
+    throw new SkillCardRequestError(
+      400,
+      'invalid-request',
+      `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(', ')}`,
+    )
+  }
+
   let template: { readonly skill: string; readonly html: string } | undefined
   if (body.template !== undefined) {
     const raw = body.template
@@ -280,6 +299,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     ...skill === undefined ? {} : { skill },
     ...model === undefined ? {} : { model },
     ...workspace === undefined ? {} : { workspace },
+    ...permission === undefined ? {} : { permission },
     ...template === undefined ? {} : { template },
   }
 }
@@ -545,6 +565,10 @@ const STATUS_BY_CODE: Record<WorkbenchSkillCardErrorCode, number> = {
   // the card was configured against rather than being malformed, exactly like a model route
   // the deployment no longer offers.
   'workspace-invalid': 409,
+  // The card names a permission mode this Host could not apply to the agent that runs it.
+  // A conflict rather than a bad request for the same reason: the request is well formed and
+  // the card is otherwise ready, and no change to the request would make the mode apply.
+  'permission-unavailable': 409,
 }
 
 /** Everything the catalog route needs. */

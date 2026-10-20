@@ -26,6 +26,7 @@ import type {
   WorkbenchPendingAction,
 } from './controller.ts'
 import type { WorkbenchModelSeat } from './model.ts'
+import { permissionLabelKey } from './permission.ts'
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
 import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
@@ -661,10 +662,13 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
           />
         )}
       <RunOutput view={view} t={t} />
-      {/* Every run inherits the session's full tool permissions, and the skill it
-          executes is disk content. It is a footnote beneath everything because it is not
-          the content, and it still has to be read before pressing Run. */}
-      <p className={css.permission}>{t('skillCardPermission')}</p>
+      {/* What this card's runs may write, stated beneath everything because it is not the
+          content and still has to be readable before pressing Run. The skill it executes is
+          disk content, so the mode is the sentence that says how far that can reach — and a
+          mode nobody can see is a permission nobody checked. */}
+      <p className={css.permission} data-run-permission={view.permission}>
+        {t('skillCardRunsWithPermission', { mode: t(permissionLabelKey(view.permission)) })}
+      </p>
     </section>
   )
 }
@@ -709,6 +713,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
         t={t}
         onChoose={actions.chooseSkill}
         onChooseModel={actions.chooseModel}
+        onChoosePermission={actions.choosePermission}
         onChooseWorkspace={actions.chooseWorkspace}
         onSave={actions.saveTemplate}
         onRename={actions.rename}

@@ -451,15 +451,20 @@ describe('the result page', () => {
     expect(container.querySelector('[data-run-workspace-invalid]')).toBeNull()
   })
 
-  it('demotes the permission note to the last line of the page', async () => {    // The note is a statement about the page, not part of the document: it belongs
-    // beneath everything, in every state the page can be in.
+  it('states the permission mode the card runs under, as the last line of the page', async () => {
+    // The mode is a safety fact about the run, so it is a footnote beneath everything rather
+    // than part of the document. A card that stores none runs under the default, which is
+    // what this case pins: the line states the mode that will be applied, not that none is
+    // set.
     const { container } = render(
       <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,
     )
     await detail(container)
-    expect(container.firstElementChild?.lastElementChild?.textContent).toBe(zh.skillCardPermission)
+    const note = container.firstElementChild?.lastElementChild
+    expect(note?.getAttribute('data-run-permission')).toBe('workspace-write')
+    expect(note?.textContent).toBe(t('skillCardRunsWithPermission', { mode: zh.skillCardPermissionWorkspaceWrite }))
     // Not repeated inside the frame, where the document lives.
     expect(container.querySelector('[data-result-surface]')?.textContent)
-      .not.toContain(zh.skillCardPermission)
+      .not.toContain(zh.skillCardPermissionWorkspaceWrite)
   })
 })

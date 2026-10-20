@@ -13,6 +13,8 @@
 > **本轮（第十三版）加的是每张卡自己的工作目录：一张卡在运行之前必须先有目录，而这个目录由用户用一个选择器挑。** 配置页「基本信息」从三个控件变成四个，排版改成**两行两列**（名称 / 技能，模型 / 工作目录）；字段的主值是**目录名的最后一段**，完整路径是它下面那行次要文字。存的是**一条完整绝对路径**（`workspace?: { path: string }`），**不是工作区 id**——理由与「模型是一对 id，不是一个字符串」同源：产品要的是"用户选哪个目录就是哪个目录"，那个目录不必是已注册的工作区；而一个 id 还要额外依赖一条会被改名的注册表记录。选择器**按平台分派**：Windows 走 Desktop 插件发布在窗口上的 `__DSH_DESKTOP_PICK_DIRECTORY__`，其他平台走应用自己的 `ctx.uiWorkspace.pickDirectory()`；**产品负责人明确否掉了手打路径与工作区下拉**，所以这里没有第三种入口。**一个纯函数 `resolveWorkspaceField()` 拥有三种状态**（`missing` / `invalid` / `ready`），字段与运行控件读的是同一个值；**拒绝，绝不回退**到会话的目录。**没有迁移**：已有卡片读回来就是没有目录，在配上之前不能运行。**一条必须先说清的缺口**：这一版**没有**让目录约束运行写到哪里——运行仍在父会话的目录里执行，收口需要一次 `agents.create({ meta: { cwd } })` 式的运行，**没有实现**（见 M5 的「工作目录：一道门，还不是一间房」；**第十四版补上了插件侧那一半，下一条**）。它落在本文的 **M1**（`WorkbenchCardWorkspace`、`isWorkbenchWorkspacePath`、`WorkbenchDirectoryStat`、目录检查路由与两个新错误码）、**M4**（`workbenchCardWorkspaceSchema` 与合并/清空语义）、**M5**（启动前的目录门，以及那个缺口）、**M6**（`GET /directory` 与 `src/skill-card-directory.ts`）、**M7/M9**（宿主的探针装配、客户端 `ctx.inject(['uiWorkspace'])` 的作用域形式）、**M8**（`workspaceField`、`chooseWorkspace`、`statDirectory`）与 **M10**（`workspace.ts`、`workspace-picker.ts`、`WorkspaceField` 与两行两列的栅格）上；验收标准由 79 条增至 **92 条**，本批落地时整个包是 **604 个测试 / 40 个 spec 文件**，`corepack yarn workspace dsh-workbench check` exit 0。需求侧的条目与分组见[需求方案 §14.8 与附录 A.8](workbench-card-requirements.md#148-已实现并验收8092)。
 >
 > **本轮（第十四版）让运行落在卡片自己的目录上——只到插件这一侧。** 每张卡在第一次运行时**造一个自己的 agent**，根在卡片目录（`agents.create({ sessionId, meta: { cwd } })`），并把它作为这次运行的 **`parent`**；seam 一行没改（提示词投递、`{html}` 捕获、那一次重试、取消、`agent/error` 归因照旧）。**为什么换父就能限定**：文件沙箱的 `workspaceRoot` 取自 `session.header.cwd`，而子代理这条缝把**父**的会话头复制给子，所以父根在哪、子就落在哪；`startActivation` 的 `cwd` 只经 `workingDirectory.set` 写"有效工作目录"、不动会话头，靠它到不了沙箱根。**一个 agent 只建一次并复用**（根在创建时固定，重建就等于换目录）；**存的那条路径变了就拆掉旧的、按新目录重建**；`dispose()` 释放全部卡片 agent（它们活过一次运行，没有别处会释放）；每次结算后**归档**该 agent 的会话（记账不是删除，失败只 `warn`）。宿主表面因此多出 `agents.create` 与 `workspaceRegistry.archiveSession`——后一个名字、以及它必须在 `inject` 里声明这件事，**都不受任何类型检查保护**（宿主对象是 `ctx` 的宽 cast；`workspaces` 是客户端服务名，写错了照样全绿）。**两条限制写在 M5 那一节的最前面**：栅栏本身只有一份**故意 skip** 的规格（`tests/skill-card-workspace-sandbox.spec.ts`，3 条），而且**没有任何真实应用跑过它**。落在本文的 **M5**（父 agent 的创建 / 复用 / 重建 / 释放、归档、命名约束）、**M7**（`inject` 与宽 cast 的关系）、**M10**（配置页那句"它是一道门"改口）、**M13**（口径与那条跳过的规格）与**附录 B/C** 上；验收标准由 92 条增至 **101 条**（其中 99–101 不是"通过"条目），本批落地时整个包是 **609 个测试 / 40 个 spec 文件 / 3 跳过**，`corepack yarn workspace dsh-workbench check` exit 0。需求侧的条目与分组见[需求方案 §14.9 与附录 A.9](workbench-card-requirements.md#149-运行被钉在卡片目录上93101)。
+>
+> **本轮（第十五版）给每张卡一个自己的权限模式。** 配置页「基本信息」多出**第三行**：`read-only` / `workspace-write` / `danger-full-access`，文案与应用自己的权限选择器一致（仅可查看 / 工作区内修改 / 完全权限）；选「完全权限」时同一格里写明**工作目录不再限制写入**。卡片记录多一个 `permission?`，**不写就是 `workspace-write`**——具体默认值，不是"跟随会话"，所以**已有卡片变严**（产品负责人的决定）。可写下来的只有一条路径：`sandbox.setMode(sessionId, mode)` 在 `src/index.ts` 里接到**真实 Session** 的 `append('sandbox/mode', { mode })`，而子代理继承父的显式 override，所以**把模式写在卡片 agent 的会话上，就是"这张卡的运行都按它跑"的全部机制**。**模式在创建 agent 时应用一次**；agent 的缓存键从"路径"变成"路径 + 模式"，所以**换模式就重建**（旧 agent 先 `dispose`），而**应用不了就拒绝这次运行**（`permission-unavailable`，消息点名卡片与模式），绝不悄悄按别的模式跑。`danger-full-access` **允许**。**一句必须一起读的话**：这套机制压在第十四版那间**从未在真实应用里验证过**的房上（`tests/skill-card-workspace-sandbox.spec.ts` 仍是故意 skip 的 3 条规格），模式只决定沙箱允许写到哪里，而那个根没有被验证过——**工作目录只在 `read-only` 与 `workspace-write` 下限制写入**。落在本文的 **M1**（`WorkbenchSandboxMode`、`WORKBENCH_SANDBOX_MODES`、`effectiveWorkbenchSandboxMode`、新错误码）、**M4**（schema 的第四个字段与合并语义）、**M5**（`cardAgent()` 里应用模式、缓存键、拒绝而不回退、重叠检查前置）、**M7**（`sandbox.setMode` 的装配与那处唯一的加宽读取）、**M8**（`permission` 字段、`choosePermission`、`LOCALIZED_CODES`）、**M10**（`permission.ts`、配置页第三行与警告、结果页那句脚注）、**M13** 与**附录 B/C** 上；验收标准由 101 条增至 **108 条**，本批落地时整个包是 **631 passed | 3 skipped / 41 个 spec 文件**，`corepack yarn workspace dsh-workbench check` exit 0。需求侧的条目与分组见[需求方案 §14.10 与附录 A.10](workbench-card-requirements.md#1410-每张卡自己的权限模式102108)。
 
 ## 怎么读这份文档
 
@@ -305,19 +307,22 @@ export type WorkbenchSkillCardErrorCode =
   | 'run-in-progress'       // 这张卡已经在跑
   | 'workspace-missing'     // 这张卡还没选工作目录（第十三版）
   | 'workspace-invalid'     // 存的那条路径没了，或已经不是目录（第十三版）
+  | 'permission-unavailable'// 卡片要的权限模式应用不到它自己的 agent 上（第十五版）
 ```
 
 `model-unavailable` 是第十二版加的**唯一**一个新码。三种拒绝都要说得清楚，所以它们不合并成一个：后端不支持 `agentOptions` 与 provider 不存在共用 `provider-unavailable`（都是"这条后端/provider 走不通"），而**模型本身不在目录里**有自己的码——它对应的下一步动作不一样（换一个模型，还是换一条后端/provider）。路由把它映射成 **409**，与 `session-not-live` 同类：卡片配置时的事实和现在对不上，不是请求写错了。
 
 第十三版的两个码沿用同一条判据，而且**必须**是两个：`workspace-missing` 的下一步是"去选一个目录"（路由映射 **400**，与 `not-configured` 同类——卡片别的都齐了，只缺一个事实），`workspace-invalid` 的下一步是"去看看那个目录怎么了"（映射 **409**，与 `model-unavailable` 同类——卡片配置时目录在，现在不在了）。合并成一个码会让这两种下一步共用一句话，而它们要用户做的事完全不同。
 
+第十五版的 `permission-unavailable` 映射 **409**，与 `workspace-invalid` 同类而不是 400：请求本身没有写错，卡片也是齐的，是**这个宿主应用不了那张卡要的模式**，改请求不会让它成功。它与 `model-unavailable` 是同一类拒绝——"卡片说 A、这里只能做 B"——处理方式也同一条：**拒绝，绝不回退**。
+
 后九个是**可操作的降级原因**，对应需求 §8 的降级矩阵：每一个都告诉用户下一步该做什么。把它们折叠成一个通用错误，用户就会看到"出错了"却不知道该干什么——这正是需求明令禁止的。
 
 ### 结果 R
 
 - 两端编译期就对同一组常量与类型，字段名写错立刻是类型错误。
-- 错误码表成为 M12 与验收标准的公共词汇；新增一个码会同时在三张映射表里报错（路由的状态表、客户端的本地化表、卡片的失败文案表），漏一处编译不过。第十三版一次加了两个码，三张表因此各自被逼着表了态：400 还是 409、说什么话、卡片上写哪一句。
-- **模型是一条路由，不是一段文本**：它以两个 id 的形态进出契约、存储与记录，中途没有任何一处需要拆分或拼接。**工作目录是一条路径，不是一个 id**：同理，它以一个字符串的形态进出契约、存储与请求，中途没有任何一处需要"换成工作区再换回来"。
+- 错误码表成为 M12 与验收标准的公共词汇；新增一个码会同时在三张映射表里报错（路由的状态表、客户端的本地化表、卡片的失败文案表），漏一处编译不过。第十三版一次加了两个码，三张表因此各自被逼着表了态：400 还是 409、说什么话、卡片上写哪一句。第十五版加 `permission-unavailable` 走的是同一条路：409、一句"权限模式应用不了，运行已拒绝"、卡片上同一句。
+- **模型是一条路由，不是一段文本**：它以两个 id 的形态进出契约、存储与记录，中途没有任何一处需要拆分或拼接。**工作目录是一条路径，不是一个 id**：同理，它以一个字符串的形态进出契约、存储与请求，中途没有任何一处需要"换成工作区再换回来"。**权限模式是一个枚举，不是一个开关**：`WORKBENCH_SANDBOX_MODES` 是唯一的词表，`isWorkbenchSandboxMode()` 是唯一的判据，存储、路由与客户端三处读的是同一个——所以"存进去的模式"与"运行用的模式"不可能在解析上分叉。
 - 契约模块本身零依赖，`vite` 构建时被内联进客户端包，不产生新的外部依赖；目录检查那一条路径是同源私域路径下的一次 `GET`，不引入对 `uiWorkspace` 或 Desktop 插件的依赖——那些人只在 M10/M9 的选择器里出现。
 
 ---
@@ -565,7 +570,7 @@ export const WORKBENCH_SKILL_CARD_DOMAIN = defineDomain({
 
 | 表 | 键 | 值 |
 | --- | --- | --- |
-| `card` | cardId | `{ skill?: string; name?: string; model?: WorkbenchCardModel; workspace?: WorkbenchCardWorkspace }` |
+| `card` | cardId | `{ skill?: string; name?: string; model?: WorkbenchCardModel; workspace?: WorkbenchCardWorkspace; permission?: WorkbenchSandboxMode }` |
 | `template` | `${cardId}_${skill}` | `{ html: string }` |
 | `result` | cardId | `{ skill, executedAt, stopReason, model?, structured?, outputText?, diagnostic?, editedAt? }` |
 
@@ -595,7 +600,11 @@ P10 给卡片记录加了 `name`：store 会写它，写入也成功返回，但
 
 **第十三版在同一条规则上再加一个字段**：`workbenchCardConfigSchema.workspace`（`{ path }` 单字段对象），与 store 写入**同一次改动**里声明，`skill-card-spec.spec.ts` 同步多了两条：一条是带 `workspace` 的整条往返（同一份记录里还有带斜杠的 provider 与一条 Windows 路径，两样都不许在中途被重新解释），另一条同时钉住"只写了目录的记录也保留"与"没有目录的记录不会被凭空补上一个"。它守的是同一个症状——目录写进去、重启后消失，卡片于是**毫无提示地变成不能运行**，而日志里没有一次失败。这一条把它与运行门槛直接连在一起：字段被丢 = 卡片静默不可运行，而这一次连一句失败都没有。
 
-**清空不是删除。** 补丁里的 `model: null` 表示"这张卡改回继承会话的模型"，与 `name: null` / `skill: null` 同一套语义；第十三版把 `workspace: null` 加进同一组（"清掉目录，退回不能运行"）。四个字段一起写在一个记录里，所以写入是**合并**而不是覆盖——只改名字不会把模型或目录打掉，只改目录也不会把 skill 打掉。四个字段都为空时整条记录被删除（否则会留下一条没有内容的卡片记录）。这一步由 `skill-card-store.spec.ts` 逐条钉住。
+**第十五版按同一条规则加第四个字段：`workbenchCardConfigSchema.permission`。** 它用的是 `z.enum(WORKBENCH_SANDBOX_MODES)`，而不是 `z.string()`：一个本 build 不认识的模式必须在加载时就**大声失败**（域的 `backup-and-skip` 把它移开），而不是被当成合法字符串存下来、再在运行时交给沙箱。丢掉这个字段比丢别的三个更糟——卡片会以默认模式回来，用户特意收窄过的那张卡于是按**更宽**的模式跑，而页面上不会有任何一处说这件事。`skill-card-spec.spec.ts` 因此多了三条：带模式的整条往返（同一份记录里还有带斜杠的 provider、Windows 路径与全权限模式，四样都不许在中途被重新解释）、没有该字段的记录不会被凭空补上、以及四个非法值（`full-control`、空串、大写、数字）都被拒。**spec 里"不认识的模式被拒"这条同时是存储侧与路由侧的同一条枚举**：schema、路由解析与客户端解析读的是同一个 `isWorkbenchSandboxMode()`。
+
+**存储这一侧不知道默认值。** `permission` 在记录里**只有"有"和"没有"**：没有就是没有，读取时不会被补成 `workspace-write`。默认值是**运行期**的事实（`effectiveWorkbenchSandboxMode()`），由配置页与 runner 各自解析——这样"卡片有没有选过"与"它跑在什么模式下"是两件事，前者不会被一次读悄悄改写。
+
+**清空不是删除。** 补丁里的 `model: null` 表示"这张卡改回继承会话的模型"，与 `name: null` / `skill: null` 同一套语义；第十三版把 `workspace: null` 加进同一组（"清掉目录，退回不能运行"），第十五版把 `permission: null` 也加进来（"退回默认模式"）。五个字段一起写在一个记录里，所以写入是**合并**而不是覆盖——只改名字不会把模型、目录或模式打掉，只改目录也不会把 skill 打掉。五个字段都为空时整条记录被删除（否则会留下一条没有内容的卡片记录）。这一步由 `skill-card-store.spec.ts` 逐条钉住。
 
 **结果被裁剪时 `model` 不会丢。** `trimResult` 在超预算时先丢文本、再考虑结构化值，`model` 与 `skill`/`executedAt`/`stopReason` 一样属于**基础记录**：两个短 id，且它是"这份结果出自哪条路由"的答案，丢了就等于把用户送回猜的状态。
 
@@ -650,6 +659,7 @@ export class WorkbenchSkillCardStore {
 - 存储 schema 覆盖 store 写入的每个字段，所以"存进去、重启又回退"这类缺陷有专门用例守着（`skill-card-spec.spec.ts`）。第十二版的两个 `model` 字段走的是同一条路。
 - 卡片的选择与结果的记录各自带着路由：前者决定下次跑在哪，后者说明这次出自哪，两者不在同一处被追认。
 - 卡片的目录与另外三个字段住在同一条记录里，所以合并与清空是同一条既有语义的第二次使用，不是新的存储机制：改名字不会打掉目录，`workspace: null` 只清目录，四个都空才删记录（`skill-card-store.spec.ts`）。**而它没有迁移**：老卡片读回来就是没有目录，这一点由"没有该字段就真的没有"的用例守着。
+- 第十五版把**权限模式**加进同一条记录（`permission?`），走的是同一条合并与清空语义：`permission: null` 只清模式、退回默认，五个字段都空才删记录；记录里**不补默认值**，默认是运行期的事实。schema 用的是三值枚举，所以一个本 build 不认识的模式在加载时就失败，而不是被存下来交给沙箱（`skill-card-spec.spec.ts`、`skill-card-store.spec.ts`）。
 
 ---
 
@@ -736,9 +746,11 @@ async function run(request: WorkbenchRunRequest): Promise<RunOutcome> {
 
   // 7. 启动。父是这张卡自己的 agent（根在卡片目录），有效工作目录也跟着它的会话头走——
   //    否则相对路径会按会话目录解析，而写入又被沙箱根限在卡片目录（第十四版）。
+  //    第十五版把这一步前移到 start() 里（`cardAgent()`），因为它同时要把卡片记录的权限模式
+  //    写在这个 agent 上；应用不了就拒绝启动，而不是带着"没生效的模式"跑一次。
   //    卡片写了模型就把那条路由作为 agentOptions 传下去；没写就**不传**这个字段，
   //    子代理因此继承会话模型。不传 toolFilter = 不限制工具。
-  const parent = await cardParent(request.cardId, agent)
+  const parent = await cardAgent(request.cardId, agent)  // 实际位置：start()，早于运行登记
   const resolvedCwd = parent.session?.header?.cwd ?? cwd
   const activation = await host.subagents.startActivation({
     provider: config.subagentProvider,
@@ -849,6 +861,34 @@ seam 因此**一行都不用改**：提示词投递、`{html}` 捕获、那一�
 **有效工作目录也跟着父走，而这件事没有用例能分辨。** `attempt()` 取 `resolvedCwd = parent.session?.header?.cwd ?? cwd`：卡片有 agent 时，`request.cwd` 就是卡片目录（否则相对路径会按会话目录解析，而写入又被沙箱根限在卡片目录，两处打架）；卡片没有 agent 时退回会话目录，与从前一样。这修正了更早一版把**会话**目录塞进 `request.cwd` 的写法（那一版里子会话头是卡片目录、"有效工作目录"却是会话目录，`cardParent()` 注释与施工方案里那句"不传 `cwd`"也因此是错的）。但**没有任何用例断言过这一点**：`skill-card-runner.spec.ts` 里唯一断言 `request.cwd` 的地方期待 `/repo`，而 fake 的会话目录与卡片目录恰好同名 `/repo`——它分辨不出两者。所以这一条是**读代码能确认、跑测试分辨不出**的事实，真机验证才算数。
 
 **客户端、控制器与配置页：这一版没有改动。** 选择目录仍然是配置页的 `WorkspaceField`（存一条绝对路径），传输层仍然只发 `{ path }`，控制器仍然只在运行前用 `workspaceField` 判断能不能跑。**"钉在哪里"完全是宿主侧的事**：客户端既不知道、也不需要知道父 agent 的存在。所以这三处不要去找新代码——要找的答案是"为什么找不到"：目录的语义没有变，变的只是宿主拿它当谁的 `meta.cwd`。
+
+#### 权限模式：一个 agent 一个模式（第十五版）
+
+**这一节先说清楚它在哪一层。** 模式**不决定**沙箱的根，只决定沙箱**允许写到哪里**：**工作目录只在 `read-only` 与 `workspace-write` 下限制写入，`danger-full-access` 下它不再限制**。而"限制"本身来自上一节那个卡片 agent 的 `session.header.cwd`，所以上一节那三句话在这里**原样成立**：根没有被验证，也没有任何真实应用跑过。本节能主张的只有两句——**卡片把用户选的模式写进了它自己 agent 的会话**；**那之后沙箱是否真的收紧或放开写入，没有人验过**。
+
+**机制：一条会话事件，写在父上。** 设置模式只有一条路径（`sandbox-policy/src/session-mode.ts:53`）：`session.append('sandbox/mode', { mode })`。`SandboxPolicyService` 只有读（`resolve()` / `overrideOf()`），**没有写**。而子代理**继承父的显式 override**（`captureDelegatedPolicyOverrides(parent)` 读的是 `sandboxPolicy.overrideOf(parent.session)`），所以把事件写在**卡片 agent 的会话**上，就是"这张卡的每一次运行都按它跑"的全部机制——首次运行、重跑、微调、模板按钮触发的运行都走同一个 `cardAgent()`，因此一起生效；手工编辑结果不跑模型，也没有沙箱，所以不受影响。
+
+**装配：一处加宽读取，写在最外面。** 宿主把 `agents` / `skills` / `workspaceRegistry` / `subagents` / `llm` 之外**多一个 `sandbox` 成员**：`{ setMode(sessionId, mode): void }`。它**不是一个服务**，所以不能靠宽 cast 自动出现在宿主对象上——`src/index.ts` 逐个成员组装这个窄接口，并在这里接上：
+
+```ts
+sandbox: { setMode: (sessionId, mode) => runtime.agents.get(sessionId) /* 唯一的加宽读取 */.session.append('sandbox/mode', { mode }) }
+```
+
+`WorkbenchAgent.session` 只声明了 `header`（runner 只读它），真实 `Session` 的 `append` 就在**这一处**加宽读到；找不到 agent 或追加失败时抛**有类型的** `WorkbenchSandboxModeError`（带 `sessionId` 与 `mode`）。**为什么要在装配处显式补这一项**：整个宿主对象在此之前是一个宽 cast（`ctx as unknown as WorkbenchSkillCardHost`），读一个没有任何服务提供的成员会编译通过、测试也绿、运行时什么都不做——一个**静默不生效的权限**，正是本功能明确拒绝的结果。所以宁可让它显式多一行，也不要它悄悄消失。
+
+**在建 agent 时应用一次。** `cardAgent()` 现在是"取或建"：路径与模式都没变就返回缓存的 agent；变了就 `dispose` 旧的；新建之后**立刻** `setMode(handle.agent.id, mode)`。一次，不是每次运行——继承发生在每次启动，而模式已经在父的会话里。**应用失败就拒绝，绝不回退**：新 agent 先被 `dispose`（不留在缓存里等下一次），再把 `WorkbenchSandboxModeError` 抛给 `start()`，由它返回 `permission-unavailable`，消息形如 `card "skill-card" cannot apply its permission mode: session "workbench-card-skill-card-0" cannot take permission mode "read-only": …`——**卡片与模式都在里面**。回退到默认模式是最坏的选项：用户读到的设置是"收紧"，运行却是"没收紧"，而且结果上不会写这件事。
+
+**缓存键必须含模式。** `cardAgents` 的值从 `{ path, handle }` 变成 `{ path, mode, handle }`。理由是模式与根一样**在创建时固定**：本插件不去改一个活着的 agent 的模式（那是一个正在写会话的对象的运行期状态），所以换模式的唯一诚实做法是**换一个会话**——旧 agent 先 `dispose`（照旧，会话仍可读），新模式的 agent 重新建。
+
+**start 因此提前了一步，并且这一步带来一个必须补的检查。** 为了让"应用不了模式"能**拒绝启动**（而不是变成一次失败的运行），`cardAgent()` 从 `execute()` 移到了 `start()` 里。原先靠"先判定再登记"保住的**同步预订**因此被一个 `await` 打断，所以现在有**两次**重叠检查：一次在解析 agent **之前**（`congested()`），一次在登记 run 记录**之前**。前一次不是重复——**它保护的是正在运行的那次运行的父 agent**：如果模式或目录在运行中被改过，再点一次"运行"会让 `cardAgent()` 拆掉正在被这个子代理使用的会话；先判一次重叠，这次会被拒绝的启动就不会动任何 agent。
+
+| 情形 | 做什么 | 为什么 |
+| --- | --- | --- |
+| 卡片没写模式 | 按 `workspace-write` 应用 | 具体默认值，不是"跟随会话"：跟随会话等于一个没人给过这张卡的权限 |
+| 首次运行 / 重跑 / 微调 / 按钮运行 | 都从同一个 `cardAgent()` 出发 | 模式写在父的会话里，子继承父的显式 override，所以四种运行一起生效 |
+| 模式没变 | 复用 agent，**不再**追加事件 | 一次写入就够；每次运行都写一遍只会让会话日志里多出没有意义的重复 |
+| 模式变了 | `dispose` 旧的、建新的、把新模式写在新 agent 上 | 不改一个活着的 agent 的模式；模式与根一样在创建时固定 |
+| 模式应用不了 | 释放刚建的 agent、拒绝启动（`permission-unavailable`） | 回退会让"设置"与"实际"分家，而界面上没有任何一处能看出来 |
 
 #### 整份文档怎么进 prompt
 
@@ -1052,7 +1092,8 @@ const retryable = !usable && (result.stopReason === 'completed' || result.stopRe
 - 卡片写了模型时，跑的就是那条路由，且**结果上写着它**；写不通时第一步就拒绝，不会出现"卡片显示 A、实际跑 B"。
 - 卡片没有目录、或目录已经不在了，就**不启动子代理**，并在消息里说清是哪张卡、哪条路径；不会出现"卡片说有目录、实际跑在会话里"。
 - 卡片有目录时，运行挂在**一张卡自己的 agent** 上（根在卡片目录；建一次、复用、存的路径变了重建、`dispose()` 释放、结算后归档），而 seam 一行没改（见「父 agent：把根钉在卡片目录上」）。
-- **但这间房有没有真的锁上，没有被验证**：栅栏本身只有一份**故意 skip** 的规格（`tests/skill-card-workspace-sandbox.spec.ts`，3 条），而且**没有任何真实应用跑过它**。这一条写在「结果 R」里，是因为它是真实的交付边界，而不是一个待办。
+- 卡片记录的模式在**建 agent 时应用一次**（`sandbox.setMode` → `append('sandbox/mode')`），子代理继承父的显式 override，所以首次运行、重跑、微调与按钮运行都按它跑；换模式会重建 agent（缓存键含模式），应用不了就**拒绝启动**（`permission-unavailable`，消息点名卡片与模式），不会按别的模式跑（见「权限模式：一个 agent 一个模式」）。
+- **但这间房有没有真的锁上，没有被验证**：栅栏本身只有一份**故意 skip** 的规格（`tests/skill-card-workspace-sandbox.spec.ts`，3 条），而且**没有任何真实应用跑过它**。这一条写在「结果 R」里，是因为它是真实的交付边界，而不是一个待办。**权限模式继承了同一条边界**：它只决定沙箱允许写到哪里，而那个根没有被验证过——所以"这张卡被限制在它的目录里"这句话今天仍然不能说。
 
 ---
 
@@ -1331,6 +1372,8 @@ export interface WorkbenchCardActions {
   rename(name: string): void
   /** 问一次目录选择器，把结果存成这张卡的目录（第十三版）。 */
   chooseWorkspace(): void
+  /** 存下这张卡运行使用的权限模式（第十五版）：一次 `write({ permission })`，不改任何已在进行的运行。 */
+  choosePermission(mode: WorkbenchSandboxMode): void
   /** 删除这张卡与它名下的一切；resolve 表示宿主已经提交。 */
   remove(): Promise<void>
 }
@@ -1374,6 +1417,8 @@ const refused = workspaceRefusal(workspaceField)
 - **没有存盘目录时一次请求都不发。** 这和"打开工作台只读存储"是同一条纪律：没有路径要问，就不发一个必然失败的请求。
 - **一次没答上的检查读成"那里什么都没有"，而不是第四个状态。** 请求降级时控制器把它读成 `NO_DIRECTORY_STAT`（三个 `false`），于是门是关的。加一个 `'checking'` 状态会让运行控件在一个谁都没确认过的路径上打开——这正是要防的。
 - **`chooseWorkspace()` 只在 `picked` 时写。** `cancelled` 直接返回（用户关掉选择器是一个回答，不是一次修改）；`unavailable` 把 `pickerRefused` 置上，按钮从此关掉——**没有文本框可以退回去**。目录写走的是既有的 `write({ workspace: { path } })`：一次配置写、不触发运行、不读目录。
+
+**权限模式在控制器里只有一处（第十五版）**，因为它是**一个纯值**、没有异步检查：`view.permission = effectiveWorkbenchSandboxMode(card?.permission)`，必填字段、永不为空。`choosePermission(mode)` 就是一次 `write({ baseRevision, cardId, permission: mode })`——写的是绝对值，不是增量；`permission: null` 的"退回默认"由传输契约支持，但页面上没有单独的"用默认"控件，因为它和选中 `workspace-write` 是同一个结果。**改模式不会启动、取消或影响任何一次运行**：它只改下一次运行会用的模式，正在跑的那次运行用的是它启动时的父 agent（换模式会重建 agent，而不是改它）。`LOCALIZED_CODES` 因此多一行 `'permission-unavailable': true`，`PROBLEM_KEYS` 多一行同名映射——漏一处编译不过。
 
 #### 微调状态：三个内存字段与一次记录
 
@@ -1422,6 +1467,7 @@ const refinement = useRef<RefinementIntent | undefined>(undefined)
 | 改 skill / 模板 / 名字 | `write()`，无模型调用 |
 | 卡片读回来带着目录（每次挂载、每次目录变化） | `statDirectory(path)` 一次（纯文件系统读，不发模型请求）；没有目录就**一次也不发** |
 | 点「选择目录」 | 打开平台选择器；只有 `picked` 才发一次 `write({ workspace: { path } })` |
+| 改权限模式（第十五版） | `write({ permission })`，无模型调用，也不影响正在进行的运行 |
 | 删除卡片 | `write({ remove: true })`，无模型调用 |
 
 **微调不发新的请求种类。** 客户端这一层看到的仍然只有 `read` / `write` / `catalog` / `start` / `poll` / `cancel` 六个方法（M8 的任务 T 第 1 条没有变），"微调"是 `start()` 的一个模式。
@@ -1745,6 +1791,26 @@ runnable: sessionId !== undefined && card?.skill !== undefined && card.template 
 
 **它是一道门；房间在宿主那一侧（第十四版），而房间有没有真的锁上没有验证。** 这个字段决定"能不能跑"，只管这一件事；"跑到哪里写"由宿主的父 agent 决定（每张卡一个根在卡片目录的 agent，见 M5 的「父 agent：把根钉在卡片目录上」）。所以配置页**不**负责限定，它只负责把那条路径交给宿主。而"写入真的被限制在卡片目录里"这句话今天没有任何测试或真实运行支撑（`tests/skill-card-workspace-sandbox.spec.ts` 是故意 skip 的 3 条）——不要把这个字段描述成沙箱。
 
+#### 卡片的权限模式字段（第十五版）
+
+配置页「基本信息」的第五个控件，排在**第三行**（前两行仍是名称 / 技能、模型 / 工作目录）。它是三个选项的 `select`，**没有第四种状态**：三个模式永远都可选，未存模式时显示的是**生效的默认值** `workspace-write`，不是空选项。
+
+| 视图值 | 从哪来 | 选中项 | 选择器下面 |
+| --- | --- | --- | --- |
+| `read-only` | 卡片存了它 | 仅可查看 | 无 |
+| `workspace-write` | 卡片存了它，或**什么都没存** | 工作区内修改 | 无 |
+| `danger-full-access` | 卡片存了它 | 完全权限 | 一句警告：工作目录不再限制写入 |
+
+三点不显然的取舍：
+
+- **标签必须与应用自己的权限选择器一致。** 三个词取自 `ui-permission-presets` 的产品文案（`preset.readOnly` / `preset.workspaceWrite` / `preset.fullAccess` → 仅可查看 / 工作区内修改 / 完全权限），本包照抄。同一个模式在应用里两处叫两个名字，用户会读成两种权限。`permission.ts` 用一个 `Record<WorkbenchSandboxMode, WorkbenchLocaleKey>` 持有这张表：加一个模式就编译不过，直到两本字典都有词。结果页那句脚注读**同一张表**，所以两页不会各说各话。
+- **默认值显示成一个具体选项，而不是"未设置"。** 一张卡没存模式时它**就是**按 `workspace-write` 跑，页面上如果显示空白，用户看到的是"不知道跑在什么模式下"，而实际答案很明确。这也是为什么 `view.permission` 是**必填**字段：控制器用 `effectiveWorkbenchSandboxMode()` 解出来，页面不再自己判断缺席。
+- **全权限的警告是产品负责人要的。** `danger-full-access` **允许**（不禁止、不加确认门），但选择它的那一格必须写明代价：工作目录不再限制写入。这句警告是这一版**唯一**说"写入不受限"的地方，别把它挪到别处或删成一句泛泛的"注意风险"。
+
+**字段之外没有新控件。** 保存、删除、预览、结果页与微调都不看这个字段：它只决定下一次运行的沙箱模式，不改变任何一次已在进行的运行，也不改变结果页显示什么（结果页只多那句脚注，见下）。
+
+**结果页的脚注换了内容。** 原来那句「运行时使用当前会话的完整工具权限」在每卡有模式之后**已经不成立**（`skillCardPermission` 随它一起删掉），现在读作「运行时权限：{模式}」，模式名仍来自上面那张表，并带一个 `data-run-permission` 钩子。它仍然是整页最后一行：关于这一页的说明，不是这一页的内容。
+
 #### 结果页：结果表面与运行详情
 
 结果页（`SkillCardResultPage`）是另一个整栏视图，它在面板标题之下摞了三层：**结果表面 → 微调编辑区 → 运行详情**，最下面是一句权限脚注。它曾经在结果表面之上还有一行状态行，第十一版按产品决定移除了。
@@ -1754,7 +1820,7 @@ runnable: sessionId !== undefined && card?.skill !== undefined && card.template 
 | 结果表面 | 边框 + 圆角 + 内边距，里面是影子根渲染的文档 | 渲染的文档是用户模板的内容；没有框，它就没有归属 |
 | 微调编辑区 | 多行编辑区 + 「重新生成」（运行中变「停止」）+ 记录头部行 + 记录 + 只在本次会话 | 对结果的下一句话，紧跟结果 |
 | 运行详情 | 默认折叠的 `<details>`，开关写「运行详情」：结束原因、**模型**（有才出现）、时间、结构化值、原始输出、诊断 | 调试信息，不是内容 |
-| 脚注 | `skillCardPermission` | 关于这一页的说明，不是这一页的内容 |
+| 脚注 | `skillCardRunsWithPermission`（「运行时权限：{模式}」，第十五版换了内容） | 关于这一页的说明，不是这一页的内容 |
 
 **结果表面只加框，不改文档。** `.resultSurface` 只有 `border` / `border-radius` / `padding`，**没有背景色，也没有任何会进入影子根的样式**：用户模板的排版与配色一个字都不动。
 
@@ -2290,19 +2356,19 @@ const escaped = useRef(false)
 1. 每一层各自可验，失败时能定位到层。
 2. 宿主执行链路用**假的上游窄接口**驱动，覆盖全部分支。
 3. 安全断言必须有独立用例（模板被拒、片段被清、样式不外泄）。
-4. 需求 §14 的 **101 条**验收标准中**97 条**逐条可验（第 52 条已撤回，见需求 §14.4；第 **99–101** 条**不是"通过"条目**——99 是一条没有任何一层能检查的命名约束，100 是**故意 skip** 的那份规格，101 是"没有任何真实应用跑过它"，见需求 §14.9）。**分工**：本设计负责 1–16（卡片模型与既有卡片能力）、35–48（编辑器与配置页，M10、M9、M4）、49–56（结果页与微调，M10、M8、M5、M1、M6）、57–60（第九版那批打磨，M10、M8 与面板标题所在的页面组件）、61–70（第十版的手工编辑结果，M10、M8、M1、M4、M6）、71–79（第十二版的每卡模型选择，M1、M4、M5、M6、M8、M9、M10）、80–92（第十三版的每卡工作目录，M1、M4、M5、M6、M8、M10；**第 92 条是负面标准**，它钉的是一个未被验证的边界，见附录 B 那一行）与 **93–98**（第十四版的父 agent：M5 的创建/复用/重建/释放/归档、M7 的 `inject` 与宽 cast、M13 的口径；**99–101 不是通过条目**，见需求 §14.9），映射见[附录 B](#附录-b验收映射)；**17–34** 属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)自己映射，本文不重复。
+4. 需求 §14 的 **108 条**验收标准中**104 条**逐条可验（第 52 条已撤回，见需求 §14.4；第 **99–101** 条**不是"通过"条目**——99 是一条没有任何一层能检查的命名约束，100 是**故意 skip** 的那份规格，101 是"没有任何真实应用跑过它"，见需求 §14.9）。**分工**：本设计负责 1–16（卡片模型与既有卡片能力）、35–48（编辑器与配置页，M10、M9、M4）、49–56（结果页与微调，M10、M8、M5、M1、M6）、57–60（第九版那批打磨，M10、M8 与面板标题所在的页面组件）、61–70（第十版的手工编辑结果，M10、M8、M1、M4、M6）、71–79（第十二版的每卡模型选择，M1、M4、M5、M6、M8、M9、M10）、80–92（第十三版的每卡工作目录，M1、M4、M5、M6、M8、M10；**第 92 条是负面标准**，它钉的是一个未被验证的边界，见附录 B 那一行）、**93–98**（第十四版的父 agent：M5 的创建/复用/重建/释放/归档、M7 的 `inject` 与宽 cast、M13 的口径；**99–101 不是通过条目**，见需求 §14.9）与 **102–108**（第十五版的每卡权限模式：M1 的词表与默认值、M4 的 schema、M5 的 `cardAgent()` 与重叠检查、M7 的装配、M8 的字段与动作、M10 的字段；**第 108 条与 100、101 共享同一条未验证的边界**），映射见[附录 B](#附录-b验收映射)；**17–34** 属于按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md#与需求验收标准的对应)自己映射，本文不重复。
 
 ### 行动 A
 
 | 层 | 文件 | 覆盖 |
 | --- | --- | --- |
-| 契约 | `skill-card-contract.spec.ts` | 常量不变量、区间标记正则（含无空白写法）、输出契约的形状与 `required`、错误码封闭性 |
-| 存储域 schema | `skill-card-spec.spec.ts` | 卡片记录（`skill` 与 `name`）整条往返、只带一侧的记录、空记录、模板与结果整条往返——**"store 写了但 schema 没声明"这一类缺陷的专门用例**；第十版增加 `editedAt` 的往返、`editedAt: 0` 与缺席的区别；第十二版增加卡片与结果两侧 `model` 的往返（provider 取 `vendor/gateway`）、以及两侧"没写就没有"；第十三版增加卡片 `workspace` 的往返、只带 `workspace` 的记录也保留、以及没有它时不被凭空补上 |
-| 存储 | `skill-card-store.spec.ts` | 读写、revision、conflict、体积裁剪、模板复合键；第十二版增加模型的写入/读取、与 `name`/`skill` 的互相不覆盖、`model: null` 只清模型、三者都清空即删记录、以及非"两个非空 id"的拒绝；第十三版增加目录的写入/读取、与另外三个字段互不覆盖、`workspace: null` 只清目录、以及非绝对路径的拒绝 |
+| 契约 | `skill-card-contract.spec.ts` | 常量不变量、区间标记正则（含无空白写法）、输出契约的形状与 `required`、错误码封闭性；第十五版增加权限模式的词表、`isWorkbenchSandboxMode` 的六个拒收值与 `effectiveWorkbenchSandboxMode` 的默认值 |
+| 存储域 schema | `skill-card-spec.spec.ts` | 卡片记录（`skill` 与 `name`）整条往返、只带一侧的记录、空记录、模板与结果整条往返——**"store 写了但 schema 没声明"这一类缺陷的专门用例**；第十版增加 `editedAt` 的往返、`editedAt: 0` 与缺席的区别；第十二版增加卡片与结果两侧 `model` 的往返（provider 取 `vendor/gateway`）、以及两侧"没写就没有"；第十三版增加卡片 `workspace` 的往返、只带 `workspace` 的记录也保留、以及没有它时不被凭空补上；第十五版增加卡片 `permission` 的往返（四字段同一份记录）、没有它时不被凭空补上、以及四个非法模式被拒 |
+| 存储 | `skill-card-store.spec.ts` | 读写、revision、conflict、体积裁剪、模板复合键；第十二版增加模型的写入/读取、与 `name`/`skill` 的互相不覆盖、`model: null` 只清模型、三者都清空即删记录、以及非"两个非空 id"的拒绝；第十三版增加目录的写入/读取、与另外三个字段互不覆盖、`workspace: null` 只清目录、以及非绝对路径的拒绝；第十五版增加模式的写入/读取、与目录互不覆盖、`permission: null` 只清模式、以及不认识的模式被拒 |
 | 存储（手工编辑） | `skill-card-result-edit.spec.ts` | `putEditedResult` 的合并语义（保 `skill`/`stopReason`/输出/诊断、只换 `structured.html`、刷新 `executedAt`、写 `editedAt`）、`missing`/`invalid`/`too-large` 三条拒绝且不写盘、片段与整条记录两道预算都不裁剪、再跑一次后 `editedAt` 消失；同文件还驱动 `PUT /result`：围栏优先、只认 `PUT`、字段校验、404、413、500 不回显记录 |
-| 执行 | `skill-card-runner.spec.ts` | 正常、无活会话、无契约、无模板、provider 不支持、skill 不存在、一次重试、取消、超时、`agent/error` 归因、提供方诊断不被覆盖；第十二版增加"卡片写了模型就把它作为 `agentOptions` 传下去并记进结果"、"没写就一个字段都不传"以及三条拒绝（后端无能力 / provider 不存在 / 模型不存在，且消息点名路由）；第十三版增加四条目录拒绝（没目录、目录不存在、路径是文件、裸运行），四条都断言**没有任何 activation**；第十四版增加「the card agent that fences a run」四个用例——建一次并复用、路径变了拆旧重建、结算后归档、没有目录的卡片不建 agent（`workspace-missing`，无 activation）——以及**一条被 skip 的栅栏规格**（`skill-card-workspace-sandbox.spec.ts` 的 3 条，见「结果 R」） |
+| 执行 | `skill-card-runner.spec.ts` | 正常、无活会话、无契约、无模板、provider 不支持、skill 不存在、一次重试、取消、超时、`agent/error` 归因、提供方诊断不被覆盖；第十二版增加"卡片写了模型就把它作为 `agentOptions` 传下去并记进结果"、"没写就一个字段都不传"以及三条拒绝（后端无能力 / provider 不存在 / 模型不存在，且消息点名路由）；第十三版增加四条目录拒绝（没目录、目录不存在、路径是文件、裸运行），四条都断言**没有任何 activation**；第十四版增加「the card agent that fences a run」四个用例——建一次并复用、路径变了拆旧重建、结算后归档、没有目录的卡片不建 agent（`workspace-missing`，无 activation）——以及**一条被 skip 的栅栏规格**（`skill-card-workspace-sandbox.spec.ts` 的 3 条，见「结果 R」）；第十五版增加「the permission mode a card runs under」六条——默认 `workspace-write`、建 agent 时应用一次、换模式重建 / 没变复用、应用失败则拒绝并点名卡片与模式（无 activation、agent 被释放）、运行中改模式不拆正在用的 agent、`danger-full-access` 照常跑——以及 `cardSelection()` 的投影用例 |
 | 微调执行 | `skill-card-refine.spec.ts` | 微调提示词的三段与顺序（含 `<row_data>`）、模板取自存盘选择、契约与 `card` 一致、一次重试、落盘整条记录、无模板/无契约时拒绝 |
-| 路由 | `skill-card-route.spec.ts` | 围栏优先、8 条路径、400/401/403/409/413/500、错误体不回显请求体；微调请求的逐字段校验与超限码；第十二版增加补丁里 `model` 的透传与形状拒绝、以及 `model-unavailable` 落到 409；第十三版增加补丁里 `workspace` 的透传与六种坏形状的 400，以及目录检查那一组（围栏优先、只认 `GET`、200 的三种答案、路径不合法时一次 `stat` 都不发生、探测器抛错仍回 200） |
+| 路由 | `skill-card-route.spec.ts` | 围栏优先、8 条路径、400/401/403/409/413/500、错误体不回显请求体；微调请求的逐字段校验与超限码；第十二版增加补丁里 `model` 的透传与形状拒绝、以及 `model-unavailable` 落到 409；第十三版增加补丁里 `workspace` 的透传与六种坏形状的 400，以及目录检查那一组（围栏优先、只认 `GET`、200 的三种答案、路径不合法时一次 `stat` 都不发生、探测器抛错仍回 200）；第十五版增加补丁里 `permission` 的透传、`null` 清空且保留其余字段、四种非法值的 400、以及移除补丁不许带模式 |
 | 模型字段 | `skill-card-model.spec.ts` | `resolveModelField` 的三态与四条边界（卡片路由胜过会话选择、目录报错但仍有选择、已存路由不在目录里时补进选项、连 provider 都没了时补一个分组）、`modelKey`/`parseModelKey` 的往返与四种拒收、`createModelSeat` 对"没注册 / 会话被寻址为子代理 / 没有会话"的三种不可用回答与订阅转发 |
 | 工作目录字段 | `workspace.spec.ts` | `workspaceLeaf` 的五条（Windows 与 UNC、POSIX、尾随分隔符、盘根、只有分隔符）与 `resolveWorkspaceField` 的六条（没选即 missing、未确认即 invalid 且 `checked: false`、不存在、是文件、确认即 ready、只读仍是 ready） |
 | 目录选择器 | `workspace-picker.spec.ts` | 桌面优先且只问一次、没有窗口 seam 时用 workspace、非函数成员不算 seam、抛错降级成 `unavailable`、取消自成一态、非绝对路径被拒、来源在页面建好之后才到达仍生效 |
@@ -2312,10 +2378,10 @@ const escaped = useRef(false)
 | 渲染 | `render.spec.ts` | 骨架逐字节不变（前缀比对）、片段清洗（`<script>`/`<img>`/事件属性被移除、外部 CSS 的 `<style>` 整块移除）、`resultHtml` 对无 `html` 的结果返回 undefined、样式不外泄；第九版增加了 `dedentedHtml` 的四条（公共前缀被去掉、空行不参与也不留缩进、无前缀时原样、返回新字符串而不改原值） |
 | 组件 | `SkillCard.spec.tsx` | 各状态呈现、有结果时回填区间、旧结果读作"尚未运行"、权限说明不再画在正文里（它属于结果页的脚注） |
 | 页面 | `SkillCardPages.spec.tsx` | 配置页（目录读取、名称/skill/模板、**卡片页自己的头部只有返回**、模型的写入）与结果页（运行中、失败原因、运行控件的三态与"目录晚到"的订阅路径）；第十三版增加"挑中的路径整条写进 `workspace: { path }`"、"取消后 0 次写且字段仍是未选择"、"选择器报错后按钮关掉并给出说明" |
-| 结果页 | `SkillCardResultPage.spec.tsx` | `html` 的真实换行与其余字段的 JSON、缺失字段整行不出现、默认折叠（**没有 `open` 属性**）、结果表面只框不命名（表层里没有 `header`、也没有 `aria-labelledby`）、权限脚注在页末；第九版增加了去缩进的显示值、影子根仍是原缩进、开关文案「运行详情」与 `原始输出` 的分离、结束原因的三行映射 + 未知值原样 + 英文侧；第十一版删掉了三个状态行用例，并把"框住并命名"改写为只断言框住；第十三版增加目录三态与运行控件（`missing` / `invalid`（文案含路径）/ `ready`） |
+| 结果页 | `SkillCardResultPage.spec.tsx` | `html` 的真实换行与其余字段的 JSON、缺失字段整行不出现、默认折叠（**没有 `open` 属性**）、结果表面只框不命名（表层里没有 `header`、也没有 `aria-labelledby`）、权限脚注在页末；第九版增加了去缩进的显示值、影子根仍是原缩进、开关文案「运行详情」与 `原始输出` 的分离、结束原因的三行映射 + 未知值原样 + 英文侧；第十一版删掉了三个状态行用例，并把"框住并命名"改写为只断言框住；第十三版增加目录三态与运行控件（`missing` / `invalid`（文案含路径）/ `ready`）；第十五版把脚注用例改写为「运行时权限：{模式}」并加 `data-run-permission` 断言（默认卡读到 `workspace-write`，且这句不出现在结果表面里） |
 | 微调界面 | `SkillCardRefine.spec.tsx` | 空输入不可按、请求形状、成功替换 + 记录 + 一步回退（轮询路径）、失败结果不变且告警只在编辑器一处、被拒启动同样报在那里、再微调的 `previous`、运行中的忙碌态与禁用、没有结果时不提供编辑器；第九版增加了 `Enter` 提交 / `Shift+Enter` 换行、`rows` 1→4 封顶、运行中主控件变「停止」并调用取消、记录头部行的条数与「回到上一版」的位置、提示行是整块最后一行 |
 | 卡片模型 | `WorkbenchCardShell.spec.tsx`、`WorkbenchCardGrid.spec.tsx`、`WorkbenchPage.spec.tsx`、`layout-controller.spec.tsx` | 外壳的标题/子标题/失败位与激活、X 只在有 `onRemove` 时渲染且只表示删除、**排序手柄在头部动作末位**、拖拽与键盘排序、创建卡片磁贴、存盘实例的投影、布局记录只剩排序（`hidden` 被忽略）与 reset 的删除语义。**注意它不覆盖卡片页上的面板标题**：每个用例都把 `useSelection` 定为 `undefined`（见附录 B 第 58 条） |
-| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行；第十二版增加模型字段的三态、分组与名称、选择回调拿到的那一对；第十三版增加工作目录字段的七条（叶子 + 全路径同时在、失效时路径仍在并加一句、未确认时不多说话、没有选择器时按钮禁用且整页只有一个文本框、四个单元格的顺序与栅格类、标签是文本而非 `label`、缺省即「未选择」且按钮可用） |
+| 编辑器 | `SkillCardSettings.spec.tsx` | 三段与标签配对、行号栏的两处染色与点行选择、状态行的行号/条数/字节/85%/脏标记、缺区间的插入标记、Tab/Shift+Tab/Escape+Tab/Ctrl+Cmd+S、违例跳转与无位置违例、声明构建器（键校验、已占用、两类目标、写入与新建块）、缺失目标告警、空模板插入骨架、窗格切换、两段式删除、页脚内的失败行；第十二版增加模型字段的三态、分组与名称、选择回调拿到的那一对；第十三版增加工作目录字段的七条（叶子 + 全路径同时在、失效时路径仍在并加一句、未确认时不多说话、没有选择器时按钮禁用且整页只有一个文本框、四个单元格的顺序与栅格类、标签是文本而非 `label`、缺省即「未选择」且按钮可用）；第十五版增加权限字段的五条（三选项的值与文案、默认选中 `workspace-write`、全权限时的警告、选择回调、契约外的值不写）与五个单元格的栅格顺序 |
 | 结果编辑器 | `SkillCardResultEdit.spec.tsx` | 入口的四种状态（有结果、无结果、运行中、裸运行中）与打开期间运行不可按、初值来自存盘片段、行号与「没有文档级 affordance」、字节读数、保存的请求与视图、取消不写、内容策略五码逐个 + 跳转、空内容、超预算不截断、`editedAt` 那一行、回退一步且记录仍为 0 条、Tab/Shift+Tab/Escape+Tab；第十三版增加"没有目录时只关运行、编辑与保存照常" |
 | 结果写传输 | `skill-card-result-api.spec.ts` | `PUT` 的路径与体、`parseResultEdit` 的契约版本/身份/`editedAt`/`model` 形状校验、拒绝与传输失败的两种结果 |
 
@@ -2339,7 +2405,7 @@ const escaped = useRef(false)
 - **有一条新行为只覆盖了一半，写在这里**：第 58 条（面板标题在卡片页上）没有 DOM 断言——`WorkbenchPage.spec.tsx` 的每个用例都把 `useSelection` 定为 `undefined`，没有一个用例打开卡片页。要补它得加一个"选中某张卡"的用例，本轮源码与测试都冻结，所以只把它写成已知缺口（附录 B 第 58 行）。
 - **还有一条不是"覆盖了一半"，而是根本不该被覆盖**：第 92 条钉的是**边界**，不是功能。第十四版把 `agents.create({ meta: { cwd } })` 式的运行做出来了（M5 的「父 agent」），于是这一条从"没实现"变成"没验证"：能断言的只有**门**（四条拒绝 + 没有任何 activation）与**父 agent**（四个用例），而"写入真的落在卡片目录里、越界真的被拒"只有 `tests/skill-card-workspace-sandbox.spec.ts` 里那 3 条**故意 skip** 的规格。补齐它需要一次真实宿主上的运行——**这一版没有做**。
 - **第十四版另有三条不主张通过，而且不该用"用例"包装**：第 99 条是一条命名约束（宿主表面是 `workspaceRegistry.archiveSession`，还要进 `inject`——宽 cast 与 fake 都不检查这两件事，而上游里 `workspaces` 是客户端服务名），第 100、101 条是两条验证限制（skip 的规格、没有真实应用）。它们写在需求 §14.9 与附录 B 的第 99–101 行。
-- 第九版落地时整个包是 **453 个测试 / 34 个 spec 文件**；第十版（手工编辑结果）落地时是 **505 个测试 / 37 个 spec 文件**；第十一版（撤掉状态行与「结果」标题）落地时是 **501 个测试 / 37 个 spec 文件**（少了三个状态行用例与一个"页面在说什么"用例，另有两个用例改写而没有增减条数）；第十二版（每卡模型选择）落地时是 **541 个测试 / 38 个 spec 文件**；第十三版（每卡工作目录）落地时是 **604 个测试 / 40 个 spec 文件**（两个新文件 `workspace.spec.ts` 与 `workspace-picker.spec.ts`，其余增量落在既有的 schema / store / route / runner / pages / settings / result-page / result-edit 用例里）；第十四版（父 agent）落地时是 **609 个测试 / 40 个 spec 文件 / 3 跳过**（比第十三版多四条，都在 `skill-card-runner.spec.ts` 里，没有新文件；跳过的 3 条仍是 `skill-card-workspace-sandbox.spec.ts` 那份规格），`corepack yarn workspace dsh-workbench check`（typecheck + test + build + 产物校验）exit 0。
+- 第九版落地时整个包是 **453 个测试 / 34 个 spec 文件**；第十版（手工编辑结果）落地时是 **505 个测试 / 37 个 spec 文件**；第十一版（撤掉状态行与「结果」标题）落地时是 **501 个测试 / 37 个 spec 文件**（少了三个状态行用例与一个"页面在说什么"用例，另有两个用例改写而没有增减条数）；第十二版（每卡模型选择）落地时是 **541 个测试 / 38 个 spec 文件**；第十三版（每卡工作目录）落地时是 **604 个测试 / 40 个 spec 文件**（两个新文件 `workspace.spec.ts` 与 `workspace-picker.spec.ts`，其余增量落在既有的 schema / store / route / runner / pages / settings / result-page / result-edit 用例里）；第十四版（父 agent）落地时是 **609 个测试 / 40 个 spec 文件 / 3 跳过**（比第十三版多四条，都在 `skill-card-runner.spec.ts` 里，没有新文件；跳过的 3 条仍是 `skill-card-workspace-sandbox.spec.ts` 那份规格）；第十五版（每卡权限模式）落地时是 **631 passed / 3 skipped / 41 个 spec 文件**（比第十四版多 22 条：契约 1、schema 3、store 3、route 3、runner 7、settings 5；新的 `permission.ts` 是纯模块、被两个页面共用，没有新增 spec 文件），`corepack yarn workspace dsh-workbench check`（typecheck + test + build + 产物校验）exit 0。
 
 ---
 
@@ -2366,7 +2432,7 @@ const escaped = useRef(false)
 | **P8** | 模板引擎、隔离渲染、`workbench.card` 工厂注册、卡片本体 | 有模板时按模板渲染；无模板时「运行」不可用并给出引导 |
 | **P9** | 配置对话框、编辑器、预览、降级态与文案 | 需求 §13 当时的验收标准逐条可验 |
 
-> **本节是当时的计划表。** P9 里列过的"字段清单"随后被删除（见下文"区间语言重构"），验收标准的条数也已随需求方案修订变化——**现在共 92 条，其中在效 91 条**（第 52 条已由产品负责人撤回，编号保留）：**1–16、17–34、35–48、49–51 与 53–56、57–60、61–70 六组都已实现并验收**（17–34 是按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md)负责；35–48 是编辑器与配置页，49–56 是结果页与微调，57–60 是第九版那批打磨，61–70 是第十版的手工编辑结果，见下面「P10 之后」）。那张表里的 P9 出口标准指的是当时那一版的需求 §13，不是今天的条数；当前映射见[附录 B](#附录-b验收映射)。
+> **本节是当时的计划表。** P9 里列过的"字段清单"随后被删除（见下文"区间语言重构"），验收标准的条数也已随需求方案修订变化——**现在共 108 条，其中在效 107 条**（第 52 条已由产品负责人撤回，编号保留；第 99–101 条不是"通过"条目）：**1–16、17–34、35–48、49–51 与 53–56、57–60、61–70、71–79、80–92、93–98 与 102–108 都已实现并验收**（17–34 是按钮触发执行，由[那份详细设计](workbench-skill-card-actions-design.md)负责；35–48 是编辑器与配置页，49–56 是结果页与微调，57–60 是第九版那批打磨，61–70 是第十版的手工编辑结果，71–79 是第十二版的每卡模型选择，80–92 是第十三版的每卡工作目录，93–98 是第十四版的父 agent，102–108 是第十五版的每卡权限模式，见下面「P10 之后」）。那张表里的 P9 出口标准指的是当时那一版的需求 §13，不是今天的条数；当前映射见[附录 B](#附录-b验收映射)。
 
 每阶段结束跑 `yarn workspace dsh-workbench check`（typecheck + test + build + verify:artifacts）。P8 起改动会影响客户端可见输出，追加两个变体的真实 profile 验证。
 
@@ -2889,6 +2955,13 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 99 **命名约束**：宿主表面的成员是 `workspaceRegistry.archiveSession`，并且必须进 `inject`；宽 cast 与 fake 都不检查这两件事 | M5「命名约束」+ M7「归档用的服务必须显式声明」；**没有用例能证明它**，出处见附录 C |
 | 100 **栅栏本身没有被验证**：`skill-card-workspace-sandbox.spec.ts` 是 3 条故意 skip 的规格 | M5「父 agent」开头的三句话 + M13「结果 R」；`check` 的输出是 `Test Files 40 passed, 1 skipped` 与 `Tests 609 passed, 3 skipped` |
 | 101 **没有任何真实应用跑过它**：全部证据是单元测试与探针脚本 | M5「父 agent」开头 + M13；探针 `dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`（用例 `[1]` / `[1b]` / `[5]`） |
+| 102 卡片记录多一个 `permission` 并在 schema 里同一次改动声明；不认识的模式被拒 | M1（`WorkbenchSandboxMode`、`WORKBENCH_SANDBOX_MODES`、`isWorkbenchSandboxMode`）+ M4「约束」的第十五版那段（`z.enum`）；`skill-card-spec.spec.ts` |
+| 103 不写即 `workspace-write`（具体默认值，不是跟随会话）；已有卡片因此变严；页面显示该默认值 | M1（`effectiveWorkbenchSandboxMode`）+ M5（`cardAgent()` 里解析有效模式）+ M8（`view.permission` 必填）+ M10（选择器选中它）；`skill-card-contract.spec.ts`、`skill-card-runner.spec.ts`、`SkillCardSettings.spec.tsx` |
+| 104 配置页第三行三模式、标签与应用自己的选择器一致、全权限就地警告 | M10「卡片的权限模式字段」+ `permission.ts` 的 `Record<模式, key>`；`SkillCardSettings.spec.tsx` |
+| 105 建 agent 时应用一次；`sandbox.setMode` → 真实 Session 的 `append('sandbox/mode')`；四种运行共用父 | M5「权限模式」（机制与表格）+ M7（装配与那处唯一加宽读取）+ 附录 C 的三条出处；`skill-card-runner.spec.ts` |
+| 106 换模式重建（缓存键含模式）、没变复用；被拒的启动不拆正在用的 agent | M5「权限模式」（缓存键与两次重叠检查）；`skill-card-runner.spec.ts`（dispose 1 / create 2、`run-in-progress` 无 dispose） |
+| 107 应用不了就拒绝（`permission-unavailable`，点名卡片与模式），不回退 | M1 的新错误码与三张映射表 + M5 `cardAgent()` 的失败路径 + M6 `STATUS_BY_CODE`（409）+ M8 `LOCALIZED_CODES` + M10 `PROBLEM_KEYS`；`skill-card-runner.spec.ts`、`skill-card-route.spec.ts`；**"漏一个编译不过"由类型系统保证** |
+| 108 `danger-full-access` 允许并照常运行；**它不是隔离**，边界与 100 / 101 同源 | M5「权限模式」末段（模式只决定写到哪里，根来自未被验证的父 agent）；`skill-card-runner.spec.ts`（跑完 + `setMode` 收到该模式）；**边界没有用例，也不该有** |
 
 ## 附录 C：依据
 
@@ -2926,4 +2999,7 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 子代理这条缝把**父**会话头的 `cwd` 复制给子：`childSessionMeta` 读的是 `parent.session.header`，`agents.create` 收到的就是这份 `meta`——"换父就换根"的机制 | [child-agent.ts:144](../deepseek-harness/packages/subagent/subagent/src/child-agent.ts#L144)、[manager.ts:912](../deepseek-harness/packages/subagent/subagent/src/manager.ts#L912) |
 | 能真正换目录的入口是 `ctx.agents.create({ meta: { cwd } })`（会话元数据里校验过绝对路径）；**第十四版用的就是它**——每张卡一个卡片 agent，作为运行请求的 `parent`。带 `parentAgent` 创建时头的 `cwd` 仍是自己的 `meta.cwd`（测量过：探针用例 `[1]`） | [agent/src/index.ts:391](../deepseek-harness/packages/core/agent/src/index.ts#L391)、[agent/src/index.ts:79](../deepseek-harness/packages/core/agent/src/index.ts#L79)、`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs` |
 | Host 侧能归档会话的成员是 `workspaceRegistry.archiveSession(sessionId)` 与 `workspaceController.archiveSession(request)`；`workspaces` 是**客户端**服务名（`IWorkspaces.archiveSession(sessionId, options?)`），不是 Host 上下文里的属性——这是需求第 99 条那件命名的事 | [workspace/src/index.ts:363](../deepseek-harness/packages/workspace/workspace/src/index.ts#L363)、[workspace-controller/src/index.ts:154](../deepseek-harness/packages/api/workspace-controller/src/index.ts#L154)、[workspace-controller/src/client/service.ts:126](../deepseek-harness/packages/api/workspace-controller/src/client/service.ts#L126)、[workspace-controller/src/client/index.ts:36](../deepseek-harness/packages/api/workspace-controller/src/client/index.ts#L36) |
+| **设置沙箱模式只有一条写路径**：`setSandboxMode(session, mode)` 就是 `session.append('sandbox/mode', { mode })`；三种模式由 `SANDBOX_MODES` 声明——第十五版的 `sandbox.setMode` 接的就是这一条 | [session-mode.ts:42](../deepseek-harness/packages/sandbox/sandbox-policy/src/session-mode.ts#L42)、[session-mode.ts:53](../deepseek-harness/packages/sandbox/sandbox-policy/src/session-mode.ts#L53) |
+| **`SandboxPolicyService` 只有读、没有写**：`resolve({ session })` 与 `overrideOf(session)` 是仅有的两个入口，所以"用服务设模式"这条路不存在 | [sandbox-policy/src/index.ts:164](../deepseek-harness/packages/sandbox/sandbox-policy/src/index.ts#L164)、[sandbox-policy/src/index.ts:178](../deepseek-harness/packages/sandbox/sandbox-policy/src/index.ts#L178) |
+| **子代理继承父的显式 override**：`captureDelegatedPolicyOverrides(parent)` 读 `sandboxPolicy.overrideOf(parent.session)` 并把一条 `source: 'delegation'` 的 `sandbox/mode` 种进子会话——所以把模式写在卡片 agent 上就够 | [child-agent.ts:247](../deepseek-harness/packages/subagent/subagent/src/child-agent.ts#L247)、[manager.ts:406](../deepseek-harness/packages/subagent/subagent/src/manager.ts#L406)、[continuation-inheritance.spec.ts:97](../deepseek-harness/packages/subagent/subagent/tests/continuation-inheritance.spec.ts#L97) |
 | 应用窗口的 Electron 安全开关均已启用 | [dsh-plugin-desktop/src/window-options.ts:32](../dsh-plugin-desktop/src/window-options.ts#L32) |

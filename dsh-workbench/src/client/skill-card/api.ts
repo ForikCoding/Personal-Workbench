@@ -29,6 +29,7 @@ import {
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
+  isWorkbenchSandboxMode,
   isWorkbenchSkillName,
 } from '../../skill-card-contract.ts'
 import { isWorkbenchCardId } from '../../layout-contract.ts'
@@ -474,6 +475,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       skill?: unknown
       model?: unknown
       workspace?: unknown
+      permission?: unknown
       templateSkills?: unknown
       template?: unknown
     }
@@ -492,6 +494,11 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     // this page may show or gate a run on.
     const workspace = entry.workspace
     if (workspace !== undefined && !isWorkbenchCardWorkspace(workspace)) return undefined
+    // And the same for the permission mode: the page shows which mode the card runs under,
+    // so a value the contract would not accept is refused rather than displayed as if the
+    // sandbox had agreed to it.
+    const permission = entry.permission
+    if (permission !== undefined && !isWorkbenchSandboxMode(permission)) return undefined
     if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some(name => typeof name !== 'string')) {
       return undefined
     }
@@ -502,6 +509,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       ...entry.skill === undefined ? {} : { skill: entry.skill as string },
       ...model === undefined ? {} : { model },
       ...workspace === undefined ? {} : { workspace: { path: (workspace as { path: string }).path } },
+      ...permission === undefined ? {} : { permission },
       templateSkills: entry.templateSkills as readonly string[],
       ...entry.template === undefined ? {} : { template: entry.template },
     })

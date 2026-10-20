@@ -53,6 +53,9 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // A card with no workspace: the editor is fully usable without one, and that is the
     // state every card created before this field existed is in.
     workspaceField: { kind: 'missing' },
+    // The effective mode, which is what an unset card shows: the editor always displays a
+    // concrete choice rather than an empty option.
+    permission: 'workspace-write',
     canChooseWorkspace: true,
     catalog: [],
     catalogStatus: 'ready',
@@ -68,7 +71,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
  * Render the editor.
  * @param overrides - fields the case varies.
  * @param translator - how to translate; the key echo by default.
- * @returns the render result plus the four callbacks.
+ * @returns the render result plus the callbacks.
  */
 function setup(
   overrides: Partial<WorkbenchCardView> = {},
@@ -78,6 +81,7 @@ function setup(
   onSave: ReturnType<typeof vi.fn>
   onChoose: ReturnType<typeof vi.fn>
   onChooseModel: ReturnType<typeof vi.fn>
+  onChoosePermission: ReturnType<typeof vi.fn>
   onChooseWorkspace: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
@@ -86,6 +90,7 @@ function setup(
   const onSave = vi.fn()
   const onChoose = vi.fn()
   const onChooseModel = vi.fn()
+  const onChoosePermission = vi.fn()
   const onChooseWorkspace = vi.fn()
   const onRename = vi.fn()
   const onClose = vi.fn()
@@ -97,13 +102,24 @@ function setup(
       onSave={onSave}
       onChoose={onChoose}
       onChooseModel={onChooseModel}
+      onChoosePermission={onChoosePermission}
       onChooseWorkspace={onChooseWorkspace}
       onRename={onRename}
       onClose={onClose}
       onDelete={onDelete}
     />,
   )
-  return { container, onSave, onChoose, onChooseModel, onChooseWorkspace, onRename, onClose, onDelete }
+  return {
+    container,
+    onSave,
+    onChoose,
+    onChooseModel,
+    onChoosePermission,
+    onChooseWorkspace,
+    onRename,
+    onClose,
+    onDelete,
+  }
 }
 
 /** A template that declares the one region a run fills. */
@@ -879,21 +895,22 @@ describe('the workspace field', () => {
       .toBe(zh.skillCardNamePlaceholder)
   })
 
-  it('lays the four facts out as two rows of two', () => {
+  it('lays the five fields out as two rows of two and the permission mode beneath', () => {
     // Adding a fourth field to the single row crowded every label against the next control
     // and pushed the last one past the page's edge. The grid is what makes the shape two
-    // rows of two instead of whatever happens to wrap.
+    // rows of two; the permission mode then takes the third row of its own.
     const { container } = setup({ skill: 'git-repo', workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' } }, zhT)
     const grid = container.querySelector('.fieldGrid') as HTMLElement
     expect(grid).not.toBeNull()
-    // Four cells, in the order the page states them: name, skill, model, workspace.
+    // Five cells, in the order the page states them: name, skill, model, workspace, mode.
     const cells = [...grid.children] as HTMLElement[]
-    expect(cells).toHaveLength(4)
+    expect(cells).toHaveLength(5)
     expect(cells.map(cell => cell.querySelector('.fieldLabel')?.textContent)).toEqual([
       zh.skillCardCardName,
       zh.skillCardSelectSkill,
       zh.skillCardModel,
       zh.skillCardWorkspace,
+      zh.skillCardPermissionLabel,
     ])
     // jsdom computes no media queries, so the two-column shape is asserted where it lives.
     expect(grid.className).toContain('fieldGrid')
@@ -907,6 +924,60 @@ describe('the workspace field', () => {
       .find(element => element.textContent === zh.skillCardWorkspace) as HTMLElement
     expect(label.tagName).toBe('P')
     expect(screen.queryByLabelText(zh.skillCardWorkspace)).toBeNull()
+  })
+})
+
+describe('the permission field', () => {
+  it('offers the three modes, labelled as the application’s own selector labels them', () => {
+    // Criterion 104. The same three modes appear in the application's permission selector,
+    // and two different sets of names for them would read as two different permissions.
+    const { container } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-permission-select]') as HTMLSelectElement
+    expect([...picker.options].map(option => option.value))
+      .toEqual(['read-only', 'workspace-write', 'danger-full-access'])
+    expect([...picker.options].map(option => option.textContent)).toEqual([
+      zh.skillCardPermissionReadOnly,
+      zh.skillCardPermissionWorkspaceWrite,
+      zh.skillCardPermissionFullAccess,
+    ])
+    // The label points at the control, so the field is reachable by name.
+    expect(screen.getByLabelText(zh.skillCardPermissionLabel)).toBe(picker)
+  })
+
+  it('shows the effective default for a card that stores no mode', () => {
+    // Criterion 103. A card created before the field existed runs under workspace-write, so
+    // the picker states that mode rather than rendering blank. The view carries the resolved
+    // mode; an unset card therefore shows the same value as one that chose it explicitly.
+    const { container } = setup({ skill: 'git-repo', permission: 'workspace-write' }, zhT)
+    const picker = container.querySelector('[data-permission-select]') as HTMLSelectElement
+    expect(picker.value).toBe('workspace-write')
+    expect(container.querySelector('[data-permission-warning]')).toBeNull()
+  })
+
+  it('states that the workspace no longer limits writes once full access is chosen', () => {
+    // Criterion 104. Full access is allowed, so the one thing it gives up is said where it
+    // is chosen rather than discovered from a failed write.
+    const { container } = setup({ skill: 'git-repo', permission: 'danger-full-access' }, zhT)
+    expect((container.querySelector('[data-permission-select]') as HTMLSelectElement).value)
+      .toBe('danger-full-access')
+    expect(container.querySelector('[data-permission-warning]')?.textContent)
+      .toBe(zh.skillCardPermissionWarning)
+  })
+
+  it('stores a newly chosen mode', () => {
+    const { container, onChoosePermission } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-permission-select]') as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 'read-only' } })
+    expect(onChoosePermission).toHaveBeenCalledWith('read-only')
+  })
+
+  it('offers no mode outside the contract', () => {
+    // A value the select cannot produce is dropped rather than written: the route would
+    // refuse it, and a page that sent one would report a failure nobody could act on.
+    const { container, onChoosePermission } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-permission-select]') as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 'full-control' } })
+    expect(onChoosePermission).not.toHaveBeenCalled()
   })
 })
 

@@ -251,6 +251,40 @@ export interface WorkbenchCardWorkspace {
  */
 export declare function isWorkbenchCardWorkspace(value: unknown): value is WorkbenchCardWorkspace;
 /**
+ * Every permission mode a card may run under.
+ *
+ * The upstream sandbox vocabulary, repeated here because this module carries no runtime
+ * dependency. A mode added upstream that this list does not know is refused at the schema
+ * and at the route rather than stored and later ignored.
+ */
+export declare const WORKBENCH_SANDBOX_MODES: readonly ["read-only", "workspace-write", "danger-full-access"];
+/** One sandbox mode a card may name. */
+export type WorkbenchSandboxMode = (typeof WORKBENCH_SANDBOX_MODES)[number];
+/**
+ * The mode a card runs under when it names none.
+ *
+ * A concrete default rather than "inherit": an unset card would otherwise run under
+ * whatever the session happens to be set to, which is a permission nobody gave this card.
+ * The consequence for existing cards is that they become stricter, which is intended.
+ */
+export declare const WORKBENCH_DEFAULT_SANDBOX_MODE: WorkbenchSandboxMode;
+/**
+ * Whether a value is a mode a card may store.
+ * @param value - candidate value, read from storage or from a request body.
+ * @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
+ */
+export declare function isWorkbenchSandboxMode(value: unknown): value is WorkbenchSandboxMode;
+/**
+ * Resolve the mode one run actually uses.
+ *
+ * This is the single place unset becomes a mode. The configuration page displays it, the
+ * runner applies it and the card-agent cache keys on it, so all three read the same answer
+ * instead of each defaulting differently.
+ * @param stored - the mode the card stores, when it stores one.
+ * @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
+ */
+export declare function effectiveWorkbenchSandboxMode(stored: WorkbenchSandboxMode | undefined): WorkbenchSandboxMode;
+/**
  * What one directory check found.
  *
  * Three facts and no error case: a path that cannot be read is reported as "nothing is
@@ -291,6 +325,15 @@ export interface WorkbenchCardConfigRecord {
     readonly model?: WorkbenchCardModel;
     /** Directory this card runs in; absent means the card cannot run yet. */
     readonly workspace?: WorkbenchCardWorkspace;
+    /**
+     * Permission mode this card's runs use; absent means
+     * {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
+     *
+     * Stored rather than inherited so the mode is part of what the card is: a card that
+     * named no mode would otherwise run under whatever the session was switched to, and
+     * the configuration page would have nothing to show.
+     */
+    readonly permission?: WorkbenchSandboxMode;
 }
 /** One card's template for one skill. */
 export interface WorkbenchTemplateRecord {
@@ -375,6 +418,14 @@ export interface WorkbenchCardConfigView {
     readonly model?: WorkbenchCardModel;
     /** Directory this card runs in; absent means the card cannot run until one is chosen. */
     readonly workspace?: WorkbenchCardWorkspace;
+    /**
+     * Permission mode this card stores; absent means the default applies.
+     *
+     * The stored value, not the effective one: the page resolves the default itself so an
+     * unset card and a card explicitly set to the default display the same mode without the
+     * read pretending a value was written.
+     */
+    readonly permission?: WorkbenchSandboxMode;
     /** Skills this card already holds a template for. */
     readonly templateSkills: readonly string[];
     /**
@@ -450,6 +501,14 @@ export interface WorkbenchSkillCardPatch {
      * user, and nothing infers one from the session.
      */
     readonly workspace?: WorkbenchCardWorkspace | null;
+    /**
+     * Permission mode the card's runs use; `null` clears it back to the default.
+     *
+     * Clearing is offered because the default is a real answer, not a missing one: a user
+     * who set a card to `read-only` and wants the ordinary mode back should not have to
+     * spell the default out.
+     */
+    readonly permission?: WorkbenchSandboxMode | null;
     /** Template to store alongside the selection. */
     readonly template?: {
         readonly skill: string;
@@ -623,4 +682,12 @@ export type WorkbenchSkillCardErrorCode = 'unauthorized' | 'forbidden' | 'invali
  * Refused rather than replaced by the session's directory: a silent fallback would run
  * the card somewhere the user never chose, and the result would not say so.
  */
- | 'workspace-invalid';
+ | 'workspace-invalid'
+/**
+ * The card's permission mode could not be applied to the agent that runs it.
+ *
+ * Refused rather than run under a mode nobody chose: a permission setting that quietly
+ * does nothing is worse than an error, because the user would read it as enforced. The
+ * refusal names the card and the mode.
+ */
+ | 'permission-unavailable';

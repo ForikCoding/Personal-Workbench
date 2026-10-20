@@ -100,7 +100,13 @@ export declare const zh: {
     skillCardViolationActionKeyRepeated: string;
     skillCardViolationActionTarget: string;
     skillCardViolationActionInsideRegion: string;
-    skillCardPermission: string;
+    skillCardPermissionLabel: string;
+    skillCardPermissionReadOnly: string;
+    skillCardPermissionWorkspaceWrite: string;
+    skillCardPermissionFullAccess: string;
+    skillCardPermissionWarning: string;
+    skillCardRunsWithPermission: string;
+    skillCardProblemPermissionUnavailable: string;
     skillCardBack: string;
     skillCardCardName: string;
     skillCardModel: string;

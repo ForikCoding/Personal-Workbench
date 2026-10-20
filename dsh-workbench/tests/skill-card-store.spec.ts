@@ -242,6 +242,47 @@ describe('workbench skill card store', () => {
     ])
   })
 
+  it('stores the permission mode, reads it back, and merges it like the other fields', async () => {
+    // The mode travels into the same record as the name, the skill, the route, and the
+    // directory, so a write of one must merge against the rest: choosing a mode must not
+    // un-configure the card's directory, and renaming must not lose the mode.
+    const workspace = { path: '/repo' }
+    const { store, tables } = setup({ seed: { card: { 'skill-card': { skill: 'git-repo', workspace } } } })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', permission: 'read-only' })
+    expect(tables.operations.at(-1)).toEqual({
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: { skill: 'git-repo', workspace, permission: 'read-only' },
+    })
+    expect(store.read().cards).toEqual([{
+      cardId: 'skill-card',
+      skill: 'git-repo',
+      workspace,
+      permission: 'read-only',
+      templateSkills: [],
+    }])
+  })
+
+  it('reads a card with no permission mode without inventing one', async () => {
+    // Every card created before this field existed is in this state, and the effective mode
+    // is applied at run time rather than written into storage on load.
+    const { store } = setup({ seed: { card: { 'skill-card': { skill: 'git-repo' } } } })
+    const [card] = store.read().cards
+    expect(card).not.toHaveProperty('permission')
+  })
+
+  it('clears the permission mode alone, leaving the other fields in place', async () => {
+    // Clearing means "back to the default", which is a real mode rather than an empty one.
+    const { store } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', name: 'Repo', permission: 'danger-full-access' } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', permission: null })
+    expect(store.read().cards).toEqual([
+      { cardId: 'skill-card', name: 'Repo', skill: 'git-repo', templateSkills: [] },
+    ])
+  })
+
   it('deletes the record once name, skill, and model are all cleared', async () => {    // An empty record would keep a card alive with nothing left to configure it with.
     const { store, tables } = setup({
       seed: { card: { 'skill-card': { skill: 'git-repo', model: { provider: 'deepseek', model: 'deepseek-chat' } } } },
@@ -305,7 +346,7 @@ describe('workbench skill card store', () => {
       },
       {
         patch: { baseRevision: '7:0', cardId: 'skill-card', remove: true, name: 'Repo overview' },
-        reason: 'a removal cannot carry a name, a skill, a model, a workspace, or a template',
+        reason: 'a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template',
       },
       {
         // A route is two ids or nothing. An empty half is not a route, and accepting it
@@ -318,6 +359,16 @@ describe('workbench skill card store', () => {
         // directory to whoever resolved it, so it is refused rather than resolved.
         patch: { baseRevision: '7:0', cardId: 'skill-card', workspace: { path: 'relative/dir' } },
         reason: 'workspace must name one absolute directory path within 4096 characters',
+      },
+      {
+        // An unknown mode is refused rather than stored: the page would show a permission
+        // the sandbox never agreed to, and the run would execute under whatever applied.
+        patch: {
+          baseRevision: '7:0',
+          cardId: 'skill-card',
+          permission: 'full-control' as unknown as 'read-only',
+        },
+        reason: 'permission must be null or one of read-only, workspace-write, danger-full-access',
       },
     ]
     for (const { patch, reason } of cases) {

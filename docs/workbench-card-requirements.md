@@ -21,8 +21,10 @@
 > - **第十三版有一条必须先读的缺口，写在这里而不是留给读者自己发现：工作目录还没有约束运行写到哪里。** 卡片记下这个目录、并据此放行或拒绝一次运行，但**运行仍然在父会话的目录里执行**：执行底座仍是 `ctx.subagents.startActivation`，它的 `cwd` 只改子代理的有效工作目录，**不改文件沙箱的根**（实测过两件事：子代理的 `session.header.cwd` 仍是父会话的，`sandboxPolicy.resolve().workspaceRoot` 也仍是父会话的；机制见[详细设计 M5 的「工作目录」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)与它附录 C 的四条出处）。真正的收口需要一次基于 `agents.create({ meta: { cwd } })` 的运行，**这一版没有实现**。所以这张卡的目录目前是**一道门**，不是**一间房**：任何一句话都不该读成"写入被限制在所选目录里"，它也不是沙箱隔离。另一条既有约束照旧：卡片能跑起来依赖宿主提供 `subagents.startActivation`（`0.2.1-alpha.2` / beta 通道；`0.2.0-rc.2` 能加载、能编辑，不能运行），见 `dsh-workbench/INSTALL.md` 第 0 节「前提」与 FR-5，这里不重复。已知限制的完整三条见 [§14.8](#148-已实现并验收8092)。**（第十四版更新：这条缺口的插件侧已经落地——运行现在挂在一个根在卡片目录的 agent 上；但栅栏本身仍未被验证，也没有任何真实应用跑过，见 §14.9 的第 100、101 条。那段"这一版没有实现"读作历史。）**
 > - **第十四版把"一道门"往"一间房"推了一步，但只推到插件这一侧，而且两重限制必须先说。** 插件现在给每张卡**自己造一个 agent**，根在卡片目录（`agents.create({ sessionId, meta: { cwd } })`），并把它作为这次运行的**父**：文件沙箱的 `workspaceRoot` 取自 `session.header.cwd`，而子代理这条缝**把父的会话头复制给子**，所以父根在哪个目录，子就落在哪个目录。seam 本身一行没改——提示词投递、`{html}` 捕获、那一次重试、取消与 `agent/error` 归因都是它的。**一个 agent 只建一次、之后复用**（根在创建时固定，重建就等于换目录，所以复用是必需而不是优化）；**存的那条路径变了就拆掉旧的、按新目录重建**；`dispose()` 释放全部卡片 agent；每次运行结算后**归档**该 agent 的会话，让 `workbench-card-*` 不进侧边栏（归档是记账不是删除：agent 仍可复用、会话仍可读；归档失败只 `warn`，**绝不把已经捕获的结果变成一次失败**）。宿主表面因此多两项：`agents.create`（返回 `{ agent, dispose }`）与 **`workspaceRegistry.archiveSession`**——宿主对象是 `ctx` 的**宽 cast**，所以这个名字**没有任何一层能检查**：写成 `workspaces`（那是**客户端**服务名）照样编译、照样测试全绿，运行时只会走进那条 `warn`；同理它还必须写进插件的 `inject`，漏了会在运行时抛 `cannot get property … without inject`。这两件事都只能靠读源码与一次真实运行保证（见 §14.9 第 99 条）。**新增验收标准 93～101**，逐条覆盖见[附录 A.9](#a9-运行被钉在卡片目录上93101)。
 > - **第十四版的两重限制，写在这里而不是留给读者自己发现。** 其一，说"写入真的被限制在卡片目录里"的那个 spec —— `dsh-workbench/tests/skill-card-workspace-sandbox.spec.ts` —— 是**故意 skip 的 3 条**：它需要真实宿主、真实会话与真实文件写入，**它是规格，不是一条通过的测试**。其二，本功能**每一条结论都来自单元测试或探针脚本**（`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`），**从来没有在应用里点过一次**。所以准确的说法只有一句：**插件把运行挂在一个根在卡片目录的 agent 上；那之后沙箱是否真的拒绝越界写入，没有人验过。**
+> - **第十五版（当前）给每张卡一个自己的权限模式。** 配置页「基本信息」多出**第三行**：三种模式（`read-only` / `workspace-write` / `danger-full-access`），文字与**应用自己的权限选择器**一致（仅可查看 / 工作区内修改 / 完全权限）；选「完全权限」时，同一格里就地写明**工作目录不再限制写入**。存的是卡片记录上的 `permission?`，**不写就是 `workspace-write`**——不是"跟随会话"，而是一个具体默认值，所以**已有卡片会变严**，这是产品负责人明确要的结果。模式落在**卡片自己的那个 agent 上**（一条 `sandbox/mode` 会话事件）：子代理继承父的显式 override，所以这一次写入就是"这张卡的运行都按它跑"的全部机制。**换模式就重建 agent**（缓存键含模式，旧 agent 先 `dispose`）；**应用不了就拒绝这次运行**（`permission-unavailable`，消息点名卡片与模式），绝不悄悄按别的模式跑。`danger-full-access` **允许**，代价写在选择它的那一格。新增验收标准 **102～108**，逐条覆盖见[附录 A.10](#a10-每张卡自己的权限模式102108)。
+> - **第十五版那句必须一起读的话：这一整套权限机制，压在一条从来没有在真实应用里验证过的围栏上。** 模式只决定**沙箱允许写到哪里**，而沙箱的根来自卡片 agent 的会话头——也就是第十四版造的那间"房"。第十四版已经写明：那间房**没有被验证过**（`tests/skill-card-workspace-sandbox.spec.ts` 是 3 条故意 skip 的规格，第 100 条），**也没有任何真实应用跑过**（第 101 条）。所以本版能主张的只有两句：**卡片把用户选的模式写进了它自己 agent 的会话**；**沙箱是否因此真的收紧或放开写入，没有人验过**。任何一句话都不该读成"写入已被限制在所选目录里"。（`read-only` 相对最硬：它在宿主自己的写路径上就拒绝；`workspace-write` 与 `danger-full-access` 的差别完全取决于那个根。）
 >
-> **一句话区分：** §1–§19 共 **101 条**验收标准，其中 **97 条**描述**已实现并被验收**的行为（1–16、17–34、35–48、49–51、53–56、57–60、61–70、71–79、80–92、93–98 分列在[附录 A](#附录-a验收标准映射)的九块表里），第 **52** 条已撤回（第十一版，编号保留，见 §14.4），第 **99–101** 条**不是"通过"条目**（99 是一条命名约束，100 与 101 是两条验证限制，见 §14.9）；每一块都注明覆盖它的包级测试。
+> **一句话区分：** §1–§19 共 **108 条**验收标准，其中 **104 条**描述**已实现并被验收**的行为（1–16、17–34、35–48、49–51、53–56、57–60、61–70、71–79、80–92、93–98、102–108 分列在[附录 A](#附录-a验收标准映射)的十块表里），第 **52** 条已撤回（第十一版，编号保留，见 §14.4），第 **99–101** 条**不是"通过"条目**（99 是一条命名约束，100 与 101 是两条验证限制，见 §14.9）；每一块都注明覆盖它的包级测试。
 
 ## 1. 需求陈述
 
@@ -640,7 +642,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 
 ## 14. 验收标准
 
-方案共 **101 条**验收标准，分九组；其中 **97 条**已实现并验收，**第 52 条已撤回**（第十一版，产品决定，编号保留——它不主张任何东西已通过），**第 99–101 条不是"通过"条目**（99 是一条命名约束、今天没有已满足的证据；100 与 101 是两条验证限制，见 §14.9）：
+方案共 **108 条**验收标准，分十组；其中 **104 条**已实现并验收，**第 52 条已撤回**（第十一版，产品决定，编号保留——它不主张任何东西已通过），**第 99–101 条不是"通过"条目**（99 是一条命名约束、今天没有已满足的证据；100 与 101 是两条验证限制，见 §14.9）：
 
 | 组 | 条数 | 状态 |
 | --- | --- | --- |
@@ -653,6 +655,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 | 14.7 已实现并验收（71–79） | 9 | ✅ **已通过**：代码是 `dsh-workbench` 的 M1（`WorkbenchCardModel`）、M4（两张表的 schema 声明与合并语义）、M5（启动前的路由校验与 `agentOptions`）、M8（`chooseModel` 与目录座位）、M9/M7（两端的注入）与 M10（字段三态与「运行详情」那一行），`corepack yarn workspace dsh-workbench check`（第十二版落地时 541 个测试 / 38 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.7](#a7-已实现并验收7179) |
 | 14.8 已实现并验收（80–92） | 13 | ✅ **已通过**：代码是 `dsh-workbench` 的 M1（`WorkbenchCardWorkspace`、`isWorkbenchWorkspacePath`、`WorkbenchDirectoryStat`、目录检查路由与两个新错误码）、M4（`workbenchCardWorkspaceSchema`）、M5（启动前的目录门）、M6（`GET /directory` 与两个码的 HTTP 状态）、M8（`workspaceField`、`chooseWorkspace`）与 M10（`workspace.ts`、`workspace-picker.ts`、`WorkspaceField` 与两行两列的栅格），`corepack yarn workspace dsh-workbench check`（第十三版落地时 604 个测试 / 40 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.8](#a8-已实现并验收8092)。**第 92 条是本组唯一一条负面标准**：它钉住的是一个**当时还没实现**的缺口（第十四版落地了插件侧那一半，于是这一条被收窄成"没有被验证"，见 §14.9），读法见那一条本身与 §14.8 末尾的已知限制 |
 | 14.9 运行被钉在卡片目录上（93–101） | 9 | ⚠️ **部分**：93–98 是插件侧的实现，由 `tests/skill-card-runner.spec.ts` 的四个用例覆盖，`corepack yarn workspace dsh-workbench check`（第十四版落地时 609 个测试 / 40 个 spec 文件 / 3 跳过）exit 0；逐条对应的 spec 见[附录 A.9](#a9-运行被钉在卡片目录上93101)。**99–101 不能算"通过"**：99 的命名约束今天没有已满足的证据，100 说栅栏那个 spec 是**故意 skip 的规格**，101 说**没有任何真实应用跑过它** |
+| 14.10 每张卡自己的权限模式（102–108） | 7 | ✅ **已通过**：代码是 `dsh-workbench` 的 M1（`WorkbenchSandboxMode`、`WORKBENCH_SANDBOX_MODES`、`effectiveWorkbenchSandboxMode` 与 `permission-unavailable`）、M4（schema 与合并语义）、M5（建 agent 时应用模式、缓存键含模式、拒绝而不回退）、M7（`sandbox.setMode` 的装配）与 M8/M10（`permission` 字段、`permission.ts`、配置页第三行），`corepack yarn workspace dsh-workbench check`（第十五版落地时 631 passed | 3 skipped / 41 个 spec 文件）exit 0；逐条对应的 spec 见[附录 A.10](#a10-每张卡自己的权限模式102108)。**本组有与 99–101 相同的前提**：模式有没有真的收紧写入，取决于那条未被验证的沙箱根（§14.9），见第 108 条 |
 
 逐条与功能需求、设计模块的对应关系见 [附录 A](#附录-a验收标准映射) 与[技能卡详细设计 · 附录 B](workbench-skill-card-detailed-design.md#附录-b验收映射)；17–34 的实现级设计见[技能卡按钮触发执行 · 详细设计](workbench-skill-card-actions-design.md)；35–48 的实现级设计见[技能卡详细设计 · M10](workbench-skill-card-detailed-design.md#m10-编辑器与配置页)与 [M9](workbench-skill-card-detailed-design.md#m9-卡片组件与装配)；49–60 的实现级设计见 [M10](workbench-skill-card-detailed-design.md#m10-编辑器与配置页)、[M8](workbench-skill-card-detailed-design.md#m8-客户端传输与状态)、[M5](workbench-skill-card-detailed-design.md#m5-执行服务)、[M1](workbench-skill-card-detailed-design.md#m1-共享契约) 与 [M6](workbench-skill-card-detailed-design.md#m6-私域路由)；57–60 另外落在结果页所属的面板标题（`WorkbenchPage.tsx`，见 [M10 的「页面的形状」](workbench-skill-card-detailed-design.md#页面的形状)）与 `skill-card.module.css` 上；61–70 的实现级设计见 M10 的[「结果的手工编辑」](workbench-skill-card-detailed-design.md#结果的手工编辑)一节，以及 M1（`editedAt`、`WorkbenchResultEditRequest`）、M4（`workbenchResultSchema`）与 M6（`PUT /api/workbench/skill-card/result`）。71–79 的实现级设计见 [M1](workbench-skill-card-detailed-design.md#m1-共享契约)（`WorkbenchCardModel`）、[M4](workbench-skill-card-detailed-design.md#m4-存储域与配置服务)（两张表的 `model`）、M5 的[「模型：钉住这次运行的路由」](workbench-skill-card-detailed-design.md#模型钉住这次运行的路由第十二版)与 M10 的「卡片的模型字段」。80–92 的实现级设计见 M1（`WorkbenchCardWorkspace` 与目录检查路由）、M4（`workbenchCardWorkspaceSchema`）、M5 的[「工作目录」](workbench-skill-card-detailed-design.md#工作目录一道门还不是一间房第十三版)一节（**那一节同时写着这个功能还没有做到的收口**）、[M6](workbench-skill-card-detailed-design.md#m6-私域路由) 的「目录检查」、[M8](workbench-skill-card-detailed-design.md#m8-客户端传输与状态) 的工作目录字段与 M10 的[「卡片的工作目录字段」](workbench-skill-card-detailed-design.md#卡片的工作目录字段第十三版)。93–101 的实现级设计见 [M5 的「父 agent：把根钉在卡片目录上」](workbench-skill-card-detailed-design.md#父-agent把根钉在卡片目录上第十四版)——**那一节同时写着 M13 的口径与两条限制**，以及 M13 的测试设计。
 
@@ -898,6 +901,33 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 > 2. **没有任何真实应用跑过它。** 全部证据是单元测试与一份探针脚本，没有一次点击记录（第 101 条）。
 >
 > 合起来只有一句话：**插件侧的父 agent 是实现了的；"这间房真的锁住了"没有被验证过。** 另外，第 99 条那件命名的事也不是限制的修辞：它今天没有任何一层能检查。
+
+### 14.10 每张卡自己的权限模式（102–108）
+
+> **这一组是第十五版的映射，七条都是"实现了并被测试证明"的东西。** 但它们压在同一条从未被验证的围栏上（第 100、101 条）：模式只决定沙箱允许写到哪里，而那个根是第十四版造的那间没验过的房。第 108 条把这件事写在条目里，本节末尾再说一遍。
+
+102. **卡片记录多一个 `permission` 字段，`skill-card-spec.ts` 在同一次改动里声明它。** 这是按"store 写入的每个字段都必须在 schema 里声明"这条约束加的**第四个字段**（前三个是 `name`、`model`、`workspace`）。丢掉它比丢别的三个更糟：卡片会以默认模式回来，用户特意收窄过的那张卡于是按更宽的模式跑，而页面上没有任何一处会说这件事。
+    <br>覆盖：`tests/skill-card-spec.spec.ts`（带模式的整条往返、没有该字段的记录不会被凭空补上、不认识的模式被拒）。
+
+103. **不写就是 `workspace-write`，是一个具体默认值，不是"跟随会话"。** `effectiveWorkbenchSandboxMode()` 是唯一一处把"缺席"变成模式的地方：配置页显示它、runner 应用它、agent 的缓存键用它。**后果是已有卡片变严**——升级上来的卡片读回来没有这个字段，于是按 `workspace-write` 跑，而不是按会话当时的模式；这是产品负责人的明确决定，不是迁移遗漏。
+    <br>覆盖：`tests/skill-card-contract.spec.ts`（`undefined` 解析成 `workspace-write`、三个模式原样返回、别的值都不认）、`tests/skill-card-runner.spec.ts`（没写模式的卡片，`setMode` 收到 `workspace-write`）、`tests/SkillCardSettings.spec.tsx`（没有模式时选择器显示 `workspace-write`，不是空选项）。
+
+104. **配置页「基本信息」的第三行是权限模式，标签与应用自己的权限选择器一致；选「完全权限」时就地说明工作目录不再限制写入。** 三个标签是「仅可查看 / 工作区内修改 / 完全权限」，与 `ui-permission-presets` 的产品文案同一套词——同一个模式在产品的两个地方叫两个名字，读起来就是两种权限。**`danger-full-access` 允许**，但代价写在选择它的那一格里。
+    <br>覆盖：`tests/SkillCardSettings.spec.tsx`（三个选项的值与文案、默认选中 `workspace-write`、`danger-full-access` 时的 `data-permission-warning` 文案、选择后回调收到模式、契约外的值不写）。
+
+105. **模式在创建卡片 agent 时应用一次。** 宿主窄接口多一项 `sandbox.setMode(sessionId, mode)`，`src/index.ts` 把它接到**真实 Session** 的 `append('sandbox/mode', { mode })`；子代理继承父的显式 override，所以这一次写入就是"这张卡的运行都按它跑"的全部机制。**一次，不是每次**：agent 被复用时不再追加事件，因为继承发生在每次启动，而模式已经在父的会话里了。首次运行、重跑、微调与模板按钮触发的运行都走同一个父，所以四种运行一起生效；手工编辑结果不跑模型，也没有沙箱。
+    <br>覆盖：`tests/skill-card-runner.spec.ts`（两次运行只有一次 `setMode`，且第二次运行的 `request.parent` 仍是那个 agent；以及把卡片记录投影成"这次运行读什么"的那个纯函数把 `permission` 一起带过去）。
+
+106. **换模式就重建 agent；别的没变就复用。** 卡片 agent 的缓存键从"路径"变成"路径 + 模式"：模式是一条会话事件，本插件**不去改一个活着的 agent 的模式**——旧 agent 先 `dispose`，新模式在新会话上重建。**而且一次会被拒绝的启动不会拆掉正在被运行使用的 agent**：重叠检查在解析 agent **之前**先跑一次，否则"运行中改模式再点运行"会把正在跑的子的父会话拆掉。
+    <br>覆盖：`tests/skill-card-runner.spec.ts`（`read-only` → `danger-full-access`：`disposedAgents` 1、`createdAgents` 2、新的 `setMode` 落在新 agent 上；什么都没变时仍是一个 agent；运行中改模式再点运行 → `run-in-progress`，且没有任何 dispose）。
+
+107. **应用不了就拒绝，绝不回退。** `permission-unavailable` 进的是**封闭联合**，于是路由的 `STATUS_BY_CODE`（409）、客户端的 `LOCALIZED_CODES`、卡片的失败文案表都必须表态。拒绝时消息点名**卡片与模式**，建到一半的 agent 被 `dispose` 掉——它不会留在缓存里等下一次尝试，也没有任何一次运行在"模式没生效"的情况下发生。
+    <br>覆盖：`tests/skill-card-runner.spec.ts`（`permission-unavailable`；detail 含卡片 id、模式与原因；`activations` 为空；刚建的 agent 被 dispose；该卡没有 run 状态）、`tests/locales.spec.ts` + 三张 `Record<码, …>` 映射表（**"漏一个编译不过"是类型系统的事，没有运行时用例**）。
+
+108. **`danger-full-access` 允许，但它不是隔离。** 选了它，runner 如常应用并放行，配置页说明代价。**工作目录只在 `read-only` 与 `workspace-write` 下限制写入；`danger-full-access` 下它不再限制**——但这句话还有一层前提：**限制本身**来自第十四版那条栅栏，而那条栅栏**没有被验证过**（第 100 条）、**也没有任何真实应用跑过**（第 101 条）。所以"这张卡被限制在它的目录里"这句话今天仍然不能说；能说的是**卡片把用户选的模式写进了它自己 agent 的会话**。
+    <br>覆盖：`tests/skill-card-runner.spec.ts`（`danger-full-access` 的卡片照常跑完、`setMode` 收到该模式）；**边界那一半没有用例能证明它，它和第 100、101 条是同一件事。**
+
+> **本组的已知限制（一条，写在这里不留给读者猜）。** 三种模式的**写入效果**没有被验证：`read-only` 相对最硬（宿主自己的写路径就拒绝），而 `workspace-write` 与 `danger-full-access` 的差别**完全取决于那条未被验证的沙箱根**。本组证到的是"插件把模式应用到了哪、应用几次、应用不了会怎样"，不是"写入被限制住了"。
 
 ## 15. 待确认项
 
@@ -1344,7 +1374,7 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 
 ## 附录 A：验收标准映射
 
-§14 的 **101 条**逐条落在本方案的哪一节、以及由哪个包级测试覆盖。**表按组分成九块**：1–16 属于既有卡片能力，17–34 属于 §12 的按钮触发执行，35–48 属于 §17 的编辑器与配置页，49–56 属于 §18 的结果页与微调，57–60 属于第九版那批打磨（FR-37 / FR-41 / FR-42 / FR-43 / FR-44），61–70 属于第十版的手工编辑结果（§19、FR-45），71–79 属于第十二版的每卡模型选择，80–92 属于第十三版的每卡工作目录（§14.8），93–101 属于第十四版把运行钉在卡片目录上（§14.9）；**前八块都已实现并验收，第九块只有 93–98 是，99–101 不是"通过"条目**（第 52 条单独撤回，见 §14.4；第 92 条是负面标准，它钉住的是一个**未被验证**的边界，见第 92 行）。
+§14 的 **108 条**逐条落在本方案的哪一节、以及由哪个包级测试覆盖。**表按组分成十块**：1–16 属于既有卡片能力，17–34 属于 §12 的按钮触发执行，35–48 属于 §17 的编辑器与配置页，49–56 属于 §18 的结果页与微调，57–60 属于第九版那批打磨（FR-37 / FR-41 / FR-42 / FR-43 / FR-44），61–70 属于第十版的手工编辑结果（§19、FR-45），71–79 属于第十二版的每卡模型选择，80–92 属于第十三版的每卡工作目录（§14.8），93–101 属于第十四版把运行钉在卡片目录上（§14.9），102–108 属于第十五版的每卡权限模式（§14.10）；**前九块里只有 93–98 是，99–101 不是"通过"条目**（第 52 条单独撤回，见 §14.4；第 92 条是负面标准，它钉住的是一个**未被验证**的边界，见第 92 行）；**第十块整块已通过，但它的第 108 条把同一条未验证的边界再钉了一次**。
 
 ### A.1 已实现并验收（1–16）✅
 
@@ -1521,3 +1551,19 @@ data-dsh-row='{"task_name":"O&#39;Reilly 重构"}'   ✅ 转义后属性完整
 父 agent 那一侧另有一组节点级事实写在源码与设计里、但没有独立用例：`sessionId` 每次创建都不同（同一个 id 不能发布两次）、卡片 agent 不带 `parentAgent`（它是根 agent，不是会话的子代理）、归档只吞异常不改运行结果。工作目录字段那一侧（80–92）的映射见 A.8；两条限制的完整说法见 §14.9 末尾与详细设计 M5 的「父 agent：把根钉在卡片目录上」。
 
 工作目录的契约、存储、路由与传输四侧还有一组节点级用例：`tests/skill-card-store.spec.ts`（合并语义、清空语义、非绝对路径的拒绝）、`tests/skill-card-route.spec.ts`（补丁里的 `workspace` 与目录检查路由的围栏 / 方法 / 400 / 200 / 探测器抛错，见「workbench skill card directory route」那一组）、`tests/workspace-picker.spec.ts`（选择器的七条）、`tests/workspace.spec.ts`（叶子名五条与三态六条，共十一条）。**这一版没有新的渲染路径**：结果仍由存盘模板与 `{html}` 拼出来，卡片正面也不多画任何东西——新字段只出现在配置页。
+
+### A.10 每张卡自己的权限模式（102–108）
+
+> 这一块是第十五版的映射。照旧：**"包级测试"一栏写的是覆盖它的 spec**。**第 108 行有一半与 99–101 同向**：它钉住的那条边界没有被验证过，见第 100、101 条。
+
+| # | 验收标准（简称） | 落在本方案 | 包级测试 |
+| --- | --- | --- | --- |
+| 102 | `permission` 在 schema 里**同一次改动**声明；整条记录往返不丢字段；不认识的模式被拒 | §14.10、详细设计 M1 / M4 | `tests/skill-card-spec.spec.ts`（带模式往返、缺席不被补上、四个非法值被拒） |
+| 103 | 不写即 `workspace-write`（具体默认值，不是跟随会话）；**已有卡片因此变严**；选择器显示该默认值而不是空选项 | §14.10、详细设计 M1（`effectiveWorkbenchSandboxMode`）/ M5 / M10 | `tests/skill-card-contract.spec.ts`、`tests/skill-card-runner.spec.ts`（`setMode` 收到 `workspace-write`）、`tests/SkillCardSettings.spec.tsx`（选择器值） |
+| 104 | 配置页第三行三种模式、文案与应用自己的权限选择器一致、选完全权限时就地警告 | §14.10、详细设计 M10（`permission.ts` 与配置页那一格） | `tests/SkillCardSettings.spec.tsx`（选项值 / 文案 / 默认 / 警告 / 回调 / 契约外的值不写） |
+| 105 | 建 agent 时应用一次；`sandbox.setMode` → 真实 Session 的 `append('sandbox/mode')`；首次 / 重跑 / 微调 / 按钮运行共用同一个父 | §14.10、详细设计 M5（`cardAgent()`）与 M7（装配） | `tests/skill-card-runner.spec.ts`（两次运行只有一次 `setMode`，第二次运行的 `parent` 仍是那个 agent；`cardSelection` 把 `permission` 一起投影） |
+| 106 | 换模式 → dispose + 重建；什么都没变更复用；**被拒的启动不拆正在跑的 agent** | §14.10、详细设计 M5 | `tests/skill-card-runner.spec.ts`（`read-only` → `danger-full-access`：dispose 1 / create 2；`run-in-progress` 时没有 dispose） |
+| 107 | 应用不了就**拒绝**（`permission-unavailable`，点名卡片与模式，建到一半的 agent 被释放），绝不回退 | §14.10、详细设计 M1（封闭联合）/ M5 / M6（409）/ M8 | `tests/skill-card-runner.spec.ts`；三张 `Record<码, …>` 映射表是编译期约束，没有运行时用例 |
+| 108 | `danger-full-access` **允许**并照常运行；**它不是隔离**——边界与第 100、101 条同源 | §14.10、详细设计 M5（「权限模式」那一节末尾） | `tests/skill-card-runner.spec.ts`（跑完并 `setMode` 收到该模式）；**边界那一半没有用例能证明，也不该有** |
+
+权限模式的契约、存储、路由与文案四侧还有一组节点级用例：`tests/skill-card-store.spec.ts`（合并语义、`null` 清空语义、非法模式被拒）、`tests/skill-card-route.spec.ts`（补丁里的 `permission` 原样落盘、`null` 清空且保留其余字段、非法值 400）、`tests/locales.spec.ts`（两个字典同一套键，所以三个标签、一句警告与一句拒绝文案都是成对的）。**这一版没有新的渲染路径**：结果页只是把原来那句"运行时使用当前会话的完整工具权限"换成「运行时权限：{mode}」（`skillCardRunsWithPermission`）——旧文案已经不成立，随 `skillCardPermission` 一起删除。
