@@ -607,7 +607,8 @@ export class WorkbenchSkillCardRunner {
         run.retried = true
         outcome = await this.attempt(run, input, cwd, skill, activate, await this.cardParent(run.cardId, input.agent))
       }
-      await this.finish(run, outcome)
+await this.finish(run, outcome)
+      await this.archiveCardSession(run.cardId)
     } catch (error) {
       if (signal.aborted) {
         run.phase = 'cancelled'
@@ -774,6 +775,26 @@ export class WorkbenchSkillCardRunner {
    * @param signal - cancellation.
    * @returns the directory, or undefined when neither source supplies one.
    */
+/**
+   * Hide the session a card agent published.
+   *
+   * Creating a published agent also creates a session, and the sidebar lists sessions —
+   * so without this every card the user ever ran would leave a `workbench-card-*` row
+   * behind. Archiving is bookkeeping, not deletion: the agent stays reusable and the
+   * session stays readable.
+   * @param cardId - the card whose session should drop out of the default list.
+   * @returns resolution once the archive is recorded; never rejects, because a failed
+   *   archive must not turn a captured result into a failure.
+   */
+  private async archiveCardSession(cardId: string): Promise<void> {
+    const entry = this.cardAgents.get(cardId)
+    if (entry === undefined) return
+    try {
+      await this.options.host.workspaces.archiveSession(entry.handle.agent.id)
+    } catch (error) {
+      this.options.warn(`workbench card session archive failed: ${messageOf(error)}`)
+    }
+  }
   private async cwdFor(agent: WorkbenchAgent, signal: AbortSignal): Promise<string | undefined> {
     const service = this.options.workingDirectory
     if (service !== undefined) return await service.ensure(agent, signal)

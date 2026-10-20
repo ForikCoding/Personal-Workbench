@@ -157,6 +157,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   // `FakeSkillCardHost` so a case can prove creation and disposal actually happened.
   const createdAgents: WorkbenchAgent[] = []
   const disposedAgents: string[] = []
+  const archivedSessions: string[] = []
 
   const host: WorkbenchSkillCardHost = {
     agents: {
@@ -176,6 +177,11 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
           dispose: async () => { disposedAgents.push(createOptions.sessionId) },
         }
       },
+    },
+    // Archiving is recorded, not simulated: a case can then prove the plugin hid the
+    // session a card agent published instead of leaving it in the sidebar.
+    workspaces: {
+      archiveSession: async (sessionId: string) => { archivedSessions.push(sessionId) },
     },
     skills: {
       list: async (lookup) => {

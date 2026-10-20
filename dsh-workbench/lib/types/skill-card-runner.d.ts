@@ -246,6 +246,18 @@ export declare class WorkbenchSkillCardRunner {
      * @param signal - cancellation.
      * @returns the directory, or undefined when neither source supplies one.
      */
+    /**
+       * Hide the session a card agent published.
+       *
+       * Creating a published agent also creates a session, and the sidebar lists sessions —
+       * so without this every card the user ever ran would leave a `workbench-card-*` row
+       * behind. Archiving is bookkeeping, not deletion: the agent stays reusable and the
+       * session stays readable.
+       * @param cardId - the card whose session should drop out of the default list.
+       * @returns resolution once the archive is recorded; never rejects, because a failed
+       *   archive must not turn a captured result into a failure.
+       */
+    private archiveCardSession;
     private cwdFor;
     /**
      * Project one run record onto the wire state.

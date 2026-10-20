@@ -280,6 +280,23 @@ export interface WorkbenchSkillCardHost {
      */
     get(name: string, options: WorkbenchSkillLookup): Promise<WorkbenchSkillDefinition | undefined>
   }
+  /**
+   * Session lifecycle the workbench needs but no other service exposes.
+   *
+   * A card's run hangs from an agent the plugin creates, and creating a published agent
+   * also creates a session — which the sidebar would otherwise list for every card the
+   * user ever ran. Archiving is `archivedSessionIds` bookkeeping, not deletion: the
+   * session stays readable and the agent stays reusable.
+   */
+  readonly workspaces: {
+    /**
+     * Hide a session from the default list.
+     * @param sessionId - the session to archive.
+     * @returns resolution once the archive is recorded.
+     */
+    archiveSession(sessionId: string): Promise<void>
+  }
+
   readonly subagents: WorkbenchSubagentHost
   /**
    * LLM registry, narrowed to the one query a start consults.
