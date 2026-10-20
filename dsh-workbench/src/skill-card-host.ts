@@ -288,7 +288,7 @@ export interface WorkbenchSkillCardHost {
    * user ever ran. Archiving is `archivedSessionIds` bookkeeping, not deletion: the
    * session stays readable and the agent stays reusable.
    */
-  readonly workspaces: {
+  readonly workspaceRegistry: {
     /**
      * Hide a session from the default list.
      * @param sessionId - the session to archive.

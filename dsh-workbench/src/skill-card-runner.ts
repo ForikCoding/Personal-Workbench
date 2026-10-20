@@ -644,6 +644,11 @@ await this.finish(run, outcome)
     parent: WorkbenchAgent,
   ): Promise<AttemptOutcome> {
     const signal = run.controller.signal
+    // The effective working directory must be the sandbox root, or relative paths resolve
+    // where the fence forbids writing. The card's agent carries that directory in its
+    // session header, so the parent decides and the request follows it; a card with no
+    // agent falls back to the session directory exactly as before.
+    const resolvedCwd = parent.session?.header?.cwd ?? cwd
     // Omitting `toolFilter` is how this run inherits the session's full tool permissions.
     // Naming a route is the card's own choice: with no model configured nothing is passed
     // and the child inherits the session's model exactly as it always did.
@@ -666,7 +671,7 @@ await this.finish(run, outcome)
               ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload)
               : renderWorkbenchBarePrompt(skill, input.payload),
         }],
-        ...cwd === undefined ? {} : { cwd },
+        ...resolvedCwd === undefined ? {} : { cwd: resolvedCwd },
         // Conditional on purpose: a bare run sends no contract at all, and the seam
         // treats its absence as "nothing to capture" rather than as a default.
         ...input.kind === 'bare' ? {} : { outputSchema: input.outputSchema },
@@ -790,7 +795,7 @@ await this.finish(run, outcome)
     const entry = this.cardAgents.get(cardId)
     if (entry === undefined) return
     try {
-      await this.options.host.workspaces.archiveSession(entry.handle.agent.id)
+      await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id)
     } catch (error) {
       this.options.warn(`workbench card session archive failed: ${messageOf(error)}`)
     }

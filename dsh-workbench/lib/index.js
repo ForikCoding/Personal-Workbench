@@ -1263,6 +1263,7 @@ var WorkbenchSkillCardRunner = class {
 	*/
 	async attempt(run, input, cwd, skill, activate, parent) {
 		const signal = run.controller.signal;
+		const resolvedCwd = parent.session?.header?.cwd ?? cwd;
 		const activation = await activate({
 			provider: this.options.subagentProvider,
 			label: `workbench:${run.cardId}`,
@@ -1274,7 +1275,7 @@ var WorkbenchSkillCardRunner = class {
 					type: "text",
 					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
-				...cwd === void 0 ? {} : { cwd },
+				...resolvedCwd === void 0 ? {} : { cwd: resolvedCwd },
 				...input.kind === "bare" ? {} : { outputSchema: input.outputSchema },
 				...input.model === void 0 ? {} : { agentOptions: input.model }
 			}
@@ -1386,7 +1387,7 @@ var WorkbenchSkillCardRunner = class {
 		const entry = this.cardAgents.get(cardId);
 		if (entry === void 0) return;
 		try {
-			await this.options.host.workspaces.archiveSession(entry.handle.agent.id);
+			await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id);
 		} catch (error) {
 			this.options.warn(`workbench card session archive failed: ${messageOf(error)}`);
 		}
@@ -2517,6 +2518,7 @@ const inject = [
 	"agents",
 	"skills",
 	"subagents",
+	"workspaceRegistry",
 	"llm"
 ];
 /**

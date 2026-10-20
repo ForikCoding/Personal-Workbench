@@ -186,7 +186,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
     },
     // Archiving is recorded, not simulated: a case can then prove the plugin hid the
     // session a card agent published instead of leaving it in the sidebar.
-    workspaces: {
+    workspaceRegistry: {
       archiveSession: async (sessionId: string) => { archivedSessions.push(sessionId) },
     },
     skills: {

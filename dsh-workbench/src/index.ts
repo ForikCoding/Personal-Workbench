@@ -64,7 +64,8 @@ export const name = 'workbench'
  */
 export const inject = [
   'storageDomain', 'webServer', 'connection', 'storage',
-  'agents', 'skills', 'subagents', 'llm',
+  'agents', 'skills', 'subagents',
+  'workspaceRegistry', 'llm',
 ]
 
 /**
