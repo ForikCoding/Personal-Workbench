@@ -189,6 +189,14 @@ export interface WorkbenchModelDirectory {
      */
     subscribe(listener: () => void): () => void
   }
+  /**
+   * Fetch the catalog for this directory.
+   *
+   * A directory starts `idle` with no groups; this is the only thing that fills them. It is
+   * idempotent, so calling it whenever a page reads is safe.
+   * @returns resolution once the load settles.
+   */
+  load(): Promise<unknown>
 }
 
 /** The directory state fields this feature reads; the upstream type has more. */
@@ -227,7 +235,16 @@ export function createModelSeat(resolver: () => WorkbenchModelDirectoryResolver 
     read(sessionId) {
       const directory = directoryFor(resolver(), sessionId)
       if (directory === undefined) return NO_MODEL_DIRECTORY
+      // A directory starts `idle` with no groups and only fills them when something calls
+      // `load()`; the app's own model picker kicks that on mount
+      // (ui-model-selection/src/client/index.ts:182). This seat used to read the snapshot
+      // without ever loading it, so the card offered only whatever providers another
+      // surface had happened to populate — most configured models were invisible while the
+      // app's own picker listed them. Loading is idempotent per directory.
       const state = directory.store.getSnapshot()
+      if (state.status === 'idle') {
+        void directory.load().catch(() => { /* surfaced on the store */ })
+      }
       return {
         available: true,
         status: state.status,

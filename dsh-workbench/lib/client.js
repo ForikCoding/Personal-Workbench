@@ -1330,6 +1330,7 @@ window.__ModuleLoader__.load({
 					const directory = directoryFor(resolver(), sessionId);
 					if (directory === void 0) return NO_MODEL_DIRECTORY;
 					const state = directory.store.getSnapshot();
+					if (state.status === "idle") directory.load().catch(() => {});
 					return {
 						available: true,
 						status: state.status,

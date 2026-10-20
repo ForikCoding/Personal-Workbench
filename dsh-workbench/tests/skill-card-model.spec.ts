@@ -149,7 +149,11 @@ describe('the model directory seat', () => {
   } {
     const unsubscribe = vi.fn()
     const subscribe = vi.fn(() => unsubscribe)
-    const directory: WorkbenchModelDirectory = { store: { getSnapshot: () => state as WorkbenchModelDirectoryState, subscribe } }
+    let loads = 0
+      // The seat must call this: a directory starts idle with no groups, and only a load
+      // fills them. Leaving it out is what made most configured models invisible.
+      const load = async (): Promise<unknown> => { loads += 1; return undefined }
+      const directory: WorkbenchModelDirectory = { store: { getSnapshot: () => state as WorkbenchModelDirectoryState, subscribe }, load }
     const resolver: WorkbenchModelDirectoryResolver = {
       directoryFor: () => {
         if (fails) throw new Error('model selection is unavailable for addressed subagent sessions')

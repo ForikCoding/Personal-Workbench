@@ -138,6 +138,14 @@ export interface WorkbenchModelDirectory {
          */
         subscribe(listener: () => void): () => void;
     };
+    /**
+     * Fetch the catalog for this directory.
+     *
+     * A directory starts `idle` with no groups; this is the only thing that fills them. It is
+     * idempotent, so calling it whenever a page reads is safe.
+     * @returns resolution once the load settles.
+     */
+    load(): Promise<unknown>;
 }
 /** The directory state fields this feature reads; the upstream type has more. */
 export interface WorkbenchModelDirectoryState {
