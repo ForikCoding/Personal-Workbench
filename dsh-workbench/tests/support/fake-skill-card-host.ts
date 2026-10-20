@@ -112,6 +112,12 @@ export interface FakeHost {
   /** The one filesystem read the runner gates a start on. */
   readonly statDirectory: WorkbenchDirectoryProbe
   readonly activations: WorkbenchActivationSpec[]
+    /** Card agents the plugin created, in order; each carries the directory it rooted at. */
+    readonly createdAgents: WorkbenchAgent[]
+    /** Session ids of card agents the plugin tore down. */
+    readonly disposedAgents: string[]
+    /** Session ids the plugin archived to keep them out of the sidebar. */
+    readonly archivedSessions: string[]
   readonly lookups: WorkbenchSkillLookup[]
   readonly disposed: { count: number }
   /**
@@ -237,5 +243,5 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
   }
-  return { host, workingDirectory, statDirectory, activations, lookups, disposed, settleChild }
+  return { host, workingDirectory, statDirectory, activations, lookups, disposed, createdAgents, disposedAgents, archivedSessions, settleChild }
 }
