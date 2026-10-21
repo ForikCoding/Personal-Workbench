@@ -62,6 +62,14 @@ export interface SkillCardSettingsProps {
   /** Store the model this card's runs use. */
   readonly onChooseModel: (model: WorkbenchCardModel) => void
   /**
+   * Ask the model directory for its catalog again.
+   *
+   * Offered beside the catalog's diagnostic line because a catalog that arrived short leaves
+   * the user with no recourse otherwise: the field states what it holds, and this is the one
+   * request that could replace it.
+   */
+  readonly onRefreshModel: () => void
+  /**
    * Store the permission mode this card's runs use.
    *
    * The choice is a stored write like the model: the Host rebuilds the card's agent around
@@ -140,7 +148,7 @@ function gutterLineClass(kind: GutterLineFact['kind']): string {
  * @returns the editor element.
  */
 export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
-  const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props
+  const { view, t, onChoose, onChooseModel, onRefreshModel, onChoosePermission, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props
   const [draft, setDraft] = useState(view.template ?? '')
   const [name, setName] = useState(view.name ?? '')
   // The declaration builder is closed until asked for: an editor whose first frame
@@ -445,7 +453,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               but no longer offered is shown as text, because a disabled select offering
               other models would read as a choice the user still has. */}
           <div className={css.field}>
-            <ModelField view={view} t={t} labelId={modelId} onChooseModel={onChooseModel} />
+            <ModelField view={view} t={t} labelId={modelId} onChooseModel={onChooseModel} onRefreshModel={onRefreshModel} />
           </div>
           {/* Where the card runs. Its own control rather than a text field: a typed path is
               a directory nothing confirmed, which the product owner rejected outright. */}
@@ -764,7 +772,7 @@ function oneLine(text: string | undefined): string | undefined {
  * unavailable — never as an empty picker, which would offer the user a choice that does
  * not exist. The run control elsewhere reads the same three states, so this field can
  * never say "unavailable" beside a live Run button.
- * @param props - the card view, the translator, the label id, and the store action.
+ * @param props - the card view, the translator, the label id, and the field's actions.
  * @returns the field.
  */
 function ModelField({
@@ -772,12 +780,15 @@ function ModelField({
   t,
   labelId,
   onChooseModel,
+  onRefreshModel,
 }: {
   readonly view: WorkbenchCardView
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   /** Id the label points at while the field is a control. */
   readonly labelId: string
   readonly onChooseModel: (model: WorkbenchCardModel) => void
+  /** Ask the directory for its catalog again. */
+  readonly onRefreshModel: () => void
 }): ReactNode {
   const field = view.modelField
   // The label only points at a control: pointing it at a paragraph would announce a form
@@ -820,6 +831,27 @@ function ModelField({
       {status === 'none' ? null : t('skillCardModelCatalogStatus', { status })}
     </p>
   )
+  // The one press this field offers when the reading above is short. The directory is loaded
+  // once and answered from memory afterwards, so nothing else the page can do replaces a
+  // catalog that arrived before the providers did; a press that changes nothing leaves the
+  // line exactly as it was, which is itself the answer to "can this be refreshed at all".
+  // Disabled only where there is no directory at all: then there is nothing to ask.
+  const refreshable = status !== 'none'
+  const refresh = (
+    <button
+      type="button"
+      className={css.catalogRefresh}
+      data-model-refresh=""
+      disabled={!refreshable}
+      title={t(refreshable ? 'skillCardModelRefreshHint' : 'skillCardModelRefreshUnavailable')}
+      onClick={onRefreshModel}
+    >
+      {t('skillCardModelRefresh')}
+    </button>
+  )
+  // The line and its control travel together in every state: a field that dropped them would
+  // read as one this page never renders.
+  const catalogWithRefresh = <>{catalog}{refresh}</>
   if (field.kind === 'ready') {
     return (
       <>
@@ -847,7 +879,7 @@ function ModelField({
             </optgroup>
           ))}
         </select>
-        {catalog}
+        {catalogWithRefresh}
       </>
     )
   }
@@ -858,7 +890,7 @@ function ModelField({
         <p className={css.fieldValue} data-model-fixed="">
           {field.name ?? field.model.model}
         </p>
-        {catalog}
+        {catalogWithRefresh}
       </>
     )
   }
@@ -866,7 +898,7 @@ function ModelField({
     <>
       {label}
       <p className={css.fieldValue} data-model-unavailable="">{t('skillCardModelUnavailable')}</p>
-      {catalog}
+      {catalogWithRefresh}
     </>
   )
 }

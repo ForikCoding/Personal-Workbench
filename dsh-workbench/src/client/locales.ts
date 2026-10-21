@@ -144,6 +144,13 @@ export const zh = {
   // never succeeded and a catalog that is simply small render identically without it.
   // The status stays the untranslated token the store holds, so a report can quote it.
   skillCardModelCatalogStatus: ' · {status}',
+  // The manual recourse beside that line. The shared catalog is loaded once and answered from
+  // memory afterwards, so a field that arrived short stays short until someone asks again;
+  // the hint says as much, because the press changing nothing is a possible — and informative
+  // — outcome rather than a broken control.
+  skillCardModelRefresh: '刷新模型目录',
+  skillCardModelRefreshHint: '重新向模型目录请求一次。若共享目录已加载，宿主会直接返回已有结果',
+  skillCardModelRefreshUnavailable: '没有读到模型目录，无法刷新',
   skillCardProblemModelUnavailable: '这张卡指定的模型已经不可用',
   skillCardNamePlaceholder: '给这张卡起个名字',
   createCard: '创建卡片',
@@ -365,6 +372,13 @@ export const en: Record<keyof typeof zh, string> = {
   // never succeeded and a catalog that is simply small render identically without it.
   // The status stays the untranslated token the store holds, so a report can quote it.
   skillCardModelCatalogStatus: ' · {status}',
+  // The manual recourse beside that line. The shared catalog is loaded once and answered from
+  // memory afterwards, so a field that arrived short stays short until someone asks again;
+  // the hint says as much, because the press changing nothing is a possible — and informative
+  // — outcome rather than a broken control.
+  skillCardModelRefresh: 'Refresh model catalog',
+  skillCardModelRefreshHint: 'Ask the model catalog again. When the shared catalog is already loaded, the host answers from it',
+  skillCardModelRefreshUnavailable: 'No model catalog was read, so there is nothing to refresh',
   skillCardProblemModelUnavailable: 'The model this card names is no longer available',
   skillCardNamePlaceholder: 'Name this card',
   createCard: 'Create card',

@@ -114,6 +114,9 @@ export declare const zh: {
     skillCardModelCatalog: string;
     skillCardModelCatalogNone: string;
     skillCardModelCatalogStatus: string;
+    skillCardModelRefresh: string;
+    skillCardModelRefreshHint: string;
+    skillCardModelRefreshUnavailable: string;
     skillCardProblemModelUnavailable: string;
     skillCardNamePlaceholder: string;
     createCard: string;

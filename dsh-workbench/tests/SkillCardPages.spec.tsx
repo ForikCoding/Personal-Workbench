@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
+import { countingModelDirectory, STALE_DIRECTORY_STATE } from './support/fake-model-directory.ts'
 import { fakeWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
 import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import type { WorkbenchModelDirectoryView, WorkbenchModelGroup, WorkbenchModelSeat } from '../src/client/skill-card/model.ts'
@@ -174,7 +175,7 @@ describe('skill card configuration page', () => {
       current: null,
       groups: sessionId === picker ? appCatalog : runCatalog,
     }))
-    const seat: WorkbenchModelSeat = { read, subscribe: () => () => {} }
+    const seat: WorkbenchModelSeat = { read, subscribe: () => () => {}, refresh: () => true }
     const { container } = render(<SkillCardConfigPage {...props({
       runSessionId: () => 'session-run',
       pickerSessionId: () => picker,
@@ -190,6 +191,48 @@ describe('skill card configuration page', () => {
     expect(read.mock.calls.every(call => call[0] === picker)).toBe(true)
     const labels = [...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label'))
     expect(labels).toEqual(['DeepSeek', 'minimax-cn', 'lightcode'])
+  })
+
+  it('asks the directory to load when the field mounts, rather than trusting a ready snapshot', async () => {
+    // The defect this case exists for: a directory is `ready` as soon as *some* load finished,
+    // often one taken before every provider registered, and the seat used to load only from
+    // `idle`. So the card mounted over a short catalog and never asked again, while the
+    // application's own picker could list the full one. The double only reports the full
+    // catalog after a load, so the count can move for exactly one reason: something asked.
+    const fake = countingModelDirectory()
+    const { container } = render(<SkillCardConfigPage {...props({
+      pickerSessionId: () => 'session-picker',
+      models: fake.seat,
+    })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('3/8')
+    })
+    // Reading the stale snapshot again would have kept printing `1/2`: the fix is the request,
+    // not another read.
+    expect(fake.loads()).toBe(1)
+    expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog-status')).toBe('ready')
+    expect([...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label')))
+      .toEqual(['deepseek-account', 'minimax-cn', 'lightcode'])
+  })
+
+  it('asks again when the user presses the refresh control, and states what came back', async () => {
+    // A catalog that arrived short leaves the user with no recourse today. The control asks the
+    // directory for its catalog once more; when the upstream already holds one, the press
+    // changes nothing — and the line saying so unchanged is the answer to "can this be
+    // refreshed at all", which is why the field is not allowed to fake an update.
+    const fake = countingModelDirectory({ after: STALE_DIRECTORY_STATE })
+    const { container } = render(<SkillCardConfigPage {...props({
+      pickerSessionId: () => 'session-picker',
+      models: fake.seat,
+    })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/2')
+    })
+    const refresh = container.querySelector('[data-model-refresh]') as HTMLButtonElement
+    expect(refresh).toHaveProperty('disabled', false)
+    fireEvent.click(refresh)
+    await waitFor(() => { expect(fake.loads()).toBe(2) })
+    expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/2')
   })
 
   it('surfaces a failed directory load on the diagnostic line', async () => {
@@ -222,7 +265,7 @@ describe('skill card configuration page', () => {
     }))
     const { container } = render(<SkillCardConfigPage {...props({
       runSessionId: () => 'session-run',
-      models: { read, subscribe: () => () => {} },
+      models: { read, subscribe: () => () => {}, refresh: () => true },
     })} />)
     await waitFor(() => {
       expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/1')
@@ -488,6 +531,7 @@ describe('skill card result page', () => {
         listeners.add(listener)
         return () => { listeners.delete(listener) }
       },
+      refresh: () => true,
     }
     const { container } = render(
       <SkillCardResultPage

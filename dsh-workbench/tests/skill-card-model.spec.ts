@@ -21,6 +21,7 @@ import {
   parseModelKey,
   resolveModelField,
 } from '../src/client/skill-card/model.ts'
+import { countingModelDirectory } from './support/fake-model-directory.ts'
 
 /** The catalog the cases below resolve against. */
 const GROUPS: readonly WorkbenchModelGroup[] = [
@@ -333,5 +334,67 @@ describe('the model directory seat', () => {
     expect(subscribe).toHaveBeenCalledWith(listener)
     stop()
     expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks the directory to load when a page subscribes, so a `ready` snapshot is not current', () => {
+    // The defect: a directory is `ready` as soon as *some* load finished — often one taken
+    // before every provider had registered — and the seat only ever loaded from `idle`. A card
+    // mounting over such a directory read the short catalog and never asked again. `ready`
+    // means "a load finished", not "this is the catalog now".
+    const fake = countingModelDirectory()
+    expect(fake.seat.read('session-1').groups).toHaveLength(1)
+    expect(fake.loads()).toBe(0)
+    const stop = fake.seat.subscribe('session-1', () => {})
+    expect(fake.loads()).toBe(1)
+    expect(fake.seat.read('session-1').groups).toHaveLength(3)
+    stop()
+  })
+
+  it('does not load again from the notification its own load produces', () => {
+    // A load writes its result to the store and notifies; a seat that asked on every
+    // notification would spin. The loaded snapshot is `ready`, so the read the notification
+    // triggers asks for nothing.
+    const fake = countingModelDirectory()
+    const seen: number[] = []
+    const stop = fake.seat.subscribe('session-1', () => { seen.push(fake.seat.read('session-1').groups.length) })
+    expect(fake.loads()).toBe(1)
+    expect(seen).toEqual([3])
+    stop()
+  })
+
+  it('loads an idle directory from a read alone, for a page that never subscribes', () => {
+    // The fallback kept beside the mount path: a caller that only renders the field still gets
+    // a catalog. Only `idle` asks, because a notification arrives after the snapshot settles.
+    const idle = (): WorkbenchModelDirectory => ({
+      store: {
+        getSnapshot: () => ({ current: null, status: 'idle', error: null, groups: [] }),
+        subscribe: () => () => {},
+      },
+      load: vi.fn(async () => undefined),
+    })
+    const directory = idle()
+    const seat = createModelSeat(() => ({ directoryFor: () => directory }))
+    seat.read('session-1')
+    expect(directory.load).toHaveBeenCalledTimes(1)
+    seat.read('session-1')
+    // Still idle in this double, so the fallback asks again: the real store settles to
+    // `loading` and then `ready`, which is what stops the repetition.
+    expect(directory.load).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks the directory again for the field’s refresh control', () => {
+    const fake = countingModelDirectory()
+    expect(fake.seat.refresh('session-1')).toBe(true)
+    expect(fake.loads()).toBe(1)
+  })
+
+  it('reports that no directory answered a refresh request', () => {
+    // Nothing to ask: the control renders disabled on this, rather than a press that appears
+    // to do something.
+    expect(createModelSeat(() => undefined).refresh('session-1')).toBe(false)
+    const refusing: WorkbenchModelDirectoryResolver = {
+      directoryFor: () => { throw new Error('model selection is unavailable for addressed subagent sessions') },
+    }
+    expect(createModelSeat(() => refusing).refresh('subagent-1')).toBe(false)
   })
 })

@@ -82,6 +82,7 @@ function setup(
   onSave: ReturnType<typeof vi.fn>
   onChoose: ReturnType<typeof vi.fn>
   onChooseModel: ReturnType<typeof vi.fn>
+  onRefreshModel: ReturnType<typeof vi.fn>
   onChoosePermission: ReturnType<typeof vi.fn>
   onChooseWorkspace: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
@@ -91,6 +92,7 @@ function setup(
   const onSave = vi.fn()
   const onChoose = vi.fn()
   const onChooseModel = vi.fn()
+  const onRefreshModel = vi.fn()
   const onChoosePermission = vi.fn()
   const onChooseWorkspace = vi.fn()
   const onRename = vi.fn()
@@ -103,6 +105,7 @@ function setup(
       onSave={onSave}
       onChoose={onChoose}
       onChooseModel={onChooseModel}
+      onRefreshModel={onRefreshModel}
       onChoosePermission={onChoosePermission}
       onChooseWorkspace={onChooseWorkspace}
       onRename={onRename}
@@ -115,6 +118,7 @@ function setup(
     onSave,
     onChoose,
     onChooseModel,
+    onRefreshModel,
     onChoosePermission,
     onChooseWorkspace,
     onRename,
@@ -882,6 +886,39 @@ describe('the model field', () => {
     expect(line.getAttribute('title')).toBeNull()
     // Under the control it describes, in the same field rather than elsewhere on the page.
     expect(line.previousElementSibling?.hasAttribute('data-model-select')).toBe(true)
+  })
+
+  it('offers to ask for the catalog again beside the count, and reports the press', () => {
+    // The count states what arrived; this is the one thing a user can do about a catalog that
+    // arrived short. The press is the controller's, so the editor only reports it.
+    const { container, onRefreshModel } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'ready', groups: THREE_GROUPS, selected: MODEL_CURRENT, catalog: { status: 'ready' } },
+    }, zhT)
+    const refresh = container.querySelector('[data-model-refresh]') as HTMLButtonElement
+    expect(refresh.textContent).toBe(zh.skillCardModelRefresh)
+    expect(refresh).toHaveProperty('disabled', false)
+    // The hint says what a press can and cannot change: when the shared catalog is already
+    // loaded the host answers from it, so "nothing happened" is a real outcome.
+    expect(refresh.getAttribute('title')).toBe(zh.skillCardModelRefreshHint)
+    fireEvent.click(refresh)
+    expect(onRefreshModel).toHaveBeenCalledTimes(1)
+    // Right under the reading it is about, not in the footer beside Save.
+    expect(refresh.previousElementSibling?.hasAttribute('data-model-catalog')).toBe(true)
+  })
+
+  it('disables the refresh control where no catalog was read', () => {
+    // Nothing answered, so there is nothing to ask: a press would be a control that does
+    // nothing while looking like it did something.
+    const { container, onRefreshModel } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'unavailable', catalog: { status: 'none' } },
+    }, zhT)
+    const refresh = container.querySelector('[data-model-refresh]') as HTMLButtonElement
+    expect(refresh).toHaveProperty('disabled', true)
+    expect(refresh.getAttribute('title')).toBe(zh.skillCardModelRefreshUnavailable)
+    fireEvent.click(refresh)
+    expect(onRefreshModel).not.toHaveBeenCalled()
   })
 
   it('says no catalog was read rather than dropping the line', () => {

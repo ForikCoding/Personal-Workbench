@@ -724,6 +724,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
         t={t}
         onChoose={actions.chooseSkill}
         onChooseModel={actions.chooseModel}
+        onRefreshModel={actions.refreshModels}
         onChoosePermission={actions.choosePermission}
         onChooseWorkspace={actions.chooseWorkspace}
         onSave={actions.saveTemplate}

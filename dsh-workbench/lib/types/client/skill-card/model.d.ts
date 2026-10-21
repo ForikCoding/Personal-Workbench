@@ -126,7 +126,7 @@ export declare function modelKey(model: WorkbenchCardModel): string;
  */
 export declare function parseModelKey(value: string): WorkbenchCardModel | undefined;
 /**
- * The read/subscribe pair the pages consume.
+ * The read/subscribe/refresh trio the pages consume.
  *
  * A seat rather than the directory itself, so a page never touches the service and a spec
  * never needs a Cordis context.
@@ -139,12 +139,27 @@ export interface WorkbenchModelSeat {
      */
     read(sessionId: string | undefined): WorkbenchModelDirectoryView;
     /**
-     * Observe that directory until disposed.
+     * Observe that directory until disposed, asking it for the catalog as a page mounts.
+     *
+     * Subscribing is the mount path, so this is where a surface joins the directory: the app's
+     * own picker asks for a load at the same moment, and a card that only read the snapshot
+     * inherited whatever another surface had already loaded.
      * @param sessionId - the session a run would hang off.
      * @param listener - called whenever the directory's state changes.
      * @returns the unsubscribe function; a no-op when there is no directory to watch.
      */
     subscribe(sessionId: string | undefined, listener: () => void): () => void;
+    /**
+     * Ask the directory for its catalog again, for the user-driven refresh control.
+     *
+     * The directory exposes `load()` and nothing that forces a refetch, so this is the whole of
+     * what a surface can request: a catalog the upstream already holds is answered from that
+     * value, and the diagnostic line then stays exactly as it was. The truth of what happened is
+     * printed by the field, not returned here.
+     * @param sessionId - the session whose catalog the control belongs to.
+     * @returns whether a directory answered the request at all.
+     */
+    refresh(sessionId: string | undefined): boolean;
 }
 /** One model-selection directory, narrowed to the snapshot this feature reads. */
 export interface WorkbenchModelDirectory {
@@ -164,8 +179,9 @@ export interface WorkbenchModelDirectory {
     /**
      * Fetch the catalog for this directory.
      *
-     * A directory starts `idle` with no groups; this is the only thing that fills them. It is
-     * idempotent, so calling it whenever a page reads is safe.
+     * A directory starts `idle` with no groups; this is the only thing that fills them. Calling
+     * it again is safe: the upstream shares an in-flight load and answers a settled one from
+     * the catalog it already holds rather than issuing a second request.
      * @returns resolution once the load settles.
      */
     load(): Promise<unknown>;

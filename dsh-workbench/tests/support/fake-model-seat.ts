@@ -63,5 +63,8 @@ export function fakeModelSeat(options: FakeModelSeatOptions = {}): WorkbenchMode
   return {
     read: () => view,
     subscribe: () => () => {},
+    // A directory this double can name always answers a refresh request; it just answers with
+    // the same catalog, which is what a fixed directory is.
+    refresh: () => view.available,
   }
 }

@@ -195,7 +195,7 @@ export function parseModelKey(value: string): WorkbenchCardModel | undefined {
 }
 
 /**
- * The read/subscribe pair the pages consume.
+ * The read/subscribe/refresh trio the pages consume.
  *
  * A seat rather than the directory itself, so a page never touches the service and a spec
  * never needs a Cordis context.
@@ -208,12 +208,27 @@ export interface WorkbenchModelSeat {
    */
   read(sessionId: string | undefined): WorkbenchModelDirectoryView
   /**
-   * Observe that directory until disposed.
+   * Observe that directory until disposed, asking it for the catalog as a page mounts.
+   *
+   * Subscribing is the mount path, so this is where a surface joins the directory: the app's
+   * own picker asks for a load at the same moment, and a card that only read the snapshot
+   * inherited whatever another surface had already loaded.
    * @param sessionId - the session a run would hang off.
    * @param listener - called whenever the directory's state changes.
    * @returns the unsubscribe function; a no-op when there is no directory to watch.
    */
   subscribe(sessionId: string | undefined, listener: () => void): () => void
+  /**
+   * Ask the directory for its catalog again, for the user-driven refresh control.
+   *
+   * The directory exposes `load()` and nothing that forces a refetch, so this is the whole of
+   * what a surface can request: a catalog the upstream already holds is answered from that
+   * value, and the diagnostic line then stays exactly as it was. The truth of what happened is
+   * printed by the field, not returned here.
+   * @param sessionId - the session whose catalog the control belongs to.
+   * @returns whether a directory answered the request at all.
+   */
+  refresh(sessionId: string | undefined): boolean
 }
 
 /** One model-selection directory, narrowed to the snapshot this feature reads. */
@@ -234,8 +249,9 @@ export interface WorkbenchModelDirectory {
   /**
    * Fetch the catalog for this directory.
    *
-   * A directory starts `idle` with no groups; this is the only thing that fills them. It is
-   * idempotent, so calling it whenever a page reads is safe.
+   * A directory starts `idle` with no groups; this is the only thing that fills them. Calling
+   * it again is safe: the upstream shares an in-flight load and answers a settled one from
+   * the catalog it already holds rather than issuing a second request.
    * @returns resolution once the load settles.
    */
   load(): Promise<unknown>
@@ -279,18 +295,14 @@ export function createModelSeat(resolver: () => WorkbenchModelDirectoryResolver 
     read(sessionId) {
       const directory = directoryFor(resolver(), sessionId)
       if (directory === undefined) return NO_MODEL_DIRECTORY
-      // A directory starts `idle` with no groups and only fills them when something calls
-      // `load()`; the app's own model picker kicks that on mount
-      // (ui-model-selection/src/client/index.ts:182). This seat used to read the snapshot
-      // without ever loading it, so the card offered only whatever providers another
-      // surface had happened to populate — most configured models were invisible while the
-      // app's own picker listed them. Loading is idempotent per directory.
+      // The fallback for a caller that reads without subscribing (a page that only renders the
+      // field, a spec): a directory starts `idle` with no groups and only fills them when
+      // something calls `load()`. Only `idle` asks here — a notification from a load is
+      // delivered after the snapshot settles, so loading on any status would spin, and the
+      // mount path in `subscribe` already asks. A `ready` snapshot is deliberately not
+      // treated as fresh: it records that a load finished, not which providers it saw.
       const state = directory.store.getSnapshot()
-      if (state.status === 'idle') {
-        // The rejection is not reported here: the shared load writes its failure to the
-        // store, and `error` below carries it to the field's diagnostic line.
-        void directory.load().catch(() => { /* surfaced on the store */ })
-      }
+      if (state.status === 'idle') askForCatalog(directory)
       return {
         available: true,
         status: state.status,
@@ -305,9 +317,38 @@ export function createModelSeat(resolver: () => WorkbenchModelDirectoryResolver 
     },
     subscribe(sessionId, listener) {
       const directory = directoryFor(resolver(), sessionId)
-      return directory === undefined ? () => {} : directory.store.subscribe(listener)
+      if (directory === undefined) return () => {}
+      // Subscribed before the catalog is asked for, so the notification a load produces reaches
+      // this listener even when the directory answers from a catalog it already holds.
+      const stop = directory.store.subscribe(listener)
+      // Ask when the page mounts, which is what the app's own picker does when its menu opens
+      // (ui-model-selection/src/client/index.ts, the seat's `load`). `ready` records that a load
+      // finished — often one taken before every provider registered — so it is no evidence that
+      // these groups are the catalog this session has now; a surface that asked only from
+      // `idle` kept whatever the other one caught. Repeating is safe: `load()` is the upstream's
+      // own entry point, it answers from the catalog it holds once one is loaded, and the
+      // settled snapshot is `ready`, so the read the notification triggers asks nothing more.
+      askForCatalog(directory)
+      return stop
+    },
+    refresh(sessionId) {
+      const directory = directoryFor(resolver(), sessionId)
+      if (directory === undefined) return false
+      askForCatalog(directory)
+      return true
     },
   }
+}
+
+/**
+ * Ask one directory for its catalog.
+ *
+ * The rejection is dropped on purpose: the shared load writes its failure to the store, and the
+ * field's diagnostic line carries it from there.
+ * @param directory - the directory to ask.
+ */
+function askForCatalog(directory: WorkbenchModelDirectory): void {
+  void directory.load().catch(() => { /* surfaced on the store */ })
 }
 
 /**
