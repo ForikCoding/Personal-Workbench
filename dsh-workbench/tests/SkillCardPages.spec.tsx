@@ -7,7 +7,7 @@ import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
 import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
-import type { WorkbenchModelDirectoryView, WorkbenchModelSeat } from '../src/client/skill-card/model.ts'
+import type { WorkbenchModelDirectoryView, WorkbenchModelGroup, WorkbenchModelSeat } from '../src/client/skill-card/model.ts'
 import { modelKey } from '../src/client/skill-card/model.ts'
 import type { WorkbenchCardModel, WorkbenchSkillCardPatch } from '../src/skill-card-contract.ts'
 
@@ -149,6 +149,63 @@ describe('skill card configuration page', () => {
       cardId: 'skill-card',
       model: { provider: 'deepseek', model: 'deepseek-reasoner' },
     })
+  })
+
+  it('offers the catalog of the session the app’s picker reads', async () => {
+    // The panel replaces the main column, so its own run-session lookup can name a session
+    // that is not the one the user is choosing a model in. The field must read the picker's
+    // session: a directory that answers per session is the only way to see which one it
+    // read, and the counts are the numbers the diagnostic line states.
+    const picker = 'session-picker'
+    const groups = (id: string, name: string, models: readonly string[]): WorkbenchModelGroup => ({
+      id,
+      name,
+      models: models.map(model => ({ id: model, name: model })),
+    })
+    const appCatalog = [
+      groups('deepseek', 'DeepSeek', ['deepseek-flash', 'deepseek-pro']),
+      groups('minimax-cn', 'minimax-cn', ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M3']),
+      groups('lightcode', 'lightcode', ['GLM-4.6V', 'MiniMax-M2.5', 'GLM-FLASH-LATEST']),
+    ]
+    const runCatalog = [groups('deepseek-account', 'DeepSeek Account', ['deepseek-flash', 'deepseek-pro'])]
+    const read = vi.fn((sessionId: string | undefined): WorkbenchModelDirectoryView => ({
+      available: true,
+      status: 'ready',
+      current: null,
+      groups: sessionId === picker ? appCatalog : runCatalog,
+    }))
+    const seat: WorkbenchModelSeat = { read, subscribe: () => () => {} }
+    const { container } = render(<SkillCardConfigPage {...props({
+      runSessionId: () => 'session-run',
+      pickerSessionId: () => picker,
+      models: seat,
+    })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('3/8')
+    })
+    // Every read names the picker's session; the run session is never read for the catalog.
+    expect(read.mock.calls.every(call => call[0] === picker)).toBe(true)
+    const labels = [...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label'))
+    expect(labels).toEqual(['DeepSeek', 'minimax-cn', 'lightcode'])
+  })
+
+  it('falls back to the run session when no picker session is supplied', async () => {
+    // A page composed without a session list can only name the run session; the field then
+    // reads that one rather than no directory at all.
+    const read = vi.fn((_sessionId: string | undefined): WorkbenchModelDirectoryView => ({
+      available: true,
+      status: 'ready',
+      current: null,
+      groups: [{ id: 'deepseek-account', name: 'DeepSeek Account', models: [{ id: 'deepseek-flash', name: 'deepseek-flash' }] }],
+    }))
+    const { container } = render(<SkillCardConfigPage {...props({
+      runSessionId: () => 'session-run',
+      models: { read, subscribe: () => () => {} },
+    })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/1')
+    })
+    expect(read.mock.calls.every(call => call[0] === 'session-run')).toBe(true)
   })
 
   it('stores the directory the picker chose, as the full path', async () => {

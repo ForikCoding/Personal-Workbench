@@ -330,6 +330,20 @@ export interface WorkbenchSkillCardOptions {
      */
     readonly session: () => string | undefined;
     /**
+     * Read the session the application's own model picker is attached to.
+     *
+     * The model field offers that session's catalog — the one a user choosing a model is
+     * looking at. A run session is resolved separately and is not necessarily that session:
+     * the workbench panel replaces the main column, so while a card page is open the panel's
+     * own session lookup falls back to recency and can name a different chat or an agent
+     * session. That directory is a different projection, and not the choice the user is making.
+     *
+     * Omitted means "the run session is the only session this page can name", which is what a
+     * page composed without a session list can answer.
+     * @returns the session id, or undefined while none is held.
+     */
+    readonly pickerSession?: () => string | undefined;
+    /**
      * Whether this card needs the skill catalog.
      *
      * Only the configuration view lists skills, so only it asks for the catalog. The

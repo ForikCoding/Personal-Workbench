@@ -2501,8 +2501,9 @@ window.__ModuleLoader__.load({
 		* @returns the card's view and actions.
 		*/
 		function useSkillCard(options) {
-			const { api, cardId, session, withCatalog = false, models, workspacePicker, cardTitle = defaultCardTitle, openCard, watchRun = false } = options;
+			const { api, cardId, session, pickerSession, withCatalog = false, models, workspacePicker, cardTitle = defaultCardTitle, openCard, watchRun = false } = options;
 			const sessionId = session();
+			const modelSessionId = pickerSession === void 0 ? sessionId : pickerSession();
 			const [config, setConfig] = (0, react.useState)({ kind: "loading" });
 			const [run, setRun] = (0, react.useState)(void 0);
 			const [problem, setProblem] = (0, react.useState)(void 0);
@@ -2550,11 +2551,11 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				if (models === void 0) return;
 				const read = () => {
-					setDirectory(models.read(sessionId));
+					setDirectory(models.read(modelSessionId));
 				};
 				read();
-				return models.subscribe(sessionId, read);
-			}, [models, sessionId]);
+				return models.subscribe(modelSessionId, read);
+			}, [models, modelSessionId]);
 			(0, react.useEffect)(() => {
 				if (!withCatalog) return;
 				setCatalogStatus("loading");
@@ -3704,6 +3705,36 @@ window.__ModuleLoader__.load({
 			"storage-failure": "skillCardProblemGeneric",
 			"catalog-failed": "skillCardProblemGeneric"
 		};
+		//#endregion
+		//#region src/client/skill-card/picker-session.ts
+		/**
+		* Track the session the main view holds.
+		*
+		* The held answer wins while it exists, so a session the user opened after the panel
+		* appeared is still found; the remembered one answers while the panel has the main column
+		* to itself. An addressed subagent is never a picker session: those sessions expose no
+		* model selection of their own.
+		* @param list - the client session list.
+		* @returns the tracker.
+		*/
+		function createPickerSession(list) {
+			let remembered;
+			const held = () => {
+				const snapshot = list.getSnapshot();
+				for (const id of snapshot.ids) {
+					const row = snapshot.byId[id];
+					if (row === void 0 || row.origin === "subagent") continue;
+					if ((row.retainedBy?.mainView ?? 0) > 0) return id;
+				}
+			};
+			const observe = () => {
+				const current = held();
+				if (current !== void 0) remembered = current;
+			};
+			observe();
+			list.subscribe(observe);
+			return { current: () => held() ?? remembered };
+		}
 		//#endregion
 		//#region src/client/skill-card/session.ts
 		/**
@@ -5927,19 +5958,21 @@ window.__ModuleLoader__.load({
 		* @returns the result page.
 		*/
 		function SkillCardResultPage(props) {
-			const { api, cardId, runSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props;
+			const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props;
+			const cardTitle = (0, react.useCallback)((id, name) => cardFaceTitle({
+				cardId: id,
+				name
+			}, t), [t]);
 			const { view, actions } = useSkillCard({
 				api,
 				cardId,
 				session: runSessionId,
+				...pickerSessionId === void 0 ? {} : { pickerSession: pickerSessionId },
 				models,
 				workspacePicker,
 				openCard,
 				watchRun: true,
-				cardTitle: (0, react.useCallback)((id, name) => cardFaceTitle({
-					cardId: id,
-					name
-				}, t), [t])
+				cardTitle
 			});
 			const running = view.run?.phase === "running";
 			const bareRunning = view.bareRun?.phase === "running";
@@ -6075,18 +6108,20 @@ window.__ModuleLoader__.load({
 		* @returns the configuration page.
 		*/
 		function SkillCardConfigPage(props) {
-			const { api, cardId, runSessionId, models, workspacePicker, onBack, t } = props;
+			const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, onBack, t } = props;
+			const cardTitle = (0, react.useCallback)((id, name) => cardFaceTitle({
+				cardId: id,
+				name
+			}, t), [t]);
 			const { view, actions } = useSkillCard({
 				api,
 				cardId,
 				session: runSessionId,
+				...pickerSessionId === void 0 ? {} : { pickerSession: pickerSessionId },
 				models,
 				workspacePicker,
 				withCatalog: true,
-				cardTitle: (0, react.useCallback)((id, name) => cardFaceTitle({
-					cardId: id,
-					name
-				}, t), [t])
+				cardTitle
 			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 				className: skill_card_module_default.pageView,
@@ -6283,6 +6318,7 @@ window.__ModuleLoader__.load({
 					api: skillCards.api,
 					cardId: selection.cardId,
 					runSessionId: skillCards.runSessionId,
+					...skillCards.pickerSessionId === void 0 ? {} : { pickerSessionId: skillCards.pickerSessionId },
 					models: skillCards.models,
 					workspacePicker: skillCards.workspacePicker,
 					fallbackTitle: labelOf(selection.cardId),
@@ -6566,6 +6602,8 @@ window.__ModuleLoader__.load({
 				const snapshot = sessionList.getSnapshot();
 				return pickRunSession(snapshot.ids, snapshot.byId);
 			};
+			const pickerSession = createPickerSession(sessionList);
+			const pickerSessionId = () => pickerSession.current();
 			const selection = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)(void 0);
 			const openCard = (cardId, view) => {
 				selection.set({
@@ -6620,6 +6658,7 @@ window.__ModuleLoader__.load({
 					skillCards: {
 						api: skillCardApi,
 						runSessionId,
+						pickerSessionId,
 						models,
 						workspacePicker
 					},

@@ -32,6 +32,14 @@ export interface WorkbenchPageInjected {
          * @returns the session id, or undefined when none is available.
          */
         readonly runSessionId: () => string | undefined;
+        /**
+         * Resolve the session the application's own model picker is attached to.
+         *
+         * Omitted is read as "the run session is the only session this host can name", which
+         * is what a host without a session list can answer.
+         * @returns the session id, or undefined while none is held.
+         */
+        readonly pickerSessionId?: () => string | undefined;
         /** Model catalog the result and configuration pages read. */
         readonly models: WorkbenchModelSeat;
         /** Directory picker the configuration page offers for the card's workspace. */

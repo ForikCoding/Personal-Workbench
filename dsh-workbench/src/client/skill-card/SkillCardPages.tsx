@@ -311,6 +311,15 @@ export interface SkillCardPageProps {
    */
   readonly runSessionId: () => string | undefined
   /**
+   * Resolve the session the application's own model picker is attached to.
+   *
+   * The model field reads this session's directory, so the card offers the catalog a user
+   * choosing a model is looking at. Omitted falls back to the run session, which is the
+   * only session a page without a session list can name.
+   * @returns the session id, or undefined while none is held.
+   */
+  readonly pickerSessionId?: () => string | undefined
+  /**
    * Read the model catalog, and what it knows about one session.
    *
    * Required rather than optional: a page that cannot see the directory cannot say which
@@ -491,7 +500,7 @@ function RefinePanel({
  * @returns the result page.
  */
 export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props
+  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props
   // The face's own naming rule, reused so an action declaration can address this card
   // by the title the user actually reads on it.
   const cardTitle = useCallback(
@@ -502,6 +511,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
     api,
     cardId,
     session: runSessionId,
+    ...pickerSessionId === undefined ? {} : { pickerSession: pickerSessionId },
     models,
     workspacePicker,
     openCard,
@@ -684,7 +694,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
  * @returns the configuration page.
  */
 export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, models, workspacePicker, onBack, t } = props
+  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, onBack, t } = props
   // The face's own naming rule, reused here so the editor checks a declared card target
   // against the title the user reads on the grid — which is the name the click path
   // resolves — instead of against the card id a nameless card would otherwise show as.
@@ -696,6 +706,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
     api,
     cardId,
     session: runSessionId,
+    ...pickerSessionId === undefined ? {} : { pickerSession: pickerSessionId },
     models,
     workspacePicker,
     withCatalog: true,

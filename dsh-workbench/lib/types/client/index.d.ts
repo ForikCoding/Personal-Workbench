@@ -42,6 +42,15 @@ export interface WorkbenchPanelFace {
          * @returns the session id, or undefined when none is available.
          */
         readonly runSessionId: () => string | undefined;
+        /**
+         * Resolve the session the application's own model picker is attached to.
+         *
+         * The card's model field reads this one, so the card offers the catalog the user is
+         * choosing from. A run session is resolved separately: it is the session the run hangs
+         * off, which is not always the session on screen.
+         * @returns the session id, or undefined while none is held.
+         */
+        readonly pickerSessionId: () => string | undefined;
         /** Model catalog the card's field and its run control read. */
         readonly models: WorkbenchModelSeat;
         /** Directory picker the configuration page offers for the card's workspace. */

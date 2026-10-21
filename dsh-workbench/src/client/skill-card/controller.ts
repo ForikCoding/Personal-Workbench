@@ -383,6 +383,20 @@ export interface WorkbenchSkillCardOptions {
    */
   readonly session: () => string | undefined
   /**
+   * Read the session the application's own model picker is attached to.
+   *
+   * The model field offers that session's catalog — the one a user choosing a model is
+   * looking at. A run session is resolved separately and is not necessarily that session:
+   * the workbench panel replaces the main column, so while a card page is open the panel's
+   * own session lookup falls back to recency and can name a different chat or an agent
+   * session. That directory is a different projection, and not the choice the user is making.
+   *
+   * Omitted means "the run session is the only session this page can name", which is what a
+   * page composed without a session list can answer.
+   * @returns the session id, or undefined while none is held.
+   */
+  readonly pickerSession?: () => string | undefined
+  /**
    * Whether this card needs the skill catalog.
    *
    * Only the configuration view lists skills, so only it asks for the catalog. The
@@ -453,6 +467,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     api,
     cardId,
     session,
+    pickerSession,
     withCatalog = false,
     models,
     workspacePicker,
@@ -463,6 +478,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // The render-time answer, for what the card shows. Every click asks again, because
   // the session may have been opened since this render.
   const sessionId = session()
+  // The model field's own session: the one the app's picker reads. It is not the run session
+  // whenever the two differ — see {@link WorkbenchSkillCardOptions.pickerSession}.
+  const modelSessionId = pickerSession === undefined ? sessionId : pickerSession()
   const [config, setConfig] = useState<ConfigState>({ kind: 'loading' })
   const [run, setRun] = useState<WorkbenchRunState | undefined>(undefined)
   const [problem, setProblem] = useState<WorkbenchCardProblem | undefined>(undefined)
@@ -520,10 +538,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // would stay empty after the catalog arrived.
   useEffect(() => {
     if (models === undefined) return
-    const read = (): void => { setDirectory(models.read(sessionId)) }
+    const read = (): void => { setDirectory(models.read(modelSessionId)) }
     read()
-    return models.subscribe(sessionId, read)
-  }, [models, sessionId])
+    return models.subscribe(modelSessionId, read)
+  }, [models, modelSessionId])
 
   // The catalog belongs to the view that lists skills, so it is loaded by that view
   // being rendered rather than by an action someone has to remember to call.

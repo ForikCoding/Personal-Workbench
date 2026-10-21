@@ -163,6 +163,77 @@ describe('the model directory seat', () => {
     return { resolver, subscribe, unsubscribe }
   }
 
+  /**
+   * Build a resolver whose answer depends on the session it is asked about.
+   *
+   * Model selection is resolved per session, so a double that answers one fixed state for
+   * every id cannot show which session a caller actually read.
+   * @param byId - the state each session's directory reports.
+   * @returns the resolver and the ids it was asked about, in order.
+   */
+  function resolverBySession(byId: Readonly<Record<string, WorkbenchModelDirectoryState>>): {
+    resolver: WorkbenchModelDirectoryResolver
+    asked: string[]
+  } {
+    const asked: string[] = []
+    const resolver: WorkbenchModelDirectoryResolver = {
+      directoryFor: (sessionId: string) => {
+        asked.push(sessionId)
+        const state = byId[sessionId]
+        if (state === undefined) throw new Error(`no directory for "${sessionId}"`)
+        const load = async (): Promise<unknown> => undefined
+        return { store: { getSnapshot: () => state, subscribe: () => () => {} }, load }
+      },
+    }
+    return { resolver, asked }
+  }
+
+  it('answers from the session it was asked about, not from another one', () => {
+    // The card offers the catalog of the session the application's picker reads. A seat
+    // that answered whatever directory it happened to hold would hide a caller reading the
+    // wrong session — which is the whole difference between the panel's session lookup and
+    // the picker's.
+    const groups = (id: string, count: number) => ({
+      id,
+      name: id,
+      models: Array.from({ length: count }, (_, at) => ({ id: `${id}-${String(at)}`, name: `${id} ${String(at)}` })),
+    })
+    const oneGroup: WorkbenchModelDirectoryState = {
+      current: { provider: 'account', model: 'account-0' },
+      status: 'ready',
+      groups: [groups('account', 2)],
+    }
+    const threeGroups: WorkbenchModelDirectoryState = {
+      current: { provider: 'pickers', model: 'pickers-0' },
+      status: 'ready',
+      groups: [groups('pickers', 3), groups('vendor', 2), groups('gateway', 3)],
+    }
+    const { resolver, asked } = resolverBySession({ 'picker-session': threeGroups, 'run-session': oneGroup })
+    const seat = createModelSeat(() => resolver)
+    expect(seat.read('picker-session').groups).toHaveLength(3)
+    expect(seat.read('run-session').groups).toHaveLength(1)
+    expect(asked).toEqual(['picker-session', 'run-session'])
+  })
+
+  it('loads the directory of the session it was asked about', () => {
+    // Loading is what fills an idle directory, and it must happen on the same session the
+    // groups are read from: a load issued for another session fills the wrong directory.
+    const loaded: string[] = []
+    const idle = (sessionId: string): WorkbenchModelDirectory => ({
+      store: {
+        getSnapshot: () => ({ current: null, status: 'idle', groups: [] }),
+        subscribe: () => () => {},
+      },
+      load: async (): Promise<unknown> => { loaded.push(sessionId); return undefined },
+    })
+    const resolver: WorkbenchModelDirectoryResolver = {
+      directoryFor: (sessionId: string) => idle(sessionId),
+    }
+    const seat = createModelSeat(() => resolver)
+    seat.read('picker-session')
+    expect(loaded).toEqual(['picker-session'])
+  })
+
   it('narrows one session directory to the facts the field reads', () => {
     const state: WorkbenchModelDirectoryState = {
       current: { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' } as never,

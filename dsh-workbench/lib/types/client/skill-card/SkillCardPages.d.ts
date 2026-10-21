@@ -29,6 +29,15 @@ export interface SkillCardPageProps {
      */
     readonly runSessionId: () => string | undefined;
     /**
+     * Resolve the session the application's own model picker is attached to.
+     *
+     * The model field reads this session's directory, so the card offers the catalog a user
+     * choosing a model is looking at. Omitted falls back to the run session, which is the
+     * only session a page without a session list can name.
+     * @returns the session id, or undefined while none is held.
+     */
+    readonly pickerSessionId?: () => string | undefined;
+    /**
      * Read the model catalog, and what it knows about one session.
      *
      * Required rather than optional: a page that cannot see the directory cannot say which

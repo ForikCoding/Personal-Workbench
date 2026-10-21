@@ -26,6 +26,7 @@ import { createWorkspacePicker, readDesktopPicker } from './skill-card/workspace
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import { SKILL_CARD_ID, SkillCard } from './skill-card/SkillCard.tsx'
 import type { SkillCardFace } from './skill-card/SkillCard.tsx'
+import { createPickerSession } from './skill-card/picker-session.ts'
 import { pickRunSession } from './skill-card/session.ts'
 import type { WorkbenchSessionRow } from './skill-card/session.ts'
 import { WorkbenchPage } from './WorkbenchPage.tsx'
@@ -70,6 +71,12 @@ interface SessionListHost {
         readonly ids: readonly string[]
         readonly byId: Readonly<Record<string, WorkbenchSessionRow | undefined>>
       }
+      /**
+       * Observe list changes.
+       * @param listener - change callback.
+       * @returns the unsubscribe function.
+       */
+      subscribe(listener: () => void): () => void
     }
   }
 }
@@ -114,6 +121,15 @@ export interface WorkbenchPanelFace {
      * @returns the session id, or undefined when none is available.
      */
     readonly runSessionId: () => string | undefined
+    /**
+     * Resolve the session the application's own model picker is attached to.
+     *
+     * The card's model field reads this one, so the card offers the catalog the user is
+     * choosing from. A run session is resolved separately: it is the session the run hangs
+     * off, which is not always the session on screen.
+     * @returns the session id, or undefined while none is held.
+     */
+    readonly pickerSessionId: () => string | undefined
     /** Model catalog the card's field and its run control read. */
     readonly models: WorkbenchModelSeat
     /** Directory picker the configuration page offers for the card's workspace. */
@@ -176,6 +192,11 @@ export function apply(ctx: ClientContext): void {
     const snapshot = sessionList.getSnapshot()
     return pickRunSession(snapshot.ids, snapshot.byId)
   }
+  // The session the app's own model picker reads. Its directory is the one a user choosing
+  // a model is looking at, so the card's field must offer that catalog rather than the one
+  // the run session happens to resolve to.
+  const pickerSession = createPickerSession(sessionList)
+  const pickerSessionId = (): string | undefined => pickerSession.current()
   // The grid and the two full-panel views are one panel with three states. The
   // state lives here rather than in the page so a card can open its own view
   // without the page and the card sharing a React tree.
@@ -227,7 +248,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): WorkbenchPanelFace => ({
       hooks: { cards, selection },
       api,
-      skillCards: { api: skillCardApi, runSessionId, models, workspacePicker },
+      skillCards: { api: skillCardApi, runSessionId, pickerSessionId, models, workspacePicker },
       closeCard,
       openCard,
     }),
