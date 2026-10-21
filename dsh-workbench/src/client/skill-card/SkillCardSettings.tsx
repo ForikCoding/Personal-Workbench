@@ -771,6 +771,25 @@ function ModelField({
   const label = field.kind === 'ready'
     ? <label className={css.fieldLabel} htmlFor={labelId}>{t('skillCardModel')}</label>
     : <p className={css.fieldLabel}>{t('skillCardModel')}</p>
+  // What the field actually holds, under the control. This line is a diagnostic for a live
+  // defect — this picker showed one provider group where the application's own picker showed
+  // three, and the directory is projected per session — so the groups that arrived have to
+  // be visible without a console or a debugger. It is product information too: the count is
+  // the only feedback a user gets that a catalog has finished loading, because a catalog
+  // that never leaves `idle` otherwise renders as a shorter but plausible picker.
+  const groups = field.kind === 'ready' ? field.groups : []
+  const models = groups.reduce((total, group) => total + group.models.length, 0)
+  // `data-model-catalog` carries the same two numbers so a spec can assert the counts
+  // without depending on the sentence's wording or the translation.
+  const catalog = (
+    <p className={css.fieldNote} data-model-catalog={`${groups.length}/${models}`}>
+      {field.kind === 'ready'
+        ? t('skillCardModelCatalog', { groups: groups.length, models })
+        // A field with no loaded catalog behind it says so here rather than dropping the
+        // line: its absence is itself the signal this line exists to make readable.
+        : t('skillCardModelCatalogNone')}
+    </p>
+  )
   if (field.kind === 'ready') {
     return (
       <>
@@ -798,6 +817,7 @@ function ModelField({
             </optgroup>
           ))}
         </select>
+        {catalog}
       </>
     )
   }
@@ -808,6 +828,7 @@ function ModelField({
         <p className={css.fieldValue} data-model-fixed="">
           {field.name ?? field.model.model}
         </p>
+        {catalog}
       </>
     )
   }
@@ -815,6 +836,7 @@ function ModelField({
     <>
       {label}
       <p className={css.fieldValue} data-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+      {catalog}
     </>
   )
 }

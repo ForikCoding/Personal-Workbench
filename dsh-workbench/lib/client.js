@@ -326,6 +326,8 @@ window.__ModuleLoader__.load({
 			skillCardCardName: "卡片名称",
 			skillCardModel: "模型",
 			skillCardModelUnavailable: "没有可用的模型，这张卡暂时不能运行",
+			skillCardModelCatalog: "已加载 {groups} 组 / {models} 个模型",
+			skillCardModelCatalogNone: "没有读到模型目录",
 			skillCardProblemModelUnavailable: "这张卡指定的模型已经不可用",
 			skillCardNamePlaceholder: "给这张卡起个名字",
 			createCard: "创建卡片",
@@ -490,6 +492,8 @@ window.__ModuleLoader__.load({
 			skillCardCardName: "Card name",
 			skillCardModel: "Model",
 			skillCardModelUnavailable: "No model is available, so this card cannot run",
+			skillCardModelCatalog: "Loaded {groups} groups / {models} models",
+			skillCardModelCatalogNone: "No model catalog was read",
 			skillCardProblemModelUnavailable: "The model this card names is no longer available",
 			skillCardNamePlaceholder: "Name this card",
 			createCard: "Create card",
@@ -5395,37 +5399,59 @@ window.__ModuleLoader__.load({
 				className: skill_card_module_default.fieldLabel,
 				children: t("skillCardModel")
 			});
-			if (field.kind === "ready") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-				id: labelId,
-				className: skill_card_module_default.select,
-				value: modelKey(field.selected),
-				"data-model-select": "",
-				onChange: (event) => {
-					const chosen = parseModelKey(event.target.value);
-					if (chosen === void 0) return;
-					onChooseModel(chosen);
-				},
-				children: field.groups.map((group) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("optgroup", {
-					label: group.name,
-					children: group.models.map((model) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-						value: modelKey({
-							provider: group.id,
-							model: model.id
-						}),
-						children: model.name
-					}, model.id))
-				}, group.id))
-			})] });
-			if (field.kind === "fixed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-				className: skill_card_module_default.fieldValue,
-				"data-model-fixed": "",
-				children: field.name ?? field.model.model
-			})] });
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-				className: skill_card_module_default.fieldValue,
-				"data-model-unavailable": "",
-				children: t("skillCardModelUnavailable")
-			})] });
+			const groups = field.kind === "ready" ? field.groups : [];
+			const models = groups.reduce((total, group) => total + group.models.length, 0);
+			const catalog = /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+				className: skill_card_module_default.fieldNote,
+				"data-model-catalog": `${groups.length}/${models}`,
+				children: field.kind === "ready" ? t("skillCardModelCatalog", {
+					groups: groups.length,
+					models
+				}) : t("skillCardModelCatalogNone")
+			});
+			if (field.kind === "ready") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				label,
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+					id: labelId,
+					className: skill_card_module_default.select,
+					value: modelKey(field.selected),
+					"data-model-select": "",
+					onChange: (event) => {
+						const chosen = parseModelKey(event.target.value);
+						if (chosen === void 0) return;
+						onChooseModel(chosen);
+					},
+					children: field.groups.map((group) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("optgroup", {
+						label: group.name,
+						children: group.models.map((model) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+							value: modelKey({
+								provider: group.id,
+								model: model.id
+							}),
+							children: model.name
+						}, model.id))
+					}, group.id))
+				}),
+				catalog
+			] });
+			if (field.kind === "fixed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				label,
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: skill_card_module_default.fieldValue,
+					"data-model-fixed": "",
+					children: field.name ?? field.model.model
+				}),
+				catalog
+			] });
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				label,
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: skill_card_module_default.fieldValue,
+					"data-model-unavailable": "",
+					children: t("skillCardModelUnavailable")
+				}),
+				catalog
+			] });
 		}
 		/**
 		* Render the directory control for one card.

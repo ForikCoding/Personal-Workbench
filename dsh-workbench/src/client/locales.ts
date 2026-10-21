@@ -132,6 +132,13 @@ export const zh = {
   // cannot offer, and the case where there is no model to run on at all.
   skillCardModel: '模型',
   skillCardModelUnavailable: '没有可用的模型，这张卡暂时不能运行',
+  // The catalog reading under the picker. It diagnoses a live defect: this card's model
+  // picker listed one provider group where the application's own picker listed three, and
+  // the directory is projected per session, so how many groups arrived must be visible on
+  // screen without a console. It is load feedback as well: a catalog stuck in `idle` would
+  // otherwise look like a picker that simply has fewer groups.
+  skillCardModelCatalog: '已加载 {groups} 组 / {models} 个模型',
+  skillCardModelCatalogNone: '没有读到模型目录',
   skillCardProblemModelUnavailable: '这张卡指定的模型已经不可用',
   skillCardNamePlaceholder: '给这张卡起个名字',
   createCard: '创建卡片',
@@ -341,6 +348,13 @@ export const en: Record<keyof typeof zh, string> = {
   // cannot offer, and the case where there is no model to run on at all.
   skillCardModel: 'Model',
   skillCardModelUnavailable: 'No model is available, so this card cannot run',
+  // The catalog reading under the picker. It diagnoses a live defect: this card's model
+  // picker listed one provider group where the application's own picker listed three, and
+  // the directory is projected per session, so how many groups arrived must be visible on
+  // screen without a console. It is load feedback as well: a catalog stuck in `idle` would
+  // otherwise look like a picker that simply has fewer groups.
+  skillCardModelCatalog: 'Loaded {groups} groups / {models} models',
+  skillCardModelCatalogNone: 'No model catalog was read',
   skillCardProblemModelUnavailable: 'The model this card names is no longer available',
   skillCardNamePlaceholder: 'Name this card',
   createCard: 'Create card',

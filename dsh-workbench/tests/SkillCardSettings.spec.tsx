@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { MODEL_CURRENT, MODEL_GROUPS } from './support/fake-model-seat.ts'
 import { modelKey } from '../src/client/skill-card/model.ts'
+import type { WorkbenchModelGroup } from '../src/client/skill-card/model.ts'
 import type { WorkbenchCardModel } from '../src/skill-card-contract.ts'
 import { SkillCardSettings } from '../src/client/skill-card/SkillCardSettings.tsx'
 import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
@@ -127,6 +128,42 @@ const REGION = '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->'
 
 /** A route a card stores, chosen from the catalog the editor is given. */
 const STORED_MODEL: WorkbenchCardModel = { provider: 'deepseek', model: 'deepseek-reasoner' }
+
+/**
+ * Three provider groups holding eight models between them.
+ *
+ * Shaped after the deployment the diagnostic was added for — DeepSeek, minimax-cn, and
+ * lightcode — because the defect was a card seeing one group of the three the
+ * application's own picker listed, and a two-group double cannot state that difference.
+ */
+const THREE_GROUPS: readonly WorkbenchModelGroup[] = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    models: [
+      { id: 'deepseek-chat', name: 'DeepSeek Chat' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner' },
+    ],
+  },
+  {
+    id: 'minimax-cn',
+    name: 'minimax-cn',
+    models: [
+      { id: 'minimax-m2', name: 'MiniMax M2' },
+      { id: 'minimax-m2-lightning', name: 'MiniMax M2 Lightning' },
+      { id: 'minimax-text-01', name: 'MiniMax Text 01' },
+    ],
+  },
+  {
+    id: 'lightcode',
+    name: 'lightcode',
+    models: [
+      { id: 'lightcode-fast', name: 'Lightcode Fast' },
+      { id: 'lightcode-pro', name: 'Lightcode Pro' },
+      { id: 'lightcode-max', name: 'Lightcode Max' },
+    ],
+  },
+]
 
 describe('skill card editor', () => {
   it('offers only the skills a human may invoke', () => {
@@ -823,6 +860,37 @@ describe('the model field', () => {
     expect(container.querySelector('[data-model-fixed]')).toBeNull()
     expect(container.querySelector('[data-model-unavailable]')?.textContent).toBe(zh.skillCardModelUnavailable)
     expect(container.querySelector('input[type="text"]')).not.toBeNull()
+  })
+
+  it('states how many groups and models the picked catalog holds', () => {
+    // The live defect this line exists for: the card's picker showed one provider group
+    // where the application's own model picker showed three, and the directory is projected
+    // per session. The counts put what arrived on screen, so the next report says "3 组"
+    // or "1 组" instead of relying on a console nobody has open.
+    const { container } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'ready', groups: THREE_GROUPS, selected: MODEL_CURRENT },
+    }, zhT)
+    const line = container.querySelector('[data-model-catalog]') as HTMLElement
+    // The attribute repeats the counts, so a spec never depends on the sentence's wording.
+    expect(line.getAttribute('data-model-catalog')).toBe('3/8')
+    expect(line.textContent).toBe('已加载 3 组 / 8 个模型')
+    // Under the control it describes, in the same field rather than elsewhere on the page.
+    expect(line.previousElementSibling?.hasAttribute('data-model-select')).toBe(true)
+  })
+
+  it('says no catalog was read rather than dropping the line', () => {
+    // The line's absence would be indistinguishable from a page that never renders it, so
+    // the no-directory state says so in place — beside a picker that, without it, would
+    // look like a catalog that loaded with nothing in it.
+    const { container } = setup({
+      skill: 'git-repo',
+      modelField: { kind: 'unavailable' },
+    }, zhT)
+    const line = container.querySelector('[data-model-catalog]') as HTMLElement
+    expect(line).not.toBeNull()
+    expect(line.textContent).toBe(zh.skillCardModelCatalogNone)
+    expect(line.getAttribute('data-model-catalog')).toBe('0/0')
   })
 })
 
