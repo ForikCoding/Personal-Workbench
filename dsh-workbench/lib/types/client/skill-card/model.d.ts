@@ -44,6 +44,8 @@ export interface WorkbenchModelDirectoryView {
     readonly available: boolean;
     /** Lifecycle of that directory's own load. */
     readonly status: WorkbenchModelDirectoryStatus;
+    /** Why the load failed; carried only while the directory reports one. */
+    readonly error?: string;
     /** The session's saved selection, retained even when its model left the catalog. */
     readonly current: WorkbenchCardModel | null;
     /** Provider groups from the directory's last good load. */
@@ -52,11 +54,29 @@ export interface WorkbenchModelDirectoryView {
 /** The view of a directory this client cannot reach at all. */
 export declare const NO_MODEL_DIRECTORY: WorkbenchModelDirectoryView;
 /**
+ * What the diagnostic line reports about the directory read behind the field.
+ *
+ * The status travels beside the groups because a directory whose load never ran, and one
+ * whose load failed, both render as a shorter but plausible picker — exactly the reading
+ * the count alone cannot tell apart. The seat drops `load()`'s rejection (the store is the
+ * report), so this is also the failure's only route to the screen.
+ */
+export interface WorkbenchModelFieldCatalog {
+    /** The directory's load status, or `none` when no directory answered at all. */
+    readonly status: WorkbenchModelDirectoryStatus | 'none';
+    /** Why the load failed; carried only while {@link status} is `error`. */
+    readonly error?: string;
+}
+/**
  * What the configuration page renders for the model, and whether a run can start.
  *
  * Three states rather than a picker plus flags, because the run control's answer and the
  * field's answer have to be the same answer: a field that says "unavailable" beside an
  * enabled Run button is the bug this type exists to make impossible.
+ *
+ * Every state also carries `catalog`, the directory read it was resolved from: the field's
+ * state says what the card can do, and the status says whether the picker's contents are
+ * the catalog or the residue of a load that did not finish.
  */
 export type WorkbenchModelField = 
 /** A usable catalog: a grouped picker, with one concrete route selected. */
@@ -64,16 +84,19 @@ export type WorkbenchModelField =
     readonly kind: 'ready';
     readonly groups: readonly WorkbenchModelGroup[];
     readonly selected: WorkbenchCardModel;
+    readonly catalog: WorkbenchModelFieldCatalog;
 }
 /** A route is known but no catalog can offer it: the name is shown, not selectable. */
  | {
     readonly kind: 'fixed';
     readonly model: WorkbenchCardModel;
     readonly name?: string;
+    readonly catalog: WorkbenchModelFieldCatalog;
 }
 /** No route is known, so nothing can run: there is no model to name on a result. */
  | {
     readonly kind: 'unavailable';
+    readonly catalog: WorkbenchModelFieldCatalog;
 };
 /**
  * Resolve the field from the card's stored route and the directory's answer.
@@ -154,6 +177,8 @@ export interface WorkbenchModelDirectoryState {
         readonly model: string;
     } | null;
     readonly status: WorkbenchModelDirectoryStatus;
+    /** Why the load or the selection failed; null when neither has. */
+    readonly error: string | null;
     readonly groups: readonly {
         readonly id: string;
         readonly name: string;

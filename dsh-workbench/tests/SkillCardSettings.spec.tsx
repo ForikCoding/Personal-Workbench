@@ -50,7 +50,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     runnable: false,
     // A catalog-backed picker with one route selected, which is what the field shows once
     // the directory has answered. Cases that care about the other two states override it.
-    modelField: { kind: 'ready', groups: MODEL_GROUPS, selected: MODEL_CURRENT },
+    modelField: { kind: 'ready', groups: MODEL_GROUPS, selected: MODEL_CURRENT, catalog: { status: 'ready' } },
     // A card with no workspace: the editor is fully usable without one, and that is the
     // state every card created before this field existed is in.
     workspaceField: { kind: 'missing' },
@@ -831,7 +831,7 @@ describe('the model field', () => {
     // and offering other models would read as a choice the user still has.
     const { container } = setup({
       skill: 'git-repo',
-      modelField: { kind: 'fixed', model: STORED_MODEL, name: 'DeepSeek Reasoner' },
+      modelField: { kind: 'fixed', model: STORED_MODEL, name: 'DeepSeek Reasoner', catalog: { status: 'none' } },
     }, zhT)
     expect(container.querySelector('[data-model-select]')).toBeNull()
     const fixed = container.querySelector('[data-model-fixed]') as HTMLElement
@@ -844,7 +844,7 @@ describe('the model field', () => {
   it('falls back to the model id when no display name is known', () => {
     const { container } = setup({
       skill: 'git-repo',
-      modelField: { kind: 'fixed', model: STORED_MODEL },
+      modelField: { kind: 'fixed', model: STORED_MODEL, catalog: { status: 'none' } },
     }, zhT)
     expect((container.querySelector('[data-model-fixed]') as HTMLElement).textContent).toBe(STORED_MODEL.model)
   })
@@ -854,7 +854,7 @@ describe('the model field', () => {
     // decides which routes exist, and a typed one would only fail at run time.
     const { container } = setup({
       skill: 'git-repo',
-      modelField: { kind: 'unavailable' },
+      modelField: { kind: 'unavailable', catalog: { status: 'none' } },
     }, zhT)
     expect(container.querySelector('[data-model-select]')).toBeNull()
     expect(container.querySelector('[data-model-fixed]')).toBeNull()
@@ -862,19 +862,24 @@ describe('the model field', () => {
     expect(container.querySelector('input[type="text"]')).not.toBeNull()
   })
 
-  it('states how many groups and models the picked catalog holds', () => {
+  it('states how many groups and models the picked catalog holds, and its load status', () => {
     // The live defect this line exists for: the card's picker showed one provider group
     // where the application's own model picker showed three, and the directory is projected
     // per session. The counts put what arrived on screen, so the next report says "3 组"
-    // or "1 组" instead of relying on a console nobody has open.
+    // or "1 组" instead of relying on a console nobody has open. The status says whether
+    // those are a loaded catalog or the residue of a load that never finished.
     const { container } = setup({
       skill: 'git-repo',
-      modelField: { kind: 'ready', groups: THREE_GROUPS, selected: MODEL_CURRENT },
+      modelField: { kind: 'ready', groups: THREE_GROUPS, selected: MODEL_CURRENT, catalog: { status: 'ready' } },
     }, zhT)
     const line = container.querySelector('[data-model-catalog]') as HTMLElement
-    // The attribute repeats the counts, so a spec never depends on the sentence's wording.
+    // The attributes repeat the counts and the status, so a spec never depends on the
+    // sentence's wording or the translation.
     expect(line.getAttribute('data-model-catalog')).toBe('3/8')
-    expect(line.textContent).toBe('已加载 3 组 / 8 个模型')
+    expect(line.getAttribute('data-model-catalog-status')).toBe('ready')
+    expect(line.textContent).toBe('已加载 3 组 / 8 个模型 · ready')
+    // A healthy load has no failure to hand to a hover: the tooltip is for the error case.
+    expect(line.getAttribute('title')).toBeNull()
     // Under the control it describes, in the same field rather than elsewhere on the page.
     expect(line.previousElementSibling?.hasAttribute('data-model-select')).toBe(true)
   })
@@ -885,12 +890,39 @@ describe('the model field', () => {
     // look like a catalog that loaded with nothing in it.
     const { container } = setup({
       skill: 'git-repo',
-      modelField: { kind: 'unavailable' },
+      modelField: { kind: 'unavailable', catalog: { status: 'none' } },
     }, zhT)
     const line = container.querySelector('[data-model-catalog]') as HTMLElement
     expect(line).not.toBeNull()
     expect(line.textContent).toBe(zh.skillCardModelCatalogNone)
     expect(line.getAttribute('data-model-catalog')).toBe('0/0')
+    // No directory is its own status, and the sentence already says it: no extra segment.
+    expect(line.getAttribute('data-model-catalog-status')).toBe('none')
+  })
+
+  it('names a failed load as `error` and hands the reason to the tooltip', () => {
+    // The defect being chased: the seat drops `load()`'s rejection, so a load that failed
+    // and a catalog that is merely small render the same. The status separates them, and
+    // the reason — invisible in the product otherwise — goes on the tooltip so a user can
+    // read it back to whoever fixes it.
+    const { container } = setup({
+      skill: 'git-repo',
+      modelField: {
+        kind: 'unavailable',
+        catalog: { status: 'error', error: 'catalog request failed:\n  socket closed' },
+      },
+    }, zhT)
+    const line = container.querySelector('[data-model-catalog]') as HTMLElement
+    // The line never disappears: a page that dropped it would look like a page that never
+    // renders one, and the status is the whole point.
+    expect(line).not.toBeNull()
+    expect(line.getAttribute('data-model-catalog-status')).toBe('error')
+    expect(line.textContent).toBe(`${zh.skillCardModelCatalogNone}${zh.skillCardModelCatalogStatus.replace('{status}', 'error')}`)
+    // One line, because a tooltip that wraps cannot be read: the runs of whitespace are
+    // collapsed rather than printed.
+    expect(line.getAttribute('title')).toBe('catalog request failed: socket closed')
+    // Not visible text: the failure belongs to the hover, not to the card's page.
+    expect(line.textContent).not.toContain('socket closed')
   })
 })
 

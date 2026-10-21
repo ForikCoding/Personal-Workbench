@@ -139,6 +139,11 @@ export const zh = {
   // otherwise look like a picker that simply has fewer groups.
   skillCardModelCatalog: '已加载 {groups} 组 / {models} 个模型',
   skillCardModelCatalogNone: '没有读到模型目录',
+  // The directory's own load status, appended to either reading above as one segment
+  // rather than a second sentence. It is the payload the line exists for: a load that
+  // never succeeded and a catalog that is simply small render identically without it.
+  // The status stays the untranslated token the store holds, so a report can quote it.
+  skillCardModelCatalogStatus: ' · {status}',
   skillCardProblemModelUnavailable: '这张卡指定的模型已经不可用',
   skillCardNamePlaceholder: '给这张卡起个名字',
   createCard: '创建卡片',
@@ -355,6 +360,11 @@ export const en: Record<keyof typeof zh, string> = {
   // otherwise look like a picker that simply has fewer groups.
   skillCardModelCatalog: 'Loaded {groups} groups / {models} models',
   skillCardModelCatalogNone: 'No model catalog was read',
+  // The directory's own load status, appended to either reading above as one segment
+  // rather than a second sentence. It is the payload the line exists for: a load that
+  // never succeeded and a catalog that is simply small render identically without it.
+  // The status stays the untranslated token the store holds, so a report can quote it.
+  skillCardModelCatalogStatus: ' · {status}',
   skillCardProblemModelUnavailable: 'The model this card names is no longer available',
   skillCardNamePlaceholder: 'Name this card',
   createCard: 'Create card',

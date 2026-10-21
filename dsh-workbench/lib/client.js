@@ -328,6 +328,7 @@ window.__ModuleLoader__.load({
 			skillCardModelUnavailable: "没有可用的模型，这张卡暂时不能运行",
 			skillCardModelCatalog: "已加载 {groups} 组 / {models} 个模型",
 			skillCardModelCatalogNone: "没有读到模型目录",
+			skillCardModelCatalogStatus: " · {status}",
 			skillCardProblemModelUnavailable: "这张卡指定的模型已经不可用",
 			skillCardNamePlaceholder: "给这张卡起个名字",
 			createCard: "创建卡片",
@@ -494,6 +495,7 @@ window.__ModuleLoader__.load({
 			skillCardModelUnavailable: "No model is available, so this card cannot run",
 			skillCardModelCatalog: "Loaded {groups} groups / {models} models",
 			skillCardModelCatalogNone: "No model catalog was read",
+			skillCardModelCatalogStatus: " · {status}",
 			skillCardProblemModelUnavailable: "The model this card names is no longer available",
 			skillCardNamePlaceholder: "Name this card",
 			createCard: "Create card",
@@ -1270,21 +1272,45 @@ window.__ModuleLoader__.load({
 		* @returns the field state.
 		*/
 		function resolveModelField(stored, directory) {
+			const catalog = catalogOf(directory);
 			if (directory.available && (directory.status === "ready" || directory.status === "selecting") && firstModel(directory.groups) !== void 0) {
 				const selected = stored ?? directory.current ?? firstModel(directory.groups);
 				if (selected !== void 0) return {
 					kind: "ready",
 					groups: withSelected(directory.groups, selected),
-					selected
+					selected,
+					catalog
 				};
 			}
 			const known = stored ?? directory.current;
-			if (known === null || known === void 0) return { kind: "unavailable" };
+			if (known === null || known === void 0) return {
+				kind: "unavailable",
+				catalog
+			};
 			const name = nameOf(directory.groups, known);
 			return {
 				kind: "fixed",
 				model: known,
+				catalog,
 				...name === void 0 ? {} : { name }
+			};
+		}
+		/**
+		* Read the directory facts the diagnostic line reports.
+		*
+		* `none` rather than the directory's own `idle` when nothing answered at all: an
+		* unreachable directory is a different fact from a reachable one that has not loaded, and
+		* the two are the difference between "this session has no model selection" and the defect
+		* this line was added for.
+		* @param directory - the directory the field was resolved from.
+		* @returns the field's catalog facts.
+		*/
+		function catalogOf(directory) {
+			if (!directory.available) return { status: "none" };
+			const error = directory.status === "error" ? directory.error : void 0;
+			return {
+				status: directory.status,
+				...error === void 0 ? {} : { error }
 			};
 		}
 		/**
@@ -1338,6 +1364,7 @@ window.__ModuleLoader__.load({
 					return {
 						available: true,
 						status: state.status,
+						...state.error === null ? {} : { error: state.error },
 						current: state.current === null ? null : {
 							provider: state.current.provider,
 							model: state.current.model
@@ -5410,6 +5437,19 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/**
+		* Collapse a failure message onto one line.
+		*
+		* The message reaches the user through a tooltip, which has no scroll and no way to say
+		* more: every run of whitespace, including the newlines of a pasted stack, becomes one
+		* space so the whole reason stays readable in place.
+		* @param text - the message the directory reported, when it reported one.
+		* @returns it as a single line, or undefined when there is nothing to show.
+		*/
+		function oneLine(text) {
+			const line = text?.replace(/\s+/gu, " ").trim();
+			return line === void 0 || line === "" ? void 0 : line;
+		}
+		/**
 		* Render the model control for one card.
 		*
 		* Three states, and the picker is only one of them. A known route with no catalog behind
@@ -5432,13 +5472,17 @@ window.__ModuleLoader__.load({
 			});
 			const groups = field.kind === "ready" ? field.groups : [];
 			const models = groups.reduce((total, group) => total + group.models.length, 0);
-			const catalog = /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+			const status = field.catalog.status;
+			const failure = status === "error" ? oneLine(field.catalog.error) : void 0;
+			const catalog = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 				className: skill_card_module_default.fieldNote,
 				"data-model-catalog": `${groups.length}/${models}`,
-				children: field.kind === "ready" ? t("skillCardModelCatalog", {
+				"data-model-catalog-status": status,
+				...failure === void 0 ? {} : { title: failure },
+				children: [field.kind === "ready" ? t("skillCardModelCatalog", {
 					groups: groups.length,
 					models
-				}) : t("skillCardModelCatalogNone")
+				}) : t("skillCardModelCatalogNone"), status === "none" ? null : t("skillCardModelCatalogStatus", { status })]
 			});
 			if (field.kind === "ready") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				label,

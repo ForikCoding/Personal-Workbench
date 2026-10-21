@@ -183,10 +183,32 @@ describe('skill card configuration page', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('3/8')
     })
+    // The status says those three groups are a finished load rather than the residue of one
+    // that never answered — the two readings the count alone cannot separate.
+    expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog-status')).toBe('ready')
     // Every read names the picker's session; the run session is never read for the catalog.
     expect(read.mock.calls.every(call => call[0] === picker)).toBe(true)
     const labels = [...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label'))
     expect(labels).toEqual(['DeepSeek', 'minimax-cn', 'lightcode'])
+  })
+
+  it('surfaces a failed directory load on the diagnostic line', async () => {
+    // The seat drops `load()`'s rejection, so the store's failure text has to travel all the
+    // way to the field: without it the card shows a short picker and no way to learn why.
+    const { container } = render(<SkillCardConfigPage {...props({
+      models: fakeModelSeat({
+        status: 'error',
+        error: 'catalog request failed: socket closed',
+        current: null,
+        groups: [],
+      }),
+    })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog-status')).toBe('error')
+    })
+    const line = container.querySelector('[data-model-catalog]') as HTMLElement
+    expect(line.getAttribute('data-model-catalog')).toBe('0/0')
+    expect(line.getAttribute('title')).toBe('catalog request failed: socket closed')
   })
 
   it('falls back to the run session when no picker session is supplied', async () => {

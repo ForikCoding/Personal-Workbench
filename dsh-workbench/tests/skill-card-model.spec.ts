@@ -60,7 +60,7 @@ describe('the model field', () => {
     // Criterion 73, first state: a card always shows a concrete model, so the default is
     // the session's own selection rather than an empty option.
     const field = resolveModelField(undefined, directory())
-    expect(field).toEqual({ kind: 'ready', groups: GROUPS, selected: CURRENT })
+    expect(field).toEqual({ kind: 'ready', groups: GROUPS, selected: CURRENT, catalog: { status: 'ready' } })
   })
 
   it('prefers the card route over the session selection', () => {
@@ -79,14 +79,24 @@ describe('the model field', () => {
     // Criterion 73, second state. "Directory unavailable" is not "no model": the card's own
     // route survives, so the field states it and the run stays possible.
     const field = resolveModelField(STORED, directory({ available: false }))
-    expect(field).toEqual({ kind: 'fixed', model: STORED, name: 'DeepSeek Reasoner' })
+    expect(field).toEqual({
+      kind: 'fixed',
+      model: STORED,
+      name: 'DeepSeek Reasoner',
+      catalog: { status: 'none' },
+    })
   })
 
   it('falls back to the session selection when the directory is in error but still holds one', () => {
     // The saved selection is retained through a failed load precisely so a card can still
-    // say what it would run on.
-    const field = resolveModelField(undefined, directory({ status: 'error' }))
-    expect(field).toEqual({ kind: 'fixed', model: CURRENT, name: 'DeepSeek Chat' })
+    // say what it would run on. The failure itself still travels with the field.
+    const field = resolveModelField(undefined, directory({ status: 'error', error: 'catalog request failed' }))
+    expect(field).toEqual({
+      kind: 'fixed',
+      model: CURRENT,
+      name: 'DeepSeek Chat',
+      catalog: { status: 'error', error: 'catalog request failed' },
+    })
   })
 
   it('reports unavailable when there is no route to name', () => {
@@ -94,11 +104,33 @@ describe('the model field', () => {
     // is no model to put on a result, so the card cannot run at all. A directory this
     // client cannot reach answers with no selection either, which is that same state.
     expect(resolveModelField(undefined, directory({ available: false, current: null })))
-      .toEqual({ kind: 'unavailable' })
+      .toEqual({ kind: 'unavailable', catalog: { status: 'none' } })
     expect(resolveModelField(undefined, directory({ status: 'error', current: null, groups: [] })))
-      .toEqual({ kind: 'unavailable' })
+      .toEqual({ kind: 'unavailable', catalog: { status: 'error' } })
     expect(resolveModelField(undefined, directory({ status: 'loading', groups: [] })))
       .toMatchObject({ kind: 'fixed', model: CURRENT })
+  })
+
+  it('carries the directory’s load status onto every state', () => {
+    // The defect this field exists for: a load that never finished renders as a catalog
+    // that is merely small, and the field's own state cannot tell those apart.
+    expect(resolveModelField(undefined, directory({ status: 'idle', groups: [], current: null })).catalog)
+      .toEqual({ status: 'idle' })
+    expect(resolveModelField(STORED, directory({ status: 'loading', groups: [] })).catalog)
+      .toEqual({ status: 'loading' })
+    // An unreachable directory answers `none` rather than the idle status it borrows: "this
+    // session has no model selection" is a different fact from "nothing has loaded yet".
+    expect(resolveModelField(undefined, directory({ available: false })).catalog)
+      .toEqual({ status: 'none' })
+  })
+
+  it('carries the failure text only while the directory reports a failure', () => {
+    const failed = resolveModelField(undefined, directory({ status: 'error', error: 'catalog request failed: socket closed' }))
+    expect(failed.catalog).toEqual({ status: 'error', error: 'catalog request failed: socket closed' })
+    // A message left on a directory that has since answered is not a failure to report: the
+    // line states the status, and a ready catalog has none.
+    expect(resolveModelField(undefined, directory({ error: 'stale' })).catalog)
+      .toEqual({ status: 'ready' })
   })
 
   it('keeps a stored route selectable even when the catalog no longer lists it', () => {
@@ -201,11 +233,13 @@ describe('the model directory seat', () => {
     const oneGroup: WorkbenchModelDirectoryState = {
       current: { provider: 'account', model: 'account-0' },
       status: 'ready',
+      error: null,
       groups: [groups('account', 2)],
     }
     const threeGroups: WorkbenchModelDirectoryState = {
       current: { provider: 'pickers', model: 'pickers-0' },
       status: 'ready',
+      error: null,
       groups: [groups('pickers', 3), groups('vendor', 2), groups('gateway', 3)],
     }
     const { resolver, asked } = resolverBySession({ 'picker-session': threeGroups, 'run-session': oneGroup })
@@ -221,7 +255,7 @@ describe('the model directory seat', () => {
     const loaded: string[] = []
     const idle = (sessionId: string): WorkbenchModelDirectory => ({
       store: {
-        getSnapshot: () => ({ current: null, status: 'idle', groups: [] }),
+        getSnapshot: () => ({ current: null, status: 'idle', error: null, groups: [] }),
         subscribe: () => () => {},
       },
       load: async (): Promise<unknown> => { loaded.push(sessionId); return undefined },
@@ -238,6 +272,7 @@ describe('the model directory seat', () => {
     const state: WorkbenchModelDirectoryState = {
       current: { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' } as never,
       status: 'ready',
+      error: null,
       groups: GROUPS,
     }
     const { resolver } = resolverOver(state)
@@ -250,6 +285,23 @@ describe('the model directory seat', () => {
       current: CURRENT,
       groups: GROUPS,
     })
+  })
+
+  it('carries the directory’s failure text, which the store is the only reporter of', () => {
+    // The seat drops `load()`'s rejection on purpose (the shared load writes the failure to
+    // the store), so this field is the failure's only route to what the user can see and
+    // report. A failed load must never look like a catalog that is merely small.
+    const { resolver } = resolverOver({
+      current: null,
+      status: 'error',
+      error: 'catalog request failed: socket closed',
+      groups: [],
+    })
+    const seat = createModelSeat(() => resolver)
+    const view = seat.read('session-1')
+    expect(view.error).toBe('catalog request failed: socket closed')
+    expect(resolveModelField(undefined, view).catalog)
+      .toEqual({ status: 'error', error: 'catalog request failed: socket closed' })
   })
 
   it('answers unavailable for a session with no directory of its own', () => {
@@ -272,6 +324,7 @@ describe('the model directory seat', () => {
     const { resolver, subscribe, unsubscribe } = resolverOver({
       current: null,
       status: 'loading',
+      error: null,
       groups: [],
     })
     const seat = createModelSeat(() => resolver)

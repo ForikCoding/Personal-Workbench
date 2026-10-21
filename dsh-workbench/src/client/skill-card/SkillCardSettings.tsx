@@ -743,6 +743,20 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
 }
 
 /**
+ * Collapse a failure message onto one line.
+ *
+ * The message reaches the user through a tooltip, which has no scroll and no way to say
+ * more: every run of whitespace, including the newlines of a pasted stack, becomes one
+ * space so the whole reason stays readable in place.
+ * @param text - the message the directory reported, when it reported one.
+ * @returns it as a single line, or undefined when there is nothing to show.
+ */
+function oneLine(text: string | undefined): string | undefined {
+  const line = text?.replace(/\s+/gu, ' ').trim()
+  return line === undefined || line === '' ? undefined : line
+}
+
+/**
  * Render the model control for one card.
  *
  * Three states, and the picker is only one of them. A known route with no catalog behind
@@ -779,15 +793,31 @@ function ModelField({
   // that never leaves `idle` otherwise renders as a shorter but plausible picker.
   const groups = field.kind === 'ready' ? field.groups : []
   const models = groups.reduce((total, group) => total + group.models.length, 0)
-  // `data-model-catalog` carries the same two numbers so a spec can assert the counts
-  // without depending on the sentence's wording or the translation.
+  // The directory's own load status rides along for the same defect: the seat drops
+  // `load()`'s rejection, so "the load never succeeded" and "the catalog is small" render
+  // identically without it, and those two need different fixes.
+  const status = field.catalog.status
+  // Only an `error` has a reason worth handing to the user, and only on hover: the visible
+  // line states the status, and the failure text is what a user copies back into a report.
+  const failure = status === 'error' ? oneLine(field.catalog.error) : undefined
+  // `data-model-catalog` carries the same two numbers, and `data-model-catalog-status` the
+  // token, so a spec can assert both without depending on the sentence's wording or the
+  // translation.
   const catalog = (
-    <p className={css.fieldNote} data-model-catalog={`${groups.length}/${models}`}>
+    <p
+      className={css.fieldNote}
+      data-model-catalog={`${groups.length}/${models}`}
+      data-model-catalog-status={status}
+      {...failure === undefined ? {} : { title: failure }}
+    >
       {field.kind === 'ready'
         ? t('skillCardModelCatalog', { groups: groups.length, models })
         // A field with no loaded catalog behind it says so here rather than dropping the
         // line: its absence is itself the signal this line exists to make readable.
         : t('skillCardModelCatalogNone')}
+      {/* No segment for `none`: that reading already says no directory answered, and the
+          attribute still carries the token. */}
+      {status === 'none' ? null : t('skillCardModelCatalogStatus', { status })}
     </p>
   )
   if (field.kind === 'ready') {

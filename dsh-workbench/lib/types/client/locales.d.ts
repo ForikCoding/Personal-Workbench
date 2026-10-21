@@ -113,6 +113,7 @@ export declare const zh: {
     skillCardModelUnavailable: string;
     skillCardModelCatalog: string;
     skillCardModelCatalogNone: string;
+    skillCardModelCatalogStatus: string;
     skillCardProblemModelUnavailable: string;
     skillCardNamePlaceholder: string;
     createCard: string;
