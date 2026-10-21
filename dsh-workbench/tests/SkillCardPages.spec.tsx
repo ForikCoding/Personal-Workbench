@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
-import { countingModelDirectory, STALE_DIRECTORY_STATE } from './support/fake-model-directory.ts'
+import { countingModelDirectory } from './support/fake-model-directory.ts'
 import { fakeWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
 import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import type { WorkbenchModelDirectoryView, WorkbenchModelGroup, WorkbenchModelSeat } from '../src/client/skill-card/model.ts'
@@ -156,7 +156,7 @@ describe('skill card configuration page', () => {
     // The panel replaces the main column, so its own run-session lookup can name a session
     // that is not the one the user is choosing a model in. The field must read the picker's
     // session: a directory that answers per session is the only way to see which one it
-    // read, and the counts are the numbers the diagnostic line states.
+    // read, and the groups and their models are what the picker then offers.
     const picker = 'session-picker'
     const groups = (id: string, name: string, models: readonly string[]): WorkbenchModelGroup => ({
       id,
@@ -175,22 +175,22 @@ describe('skill card configuration page', () => {
       current: null,
       groups: sessionId === picker ? appCatalog : runCatalog,
     }))
-    const seat: WorkbenchModelSeat = { read, subscribe: () => () => {}, refresh: () => true }
+    const seat: WorkbenchModelSeat = { read, subscribe: () => () => {} }
     const { container } = render(<SkillCardConfigPage {...props({
       runSessionId: () => 'session-run',
       pickerSessionId: () => picker,
       models: seat,
     })} />)
     await waitFor(() => {
-      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('3/8')
+      expect([...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label')))
+        .toEqual(['DeepSeek', 'minimax-cn', 'lightcode'])
     })
-    // The status says those three groups are a finished load rather than the residue of one
-    // that never answered — the two readings the count alone cannot separate.
-    expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog-status')).toBe('ready')
+    // Eight models in total, which is the whole catalog the picker offers — the run session's
+    // directory holds two. Scoped to the model select: the page has other selects.
+    const select = container.querySelector('[data-model-select]') as HTMLSelectElement
+    expect([...select.querySelectorAll('option')]).toHaveLength(8)
     // Every read names the picker's session; the run session is never read for the catalog.
     expect(read.mock.calls.every(call => call[0] === picker)).toBe(true)
-    const labels = [...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label'))
-    expect(labels).toEqual(['DeepSeek', 'minimax-cn', 'lightcode'])
   })
 
   it('asks the directory to load when the field mounts, rather than trusting a ready snapshot', async () => {
@@ -198,60 +198,20 @@ describe('skill card configuration page', () => {
     // often one taken before every provider registered, and the seat used to load only from
     // `idle`. So the card mounted over a short catalog and never asked again, while the
     // application's own picker could list the full one. The double only reports the full
-    // catalog after a load, so the count can move for exactly one reason: something asked.
+    // catalog after a load, so what the picker offers can change for exactly one reason:
+    // something asked.
     const fake = countingModelDirectory()
     const { container } = render(<SkillCardConfigPage {...props({
       pickerSessionId: () => 'session-picker',
       models: fake.seat,
     })} />)
     await waitFor(() => {
-      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('3/8')
+      expect([...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label')))
+        .toEqual(['deepseek-account', 'minimax-cn', 'lightcode'])
     })
-    // Reading the stale snapshot again would have kept printing `1/2`: the fix is the request,
-    // not another read.
+    // Reading the stale snapshot again would have kept offering one group: the fix is the
+    // request, not another read.
     expect(fake.loads()).toBe(1)
-    expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog-status')).toBe('ready')
-    expect([...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label')))
-      .toEqual(['deepseek-account', 'minimax-cn', 'lightcode'])
-  })
-
-  it('asks again when the user presses the refresh control, and states what came back', async () => {
-    // A catalog that arrived short leaves the user with no recourse today. The control asks the
-    // directory for its catalog once more; when the upstream already holds one, the press
-    // changes nothing — and the line saying so unchanged is the answer to "can this be
-    // refreshed at all", which is why the field is not allowed to fake an update.
-    const fake = countingModelDirectory({ after: STALE_DIRECTORY_STATE })
-    const { container } = render(<SkillCardConfigPage {...props({
-      pickerSessionId: () => 'session-picker',
-      models: fake.seat,
-    })} />)
-    await waitFor(() => {
-      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/2')
-    })
-    const refresh = container.querySelector('[data-model-refresh]') as HTMLButtonElement
-    expect(refresh).toHaveProperty('disabled', false)
-    fireEvent.click(refresh)
-    await waitFor(() => { expect(fake.loads()).toBe(2) })
-    expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/2')
-  })
-
-  it('surfaces a failed directory load on the diagnostic line', async () => {
-    // The seat drops `load()`'s rejection, so the store's failure text has to travel all the
-    // way to the field: without it the card shows a short picker and no way to learn why.
-    const { container } = render(<SkillCardConfigPage {...props({
-      models: fakeModelSeat({
-        status: 'error',
-        error: 'catalog request failed: socket closed',
-        current: null,
-        groups: [],
-      }),
-    })} />)
-    await waitFor(() => {
-      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog-status')).toBe('error')
-    })
-    const line = container.querySelector('[data-model-catalog]') as HTMLElement
-    expect(line.getAttribute('data-model-catalog')).toBe('0/0')
-    expect(line.getAttribute('title')).toBe('catalog request failed: socket closed')
   })
 
   it('falls back to the run session when no picker session is supplied', async () => {
@@ -265,10 +225,11 @@ describe('skill card configuration page', () => {
     }))
     const { container } = render(<SkillCardConfigPage {...props({
       runSessionId: () => 'session-run',
-      models: { read, subscribe: () => () => {}, refresh: () => true },
+      models: { read, subscribe: () => () => {} },
     })} />)
     await waitFor(() => {
-      expect(container.querySelector('[data-model-catalog]')?.getAttribute('data-model-catalog')).toBe('1/1')
+      expect([...container.querySelectorAll('optgroup')].map(group => group.getAttribute('label')))
+        .toEqual(['DeepSeek Account'])
     })
     expect(read.mock.calls.every(call => call[0] === 'session-run')).toBe(true)
   })
@@ -531,7 +492,6 @@ describe('skill card result page', () => {
         listeners.add(listener)
         return () => { listeners.delete(listener) }
       },
-      refresh: () => true,
     }
     const { container } = render(
       <SkillCardResultPage

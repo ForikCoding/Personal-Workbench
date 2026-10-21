@@ -39,8 +39,6 @@ export interface FakeModelSeatOptions {
   readonly available?: boolean
   /** Lifecycle of the directory's own load. */
   readonly status?: 'idle' | 'loading' | 'ready' | 'selecting' | 'error'
-  /** The failure text the directory holds; only an `error` status surfaces it. */
-  readonly error?: string
   /** The session's saved selection; `null` means none is known. */
   readonly current?: WorkbenchCardModel | null
   /** Provider groups; defaults to {@link MODEL_GROUPS}. */
@@ -56,15 +54,11 @@ export function fakeModelSeat(options: FakeModelSeatOptions = {}): WorkbenchMode
   const view: WorkbenchModelDirectoryView = {
     available: options.available ?? true,
     status: options.status ?? 'ready',
-    ...options.error === undefined ? {} : { error: options.error },
     current: options.current === undefined ? MODEL_CURRENT : options.current,
     groups: options.groups ?? MODEL_GROUPS,
   }
   return {
     read: () => view,
     subscribe: () => () => {},
-    // A directory this double can name always answers a refresh request; it just answers with
-    // the same catalog, which is what a fixed directory is.
-    refresh: () => view.available,
   }
 }

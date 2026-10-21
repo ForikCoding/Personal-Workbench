@@ -31,14 +31,6 @@ export interface SkillCardSettingsProps {
     /** Store the model this card's runs use. */
     readonly onChooseModel: (model: WorkbenchCardModel) => void;
     /**
-     * Ask the model directory for its catalog again.
-     *
-     * Offered beside the catalog's diagnostic line because a catalog that arrived short leaves
-     * the user with no recourse otherwise: the field states what it holds, and this is the one
-     * request that could replace it.
-     */
-    readonly onRefreshModel: () => void;
-    /**
      * Store the permission mode this card's runs use.
      *
      * The choice is a stored write like the model: the Host rebuilds the card's agent around

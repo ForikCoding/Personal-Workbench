@@ -7,7 +7,7 @@
  * that, and — the reason this file exists — cannot show whether the field ever *asked*: it
  * counts `load()` calls and answers the short catalog until one arrives.
  *
- * The seat is built by the production factory, so a spec drives the real read/subscribe/refresh
+ * The seat is built by the production factory, so a spec drives the real read/subscribe
  * wiring rather than a second implementation of it.
  */
 import type {
@@ -31,13 +31,12 @@ export function modelGroup(id: string, models: readonly string[]): WorkbenchMode
 /**
  * The catalog an early load leaves behind: one provider, two models.
  *
- * Shaped after the deployment the diagnostic line was added for, where the card read
- * `1 组 / 2 个模型` while the Host held four groups and eleven models.
+ * Shaped after the deployment the stale reading came from: this directory was `ready` with
+ * one provider and two models while the Host held three groups and eight.
  */
 export const STALE_DIRECTORY_STATE: WorkbenchModelDirectoryState = {
   current: { provider: 'deepseek-account', model: 'deepseek-flash' },
   status: 'ready',
-  error: null,
   groups: [modelGroup('deepseek-account', ['deepseek-flash', 'deepseek-reasoner'])],
 }
 
@@ -45,7 +44,6 @@ export const STALE_DIRECTORY_STATE: WorkbenchModelDirectoryState = {
 export const FULL_DIRECTORY_STATE: WorkbenchModelDirectoryState = {
   current: { provider: 'deepseek-account', model: 'deepseek-flash' },
   status: 'ready',
-  error: null,
   groups: [
     modelGroup('deepseek-account', ['deepseek-flash', 'deepseek-reasoner']),
     modelGroup('minimax-cn', ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M3']),

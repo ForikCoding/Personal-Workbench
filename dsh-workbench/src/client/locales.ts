@@ -132,25 +132,6 @@ export const zh = {
   // cannot offer, and the case where there is no model to run on at all.
   skillCardModel: '模型',
   skillCardModelUnavailable: '没有可用的模型，这张卡暂时不能运行',
-  // The catalog reading under the picker. It diagnoses a live defect: this card's model
-  // picker listed one provider group where the application's own picker listed three, and
-  // the directory is projected per session, so how many groups arrived must be visible on
-  // screen without a console. It is load feedback as well: a catalog stuck in `idle` would
-  // otherwise look like a picker that simply has fewer groups.
-  skillCardModelCatalog: '已加载 {groups} 组 / {models} 个模型',
-  skillCardModelCatalogNone: '没有读到模型目录',
-  // The directory's own load status, appended to either reading above as one segment
-  // rather than a second sentence. It is the payload the line exists for: a load that
-  // never succeeded and a catalog that is simply small render identically without it.
-  // The status stays the untranslated token the store holds, so a report can quote it.
-  skillCardModelCatalogStatus: ' · {status}',
-  // The manual recourse beside that line. The shared catalog is loaded once and answered from
-  // memory afterwards, so a field that arrived short stays short until someone asks again;
-  // the hint says as much, because the press changing nothing is a possible — and informative
-  // — outcome rather than a broken control.
-  skillCardModelRefresh: '刷新模型目录',
-  skillCardModelRefreshHint: '重新向模型目录请求一次。若共享目录已加载，宿主会直接返回已有结果',
-  skillCardModelRefreshUnavailable: '没有读到模型目录，无法刷新',
   skillCardProblemModelUnavailable: '这张卡指定的模型已经不可用',
   skillCardNamePlaceholder: '给这张卡起个名字',
   createCard: '创建卡片',
@@ -360,25 +341,6 @@ export const en: Record<keyof typeof zh, string> = {
   // cannot offer, and the case where there is no model to run on at all.
   skillCardModel: 'Model',
   skillCardModelUnavailable: 'No model is available, so this card cannot run',
-  // The catalog reading under the picker. It diagnoses a live defect: this card's model
-  // picker listed one provider group where the application's own picker listed three, and
-  // the directory is projected per session, so how many groups arrived must be visible on
-  // screen without a console. It is load feedback as well: a catalog stuck in `idle` would
-  // otherwise look like a picker that simply has fewer groups.
-  skillCardModelCatalog: 'Loaded {groups} groups / {models} models',
-  skillCardModelCatalogNone: 'No model catalog was read',
-  // The directory's own load status, appended to either reading above as one segment
-  // rather than a second sentence. It is the payload the line exists for: a load that
-  // never succeeded and a catalog that is simply small render identically without it.
-  // The status stays the untranslated token the store holds, so a report can quote it.
-  skillCardModelCatalogStatus: ' · {status}',
-  // The manual recourse beside that line. The shared catalog is loaded once and answered from
-  // memory afterwards, so a field that arrived short stays short until someone asks again;
-  // the hint says as much, because the press changing nothing is a possible — and informative
-  // — outcome rather than a broken control.
-  skillCardModelRefresh: 'Refresh model catalog',
-  skillCardModelRefreshHint: 'Ask the model catalog again. When the shared catalog is already loaded, the host answers from it',
-  skillCardModelRefreshUnavailable: 'No model catalog was read, so there is nothing to refresh',
   skillCardProblemModelUnavailable: 'The model this card names is no longer available',
   skillCardNamePlaceholder: 'Name this card',
   createCard: 'Create card',

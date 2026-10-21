@@ -464,34 +464,6 @@
   line-height: 16px;
 }
 
-/* The one press available when the catalog reading above is smaller than the application's
-   own picker. Sized like the note it follows rather than like a button: it is a recourse, not
-   an action the page is asking for, and it must not compete with Save. */
-.catalogRefresh {
-  align-self: flex-start;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--dsw-alias-label-tertiary);
-  font: inherit;
-  font-size: 11px;
-  line-height: 16px;
-  text-align: left;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.catalogRefresh:hover {
-  color: var(--dsw-alias-label-secondary);
-}
-
-.catalogRefresh:disabled {
-  cursor: default;
-  opacity: 0.6;
-  text-decoration: none;
-}
-
 .select,
 .editor {
   border: 1px solid var(--dsw-alias-border-l1);

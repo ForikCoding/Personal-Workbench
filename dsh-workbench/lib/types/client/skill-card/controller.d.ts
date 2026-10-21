@@ -273,15 +273,6 @@ export interface WorkbenchCardActions {
      */
     chooseModel(model: WorkbenchCardModel): void;
     /**
-     * Ask the model directory for its catalog again, from the field's refresh control.
-     *
-     * The user's only recourse when the field shows a catalog smaller than the one the
-     * application offers. What reaches the screen is the directory's answer, so a catalog the
-     * upstream already holds leaves the diagnostic line unchanged: the field prints what
-     * happened rather than this reporting a success it cannot observe.
-     */
-    refreshModels(): void;
-    /**
      * Ask the user for a directory, and store it as this card's workspace.
      *
      * The picker is the only way in: there is no field to type a path into, because a typed

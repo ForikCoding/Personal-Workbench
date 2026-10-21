@@ -50,8 +50,6 @@ export interface WorkbenchModelDirectoryView {
   readonly available: boolean
   /** Lifecycle of that directory's own load. */
   readonly status: WorkbenchModelDirectoryStatus
-  /** Why the load failed; carried only while the directory reports one. */
-  readonly error?: string
   /** The session's saved selection, retained even when its model left the catalog. */
   readonly current: WorkbenchCardModel | null
   /** Provider groups from the directory's last good load. */
@@ -67,30 +65,11 @@ export const NO_MODEL_DIRECTORY: WorkbenchModelDirectoryView = {
 }
 
 /**
- * What the diagnostic line reports about the directory read behind the field.
- *
- * The status travels beside the groups because a directory whose load never ran, and one
- * whose load failed, both render as a shorter but plausible picker — exactly the reading
- * the count alone cannot tell apart. The seat drops `load()`'s rejection (the store is the
- * report), so this is also the failure's only route to the screen.
- */
-export interface WorkbenchModelFieldCatalog {
-  /** The directory's load status, or `none` when no directory answered at all. */
-  readonly status: WorkbenchModelDirectoryStatus | 'none'
-  /** Why the load failed; carried only while {@link status} is `error`. */
-  readonly error?: string
-}
-
-/**
  * What the configuration page renders for the model, and whether a run can start.
  *
  * Three states rather than a picker plus flags, because the run control's answer and the
  * field's answer have to be the same answer: a field that says "unavailable" beside an
  * enabled Run button is the bug this type exists to make impossible.
- *
- * Every state also carries `catalog`, the directory read it was resolved from: the field's
- * state says what the card can do, and the status says whether the picker's contents are
- * the catalog or the residue of a load that did not finish.
  */
 export type WorkbenchModelField =
   /** A usable catalog: a grouped picker, with one concrete route selected. */
@@ -98,17 +77,15 @@ export type WorkbenchModelField =
     readonly kind: 'ready'
     readonly groups: readonly WorkbenchModelGroup[]
     readonly selected: WorkbenchCardModel
-    readonly catalog: WorkbenchModelFieldCatalog
   }
   /** A route is known but no catalog can offer it: the name is shown, not selectable. */
   | {
     readonly kind: 'fixed'
     readonly model: WorkbenchCardModel
     readonly name?: string
-    readonly catalog: WorkbenchModelFieldCatalog
   }
   /** No route is known, so nothing can run: there is no model to name on a result. */
-  | { readonly kind: 'unavailable'; readonly catalog: WorkbenchModelFieldCatalog }
+  | { readonly kind: 'unavailable' }
 
 /**
  * Resolve the field from the card's stored route and the directory's answer.
@@ -124,9 +101,6 @@ export function resolveModelField(
   stored: WorkbenchCardModel | undefined,
   directory: WorkbenchModelDirectoryView,
 ): WorkbenchModelField {
-  // Resolved once and attached to every state: a field that dropped the status would make
-  // a failed load look like a small catalog again.
-  const catalog = catalogOf(directory)
   // "Loaded" is a usable catalog, not merely a finished request: a directory in `error`
   // may still hold its last good groups, and a `ready` one with no groups offers nothing
   // to choose between.
@@ -136,29 +110,13 @@ export function resolveModelField(
   if (loaded) {
     const selected = stored ?? directory.current ?? firstModel(directory.groups)
     if (selected !== undefined) {
-      return { kind: 'ready', groups: withSelected(directory.groups, selected), selected, catalog }
+      return { kind: 'ready', groups: withSelected(directory.groups, selected), selected }
     }
   }
   const known = stored ?? directory.current
-  if (known === null || known === undefined) return { kind: 'unavailable', catalog }
+  if (known === null || known === undefined) return { kind: 'unavailable' }
   const name = nameOf(directory.groups, known)
-  return { kind: 'fixed', model: known, catalog, ...name === undefined ? {} : { name } }
-}
-
-/**
- * Read the directory facts the diagnostic line reports.
- *
- * `none` rather than the directory's own `idle` when nothing answered at all: an
- * unreachable directory is a different fact from a reachable one that has not loaded, and
- * the two are the difference between "this session has no model selection" and the defect
- * this line was added for.
- * @param directory - the directory the field was resolved from.
- * @returns the field's catalog facts.
- */
-function catalogOf(directory: WorkbenchModelDirectoryView): WorkbenchModelFieldCatalog {
-  if (!directory.available) return { status: 'none' }
-  const error = directory.status === 'error' ? directory.error : undefined
-  return { status: directory.status, ...error === undefined ? {} : { error } }
+  return { kind: 'fixed', model: known, ...name === undefined ? {} : { name } }
 }
 
 /**
@@ -195,7 +153,7 @@ export function parseModelKey(value: string): WorkbenchCardModel | undefined {
 }
 
 /**
- * The read/subscribe/refresh trio the pages consume.
+ * The read/subscribe pair the pages consume.
  *
  * A seat rather than the directory itself, so a page never touches the service and a spec
  * never needs a Cordis context.
@@ -218,17 +176,6 @@ export interface WorkbenchModelSeat {
    * @returns the unsubscribe function; a no-op when there is no directory to watch.
    */
   subscribe(sessionId: string | undefined, listener: () => void): () => void
-  /**
-   * Ask the directory for its catalog again, for the user-driven refresh control.
-   *
-   * The directory exposes `load()` and nothing that forces a refetch, so this is the whole of
-   * what a surface can request: a catalog the upstream already holds is answered from that
-   * value, and the diagnostic line then stays exactly as it was. The truth of what happened is
-   * printed by the field, not returned here.
-   * @param sessionId - the session whose catalog the control belongs to.
-   * @returns whether a directory answered the request at all.
-   */
-  refresh(sessionId: string | undefined): boolean
 }
 
 /** One model-selection directory, narrowed to the snapshot this feature reads. */
@@ -261,8 +208,6 @@ export interface WorkbenchModelDirectory {
 export interface WorkbenchModelDirectoryState {
   readonly current: { readonly provider: string; readonly model: string } | null
   readonly status: WorkbenchModelDirectoryStatus
-  /** Why the load or the selection failed; null when neither has. */
-  readonly error: string | null
   readonly groups: readonly {
     readonly id: string
     readonly name: string
@@ -306,7 +251,6 @@ export function createModelSeat(resolver: () => WorkbenchModelDirectoryResolver 
       return {
         available: true,
         status: state.status,
-        ...state.error === null ? {} : { error: state.error },
         current: state.current === null ? null : { provider: state.current.provider, model: state.current.model },
         groups: state.groups.map(group => ({
           id: group.id,
@@ -331,20 +275,14 @@ export function createModelSeat(resolver: () => WorkbenchModelDirectoryResolver 
       askForCatalog(directory)
       return stop
     },
-    refresh(sessionId) {
-      const directory = directoryFor(resolver(), sessionId)
-      if (directory === undefined) return false
-      askForCatalog(directory)
-      return true
-    },
   }
 }
 
 /**
  * Ask one directory for its catalog.
  *
- * The rejection is dropped on purpose: the shared load writes its failure to the store, and the
- * field's diagnostic line carries it from there.
+ * The rejection is dropped on purpose: the shared load writes its failure to the store, and that
+ * snapshot is the only report of it.
  * @param directory - the directory to ask.
  */
 function askForCatalog(directory: WorkbenchModelDirectory): void {
