@@ -125,7 +125,8 @@
   white-space: pre;
 }
 
-/* The run's activity stream: one row per tool call, read top to bottom.
+/* The run's activity stream: one row per entry — a tool call, a span of the model's own
+   words, or the marker — read top to bottom.
 
    It is bounded on screen as well as in storage, and the bound is a scrollbar rather than a
    fold: a long run must not push the card's document off the page, and the whole trace has
@@ -160,6 +161,46 @@
 /* The first argument, which is model-authored and may be any length up to its own limit.
    It wraps rather than widening the card. */
 .activityArgument {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The model thinking: set apart from the calls because it is what the card is *reasoning*,
+   not what it is doing. Muted and italic so the eye can skip it and still read the calls. */
+.activityReasoning {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 18px;
+}
+
+/* The 思考 chip that marks a reasoning row, echoed by the chat's own thinking label. */
+.activityReasoningLabel {
+  flex: none;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  border: 1px solid var(--dsw-alias-separator-secondary);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 14px;
+}
+
+/* The model speaking to the user: plain narration, no chip. */
+.activityNarration {
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* Narration text wraps like an argument does. */
+.activityText {
   min-width: 0;
   overflow-wrap: anywhere;
 }

@@ -567,21 +567,21 @@ function fitActivity(
   maxBytes: number,
 ): readonly WorkbenchActivityEntry[] | undefined {
   if (trace === undefined) return undefined
-  const { tools, dropped } = splitActivity(trace)
-  if (tools.length === 0) {
+  const { entries, dropped } = splitActivity(trace)
+  if (entries.length === 0) {
     const whole = [...trace]
     return byteSize({ ...base, activity: whole }) <= maxBytes ? whole : undefined
   }
-  for (let keep = tools.length; keep >= 1; keep -= 1) {
-    const omitted = dropped + (tools.length - keep)
+  for (let keep = entries.length; keep >= 1; keep -= 1) {
+    const omitted = dropped + (entries.length - keep)
     const candidate: WorkbenchActivityEntry[] = [
       ...omitted === 0 ? [] : [{ kind: 'truncated' as const, dropped: omitted }],
-      ...tools.slice(tools.length - keep),
+      ...entries.slice(entries.length - keep),
     ]
     if (byteSize({ ...base, activity: candidate }) <= maxBytes) return candidate
   }
-  // Not one call fits, but the count still does: an entry saying "37 calls happened and none
-  // of them is stored" is honest, and an absent field would not be.
-  const omittedOnly: WorkbenchActivityEntry[] = [{ kind: 'truncated', dropped: dropped + tools.length }]
+  // Not one entry fits, but the count still does: an entry saying "37 entries happened and
+  // none of them is stored" is honest, and an absent field would not be.
+  const omittedOnly: WorkbenchActivityEntry[] = [{ kind: 'truncated', dropped: dropped + entries.length }]
   return byteSize({ ...base, activity: omittedOnly }) <= maxBytes ? omittedOnly : undefined
 }

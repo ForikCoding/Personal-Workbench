@@ -24,7 +24,7 @@ import type {
 } from './skill-card-contract.ts'
 import { effectiveWorkbenchSandboxMode } from './skill-card-contract.ts'
 import type { WorkbenchActivityEvent } from './skill-card-activity.ts'
-import { activityEntryFor, withActivityEntry } from './skill-card-activity.ts'
+import { activityEntriesFor, withActivityEntries } from './skill-card-activity.ts'
 import type {
   WorkbenchActivationSeam,
   WorkbenchAgent,
@@ -644,17 +644,18 @@ export class WorkbenchSkillCardRunner {
    *
    * The same bus, the same attribution rule, and the same "an agent this runner did not
    * start is ignored" contract as {@link observeAgentError}: the child's session id is the
-   * identity both events carry. Only `tool/call` produces an entry — the mapping lives in
-   * `skill-card-activity.ts`, together with the redaction and the two bounds.
+   * identity both events carry. A `tool/call` becomes one call entry and an
+   * `assistant/message` becomes its narration entries — the mapping lives in
+   * `skill-card-activity.ts`, together with the redaction and the bounds.
    * @param sessionId - the session the event came from, which is the child's id.
    * @param event - the session event as the bus delivered it.
    */
   observeChildEvent(sessionId: string, event: WorkbenchActivityEvent): void {
-    const entry = activityEntryFor(event)
-    if (entry === undefined) return
+    const entries = activityEntriesFor(event)
+    if (entries.length === 0) return
     for (const run of this.runs.values()) {
       if (run.childId !== sessionId || run.phase !== 'running') continue
-      run.activity = withActivityEntry(run.activity, entry)
+      run.activity = withActivityEntries(run.activity, entries)
     }
   }
 

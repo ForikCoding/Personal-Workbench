@@ -901,9 +901,29 @@ function redactActivityText(text) {
 * @returns the text, unchanged when it fits.
 */
 function truncateActivityText(text) {
+	return truncateTo(text, 60);
+}
+/**
+* Cut one narration text to the stored length, marking the cut.
+* @param text - redacted narration.
+* @returns the text, unchanged when it fits.
+*/
+function truncateNarrationText(text) {
+	return truncateTo(text, 240);
+}
+/**
+* Cut a string to a character budget, marking the cut.
+*
+* Counted in code points so a multi-byte character is never cut in half; the ellipsis is
+* what makes truncation visible in the entry itself.
+* @param text - the text to fit.
+* @param max - the budget in code points.
+* @returns the text, unchanged when it fits.
+*/
+function truncateTo(text, max) {
 	const points = Array.from(text);
-	if (points.length <= 60) return text;
-	return `${points.slice(0, 60).join("")}…`;
+	if (points.length <= max) return text;
+	return `${points.slice(0, max).join("")}…`;
 }
 /**
 * Read the first argument out of one `tool/call` payload.
@@ -933,15 +953,66 @@ function firstArgumentOf(raw) {
 	}
 }
 /**
-* Read one entry out of one session event.
+* Read the entries one session event contributes.
 *
-* The only event type mapped is `tool/call`. Nothing is inferred from the tool's own name
-* and no other event type is guessed at: a `tool/result` carries no name at all (measured:
-* its data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
-* `tool/call` naming `pwsh` or `bash` — `command/run` is a slash command, not a shell one,
-* and was measured to stay silent during a shell tool call.
+* Two event types are mapped and nothing else is guessed at:
+*
+* - `tool/call` — one tool entry. Nothing is inferred from the tool's own name, and no
+*   other event type is guessed at: a `tool/result` carries no name at all (measured: its
+*   data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
+*   `tool/call` naming `pwsh` or `bash`.
+* - `assistant/message` — one narration entry per reasoning or text content block, in the
+*   order the model produced them, so the card reads like a conversation rather than a
+*   tool log. Tool-call blocks in the same message are already covered by their own
+*   `tool/call` event and are not repeated here.
 * @param event - one session event from the Host bus.
-* @returns the entry, or undefined for an event the trace does not record.
+* @returns the entries, in order; empty for an event the trace does not record.
+*/
+function activityEntriesFor(event) {
+	if (event.type === "assistant/message") return narrationEntriesFor(event.data);
+	const tool = activityEntryFor(event);
+	return tool === void 0 ? [] : [tool];
+}
+/**
+* Read the narration blocks out of one `assistant/message` payload.
+*
+* Measured shape: `data.message.content` is an ordered block array, where a reasoning
+* block is `{ type: 'reasoning', text }` and a reply block is `{ type: 'text', text }`.
+* Empty blocks are dropped: a step that only called a tool has nothing to narrate, and an
+* empty row would read as a step that said nothing on purpose.
+* @param data - the event payload.
+* @returns one entry per non-empty reasoning or text block.
+*/
+function narrationEntriesFor(data) {
+	if (typeof data !== "object" || data === null) return [];
+	const message = Reflect.get(data, "message");
+	if (typeof message !== "object" || message === null) return [];
+	const content = Reflect.get(message, "content");
+	if (!Array.isArray(content)) return [];
+	const entries = [];
+	for (const block of content) {
+		if (typeof block !== "object" || block === null) continue;
+		const type = Reflect.get(block, "type");
+		if (type !== "reasoning" && type !== "text") continue;
+		const text = Reflect.get(block, "text");
+		if (typeof text !== "string") continue;
+		const trimmed = text.trim();
+		if (trimmed === "") continue;
+		entries.push({
+			kind: type,
+			text: truncateNarrationText(redactActivityText(trimmed))
+		});
+	}
+	return entries;
+}
+/**
+* Read one tool entry out of one session event.
+*
+* Kept as its own public mapping because the tool case is the one the trace's redaction and
+* truncation rules were first measured against; {@link activityEntriesFor} is what the
+* runner uses, because an event can contribute more than one entry.
+* @param event - one session event from the Host bus.
+* @returns the entry, or undefined for an event that is not a tool call.
 */
 function activityEntryFor(event) {
 	if (event.type !== "tool/call") return void 0;
@@ -956,17 +1027,17 @@ function activityEntryFor(event) {
 	};
 }
 /**
-* Split a trace into its tool entries and the number it already admits to dropping.
+* Split a trace into its real entries and the number it already admits to dropping.
 * @param trace - a stored trace, possibly carrying markers from an earlier bound.
-* @returns the tool entries, oldest first, and the total dropped count.
+* @returns the call and narration entries, oldest first, and the total dropped count.
 */
 function splitActivity(trace) {
-	const tools = [];
+	const entries = [];
 	let dropped = 0;
-	for (const entry of trace ?? []) if (entry.kind === "tool") tools.push(entry);
-	else dropped += entry.dropped;
+	for (const entry of trace ?? []) if (entry.kind === "truncated") dropped += entry.dropped;
+	else entries.push(entry);
 	return {
-		tools,
+		entries,
 		dropped
 	};
 }
@@ -980,9 +1051,9 @@ function splitActivity(trace) {
 * @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
 */
 function boundActivity(trace) {
-	const { tools, dropped } = splitActivity(trace);
-	const over = Math.max(0, tools.length - 64);
-	const kept = over === 0 ? tools : tools.slice(over);
+	const { entries, dropped } = splitActivity(trace);
+	const over = Math.max(0, entries.length - 64);
+	const kept = over === 0 ? entries : entries.slice(over);
 	const total = dropped + over;
 	return [...total === 0 ? [] : [{
 		kind: "truncated",
@@ -990,13 +1061,13 @@ function boundActivity(trace) {
 	}], ...kept];
 }
 /**
-* Append one entry to a trace and fit the result.
+* Append entries to a trace and fit the result.
 * @param trace - the trace so far; absent starts an empty one.
-* @param entry - the call just recorded.
+* @param entries - the entries just recorded, oldest first.
 * @returns the bounded trace.
 */
-function withActivityEntry(trace, entry) {
-	return boundActivity([...trace ?? [], entry]);
+function withActivityEntries(trace, entries) {
+	return boundActivity([...trace ?? [], ...entries]);
 }
 //#endregion
 //#region src/skill-card-prompt.ts
@@ -1501,17 +1572,18 @@ var WorkbenchSkillCardRunner = class {
 	*
 	* The same bus, the same attribution rule, and the same "an agent this runner did not
 	* start is ignored" contract as {@link observeAgentError}: the child's session id is the
-	* identity both events carry. Only `tool/call` produces an entry — the mapping lives in
-	* `skill-card-activity.ts`, together with the redaction and the two bounds.
+	* identity both events carry. A `tool/call` becomes one call entry and an
+	* `assistant/message` becomes its narration entries — the mapping lives in
+	* `skill-card-activity.ts`, together with the redaction and the bounds.
 	* @param sessionId - the session the event came from, which is the child's id.
 	* @param event - the session event as the bus delivered it.
 	*/
 	observeChildEvent(sessionId, event) {
-		const entry = activityEntryFor(event);
-		if (entry === void 0) return;
+		const entries = activityEntriesFor(event);
+		if (entries.length === 0) return;
 		for (const run of this.runs.values()) {
 			if (run.childId !== sessionId || run.phase !== "running") continue;
-			run.activity = withActivityEntry(run.activity, entry);
+			run.activity = withActivityEntries(run.activity, entries);
 		}
 	}
 	/**
@@ -2912,20 +2984,20 @@ function trimResult(record, maxBytes) {
 */
 function fitActivity(trace, base, maxBytes) {
 	if (trace === void 0) return void 0;
-	const { tools, dropped } = splitActivity(trace);
-	if (tools.length === 0) {
+	const { entries, dropped } = splitActivity(trace);
+	if (entries.length === 0) {
 		const whole = [...trace];
 		return byteSize({
 			...base,
 			activity: whole
 		}) <= maxBytes ? whole : void 0;
 	}
-	for (let keep = tools.length; keep >= 1; keep -= 1) {
-		const omitted = dropped + (tools.length - keep);
+	for (let keep = entries.length; keep >= 1; keep -= 1) {
+		const omitted = dropped + (entries.length - keep);
 		const candidate = [...omitted === 0 ? [] : [{
 			kind: "truncated",
 			dropped: omitted
-		}], ...tools.slice(tools.length - keep)];
+		}], ...entries.slice(entries.length - keep)];
 		if (byteSize({
 			...base,
 			activity: candidate
@@ -2933,7 +3005,7 @@ function fitActivity(trace, base, maxBytes) {
 	}
 	const omittedOnly = [{
 		kind: "truncated",
-		dropped: dropped + tools.length
+		dropped: dropped + entries.length
 	}];
 	return byteSize({
 		...base,

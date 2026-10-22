@@ -268,8 +268,10 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
       //
       // `agent/error` is the only account of a faulted child: the subagent seam reduces one
       // to `stopReason: 'error'` and drops the error itself. `session/event` is the only
-      // account of what the child did: `tool/call` is where a tool name and its first
-      // argument exist, and neither `tool/result` nor `agent/status` carries them.
+      // account of what the child is doing: `tool/call` is where a tool name and its first
+      // argument exist, and `assistant/message` is where the model's own words — its
+      // reasoning and its reply text — exist; neither `tool/result` nor `agent/status`
+      // carries either.
       ctx.effect(() => {
         const bus = ctx as unknown as WorkbenchChildEventBus
         const stopErrors = bus.on('agent/error', ({ agent, error }) => {

@@ -105,6 +105,26 @@ describe('a running card', () => {
     expect(rows.map(row => row.getAttribute('data-activity-tool'))).toEqual(['pwsh', 'read'])
   })
 
+  it('shows the model’s reasoning and its reply text beside the calls it made', () => {
+    // The point of the narration entries: a card reads like a conversation, not a tool log.
+    // The reasoning carries the 思考 chip; the reply text does not.
+    const container = renderRunning([
+      { kind: 'reasoning', text: '先查列表，再逐行取字段。' },
+      { kind: 'text', text: '我这就去查。' },
+      { kind: 'tool', tool: 'mcp__xiaoneng__get_task_list', argument: 'tanghao27478' },
+      { kind: 'reasoning', text: '拿到了 34 条。' },
+    ])
+    const rows = [...container.querySelectorAll('[data-run-activity] li')]
+    expect(rows.map(row => row.getAttribute('data-activity-kind'))).toEqual([
+      'reasoning', 'text', 'tool', 'reasoning',
+    ])
+    expect(rows[0]?.textContent).toBe(`${zh.runActivityReasoning}先查列表，再逐行取字段。`)
+    expect(rows[1]?.textContent).toBe('我这就去查。')
+    expect(rows[1]?.textContent).not.toContain(zh.runActivityReasoning)
+    expect(rows[2]?.textContent).toBe('mcp__xiaoneng__get_task_listtanghao27478')
+    expect(rows[3]?.textContent).toBe(`${zh.runActivityReasoning}拿到了 34 条。`)
+  })
+
   it('keeps the previous static notice when the run has recorded nothing yet', () => {
     // An empty list under a running title reads as a broken stream. The card keeps the two
     // sentences it showed before the trace existed, and shows no list at all.

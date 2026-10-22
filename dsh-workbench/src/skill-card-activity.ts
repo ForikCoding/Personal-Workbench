@@ -2,32 +2,36 @@
  * The activity trace: turning one child's session events into the short, bounded log a
  * running card shows and a settled record keeps.
  *
- * Three boundaries live here, and each exists because the input is not trusted:
+ * Four boundaries live here, and each exists because the input is not trusted:
  *
- * - **shape**: only a session `tool/call` becomes an entry. The event names and the field
- *   that carries the tool name and the argument were measured on a real host composition
- *   (`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`, case [6]), not read off a type:
- *   `session/event` delivers `{ type: 'tool/call', data: { turn, step, callId, name,
- *   arguments } }`, where `data.name` is the tool and `data.arguments` is the raw JSON
- *   string the model produced.
- * - **secrets**: the argument is model-authored, so it can carry a token it was handed.
- *   {@link redactActivityText} removes what looks like one before the text is stored,
- *   shown, or truncated — truncating first could cut a secret into a fragment no pattern
- *   matches.
- * - **size**: an argument is cut to {@link WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH} and a
- *   trace keeps the last {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries, with the count it
- *   dropped recorded as an entry of its own so nothing disappears silently.
+ * - **shape**: two session events become entries — a `tool/call` (one call entry) and an
+ *   `assistant/message` (one narration entry per reasoning or text block). The field names
+ *   were measured on a real host composition (`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`,
+ *   case [6]), not read off a type: `session/event` delivers `{ type: 'tool/call', data:
+ *   { turn, step, callId, name, arguments } }`, where `data.name` is the tool and
+ *   `data.arguments` is the raw JSON string the model produced; an assistant message
+ *   carries `data.message.content`, an ordered block array.
+ * - **secrets**: arguments and narration are model-authored, so either can carry a token
+ *   the model was handed. {@link redactActivityText} removes what looks like one before
+ *   the text is stored, shown, or truncated — truncating first could cut a secret into a
+ *   fragment no pattern matches.
+ * - **size**: an argument is cut to {@link WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH}, a
+ *   narration to {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH}, and a trace keeps the last
+ *   {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries, with the count it dropped recorded as
+ *   an entry of its own so nothing disappears silently.
  * @module dsh-workbench/skill-card-activity
  */
 
 import type {
   WorkbenchActivityEntry,
+  WorkbenchNarrationActivity,
   WorkbenchToolActivity,
   WorkbenchTraceTruncation,
 } from './skill-card-contract.ts'
 import {
   WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH,
   WORKBENCH_ACTIVITY_MAX_ENTRIES,
+  WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH,
 } from './skill-card-contract.ts'
 
 /** One session event, as the Host bus delivers it. */
@@ -136,9 +140,31 @@ export function redactActivityText(text: string): string {
  * @returns the text, unchanged when it fits.
  */
 export function truncateActivityText(text: string): string {
+  return truncateTo(text, WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH)
+}
+
+/**
+ * Cut one narration text to the stored length, marking the cut.
+ * @param text - redacted narration.
+ * @returns the text, unchanged when it fits.
+ */
+export function truncateNarrationText(text: string): string {
+  return truncateTo(text, WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH)
+}
+
+/**
+ * Cut a string to a character budget, marking the cut.
+ *
+ * Counted in code points so a multi-byte character is never cut in half; the ellipsis is
+ * what makes truncation visible in the entry itself.
+ * @param text - the text to fit.
+ * @param max - the budget in code points.
+ * @returns the text, unchanged when it fits.
+ */
+function truncateTo(text: string, max: number): string {
   const points = Array.from(text)
-  if (points.length <= WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH) return text
-  return `${points.slice(0, WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH).join('')}${WORKBENCH_ACTIVITY_ELLIPSIS}`
+  if (points.length <= max) return text
+  return `${points.slice(0, max).join('')}${WORKBENCH_ACTIVITY_ELLIPSIS}`
 }
 
 /**
@@ -173,15 +199,65 @@ export function firstArgumentOf(raw: unknown): string | undefined {
 }
 
 /**
- * Read one entry out of one session event.
+ * Read the entries one session event contributes.
  *
- * The only event type mapped is `tool/call`. Nothing is inferred from the tool's own name
- * and no other event type is guessed at: a `tool/result` carries no name at all (measured:
- * its data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
- * `tool/call` naming `pwsh` or `bash` — `command/run` is a slash command, not a shell one,
- * and was measured to stay silent during a shell tool call.
+ * Two event types are mapped and nothing else is guessed at:
+ *
+ * - `tool/call` — one tool entry. Nothing is inferred from the tool's own name, and no
+ *   other event type is guessed at: a `tool/result` carries no name at all (measured: its
+ *   data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
+ *   `tool/call` naming `pwsh` or `bash`.
+ * - `assistant/message` — one narration entry per reasoning or text content block, in the
+ *   order the model produced them, so the card reads like a conversation rather than a
+ *   tool log. Tool-call blocks in the same message are already covered by their own
+ *   `tool/call` event and are not repeated here.
  * @param event - one session event from the Host bus.
- * @returns the entry, or undefined for an event the trace does not record.
+ * @returns the entries, in order; empty for an event the trace does not record.
+ */
+export function activityEntriesFor(event: WorkbenchActivityEvent): WorkbenchActivityEntry[] {
+  if (event.type === 'assistant/message') return narrationEntriesFor(event.data)
+  const tool = activityEntryFor(event)
+  return tool === undefined ? [] : [tool]
+}
+
+/**
+ * Read the narration blocks out of one `assistant/message` payload.
+ *
+ * Measured shape: `data.message.content` is an ordered block array, where a reasoning
+ * block is `{ type: 'reasoning', text }` and a reply block is `{ type: 'text', text }`.
+ * Empty blocks are dropped: a step that only called a tool has nothing to narrate, and an
+ * empty row would read as a step that said nothing on purpose.
+ * @param data - the event payload.
+ * @returns one entry per non-empty reasoning or text block.
+ */
+function narrationEntriesFor(data: unknown): WorkbenchNarrationActivity[] {
+  if (typeof data !== 'object' || data === null) return []
+  const message: unknown = Reflect.get(data, 'message')
+  if (typeof message !== 'object' || message === null) return []
+  const content: unknown = Reflect.get(message, 'content')
+  if (!Array.isArray(content)) return []
+  const entries: WorkbenchNarrationActivity[] = []
+  for (const block of content) {
+    if (typeof block !== 'object' || block === null) continue
+    const type: unknown = Reflect.get(block, 'type')
+    if (type !== 'reasoning' && type !== 'text') continue
+    const text: unknown = Reflect.get(block, 'text')
+    if (typeof text !== 'string') continue
+    const trimmed = text.trim()
+    if (trimmed === '') continue
+    entries.push({ kind: type, text: truncateNarrationText(redactActivityText(trimmed)) })
+  }
+  return entries
+}
+
+/**
+ * Read one tool entry out of one session event.
+ *
+ * Kept as its own public mapping because the tool case is the one the trace's redaction and
+ * truncation rules were first measured against; {@link activityEntriesFor} is what the
+ * runner uses, because an event can contribute more than one entry.
+ * @param event - one session event from the Host bus.
+ * @returns the entry, or undefined for an event that is not a tool call.
  */
 export function activityEntryFor(event: WorkbenchActivityEvent): WorkbenchToolActivity | undefined {
   if (event.type !== 'tool/call') return undefined
@@ -200,21 +276,21 @@ export function activityEntryFor(event: WorkbenchActivityEvent): WorkbenchToolAc
 }
 
 /**
- * Split a trace into its tool entries and the number it already admits to dropping.
+ * Split a trace into its real entries and the number it already admits to dropping.
  * @param trace - a stored trace, possibly carrying markers from an earlier bound.
- * @returns the tool entries, oldest first, and the total dropped count.
+ * @returns the call and narration entries, oldest first, and the total dropped count.
  */
 export function splitActivity(trace: readonly WorkbenchActivityEntry[] | undefined): {
-  readonly tools: readonly WorkbenchToolActivity[]
+  readonly entries: readonly (WorkbenchToolActivity | WorkbenchNarrationActivity)[]
   readonly dropped: number
 } {
-  const tools: WorkbenchToolActivity[] = []
+  const entries: (WorkbenchToolActivity | WorkbenchNarrationActivity)[] = []
   let dropped = 0
   for (const entry of trace ?? []) {
-    if (entry.kind === 'tool') tools.push(entry)
-    else dropped += entry.dropped
+    if (entry.kind === 'truncated') dropped += entry.dropped
+    else entries.push(entry)
   }
-  return { tools, dropped }
+  return { entries, dropped }
 }
 
 /**
@@ -227,12 +303,25 @@ export function splitActivity(trace: readonly WorkbenchActivityEntry[] | undefin
  * @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
  */
 export function boundActivity(trace: readonly WorkbenchActivityEntry[]): WorkbenchActivityEntry[] {
-  const { tools, dropped } = splitActivity(trace)
-  const over = Math.max(0, tools.length - WORKBENCH_ACTIVITY_MAX_ENTRIES)
-  const kept = over === 0 ? tools : tools.slice(over)
+  const { entries, dropped } = splitActivity(trace)
+  const over = Math.max(0, entries.length - WORKBENCH_ACTIVITY_MAX_ENTRIES)
+  const kept = over === 0 ? entries : entries.slice(over)
   const total = dropped + over
   const marker: WorkbenchTraceTruncation[] = total === 0 ? [] : [{ kind: 'truncated', dropped: total }]
   return [...marker, ...kept]
+}
+
+/**
+ * Append entries to a trace and fit the result.
+ * @param trace - the trace so far; absent starts an empty one.
+ * @param entries - the entries just recorded, oldest first.
+ * @returns the bounded trace.
+ */
+export function withActivityEntries(
+  trace: readonly WorkbenchActivityEntry[] | undefined,
+  entries: readonly WorkbenchActivityEntry[],
+): WorkbenchActivityEntry[] {
+  return boundActivity([...(trace ?? []), ...entries])
 }
 
 /**
@@ -245,5 +334,5 @@ export function withActivityEntry(
   trace: readonly WorkbenchActivityEntry[] | undefined,
   entry: WorkbenchToolActivity,
 ): WorkbenchActivityEntry[] {
-  return boundActivity([...(trace ?? []), entry])
+  return withActivityEntries(trace, [entry])
 }

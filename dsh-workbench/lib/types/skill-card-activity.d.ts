@@ -2,24 +2,26 @@
  * The activity trace: turning one child's session events into the short, bounded log a
  * running card shows and a settled record keeps.
  *
- * Three boundaries live here, and each exists because the input is not trusted:
+ * Four boundaries live here, and each exists because the input is not trusted:
  *
- * - **shape**: only a session `tool/call` becomes an entry. The event names and the field
- *   that carries the tool name and the argument were measured on a real host composition
- *   (`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`, case [6]), not read off a type:
- *   `session/event` delivers `{ type: 'tool/call', data: { turn, step, callId, name,
- *   arguments } }`, where `data.name` is the tool and `data.arguments` is the raw JSON
- *   string the model produced.
- * - **secrets**: the argument is model-authored, so it can carry a token it was handed.
- *   {@link redactActivityText} removes what looks like one before the text is stored,
- *   shown, or truncated — truncating first could cut a secret into a fragment no pattern
- *   matches.
- * - **size**: an argument is cut to {@link WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH} and a
- *   trace keeps the last {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries, with the count it
- *   dropped recorded as an entry of its own so nothing disappears silently.
+ * - **shape**: two session events become entries — a `tool/call` (one call entry) and an
+ *   `assistant/message` (one narration entry per reasoning or text block). The field names
+ *   were measured on a real host composition (`dsh-plugin-desktop/scratch/agent-cwd-probe.mjs`,
+ *   case [6]), not read off a type: `session/event` delivers `{ type: 'tool/call', data:
+ *   { turn, step, callId, name, arguments } }`, where `data.name` is the tool and
+ *   `data.arguments` is the raw JSON string the model produced; an assistant message
+ *   carries `data.message.content`, an ordered block array.
+ * - **secrets**: arguments and narration are model-authored, so either can carry a token
+ *   the model was handed. {@link redactActivityText} removes what looks like one before
+ *   the text is stored, shown, or truncated — truncating first could cut a secret into a
+ *   fragment no pattern matches.
+ * - **size**: an argument is cut to {@link WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH}, a
+ *   narration to {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH}, and a trace keeps the last
+ *   {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries, with the count it dropped recorded as
+ *   an entry of its own so nothing disappears silently.
  * @module dsh-workbench/skill-card-activity
  */
-import type { WorkbenchActivityEntry, WorkbenchToolActivity } from './skill-card-contract.ts';
+import type { WorkbenchActivityEntry, WorkbenchNarrationActivity, WorkbenchToolActivity } from './skill-card-contract.ts';
 /** One session event, as the Host bus delivers it. */
 export interface WorkbenchActivityEvent {
     /** Event discriminator, e.g. `tool/call`. */
@@ -51,6 +53,12 @@ export declare function redactActivityText(text: string): string;
  */
 export declare function truncateActivityText(text: string): string;
 /**
+ * Cut one narration text to the stored length, marking the cut.
+ * @param text - redacted narration.
+ * @returns the text, unchanged when it fits.
+ */
+export declare function truncateNarrationText(text: string): string;
+/**
  * Read the first argument out of one `tool/call` payload.
  *
  * "First" is the first key of the parsed arguments object in the order the model produced
@@ -64,24 +72,39 @@ export declare function truncateActivityText(text: string): string;
  */
 export declare function firstArgumentOf(raw: unknown): string | undefined;
 /**
- * Read one entry out of one session event.
+ * Read the entries one session event contributes.
  *
- * The only event type mapped is `tool/call`. Nothing is inferred from the tool's own name
- * and no other event type is guessed at: a `tool/result` carries no name at all (measured:
- * its data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
- * `tool/call` naming `pwsh` or `bash` — `command/run` is a slash command, not a shell one,
- * and was measured to stay silent during a shell tool call.
+ * Two event types are mapped and nothing else is guessed at:
+ *
+ * - `tool/call` — one tool entry. Nothing is inferred from the tool's own name, and no
+ *   other event type is guessed at: a `tool/result` carries no name at all (measured: its
+ *   data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
+ *   `tool/call` naming `pwsh` or `bash`.
+ * - `assistant/message` — one narration entry per reasoning or text content block, in the
+ *   order the model produced them, so the card reads like a conversation rather than a
+ *   tool log. Tool-call blocks in the same message are already covered by their own
+ *   `tool/call` event and are not repeated here.
  * @param event - one session event from the Host bus.
- * @returns the entry, or undefined for an event the trace does not record.
+ * @returns the entries, in order; empty for an event the trace does not record.
+ */
+export declare function activityEntriesFor(event: WorkbenchActivityEvent): WorkbenchActivityEntry[];
+/**
+ * Read one tool entry out of one session event.
+ *
+ * Kept as its own public mapping because the tool case is the one the trace's redaction and
+ * truncation rules were first measured against; {@link activityEntriesFor} is what the
+ * runner uses, because an event can contribute more than one entry.
+ * @param event - one session event from the Host bus.
+ * @returns the entry, or undefined for an event that is not a tool call.
  */
 export declare function activityEntryFor(event: WorkbenchActivityEvent): WorkbenchToolActivity | undefined;
 /**
- * Split a trace into its tool entries and the number it already admits to dropping.
+ * Split a trace into its real entries and the number it already admits to dropping.
  * @param trace - a stored trace, possibly carrying markers from an earlier bound.
- * @returns the tool entries, oldest first, and the total dropped count.
+ * @returns the call and narration entries, oldest first, and the total dropped count.
  */
 export declare function splitActivity(trace: readonly WorkbenchActivityEntry[] | undefined): {
-    readonly tools: readonly WorkbenchToolActivity[];
+    readonly entries: readonly (WorkbenchToolActivity | WorkbenchNarrationActivity)[];
     readonly dropped: number;
 };
 /**
@@ -94,6 +117,13 @@ export declare function splitActivity(trace: readonly WorkbenchActivityEntry[] |
  * @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
  */
 export declare function boundActivity(trace: readonly WorkbenchActivityEntry[]): WorkbenchActivityEntry[];
+/**
+ * Append entries to a trace and fit the result.
+ * @param trace - the trace so far; absent starts an empty one.
+ * @param entries - the entries just recorded, oldest first.
+ * @returns the bounded trace.
+ */
+export declare function withActivityEntries(trace: readonly WorkbenchActivityEntry[] | undefined, entries: readonly WorkbenchActivityEntry[]): WorkbenchActivityEntry[];
 /**
  * Append one entry to a trace and fit the result.
  * @param trace - the trace so far; absent starts an empty one.

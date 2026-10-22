@@ -235,8 +235,9 @@ export declare class WorkbenchSkillCardRunner {
      *
      * The same bus, the same attribution rule, and the same "an agent this runner did not
      * start is ignored" contract as {@link observeAgentError}: the child's session id is the
-     * identity both events carry. Only `tool/call` produces an entry — the mapping lives in
-     * `skill-card-activity.ts`, together with the redaction and the two bounds.
+     * identity both events carry. A `tool/call` becomes one call entry and an
+     * `assistant/message` becomes its narration entries — the mapping lives in
+     * `skill-card-activity.ts`, together with the redaction and the bounds.
      * @param sessionId - the session the event came from, which is the child's id.
      * @param event - the session event as the bus delivered it.
      */

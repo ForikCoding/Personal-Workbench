@@ -58,13 +58,16 @@ export declare const WORKBENCH_REFINE_PREVIOUS_MAX_BYTES: number;
 /** Maximum request-body bytes accepted by the configuration route. */
 export declare const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES: number;
 /**
- * How many tool calls one run's activity trace keeps, before the oldest are dropped.
+ * How many entries one run's activity trace keeps, before the oldest are dropped.
  *
- * 64 rather than a rounder number because the two budgets meet here: each entry costs at
- * most a tool name plus 61 characters of argument, so a full trace is under 6 KB — roughly
- * a tenth of {@link WORKBENCH_RESULT_MAX_BYTES} — while 64 rows is already more than
- * anyone reads in 运行详情. A run longer than that is summarised by the count it dropped
- * rather than by an unbounded array that would eventually evict the result itself.
+ * 64 rather than a rounder number because the two budgets meet here: a tool entry costs at
+ * most a tool name plus 61 characters of argument, a narration entry at most
+ * {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH} characters, so the worst trace — every row a
+ * reasoning and a reply — is about 34 KB, still under {@link WORKBENCH_RESULT_MAX_BYTES}
+ * (64 KiB) with room for the rendered result beside it; the record's own fit step shrinks
+ * the copy it stores if a long result needs the space. 64 rows is already more than anyone
+ * reads in 运行详情, and a longer run is summarised by the count it dropped rather than by
+ * an unbounded array.
  */
 export declare const WORKBENCH_ACTIVITY_MAX_ENTRIES = 64;
 /**
@@ -75,6 +78,15 @@ export declare const WORKBENCH_ACTIVITY_MAX_ENTRIES = 64;
  * recognise the call and not enough to reconstruct a payload or a file's contents.
  */
 export declare const WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH = 60;
+/**
+ * Longest narration text one activity entry carries, in characters.
+ *
+ * Narration is the model's own words — its reasoning and its reply text — shown while the
+ * run happens. 240 characters is a readable paragraph: enough for the user to follow the
+ * line of thought, short enough that a trace of 64 entries does not become the run's
+ * largest payload. Redaction runs before this cut, so a credential is replaced whole.
+ */
+export declare const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 240;
 /**
  * One tool call a run's child made, as the activity trace records it.
  *
@@ -89,6 +101,20 @@ export interface WorkbenchToolActivity {
     readonly tool: string;
     /** The call's first argument, redacted and cut to {@link WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH}. */
     readonly argument: string;
+}
+/**
+ * One span of the model's own words, as the activity trace records it.
+ *
+ * `reasoning` is the thinking the model emits before a step; `text` is what it says to the
+ * user. Both are redacted and cut to {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH}, and both
+ * are shown next to the tool calls so a card reads like a conversation rather than a
+ * tool log. The raw message is never carried.
+ */
+export interface WorkbenchNarrationActivity {
+    /** Which kind of narration this is: the thinking, or the reply text. */
+    readonly kind: 'reasoning' | 'text';
+    /** The narration, redacted and cut to {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH}. */
+    readonly text: string;
 }
 /**
  * How many earlier entries a bounded trace omitted.
@@ -107,10 +133,12 @@ export interface WorkbenchTraceTruncation {
 /**
  * One element of a run's activity trace.
  *
- * The trace is a tool-call log, which is what "what is it doing" means for a card run: each
- * entry is one call, and the marker says what a bounded trace left out.
+ * The trace is what the child is doing while it runs: one call entry per tool call, one
+ * narration entry for each span of the model's own words — its reasoning and its reply
+ * text — in the order they happened, and the marker that says what a bounded trace left
+ * out.
  */
-export type WorkbenchActivityEntry = WorkbenchToolActivity | WorkbenchTraceTruncation;
+export type WorkbenchActivityEntry = WorkbenchToolActivity | WorkbenchNarrationActivity | WorkbenchTraceTruncation;
 /**
  * Name of the comment that opens the region a child fills.
  *

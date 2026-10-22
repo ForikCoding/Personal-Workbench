@@ -78,9 +78,11 @@ export interface ActivityTraceProps {
 /**
  * Render one activity trace as an ordered list.
  *
- * One row per tool call: the tool's own name, then the first argument exactly as the Host
- * stored it — already redacted and already cut, with the ellipsis that says so. The
- * truncation marker is a row of its own, because a bounded trace that stayed silent would
+ * One row per entry, oldest first, in the order the child produced them: a tool call
+ * (tool's own name, then the first argument exactly as the Host stored it — already
+ * redacted and already cut, with the ellipsis that says so), the model's own narration
+ * (its reasoning under a 思考 label, its reply text as plain narration), and the
+ * truncation marker as a row of its own, because a bounded trace that stayed silent would
  * read as a complete one.
  * @param props - the entries and the translator.
  * @returns the list.
@@ -92,8 +94,9 @@ export function ActivityTrace({ trace, t }: ActivityTraceProps): ReactNode {
         <li
           // Entries carry no identity of their own: the trace is append-only and bounded at
           // its front, so position within it is the stable name a row needs.
-          key={`${String(index)}-${entry.kind === 'tool' ? entry.tool : 'truncated'}`}
-          className={entry.kind === 'tool' ? css.activityItem : css.activityTruncated}
+          key={`${String(index)}-${entry.kind === 'tool' ? entry.tool : entry.kind}`}
+          className={activityRowClass(entry)}
+          data-activity-kind={entry.kind}
           data-activity-tool={entry.kind === 'tool' ? entry.tool : undefined}
           data-activity-dropped={entry.kind === 'truncated' ? String(entry.dropped) : undefined}
         >
@@ -104,11 +107,34 @@ export function ActivityTrace({ trace, t }: ActivityTraceProps): ReactNode {
                 <span className={css.activityArgument}>{entry.argument}</span>
               </>
             )
-            : t('runActivityTruncated', { dropped: entry.dropped })}
+            : entry.kind === 'truncated'
+              ? t('runActivityTruncated', { dropped: entry.dropped })
+              : (
+                <>
+                  {entry.kind === 'reasoning'
+                    ? <span className={css.activityReasoningLabel}>{t('runActivityReasoning')}</span>
+                    : null}
+                  <span className={css.activityText}>{entry.text}</span>
+                </>
+              )}
         </li>
       ))}
     </ol>
   )
+}
+
+/**
+ * The row class one entry renders with.
+ * @param entry - the entry.
+ * @returns the module class name, or undefined when the stylesheet has none.
+ */
+function activityRowClass(entry: WorkbenchActivityEntry): string | undefined {
+  switch (entry.kind) {
+    case 'tool': return css.activityItem
+    case 'reasoning': return css.activityReasoning
+    case 'text': return css.activityNarration
+    case 'truncated': return css.activityTruncated
+  }
 }
 
 /** Props of the running notice. */

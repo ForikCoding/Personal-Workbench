@@ -42,9 +42,11 @@ export interface ActivityTraceProps {
 /**
  * Render one activity trace as an ordered list.
  *
- * One row per tool call: the tool's own name, then the first argument exactly as the Host
- * stored it — already redacted and already cut, with the ellipsis that says so. The
- * truncation marker is a row of its own, because a bounded trace that stayed silent would
+ * One row per entry, oldest first, in the order the child produced them: a tool call
+ * (tool's own name, then the first argument exactly as the Host stored it — already
+ * redacted and already cut, with the ellipsis that says so), the model's own narration
+ * (its reasoning under a 思考 label, its reply text as plain narration), and the
+ * truncation marker as a row of its own, because a bounded trace that stayed silent would
  * read as a complete one.
  * @param props - the entries and the translator.
  * @returns the list.

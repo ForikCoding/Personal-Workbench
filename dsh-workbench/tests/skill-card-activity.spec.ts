@@ -15,16 +15,19 @@ import { describe, expect, it } from 'vitest'
 import {
   WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH,
   WORKBENCH_ACTIVITY_MAX_ENTRIES,
+  WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH,
 } from '../src/skill-card-contract.ts'
 import type { WorkbenchActivityEntry, WorkbenchToolActivity } from '../src/skill-card-contract.ts'
 import {
   WORKBENCH_ACTIVITY_ELLIPSIS,
+  activityEntriesFor,
   activityEntryFor,
   boundActivity,
   firstArgumentOf,
   redactActivityText,
   splitActivity,
   truncateActivityText,
+  withActivityEntries,
   withActivityEntry,
 } from '../src/skill-card-activity.ts'
 
@@ -106,6 +109,66 @@ describe('activity mapping', () => {
     expect(firstArgumentOf('[1,2]')).toBeUndefined()
     expect(firstArgumentOf('')).toBeUndefined()
     expect(firstArgumentOf(undefined)).toBeUndefined()
+  })
+})
+
+describe('narration mapping', () => {
+  /**
+   * Build one `assistant/message` event the way the bus delivered it.
+   * @param content - ordered content blocks.
+   * @returns the event.
+   */
+  function message(content: readonly { type: string; text?: string }[]): { type: string; data: unknown } {
+    return { type: 'assistant/message', data: { turn: 1, step: 1, message: { role: 'assistant', content } } }
+  }
+
+  it('reads the reasoning and the reply text out of one assistant message', () => {
+    // The measured shape: an ordered block array where a thinking block is `reasoning` and a
+    // reply block is `text`. Both belong in the trace, in the order the model produced them.
+    expect(activityEntriesFor(message([
+      { type: 'reasoning', text: '先查列表，再逐行取字段。' },
+      { type: 'text', text: '我这就去查。' },
+      { type: 'tool-call' },
+    ]))).toEqual([
+      { kind: 'reasoning', text: '先查列表，再逐行取字段。' },
+      { kind: 'text', text: '我这就去查。' },
+    ])
+  })
+
+  it('drops empty and whitespace-only blocks, and blocks of other kinds', () => {
+    expect(activityEntriesFor(message([
+      { type: 'reasoning', text: '' },
+      { type: 'text', text: '   ' },
+      { type: 'tool-call' },
+    ]))).toEqual([])
+    expect(activityEntriesFor(message([]))).toEqual([])
+  })
+
+  it('trims the narration and carries it verbatim otherwise', () => {
+    expect(activityEntriesFor(message([{ type: 'reasoning', text: '  想一想  ' }])))
+      .toEqual([{ kind: 'reasoning', text: '想一想' }])
+  })
+
+  it('redacts a credential the model writes into its reasoning', () => {
+    // Reasoning is model-authored exactly like an argument: the same patterns apply, before
+    // the cut, so a token in the thinking is never stored.
+    const [entry] = activityEntriesFor(message([{ type: 'reasoning', text: '用 --token sk-proj-abcdefghijklmnop 调它' }]))
+    expect(entry).toEqual({ kind: 'reasoning', text: '用 --token *** 调它' })
+  })
+
+  it('cuts narration at the narration limit and says so', () => {
+    const long = '想'.repeat(WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH + 40)
+    const [entry] = activityEntriesFor(message([{ type: 'reasoning', text: long }]))
+    const text = entry !== undefined && entry.kind === 'reasoning' ? entry.text : ''
+    expect(Array.from(text)).toHaveLength(WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH + 1)
+    expect(text.endsWith(WORKBENCH_ACTIVITY_ELLIPSIS)).toBe(true)
+  })
+
+  it('leaves a tool call to its own event so it is not recorded twice', () => {
+    // The assistant message that carries a tool call also carries the narration; the call
+    // itself arrives as `tool/call`. Only the narration is read from the message.
+    expect(activityEntriesFor(call('read', { path: 'a.ts' })))
+      .toEqual([{ kind: 'tool', tool: 'read', argument: 'a.ts' }])
   })
 })
 
@@ -196,15 +259,27 @@ describe('activity bounding', () => {
     let trace: WorkbenchActivityEntry[] = []
     const total = WORKBENCH_ACTIVITY_MAX_ENTRIES + 6
     for (let index = 0; index < total; index += 1) trace = withActivityEntry(trace, entry(index))
-    const { tools, dropped } = splitActivity(trace)
+    const { entries, dropped } = splitActivity(trace)
     expect(dropped).toBe(6)
-    expect(tools).toHaveLength(WORKBENCH_ACTIVITY_MAX_ENTRIES)
+    expect(entries).toHaveLength(WORKBENCH_ACTIVITY_MAX_ENTRIES)
     // The survivors are the newest ones: the trace is read from its end.
-    expect(tools[0]).toEqual(entry(6))
-    expect(tools[tools.length - 1]).toEqual(entry(total - 1))
+    expect(entries[0]).toEqual(entry(6))
+    expect(entries[entries.length - 1]).toEqual(entry(total - 1))
     // And the marker is a row in the trace, so a reader of the array alone sees the cut.
     expect(trace[0]).toEqual({ kind: 'truncated', dropped: 6 })
     expect(trace).toHaveLength(WORKBENCH_ACTIVITY_MAX_ENTRIES + 1)
+  })
+
+  it('counts narration against the same bound as calls', () => {
+    // The two kinds share one budget: a trace that reasoned instead of calling is not
+    // allowed to grow without limit either.
+    let trace: WorkbenchActivityEntry[] = []
+    for (let index = 0; index < WORKBENCH_ACTIVITY_MAX_ENTRIES + 2; index += 1) {
+      trace = withActivityEntries(trace, [{ kind: 'reasoning', text: `第 ${String(index)} 步` }])
+    }
+    const { entries, dropped } = splitActivity(trace)
+    expect(dropped).toBe(2)
+    expect(entries[0]).toEqual({ kind: 'reasoning', text: '第 2 步' })
   })
 
   it('accumulates the count across successive bounds', () => {
@@ -225,13 +300,20 @@ describe('activity bounding', () => {
     expect(trace.every(one => one.kind === 'tool')).toBe(true)
   })
 
-  it('costs a bounded trace a small fraction of the record budget', () => {
-    // Why 64: a full trace has to stay well clear of WORKBENCH_RESULT_MAX_BYTES (64 KiB), so
-    // it can never be what evicts the structured value the card renders.
+  it('costs a bounded trace a bounded fraction of the record budget', () => {
+    // Worst case: every row is a reasoning, a reply, and a call, each at its own limit. The
+    // trace has to stay clear of WORKBENCH_RESULT_MAX_BYTES (64 KiB) so it can never be what
+    // evicts the structured value the card renders; the record's own fit step shrinks the
+    // stored copy further when a long result needs the room.
     let trace: WorkbenchActivityEntry[] = []
     for (let index = 0; index < WORKBENCH_ACTIVITY_MAX_ENTRIES + 10; index += 1) {
-      trace = withActivityEntry(trace, { kind: 'tool', tool: 'pwsh', argument: 'z'.repeat(60) })
+      trace = withActivityEntries(trace, [
+        { kind: 'reasoning', text: '想'.repeat(WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH) },
+        { kind: 'text', text: '说'.repeat(WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH) },
+        { kind: 'tool', tool: 'pwsh', argument: 'z'.repeat(60) },
+      ])
     }
-    expect(Buffer.byteLength(JSON.stringify(trace), 'utf8')).toBeLessThan(8 * 1024)
+    // CJK costs three UTF-8 bytes per character, which is the largest legal trace.
+    expect(Buffer.byteLength(JSON.stringify(trace), 'utf8')).toBeLessThan(40 * 1024)
   })
 })
