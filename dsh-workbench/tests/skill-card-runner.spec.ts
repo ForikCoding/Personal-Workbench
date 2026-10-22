@@ -816,6 +816,18 @@ describe('the card agent that fences a run', () => {
     expect(fake.archivedSessions).toEqual([fake.createdAgents[0]?.id])
   })
 
+  it('publishes a fresh session id when an earlier app run already took the old one', async () => {
+    // What a restart looks like to the host: the card agent from the previous app run
+    // still exists durably under the id the counter alone would rebuild, so the create
+    // must not ask for that id again — the run starts on a session this process minted.
+    const { runner, fake } = setup({ persistedSessionIds: ['workbench-card-skill-card-0'] })
+    await runner.start(request())
+    const state = await settle(runner)
+    expect(state).toMatchObject({ phase: 'settled', result: { stopReason: 'completed' } })
+    expect(fake.createdAgents[0]?.id).not.toBe('workbench-card-skill-card-0')
+    expect(fake.createdAgents[0]?.id).toMatch(/^workbench-card-skill-card-[a-z0-9]+-\d+$/)
+  })
+
   it('creates no card agent for a card that names no directory', async () => {
     // The workspace is mandatory, so this path is refused before any agent exists — the
     // fallback inside the runner is a guard for a state the user cannot reach, not a

@@ -144,6 +144,12 @@ export declare class WorkbenchSkillCardRunner {
     /** Distinguishes successive card agents; a session id cannot be published twice. */
     private cardAgentSeq;
     /**
+     * Per-process tag beside the counter: the counter restarts at zero every boot, while a
+     * session published by a previous boot still exists durably, so an id made of the card
+     * and the counter alone would collide with it on the first run after a restart.
+     */
+    private readonly cardAgentBoot;
+    /**
      * Read the skill catalog a card can choose from.
      *
      * The read always goes through an agent scope. A scope-less read returns the

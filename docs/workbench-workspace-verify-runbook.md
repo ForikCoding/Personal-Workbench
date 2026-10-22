@@ -39,7 +39,7 @@ Get-Content "$env:APPDATA\dsh-desktop\harness\profiles\web\node_modules\dsh-work
 | 看到 | 说明 |
 |---|---|
 | **没有** `workbench-card-*` | ✅ 归档生效 |
-| 有 `workbench-card-skill-card-0` 之类 | ❌ 归档没生效 |
+| 有 `workbench-card-skill-card-<tag>-0` 之类 | ❌ 归档没生效 |
 
 **失败时先看日志**，找这一行：
 

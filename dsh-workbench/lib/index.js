@@ -1254,6 +1254,12 @@ var WorkbenchSkillCardRunner = class {
 	/** Distinguishes successive card agents; a session id cannot be published twice. */
 	cardAgentSeq = 0;
 	/**
+	* Per-process tag beside the counter: the counter restarts at zero every boot, while a
+	* session published by a previous boot still exists durably, so an id made of the card
+	* and the counter alone would collide with it on the first run after a restart.
+	*/
+	cardAgentBoot = Math.random().toString(36).slice(2, 8).padEnd(6, "0");
+	/**
 	* Read the skill catalog a card can choose from.
 	*
 	* The read always goes through an agent scope. A scope-less read returns the
@@ -1574,7 +1580,7 @@ var WorkbenchSkillCardRunner = class {
 			}
 		}
 		const handle = await this.options.host.agents.create({
-			sessionId: `workbench-card-${cardId}-${this.cardAgentSeq++}`,
+			sessionId: `workbench-card-${cardId}-${this.cardAgentBoot}-${this.cardAgentSeq++}`,
 			meta: { cwd: path }
 		});
 		try {

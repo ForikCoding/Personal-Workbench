@@ -115,6 +115,14 @@ export interface FakeHostOptions {
    * runner refuses the start rather than running under a mode nobody applied.
    */
   readonly modeFailure?: string
+  /**
+   * Session ids the double refuses to publish again, as the real host does.
+   *
+   * Seed it with the id a card agent held before an app restart: the durable session
+   * store still has that session, so a runner that only counted its creations would ask
+   * for the same id and fail its start.
+   */
+  readonly persistedSessionIds?: readonly string[]
 }
 
 /** The fake host plus what a spec wants to assert about. */
@@ -199,6 +207,9 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   const disposedAgents: string[] = []
   const archivedSessions: string[] = []
   const sandboxModes: { sessionId: string; mode: WorkbenchSandboxMode }[] = []
+  // Ids that are already published: what a case seeds, plus everything this double
+  // has minted — the create above refuses both, like the real session store.
+  const taken = new Set<string>(options.persistedSessionIds ?? [])
 
   /**
    * Script one child run's result promise.
@@ -234,8 +245,14 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       list: () => (options.live === false ? [] : [AGENT]),
       // A card agent is only ever interesting for the cwd it roots its session at, so the
       // fake keeps that and nothing else. `disposeCount` lets a case prove the plugin
-      // actually tears one down when the workspace changes.
+      // actually tears one down when the workspace changes. Publication is exclusive:
+      // an id in `taken` — seeded or minted here — fails the create, matching the
+      // durable session store the real host publishes into.
       create: async (createOptions) => {
+        if (taken.has(createOptions.sessionId)) {
+          throw new Error(`session "${createOptions.sessionId}" already exists`)
+        }
+        taken.add(createOptions.sessionId)
         const created: WorkbenchAgent = {
           id: createOptions.sessionId,
           session: { header: { cwd: createOptions.meta.cwd } },
