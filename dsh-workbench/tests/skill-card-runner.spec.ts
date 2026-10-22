@@ -766,18 +766,21 @@ describe('workbench skill card runner', () => {
  * not pile up in the sidebar.
  */
 describe('the card agent that fences a run', () => {
-  it('creates one agent rooted at the card directory, and reuses it', async () => {
+  it('gives each run its own agent rooted at the card directory', async () => {
     const { runner, fake } = setup()
     await runner.start(request())
     await settle(runner)
     expect(fake.createdAgents).toHaveLength(1)
     expect(fake.createdAgents[0]?.session?.header?.cwd).toBe(WORKSPACE_PATH)
+    // The first run's agent is archived and released when it settles, so a second run
+    // gets a fresh session: an archived session cannot host a subagent descendant, and
+    // reusing one would make the next run end as a refusal before its first step.
+    expect(fake.disposedAgents).toEqual([fake.createdAgents[0]?.id])
 
     await runner.start(request())
     await settle(runner)
-    // Reuse is the point: the directory is fixed at creation, so a second run of the same
-    // card can only keep the fence by keeping the agent.
-    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents).toHaveLength(2)
+    expect(fake.createdAgents[1]?.id).not.toBe(fake.createdAgents[0]?.id)
     expect(fake.activations[1]?.request.parent?.session?.header?.cwd).toBe(WORKSPACE_PATH)
   })
 
@@ -803,9 +806,11 @@ describe('the card agent that fences a run', () => {
     created.path = '/elsewhere'
     await runner.start(request())
     await settle(runner)
-    expect(fake.disposedAgents).toHaveLength(1)
     expect(fake.createdAgents).toHaveLength(2)
     expect(fake.createdAgents[1]?.session?.header?.cwd).toBe('/elsewhere')
+    // Each settled run retires its own agent, so both handles were released by the runs
+    // themselves rather than by a rebuild.
+    expect(fake.disposedAgents).toHaveLength(2)
     await runner.dispose()
   })
 
@@ -899,10 +904,10 @@ describe('the permission mode a card runs under', () => {
     ])
   })
 
-  it('applies the card’s mode once, when it creates the agent', async () => {
-    // Criterion 105. The mode is recorded on the card's agent, not per run: every child
-    // started from that agent inherits the same override, so a second run must not append a
-    // second event.
+  it('applies the card’s mode once per agent, when it creates the agent', async () => {
+    // Criterion 105. The mode is recorded on the run's own agent, not per step: the run's
+    // child inherits that override. Each run now builds its own agent, so each one carries
+    // the mode — but a single run still never appends a second event.
     const { runner, fake } = setup({
       ...CAPTURED_EVERY_TIME,
       selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, permission: 'read-only' },
@@ -913,15 +918,17 @@ describe('the permission mode a card runs under', () => {
     await settle(runner)
     expect(fake.sandboxModes).toEqual([
       { sessionId: fake.createdAgents[0]?.id, mode: 'read-only' },
+      { sessionId: fake.createdAgents[1]?.id, mode: 'read-only' },
     ])
-    expect(fake.createdAgents).toHaveLength(1)
-    expect(fake.activations[1]?.request.parent).toBe(fake.createdAgents[0])
+    expect(fake.createdAgents).toHaveLength(2)
+    expect(fake.activations[1]?.request.parent).toBe(fake.createdAgents[1])
   })
 
-  it('rebuilds the agent when the mode changes, and reuses it when nothing does', async () => {
-    // Criterion 106. A live agent's mode is not mutated, and the cache key carries the mode
-    // for exactly that reason: a changed mode starts on a new session rather than quietly
-    // continuing under the old one.
+  it('never mutates a live agent: a changed mode starts on a newer agent', async () => {
+    // Criterion 106. A live agent's mode is not mutated, so a changed mode starts on a new
+    // session rather than quietly continuing under the old one. Every settled run retires
+    // its agent anyway, so what this pins is that the mode applied is always the card's
+    // current selection, on an agent created for that run.
     const selection: MutableSelection = {
       skill: 'git-repo',
       template: '<b>{{a}}</b>',
@@ -931,20 +938,22 @@ describe('the permission mode a card runs under', () => {
     const { runner, fake } = setup({ ...CAPTURED_EVERY_TIME, selection })
     await runner.start(request())
     await settle(runner)
-    // Nothing changed, so the second run keeps the agent it has.
     await runner.start(request())
     await settle(runner)
-    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents).toHaveLength(2)
 
     selection.permission = 'danger-full-access'
     await runner.start(request())
     await settle(runner)
-    expect(fake.disposedAgents).toHaveLength(1)
-    expect(fake.createdAgents).toHaveLength(2)
-    expect(fake.sandboxModes.map(entry => entry.mode)).toEqual(['read-only', 'danger-full-access'])
+    expect(fake.createdAgents).toHaveLength(3)
+    expect(fake.sandboxModes.map(entry => entry.mode)).toEqual([
+      'read-only',
+      'read-only',
+      'danger-full-access',
+    ])
     // The new mode is on the new agent: the run hangs from the session that carries it.
-    expect(fake.sandboxModes[1]?.sessionId).toBe(fake.createdAgents[1]?.id)
-    expect(fake.activations[2]?.request.parent).toBe(fake.createdAgents[1])
+    expect(fake.sandboxModes[2]?.sessionId).toBe(fake.createdAgents[2]?.id)
+    expect(fake.activations[2]?.request.parent).toBe(fake.createdAgents[2])
   })
 
   it('refuses the start when the mode cannot be applied, naming the card and the mode', async () => {
@@ -1014,12 +1023,11 @@ function fakeHostSelection(path: string): { path: string } {
   return { path }
 }
 describe('teardown', () => {
-  it('releases every card agent when the runner is disposed', async () => {
-    // Card agents outlive a run on purpose, so teardown is the only thing that frees them.
-    // Without this the handles leak for the lifetime of the plugin.
-    const { runner, fake } = setup()
+  it('releases a card agent a run in flight still hangs from', async () => {
+    // A settled run retires its own agent; this is the one teardown path that still matters
+    // — the agent of a run that has not settled when the plugin unloads.
+    const { runner, fake } = setup({ outcomes: ['hang'] })
     await runner.start(request())
-    await settle(runner)
     expect(fake.disposedAgents).toHaveLength(0)
     await runner.dispose()
     expect(fake.disposedAgents).toEqual([fake.createdAgents[0]?.id])

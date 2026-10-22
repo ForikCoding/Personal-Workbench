@@ -1,6 +1,6 @@
 {
   "name": "dsh-workbench",
-  "version": "2.0.31",
+  "version": "2.0.32",
   "description": "DSH Desktop Workbench: a card host panel for development state, composed as a DeepSeek Harness Cordis plugin",
   "license": "MIT",
   "publishConfig": {

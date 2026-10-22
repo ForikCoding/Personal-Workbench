@@ -1549,11 +1549,16 @@ var WorkbenchSkillCardRunner = class {
 	/**
 	* The agent a card's run should hang from, with the card's permission mode applied.
 	*
-	* A card that names a workspace gets an agent rooted at that directory, created once and
-	* reused; a card that does not falls back to the session's agent, which is what every run
-	* used before workspaces existed. The sandbox derives its writable root from the session
-	* header, and a child inherits its parent's header, so this is the whole mechanism that
-	* fences a run — no `cwd` is passed and the seam stays untouched.
+	* A card that names a workspace gets an agent rooted at that directory; a card that
+	* does not falls back to the session's agent, which is what every run used before
+	* workspaces existed. The sandbox derives its writable root from the session header,
+	* and a child inherits its parent's header, so this is the whole mechanism that fences
+	* a run — no `cwd` is passed and the seam stays untouched.
+	*
+	* An agent lives for exactly one run: the runner retires it when the run settles
+	* (archiving its session and releasing it), because an archived session cannot host a
+	* subagent descendant. Within one run the cache still matters: a workspace change
+	* rebuilds, and the same path and mode reuse the agent the current run started from.
 	*
 	* The mode is applied once, here, at creation. A child inherits its parent's explicit
 	* override, so recording it on this agent is what makes the card's permission govern
@@ -1626,7 +1631,6 @@ var WorkbenchSkillCardRunner = class {
 				outcome = await this.attempt(run, input, cwd, skill, activate);
 			}
 			await this.finish(run, outcome);
-			await this.archiveCardSession(run.cardId);
 		} catch (error) {
 			if (signal.aborted) {
 				run.phase = "cancelled";
@@ -1641,6 +1645,7 @@ var WorkbenchSkillCardRunner = class {
 		} finally {
 			if (run.timer !== void 0) clearTimeout(run.timer);
 			this.active -= 1;
+			await this.retireCardAgent(run.cardId);
 		}
 	}
 	/**
@@ -1760,6 +1765,34 @@ var WorkbenchSkillCardRunner = class {
 		}
 	}
 	/**
+	* Retire the agent one finished run hung from: archive its session, then release it.
+	*
+	* Creating a published agent also creates a session, and the sidebar lists sessions —
+	* so each finished run's session is archived to keep it out of the default list. The
+	* agent is released in the same step because an archived session cannot host a model
+	* step: the harness rejects a subagent descendant of one before its first step and
+	* reports that as `refusal`. The next run therefore builds a fresh agent — and a fresh
+	* session — instead of reusing this one.
+	* @param cardId - the card whose finished agent should be retired.
+	* @returns resolution once the session is archived and the agent released; neither
+	*   step may turn a captured result into a failure, so both only warn.
+	*/
+	async retireCardAgent(cardId) {
+		const entry = this.cardAgents.get(cardId);
+		if (entry === void 0) return;
+		this.cardAgents.delete(cardId);
+		try {
+			await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id);
+		} catch (error) {
+			this.options.warn(`workbench card session archive failed: ${messageOf(error)}`);
+		}
+		try {
+			await entry.handle.dispose();
+		} catch (error) {
+			this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`);
+		}
+	}
+	/**
 	* Resolve the agent's effective working directory.
 	*
 	* The service is preferred when the deployment has it; otherwise the session
@@ -1768,26 +1801,6 @@ var WorkbenchSkillCardRunner = class {
 	* @param signal - cancellation.
 	* @returns the directory, or undefined when neither source supplies one.
 	*/
-	/**
-	* Hide the session a card agent published.
-	*
-	* Creating a published agent also creates a session, and the sidebar lists sessions —
-	* so without this every card the user ever ran would leave a `workbench-card-*` row
-	* behind. Archiving is bookkeeping, not deletion: the agent stays reusable and the
-	* session stays readable.
-	* @param cardId - the card whose session should drop out of the default list.
-	* @returns resolution once the archive is recorded; never rejects, because a failed
-	*   archive must not turn a captured result into a failure.
-	*/
-	async archiveCardSession(cardId) {
-		const entry = this.cardAgents.get(cardId);
-		if (entry === void 0) return;
-		try {
-			await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id);
-		} catch (error) {
-			this.options.warn(`workbench card session archive failed: ${messageOf(error)}`);
-		}
-	}
 	async cwdFor(agent, signal) {
 		const service = this.options.workingDirectory;
 		if (service !== void 0) return await service.ensure(agent, signal);
@@ -2947,7 +2960,7 @@ const Config = z$1.object({
 	maxTemplateBytes: z$1.number().step(1).min(1024).max(WORKBENCH_TEMPLATE_MAX_BYTES).default(WORKBENCH_TEMPLATE_MAX_BYTES),
 	maxTemplatesPerCard: z$1.number().step(1).min(1).max(64).default(16),
 	maxResultBytes: z$1.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
-	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(12e4),
+	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(3e5),
 	maxConcurrentRuns: z$1.number().step(1).min(1).max(8).default(1),
 	resultStaleAfterMs: z$1.number().step(1).min(6e4).default(864e5)
 });

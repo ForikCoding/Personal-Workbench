@@ -16,7 +16,7 @@
 | 卡片记下目录 | ✅ |
 | 没有目录 / 目录不存在时拒绝运行 | ✅（启动前一次 `stat()`，`workspace-missing` / `workspace-invalid`） |
 | 运行挂在**一个根在卡片目录的 agent** 上（作为 `parent`） | ✅ 已落地：`src/skill-card-runner.ts` 的 `cardAgents` / `cardAgent`（第十五版起这段也承载每卡权限模式） |
-| 每卡一个 agent、建一次后复用、存的路径变了拆旧重建、`dispose()` 释放 | ✅ 已落地，四个用例覆盖 |
+| 每卡一个 agent、**每次运行一个**、存的路径变了拆旧重建、结算后归档并释放 | ✅ 已落地，四个用例覆盖（第十六版：原先的"建一次后复用"在归档闸门下跑不动第二次运行） |
 | 结算后归档卡片会话，侧边栏保持干净 | ⚠️ 调用走 `workspaceRegistry.archiveSession`，`workspaceRegistry` 也在 `inject` 里（探针 case `[3]` 量过这个成员能被接受）；**但没有一次真实运行证明侧边栏真的少了那一行** |
 | 子会话头（以及沙箱根的来源）是卡片目录 | ❓ 机制成立（头从父复制），**没有断言、没有真机** |
 | 子代理的"有效工作目录" | ✅ 取自父的会话头（`resolvedCwd = parent.session?.header?.cwd ?? cwd`）；**没有用例能分辨它与会话目录**（fake 里两者同名 `/repo`） |

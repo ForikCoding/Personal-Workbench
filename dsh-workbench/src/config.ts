@@ -51,7 +51,12 @@ export const Config: z<Config> = z.object({
   maxTemplateBytes: z.number().step(1).min(1024).max(WORKBENCH_TEMPLATE_MAX_BYTES).default(WORKBENCH_TEMPLATE_MAX_BYTES),
   maxTemplatesPerCard: z.number().step(1).min(1).max(64).default(WORKBENCH_TEMPLATE_MAX_PER_CARD),
   maxResultBytes: z.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
-  runTimeoutMs: z.number().step(1).min(1000).max(3_600_000).default(120_000),
+  // A run that drives external MCP tools can spend minutes in model steps alone: a
+  // served catalog of a hundred tools makes every step large, and a spilled tool result
+  // costs another read. Two minutes cancelled a real card mid-run; five leaves room
+  // without letting a hung run hold the card indefinitely, and a deployment can still
+  // tighten it here.
+  runTimeoutMs: z.number().step(1).min(1000).max(3_600_000).default(300_000),
   maxConcurrentRuns: z.number().step(1).min(1).max(8).default(1),
   resultStaleAfterMs: z.number().step(1).min(60_000).default(86_400_000),
 })

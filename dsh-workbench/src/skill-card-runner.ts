@@ -690,8 +690,8 @@ export class WorkbenchSkillCardRunner {
     }
     await Promise.allSettled([...this.inflight])
     this.runs.clear()
-    // Card agents outlive a run on purpose (one per card, reused), so the runner owns
-    // their teardown: nothing else would ever release them.
+    // Runs retire their own card agent when they settle; this releases whatever is still
+    // cached — the agent of a run that never started, or one being rebuilt right now.
     const agents = [...this.cardAgents.values()]
     this.cardAgents.clear()
     await Promise.allSettled(agents.map(async (entry) => await entry.handle.dispose()))
@@ -700,11 +700,16 @@ export class WorkbenchSkillCardRunner {
   /**
    * The agent a card's run should hang from, with the card's permission mode applied.
    *
-   * A card that names a workspace gets an agent rooted at that directory, created once and
-   * reused; a card that does not falls back to the session's agent, which is what every run
-   * used before workspaces existed. The sandbox derives its writable root from the session
-   * header, and a child inherits its parent's header, so this is the whole mechanism that
-   * fences a run — no `cwd` is passed and the seam stays untouched.
+   * A card that names a workspace gets an agent rooted at that directory; a card that
+   * does not falls back to the session's agent, which is what every run used before
+   * workspaces existed. The sandbox derives its writable root from the session header,
+   * and a child inherits its parent's header, so this is the whole mechanism that fences
+   * a run — no `cwd` is passed and the seam stays untouched.
+   *
+   * An agent lives for exactly one run: the runner retires it when the run settles
+   * (archiving its session and releasing it), because an archived session cannot host a
+   * subagent descendant. Within one run the cache still matters: a workspace change
+   * rebuilds, and the same path and mode reuse the agent the current run started from.
    *
    * The mode is applied once, here, at creation. A child inherits its parent's explicit
    * override, so recording it on this agent is what makes the card's permission govern
@@ -795,7 +800,6 @@ export class WorkbenchSkillCardRunner {
         outcome = await this.attempt(run, input, cwd, skill, activate)
       }
 await this.finish(run, outcome)
-      await this.archiveCardSession(run.cardId)
     } catch (error) {
       if (signal.aborted) {
         run.phase = 'cancelled'
@@ -810,6 +814,10 @@ await this.finish(run, outcome)
     } finally {
       if (run.timer !== undefined) clearTimeout(run.timer)
       this.active -= 1
+      // Retire the card's agent with the run: an archived session cannot host a child,
+      // so keeping a finished run's agent for reuse would make the next run start under
+      // the archive gate. A later run gets a fresh agent (and a fresh session) instead.
+      await this.retireCardAgent(run.cardId)
     }
   }
 
@@ -967,6 +975,34 @@ await this.finish(run, outcome)
   }
 
   /**
+   * Retire the agent one finished run hung from: archive its session, then release it.
+   *
+   * Creating a published agent also creates a session, and the sidebar lists sessions —
+   * so each finished run's session is archived to keep it out of the default list. The
+   * agent is released in the same step because an archived session cannot host a model
+   * step: the harness rejects a subagent descendant of one before its first step and
+   * reports that as `refusal`. The next run therefore builds a fresh agent — and a fresh
+   * session — instead of reusing this one.
+   * @param cardId - the card whose finished agent should be retired.
+   * @returns resolution once the session is archived and the agent released; neither
+   *   step may turn a captured result into a failure, so both only warn.
+   */
+  private async retireCardAgent(cardId: string): Promise<void> {
+    const entry = this.cardAgents.get(cardId)
+    if (entry === undefined) return
+    this.cardAgents.delete(cardId)
+    try {
+      await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id)
+    } catch (error) {
+      this.options.warn(`workbench card session archive failed: ${messageOf(error)}`)
+    }
+    try {
+      await entry.handle.dispose()
+    } catch (error) {
+      this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`)
+    }
+  }
+  /**
    * Resolve the agent's effective working directory.
    *
    * The service is preferred when the deployment has it; otherwise the session
@@ -975,26 +1011,6 @@ await this.finish(run, outcome)
    * @param signal - cancellation.
    * @returns the directory, or undefined when neither source supplies one.
    */
-/**
-   * Hide the session a card agent published.
-   *
-   * Creating a published agent also creates a session, and the sidebar lists sessions —
-   * so without this every card the user ever ran would leave a `workbench-card-*` row
-   * behind. Archiving is bookkeeping, not deletion: the agent stays reusable and the
-   * session stays readable.
-   * @param cardId - the card whose session should drop out of the default list.
-   * @returns resolution once the archive is recorded; never rejects, because a failed
-   *   archive must not turn a captured result into a failure.
-   */
-  private async archiveCardSession(cardId: string): Promise<void> {
-    const entry = this.cardAgents.get(cardId)
-    if (entry === undefined) return
-    try {
-      await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id)
-    } catch (error) {
-      this.options.warn(`workbench card session archive failed: ${messageOf(error)}`)
-    }
-  }
   private async cwdFor(agent: WorkbenchAgent, signal: AbortSignal): Promise<string | undefined> {
     const service = this.options.workingDirectory
     if (service !== undefined) return await service.ensure(agent, signal)
