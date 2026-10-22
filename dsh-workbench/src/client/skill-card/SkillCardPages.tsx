@@ -29,6 +29,7 @@ import type { WorkbenchModelSeat } from './model.ts'
 import { permissionLabelKey } from './permission.ts'
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
 import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
+import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { dedentedHtml, resultHtml } from './render.ts'
@@ -271,6 +272,18 @@ function RunOutput({
           </>
         )}
       </dl>
+      {/* What the child did, before what it produced: the trace is chronological and the
+          structured value is the answer it arrived at. Absent for a run that recorded no
+          tool call, and then the section is not drawn at all — an empty list would say the
+          run did nothing rather than that nothing was recorded. */}
+      {(result.activity === undefined || result.activity.length === 0)
+        ? null
+        : (
+          <>
+            <p className={css.runOutputLabel}>{t('runActivity')}</p>
+            <ActivityTrace trace={result.activity} t={t} />
+          </>
+        )}
       {parts === undefined ? null : (
         <>
           <p className={css.runOutputLabel}>{t('runStructured')}</p>

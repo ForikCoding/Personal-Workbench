@@ -73,6 +73,65 @@ export const WORKBENCH_REFINE_PREVIOUS_MAX_BYTES = WORKBENCH_RESULT_MAX_BYTES
 export const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024
 
 /**
+ * How many tool calls one run's activity trace keeps, before the oldest are dropped.
+ *
+ * 64 rather than a rounder number because the two budgets meet here: each entry costs at
+ * most a tool name plus 61 characters of argument, so a full trace is under 6 KB — roughly
+ * a tenth of {@link WORKBENCH_RESULT_MAX_BYTES} — while 64 rows is already more than
+ * anyone reads in 运行详情. A run longer than that is summarised by the count it dropped
+ * rather than by an unbounded array that would eventually evict the result itself.
+ */
+export const WORKBENCH_ACTIVITY_MAX_ENTRIES = 64
+
+/**
+ * Longest first argument one activity entry carries, in characters.
+ *
+ * A data-leak boundary rather than a layout preference: an argument is model-authored and
+ * may hold a command, a path, or a value a tool was handed. 60 characters is enough to
+ * recognise the call and not enough to reconstruct a payload or a file's contents.
+ */
+export const WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH = 60
+
+/**
+ * One tool call a run's child made, as the activity trace records it.
+ *
+ * Two fields and nothing else: the tool's name, and the first argument it was given,
+ * already redacted and truncated. The raw arguments are never carried — not by this
+ * record, not by the wire, and not into the child's persisted trace.
+ */
+export interface WorkbenchToolActivity {
+  /** Discriminates a real entry from the {@link WorkbenchTraceTruncation} marker. */
+  readonly kind: 'tool'
+  /** Tool name exactly as the tool registry names it, e.g. `pwsh` or `read`. */
+  readonly tool: string
+  /** The call's first argument, redacted and cut to {@link WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH}. */
+  readonly argument: string
+}
+
+/**
+ * How many earlier entries a bounded trace omitted.
+ *
+ * A first-class entry rather than a second field on the record: truncation has to be
+ * visible wherever the trace travels, and a marker inside the array is one thing to render,
+ * one thing to store, and one thing to keep in budget. Silence would read as "this run
+ * only called three tools" when it called thirty.
+ */
+export interface WorkbenchTraceTruncation {
+  /** Discriminates this marker from a real {@link WorkbenchToolActivity}. */
+  readonly kind: 'truncated'
+  /** Entries dropped from the front of the trace. Always at least one. */
+  readonly dropped: number
+}
+
+/**
+ * One element of a run's activity trace.
+ *
+ * The trace is a tool-call log, which is what "what is it doing" means for a card run: each
+ * entry is one call, and the marker says what a bounded trace left out.
+ */
+export type WorkbenchActivityEntry = WorkbenchToolActivity | WorkbenchTraceTruncation
+
+/**
  * Name of the comment that opens the region a child fills.
  *
  * A template is a whole document: styles and headings say how the result looks but
@@ -476,6 +535,15 @@ export interface WorkbenchResultRecord {
    * edit is not one.
    */
   readonly editedAt?: number
+  /**
+   * What the child did while it ran, oldest first.
+   *
+   * Absent means the run recorded no tool call — either it needed none, or the harness it
+   * ran on reported none — and 运行详情 then says nothing about activity instead of
+   * drawing an empty list. Present means the trace is complete save for what its own
+   * {@link WorkbenchTraceTruncation} marker admits to dropping.
+   */
+  readonly activity?: readonly WorkbenchActivityEntry[]
 }
 
 /**
@@ -721,6 +789,15 @@ export interface WorkbenchRunState {
   readonly failure?: string
   /** Machine-readable terminal failure reason, so the client can act on it. */
   readonly failureCode?: WorkbenchSkillCardErrorCode
+  /**
+   * What the child has done so far, oldest first; absent while it has done nothing.
+   *
+   * Carried on the poll the client already makes, so the running card's stream costs no
+   * transport of its own. The same array settles into
+   * {@link WorkbenchResultRecord.activity}, which is what keeps it visible in 运行详情
+   * after the run.
+   */
+  readonly activity?: readonly WorkbenchActivityEntry[]
 }
 
 /** Run-state response body. */

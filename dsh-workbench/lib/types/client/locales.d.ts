@@ -134,6 +134,9 @@ export declare const zh: {
     runStructured: string;
     runRawOutput: string;
     runDiagnostic: string;
+    runActivity: string;
+    runElapsed: string;
+    runActivityTruncated: string;
     runStopCompleted: string;
     runStopError: string;
     runStopAborted: string;

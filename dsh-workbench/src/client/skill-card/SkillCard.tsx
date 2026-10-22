@@ -18,6 +18,7 @@ import type { WorkbenchActionEvent } from './render.ts'
 import { useSkillCard } from './controller.ts'
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
+import { RunningNotice } from './ActivityTrace.tsx'
 import css from './skill-card.module.css'
 
 /** Identity of the one skill card. */
@@ -182,8 +183,12 @@ function cardContent(
   // A refinement is the exception: it edits the result already on screen, so replacing
   // that result with a progress notice hides the very thing being revised. The surface
   // stays, marked busy, and is swapped when the new version arrives.
+  //
+  // The notice carries the run's own activity stream — the tool calls the child has made
+  // so far — and falls back to this card's previous sentence when there is nothing to list
+  // yet. See {@link RunningNotice}.
   if (view.run?.phase === 'running' && view.refining !== true) {
-    return <Notice title={t('runStatusRunning')} body={t('skillCardRunningBody')} />
+    return <RunningNotice run={view.run} t={t} />
   }
   if (view.result === undefined) {
     return <Notice title={t('skillCardNotRunTitle')} body={t('skillCardNotRunBody')} />

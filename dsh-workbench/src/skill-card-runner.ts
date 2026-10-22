@@ -10,6 +10,7 @@
  */
 
 import type {
+  WorkbenchActivityEntry,
   WorkbenchCardConfigView,
   WorkbenchCardModel,
   WorkbenchCardWorkspace,
@@ -22,6 +23,8 @@ import type {
   WorkbenchSkillCatalogEntry,
 } from './skill-card-contract.ts'
 import { effectiveWorkbenchSandboxMode } from './skill-card-contract.ts'
+import type { WorkbenchActivityEvent } from './skill-card-activity.ts'
+import { activityEntryFor, withActivityEntry } from './skill-card-activity.ts'
 import type {
   WorkbenchActivationSeam,
   WorkbenchAgent,
@@ -183,6 +186,15 @@ interface RunRecord {
   /** Whether the deadline, rather than a caller, ended this run. */
   timedOut: boolean
   timer?: ReturnType<typeof setTimeout>
+  /**
+   * What the child has done so far, oldest first.
+   *
+   * The same array is both what a poll reports while the run is live and what settles into
+   * the stored record, so the stream and 运行详情 can never disagree about what happened.
+   * Kept whole for the run rather than per attempt: a retry is part of this run, and a trace
+   * that started over would hide the work the first attempt did.
+   */
+  activity: WorkbenchActivityEntry[]
 }
 
 /**
@@ -494,6 +506,7 @@ export class WorkbenchSkillCardRunner {
       phase: 'running',
       retried: false,
       timedOut: false,
+      activity: [],
     }
     run.timer = setTimeout(() => {
       // Recorded before the abort so the settle path can tell a deadline from a
@@ -582,6 +595,25 @@ export class WorkbenchSkillCardRunner {
     for (const run of this.runs.values()) {
       if (run.childId !== agentId || run.phase !== 'running') continue
       run.childError = messageOf(error)
+    }
+  }
+
+  /**
+   * Record one of a child agent's session events against the run that started it.
+   *
+   * The same bus, the same attribution rule, and the same "an agent this runner did not
+   * start is ignored" contract as {@link observeAgentError}: the child's session id is the
+   * identity both events carry. Only `tool/call` produces an entry — the mapping lives in
+   * `skill-card-activity.ts`, together with the redaction and the two bounds.
+   * @param sessionId - the session the event came from, which is the child's id.
+   * @param event - the session event as the bus delivered it.
+   */
+  observeChildEvent(sessionId: string, event: WorkbenchActivityEvent): void {
+    const entry = activityEntryFor(event)
+    if (entry === undefined) return
+    for (const run of this.runs.values()) {
+      if (run.childId !== sessionId || run.phase !== 'running') continue
+      run.activity = withActivityEntry(run.activity, entry)
     }
   }
 
@@ -869,7 +901,13 @@ await this.finish(run, outcome)
       return
     }
 
-    run.result = outcome.record
+    // The trace joins the record here rather than in the attempt, because this is the one
+    // place that decides what the run keeps: a bare run keeps nothing, and a run whose
+    // child used no tools carries no field at all instead of an empty one.
+    const record = run.bare || run.activity.length === 0
+      ? outcome.record
+      : { ...outcome.record, activity: run.activity }
+    run.result = record
     run.phase = 'settled'
     if (outcome.kind === 'unusable') {
       run.failure = outcome.failure
@@ -879,7 +917,7 @@ await this.finish(run, outcome)
     // and a reload leaves the card showing its own stored result.
     if (run.bare) return
     try {
-      await this.options.saveResult(run.cardId, outcome.record)
+      await this.options.saveResult(run.cardId, record)
     } catch (error) {
       // The card still reports the in-memory result; only the durable copy is lost.
       this.options.warn(`workbench skill card result could not be stored: ${messageOf(error)}`)
@@ -932,6 +970,7 @@ await this.finish(run, outcome)
       phase: run.phase,
       startedAt: run.startedAt,
       retried: run.retried,
+      ...run.activity.length === 0 ? {} : { activity: run.activity },
       ...run.result === undefined ? {} : { result: run.result },
       ...run.failure === undefined ? {} : { failure: run.failure },
       ...run.failureCode === undefined ? {} : { failureCode: run.failureCode },

@@ -10,6 +10,8 @@
  *   [2] the sandbox policy that derivation yields, plus writes inside and outside it
  *   [3] where the new session is listed (sessions store, sessionQuery, workspaces)
  *   [4] whether an `agents.create`-based path can capture structured output
+ *   [6] the live activity bus: which event types describe a child using a tool, and
+ *       how a host plugin addresses just that child
  *
  * The model is mocked (MockAdapter, the contract upstream's own test helper
  * uses); everything else - loader, session store, projections, agent loop,
@@ -72,6 +74,16 @@ const { LlmAdapter, ToolCallId, createUserMessage } = await import('@deepseek-ai
 /** Mock model adapter: the upstream test helper's contract, model only. */
 class MockAdapter extends LlmAdapter {
   requests = []
+  /** Tool names every request offered, first request first. */
+  toolNames = []
+  /**
+   * Tool this adapter calls once per agent, when the agent offers it.
+   *
+   * Set by case [6] to measure what a real tool call looks like on the bus. `null`
+   * keeps the earlier prose/capture behaviour. The call is issued on the first request
+   * that offers the tool and no tool result yet, so the child performs exactly one call.
+   */
+  tool = null
 
   resolveModel(provider, model) {
     return Promise.resolve({ provider, id: model, name: model })
@@ -79,20 +91,25 @@ class MockAdapter extends LlmAdapter {
 
   async * stream(options) {
     const toolNames = (options.tools ?? []).map(tool => tool.name)
+    if (this.toolNames.length === 0) this.toolNames = toolNames
     // The child that was handed an output contract answers through the capture
     // tool once; afterwards (and for every agent without that tool) it answers
     // in prose.
     const alreadyCaptured = (options.messages ?? []).some(message => message.role === 'tool')
     const wantsCapture = toolNames.includes('structured_output') && !alreadyCaptured
+    const wantsTool = this.tool !== null && toolNames.includes(this.tool.name) && !alreadyCaptured
     this.requests.push({
       wantsCapture,
+      wantsTool,
       structuredTool: toolNames.includes('structured_output'),
       toolCount: toolNames.length,
       messages: (options.messages ?? []).length,
     })
-    const chunks = wantsCapture
-      ? toolCallResponse(`capture-${this.requests.length}`, 'structured_output', { html: '<b>hi</b>' })
-      : textResponse('plain prose answer, no capture')
+    const chunks = wantsTool
+      ? toolCallResponse(`tool-${this.requests.length}`, this.tool.name, this.tool.args)
+      : wantsCapture
+        ? toolCallResponse(`capture-${this.requests.length}`, 'structured_output', { html: '<b>hi</b>' })
+        : textResponse('plain prose answer, no capture')
     for (const chunk of chunks) {
       if (options.signal?.aborted) throw new Error('aborted')
       yield chunk
@@ -431,6 +448,140 @@ try {
     await cardAgent.dispose()
   } else {
     report('card parent case', 'skipped: startActivation missing')
+  }
+
+  // [6] THE LIVE ACTIVITY BUS. The question this answers: what does a host plugin
+  // actually receive while a seam child is using a tool, and how does it address just
+  // that child? Everything below is measured from real bus traffic, not from a type.
+  log('')
+  log('[6] LIVE ACTIVITY: what arrives on the bus while a child uses a tool?')
+  if (typeof ctx.subagents.startActivation === 'function') {
+    /** Everything the root bus delivered, in arrival order. */
+    const busLog = []
+    const keysOf = value => (value === null || typeof value !== 'object' ? null : Object.keys(value))
+    const runtimeOf = (name, payload, extra) => {
+      const agentId = payload?.agent?.id
+      const sessionId = payload?.session?.id
+      busLog.push({
+        bus: name,
+        agentId,
+        sessionId,
+        ...extra,
+      })
+    }
+    // The same `ctx.on(...)` route the product's own `agent/error` attribution uses:
+    // one root subscription, narrowed by identity in the listener.
+    const offSession = ctx.on('session/event', (session, event) => {
+      runtimeOf('session/event', { session }, {
+        type: event?.type,
+        dataKeys: keysOf(event?.data),
+        // The two fields a "tool name + first argument" entry needs, named as measured.
+        name: event?.data?.name,
+        arguments: typeof event?.data?.arguments === 'string'
+          ? event.data.arguments.slice(0, 160)
+          : undefined,
+        argKeys: (() => {
+          const raw = event?.data?.arguments
+          if (typeof raw !== 'string') return undefined
+          try {
+            const parsed = JSON.parse(raw)
+            return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+              ? Object.keys(parsed)
+              : [typeof parsed]
+          } catch {
+            return ['<unparseable>']
+          }
+        })(),
+        callId: event?.data?.callId,
+        isError: event?.data?.message?.isError,
+      })
+    })
+    const offStream = ctx.on('agent/assistant-stream', ({ agent, frame }) => {
+      runtimeOf('agent/assistant-stream', { agent }, { type: frame?.type, frameKeys: keysOf(frame) })
+    })
+    const offStatus = ctx.on('agent/status', ({ agent, status }) => {
+      runtimeOf('agent/status', { agent }, { status })
+    })
+    // NOT `agent/request`: it is declared `@mode waterfall`, so a passive listener that
+    // returns nothing replaces the frozen call configuration with `undefined`, and the step
+    // then fails as `Cannot read properties of undefined (reading 'provider')`. Measured
+    // here, the hard way.
+    const offError = ctx.on('agent/error', ({ agent, error }) => {
+      runtimeOf('agent/error', { agent }, {
+        error: String(error?.message ?? error),
+        stack: String(error?.stack ?? '').split('\n').slice(0, 6).join(' | '),
+      })
+    })
+
+    // The mock calls the real shell tool once: the prompt asks for it, and the mock
+    // picks the tool the composition actually offers. The parent carries the route, because
+    // a child inherits its parent's call configuration and an unconfigured parent leaves the
+    // child's request with no provider at all (measured: it fails as
+    // `Cannot read properties of undefined (reading 'provider')`).
+    adapter.tool = { name: 'pwsh', args: { description: 'Probe one shell call', command: 'echo dsh-probe-tool-activity' } }
+    const activityParent = await ctx.agents.create({
+      sessionId: 'probe-activity-parent',
+      meta: { cwd: projectDir },
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    const activity = await ctx.subagents.startActivation({
+      provider: 'spawn',
+      label: 'probe-activity',
+      delivery: 'caller',
+      signal: new AbortController().signal,
+      request: {
+        parent: activityParent.agent,
+        prompt: [{ type: 'text', text: 'Write the file probe-note.txt in the working directory, then say done.' }],
+        cwd: projectDir,
+      },
+    })
+    const activityChildId = activity.childId
+    const activityResult = await activity.result
+    await activity.dispose().catch(() => {})
+    await activityParent.dispose().catch(() => {})
+    adapter.tool = null
+    offSession()
+    offStream()
+    offStatus()
+    offError()
+
+    report('tools the child was offered', adapter.toolNames)
+    report('activity parent agent.options', activityParent.agent.options)
+    report('activity parent requestHeader config', activityParent.agent.session.requestHeader?.()?.config ?? null)
+    report('child answered with', activityResult.stopReason)
+    report('child id', activityChildId)
+    const childOnly = busLog.filter(entry => entry.agentId === activityChildId || entry.sessionId === activityChildId)
+    report('bus entries total / addressed to this child', `${String(busLog.length)} / ${String(childOnly.length)}`)
+    report('child bus entries rounded to 24 characters',
+      childOnly.reduce((counts, entry) => {
+        const key = `${entry.bus}:${String(entry.type ?? entry.status)}`
+        counts[key] = (counts[key] ?? 0) + 1
+        return counts
+      }, {}))
+    log('  --- every child bus entry, verbatim ---')
+    for (const entry of childOnly) log(`  ${JSON.stringify(entry)}`)
+    const toolCalls = childOnly.filter(entry => entry.type === 'tool/call')
+    report('tool/call entries addressed to the child', toolCalls)
+    const toolResults = childOnly.filter(entry => entry.type === 'tool/result')
+    report('tool/result entries addressed to the child', toolResults)
+    report('command/run entries (slash commands) seen', busLog.filter(entry => entry.type === 'command/run'))
+    report('distinct session/event types from this child',
+      [...new Set(childOnly.filter(entry => entry.bus === 'session/event').map(entry => entry.type))])
+    report('agent/status values for this child',
+      childOnly.filter(entry => entry.bus === 'agent/status').map(entry => entry.status))
+    report('agent/assistant-stream frame types for this child',
+      [...new Set(childOnly.filter(entry => entry.bus === 'agent/assistant-stream').map(entry => entry.type))])
+    report('agent/assistant-stream frame for this child (first three)',
+      childOnly.filter(entry => entry.bus === 'agent/assistant-stream').slice(0, 3))
+    // Whether the same events are also readable from the log afterwards, which is the
+    // fallback if a bus subscription turns out to be unavailable to a plugin.
+    const childLog = (await ctx.sessionQuery.observeSession(activityChildId)).events
+    report('child session log types after settlement', childLog.map(event => event.type))
+    check('activityToolCallOnBus', toolCalls.length > 0)
+    check('activityToolCallInLog',
+      childLog.filter(event => event.type === 'tool/call').map(event => ({ name: event.data?.name })))
+  } else {
+    report('activity case', 'skipped: startActivation missing')
   }
 
   await created.dispose()

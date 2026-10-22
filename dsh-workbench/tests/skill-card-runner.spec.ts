@@ -500,6 +500,82 @@ describe('workbench skill card runner', () => {
       expect(state?.result?.diagnostic).toBeUndefined()
     })
 
+    it('streams what the child is doing, and keeps that trace in the settled record', async () => {
+      // The trace is what a running card shows and what 运行详情 keeps, so it has to reach
+      // both: the live state the poll reports, and the record the store writes. One array
+      // feeds both, which is what keeps the stream and the record from disagreeing.
+      const { runner, fake, saved } = setup({ outcomes: ['manual'] })
+      await runner.start(request())
+      for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
+      const call = { type: 'tool/call', data: { turn: 1, step: 1, callId: 'c1', name: 'pwsh', arguments: '{"command":"echo hi"}' } }
+      runner.observeChildEvent('child', call)
+      runner.observeChildEvent('child', {
+        type: 'tool/call',
+        data: { turn: 1, step: 2, callId: 'c2', name: 'read', arguments: '{"path":"README.md"}' },
+      })
+      const live = runner.state('skill-card')
+      expect(live?.phase).toBe('running')
+      expect(live?.activity).toEqual([
+        { kind: 'tool', tool: 'pwsh', argument: 'echo hi' },
+        { kind: 'tool', tool: 'read', argument: 'README.md' },
+      ])
+      fake.settleChild({ output: [], stopReason: 'completed', structured: { html: '<b>a</b>' } })
+      const state = await settle(runner)
+      expect(state?.result?.activity).toEqual(live?.activity)
+      expect(saved[0]?.record.activity).toEqual(live?.activity)
+    })
+
+    it('records nothing for a child that used no tools', async () => {
+      // Absent is not an empty list: the result page draws no activity section for a run
+      // that called nothing, so the field must not appear.
+      const { runner, saved } = setup()
+      await runner.start(request())
+      const state = await settle(runner)
+      expect(state?.activity).toBeUndefined()
+      expect(state?.result === undefined ? {} : state.result).not.toHaveProperty('activity')
+      expect(saved[0]?.record).not.toHaveProperty('activity')
+    })
+
+    it('ignores activity from an agent this runner did not start', async () => {
+      const { runner, fake } = setup({ outcomes: ['manual'] })
+      await runner.start(request())
+      for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
+      runner.observeChildEvent('some-other-agent', {
+        type: 'tool/call',
+        data: { name: 'read', arguments: '{"path":"private.txt"}' },
+      })
+      expect(runner.state('skill-card')?.activity).toBeUndefined()
+      fake.settleChild({ output: [], stopReason: 'completed', structured: { html: '<b>a</b>' } })
+      const state = await settle(runner)
+      expect(state?.result).not.toHaveProperty('activity')
+    })
+
+    it('records nothing for an event type that is not a tool call', async () => {
+      const { runner, fake } = setup({ outcomes: ['manual'] })
+      await runner.start(request())
+      for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
+      for (const type of ['tool/result', 'assistant/message', 'turn/start', 'user/message']) {
+        runner.observeChildEvent('child', { type, data: { name: 'read', arguments: '{"path":"a"}' } })
+      }
+      expect(runner.state('skill-card')?.activity).toBeUndefined()
+      fake.settleChild({ output: [], stopReason: 'completed', structured: { html: '<b>a</b>' } })
+      await settle(runner)
+    })
+
+    it('keeps a bare run trace out of the record it never stores', async () => {
+      // A bare run answers only whether it worked, so nothing about it is written down —
+      // the trace included. It is still visible on the live state, where the poll reads it.
+      const { runner, fake, saved } = setup({ outcomes: ['manual'] })
+      await runner.start(request({ mode: { kind: 'bare', skill: 'git-repo' }, outputSchema: undefined }))
+      for (let tick = 0; tick < 50; tick += 1) await Promise.resolve()
+      runner.observeChildEvent('child', { type: 'tool/call', data: { name: 'read', arguments: '{"path":"a"}' } })
+      expect(runner.state('skill-card')?.activity).toHaveLength(1)
+      fake.settleChild({ output: [], stopReason: 'completed' })
+      const state = await settle(runner)
+      expect(saved).toEqual([])
+      expect(state?.result).not.toHaveProperty('activity')
+    })
+
     it('names a child that answered without reporting a structured result', async () => {
       const { runner, fake, saved } = setup({
         outcomes: [

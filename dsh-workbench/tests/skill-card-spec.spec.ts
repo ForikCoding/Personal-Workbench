@@ -155,4 +155,58 @@ describe('workbench storage schemas', () => {
     const parsed = workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed' })
     expect(parsed).not.toHaveProperty('model')
   })
+
+  it('keeps the run activity trace across a load', () => {
+    // The fifth field added this way. The runner writes the trace and 运行详情 renders it, so
+    // the schema has to declare it in the same change: an undeclared field survives the write
+    // and is dropped on the next load, which would show the stream while the run is live and
+    // lose every line of it after a restart.
+    const result = {
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      activity: [
+        { kind: 'tool', tool: 'pwsh', argument: 'Probe one shell call' },
+        { kind: 'tool', tool: 'read', argument: 'D:\\Git\\Personal-Workbench\\README.md' },
+      ],
+    }
+    const parsed = workbenchResultSchema.parse(result)
+    expect(parsed).toEqual(result)
+    // Round trip in the shape storage actually performs: stringify, parse, parse again.
+    expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(result)
+  })
+
+  it('keeps the truncation marker, which is the trace admitting what it dropped', () => {
+    const result = {
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      activity: [{ kind: 'truncated', dropped: 6 }, { kind: 'tool', tool: 'read', argument: 'a' }],
+    }
+    expect(workbenchResultSchema.parse(result)).toEqual(result)
+  })
+
+  it('leaves a run that called no tools without a trace field', () => {
+    // Absent is not the same fact as an empty list: the result page draws no activity
+    // section for it, and the schema must not invent an empty one.
+    const parsed = workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed' })
+    expect(parsed).not.toHaveProperty('activity')
+  })
+
+  it('refuses an activity entry this build cannot render', () => {
+    // A record with a kind nothing maps would be drawn as a blank row, so it fails here and
+    // the domain backs it up and skips it — the same treatment every other unreadable
+    // record gets.
+    for (const activity of [
+      [{ kind: 'thought', tool: 'read', argument: 'a' }],
+      [{ kind: 'tool', argument: 'a' }],
+      [{ kind: 'tool', tool: '', argument: 'a' }],
+      [{ kind: 'truncated', dropped: 0 }],
+      [{ kind: 'truncated', dropped: -1 }],
+      [{ kind: 'tool', tool: 'read', argument: 'a' }, 'oops'],
+    ]) {
+      expect(workbenchResultSchema.safeParse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed', activity }).success)
+        .toBe(false)
+    }
+  })
 })

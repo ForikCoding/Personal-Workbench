@@ -612,6 +612,21 @@ const workbenchCardConfigSchema = z.object({
 /** Stored schema for one template. */
 const workbenchTemplateSchema = z.object({ html: z.string() });
 /**
+* Stored form of one activity entry.
+*
+* A discriminated union rather than an optional `dropped` field on one shape: the trace is
+* a list of calls plus, at most once and only at the front, the count a bound removed. Both
+* halves are stored, so a bounded trace says so after a reload instead of looking complete.
+*/
+const workbenchActivityEntrySchema = z.discriminatedUnion("kind", [z.object({
+	kind: z.literal("tool"),
+	tool: z.string().min(1),
+	argument: z.string()
+}), z.object({
+	kind: z.literal("truncated"),
+	dropped: z.number().int().positive()
+})]);
+/**
 * Stored schema for one result.
 *
 * `stopReason` stays a plain string because the upstream stop reasons are
@@ -625,6 +640,12 @@ const workbenchTemplateSchema = z.object({ html: z.string() });
 * `model` is declared for the same reason: the runner stamps the route it ran on, and a
 * result that silently lost it would put the user back to guessing which model produced
 * what they are reading.
+*
+* `activity` follows the same rule, and it is the fifth field added this way. The runner
+* writes the trace and 运行详情 renders it after the run, so a schema that did not declare
+* it would show the stream while the run is live and then lose every line of it on the
+* next load — a trace that vanishes is worse than no trace, because the card looks like a
+* run that used no tools.
 */
 const workbenchResultSchema = z.object({
 	skill: z.string(),
@@ -634,7 +655,8 @@ const workbenchResultSchema = z.object({
 	structured: z.unknown().optional(),
 	outputText: z.string().optional(),
 	diagnostic: z.string().optional(),
-	editedAt: z.number().finite().nonnegative().optional()
+	editedAt: z.number().finite().nonnegative().optional(),
+	activity: z.array(workbenchActivityEntrySchema).optional()
 });
 /**
 * Present a zod schema as the domain table's schema type.
@@ -791,6 +813,182 @@ async function isWritable(path) {
 	} catch {
 		return false;
 	}
+}
+/**
+* Every secret that names itself in a model-authored argument.
+*
+* Ordered, and applied before truncation. The rule is deliberately shape-based rather than
+* a list of values this product happens to know: it has to catch a key the child was handed,
+* whatever issued it. The families are:
+*
+* - **flag values** — `--token abc`, `--password=abc`: the flag stays so the trace still
+*   says what the call was doing, and its value goes.
+* - **named values** — `password=abc`, `token: abc`, `api_key=abc`: the name and the
+*   separator stay, the value goes.
+* - **bearer credentials** — `Authorization: Bearer abc`.
+* - **prefixed credentials** — `sk-…`, `ghp_…`, `github_pat_…`, `AKIA…`: recognizable on
+*   their own, so the whole token goes.
+*/
+const NAMED_SECRET_PATTERNS = [
+	{
+		pattern: /(?<![A-Za-z0-9])(--?(?:password|passwd|token|secret|api[-_]?key|access[-_]?key))(\s+|=)(?:"[^"]*"|'[^']*'|\S+)/gi,
+		replacement: `$1$2***`
+	},
+	{
+		pattern: /\b(password|passwd|secret|token|api[-_]?key|access[-_]?key|client[-_]?secret)(\s*[:=]\s*)(?:"[^"]*"|'[^']*'|\S+)/gi,
+		replacement: `$1$2***`
+	},
+	{
+		pattern: /(?<![A-Za-z0-9])bearer\s+[A-Za-z0-9._\-+/=]{8,}/gi,
+		replacement: `Bearer ***`
+	},
+	{
+		pattern: /(?<![A-Za-z0-9])(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g,
+		replacement: "***"
+	},
+	{
+		pattern: /(?<![A-Za-z0-9])(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})/g,
+		replacement: "***"
+	},
+	{
+		pattern: /(?<![A-Za-z0-9])AKIA[0-9A-Z]{12,}/g,
+		replacement: "***"
+	}
+];
+/**
+* A long unbroken run of key material: what a base64 or hex token looks like once nothing
+* names it.
+*
+* A candidate is only replaced when it holds both a digit and a letter, which is what tells
+* a token apart from a long ordinary word — otherwise a 40-character identifier in an
+* argument would be masked for no reason, and the trace would lose the very text it exists
+* to show.
+*/
+const OPAQUE_SECRET_RUN = /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{32,}={0,2}(?![A-Za-z0-9+/_=-])/g;
+/**
+* Remove anything in one argument that looks like a secret.
+*
+* Applied to the text before truncation, so a credential that straddles the cut is replaced
+* whole rather than left as an unmatched fragment.
+* @param text - the argument as it was read off the event.
+* @returns the same text with every match replaced by `***`.
+*/
+function redactActivityText(text) {
+	let redacted = text;
+	for (const { pattern, replacement } of NAMED_SECRET_PATTERNS) {
+		pattern.lastIndex = 0;
+		redacted = redacted.replace(pattern, replacement);
+	}
+	OPAQUE_SECRET_RUN.lastIndex = 0;
+	redacted = redacted.replace(OPAQUE_SECRET_RUN, (run) => /[0-9]/.test(run) && /[A-Za-z]/.test(run) ? "***" : run);
+	return redacted;
+}
+/**
+* Cut one argument to the stored length, marking the cut.
+*
+* The ellipsis is what makes truncation visible in the entry itself: a reader who sees one
+* knows the call carried more than the card is showing. Counted in code points so a
+* multi-byte character is never cut in half.
+* @param text - redacted argument.
+* @returns the text, unchanged when it fits.
+*/
+function truncateActivityText(text) {
+	const points = Array.from(text);
+	if (points.length <= 60) return text;
+	return `${points.slice(0, 60).join("")}…`;
+}
+/**
+* Read the first argument out of one `tool/call` payload.
+*
+* "First" is the first key of the parsed arguments object in the order the model produced
+* it — never a key this feature picked. Measured on `pwsh`, whose schema lists
+* `description` before `command`, that is the human-readable summary the tool schema itself
+* says is shown in the UI; on `read` it is the path. A string value travels verbatim, any
+* other value is serialised, and a payload that is not a JSON object falls back to its raw
+* text so an entry still exists for the call.
+* @param raw - `data.arguments`, the unparsed JSON string the model produced.
+* @returns the argument text, or undefined when the event carried none.
+*/
+function firstArgumentOf(raw) {
+	if (typeof raw !== "string" || raw === "") return void 0;
+	let parsed;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return raw;
+	}
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return typeof parsed === "string" ? parsed : void 0;
+	for (const value of Object.values(parsed)) {
+		if (typeof value === "string") return value;
+		const serialised = JSON.stringify(value);
+		if (serialised !== void 0) return serialised;
+	}
+}
+/**
+* Read one entry out of one session event.
+*
+* The only event type mapped is `tool/call`. Nothing is inferred from the tool's own name
+* and no other event type is guessed at: a `tool/result` carries no name at all (measured:
+* its data keys are `turn`, `step`, `message`, `meta`), and a shell command is exactly a
+* `tool/call` naming `pwsh` or `bash` — `command/run` is a slash command, not a shell one,
+* and was measured to stay silent during a shell tool call.
+* @param event - one session event from the Host bus.
+* @returns the entry, or undefined for an event the trace does not record.
+*/
+function activityEntryFor(event) {
+	if (event.type !== "tool/call") return void 0;
+	const data = event.data;
+	if (typeof data !== "object" || data === null) return void 0;
+	const name = Reflect.get(data, "name");
+	if (typeof name !== "string" || name === "") return void 0;
+	return {
+		kind: "tool",
+		tool: name,
+		argument: truncateActivityText(redactActivityText(firstArgumentOf(Reflect.get(data, "arguments")) ?? ""))
+	};
+}
+/**
+* Split a trace into its tool entries and the number it already admits to dropping.
+* @param trace - a stored trace, possibly carrying markers from an earlier bound.
+* @returns the tool entries, oldest first, and the total dropped count.
+*/
+function splitActivity(trace) {
+	const tools = [];
+	let dropped = 0;
+	for (const entry of trace ?? []) if (entry.kind === "tool") tools.push(entry);
+	else dropped += entry.dropped;
+	return {
+		tools,
+		dropped
+	};
+}
+/**
+* Fit one trace to the entry bound, keeping the newest entries.
+*
+* The dropped count is carried as the marker entry rather than as a second field on the
+* record, so it survives the same round trip as the entries do and cannot be lost by a
+* reader that ignores it.
+* @param trace - the trace to fit, already carrying any earlier marker.
+* @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
+*/
+function boundActivity(trace) {
+	const { tools, dropped } = splitActivity(trace);
+	const over = Math.max(0, tools.length - 64);
+	const kept = over === 0 ? tools : tools.slice(over);
+	const total = dropped + over;
+	return [...total === 0 ? [] : [{
+		kind: "truncated",
+		dropped: total
+	}], ...kept];
+}
+/**
+* Append one entry to a trace and fit the result.
+* @param trace - the trace so far; absent starts an empty one.
+* @param entry - the call just recorded.
+* @returns the bounded trace.
+*/
+function withActivityEntry(trace, entry) {
+	return boundActivity([...trace ?? [], entry]);
 }
 //#endregion
 //#region src/skill-card-prompt.ts
@@ -1176,7 +1374,8 @@ var WorkbenchSkillCardRunner = class {
 			bare: mode.kind === "bare",
 			phase: "running",
 			retried: false,
-			timedOut: false
+			timedOut: false,
+			activity: []
 		};
 		run.timer = setTimeout(() => {
 			run.timedOut = true;
@@ -1246,6 +1445,24 @@ var WorkbenchSkillCardRunner = class {
 		for (const run of this.runs.values()) {
 			if (run.childId !== agentId || run.phase !== "running") continue;
 			run.childError = messageOf(error);
+		}
+	}
+	/**
+	* Record one of a child agent's session events against the run that started it.
+	*
+	* The same bus, the same attribution rule, and the same "an agent this runner did not
+	* start is ignored" contract as {@link observeAgentError}: the child's session id is the
+	* identity both events carry. Only `tool/call` produces an entry — the mapping lives in
+	* `skill-card-activity.ts`, together with the redaction and the two bounds.
+	* @param sessionId - the session the event came from, which is the child's id.
+	* @param event - the session event as the bus delivered it.
+	*/
+	observeChildEvent(sessionId, event) {
+		const entry = activityEntryFor(event);
+		if (entry === void 0) return;
+		for (const run of this.runs.values()) {
+			if (run.childId !== sessionId || run.phase !== "running") continue;
+			run.activity = withActivityEntry(run.activity, entry);
 		}
 	}
 	/**
@@ -1476,7 +1693,11 @@ var WorkbenchSkillCardRunner = class {
 			run.failureCode = outcome.code;
 			return;
 		}
-		run.result = outcome.record;
+		const record = run.bare || run.activity.length === 0 ? outcome.record : {
+			...outcome.record,
+			activity: run.activity
+		};
+		run.result = record;
 		run.phase = "settled";
 		if (outcome.kind === "unusable") {
 			run.failure = outcome.failure;
@@ -1484,7 +1705,7 @@ var WorkbenchSkillCardRunner = class {
 		}
 		if (run.bare) return;
 		try {
-			await this.options.saveResult(run.cardId, outcome.record);
+			await this.options.saveResult(run.cardId, record);
 		} catch (error) {
 			this.options.warn(`workbench skill card result could not be stored: ${messageOf(error)}`);
 		}
@@ -1534,6 +1755,7 @@ var WorkbenchSkillCardRunner = class {
 			phase: run.phase,
 			startedAt: run.startedAt,
 			retried: run.retried,
+			...run.activity.length === 0 ? {} : { activity: run.activity },
 			...run.result === void 0 ? {} : { result: run.result },
 			...run.failure === void 0 ? {} : { failure: run.failure },
 			...run.failureCode === void 0 ? {} : { failureCode: run.failureCode }
@@ -2551,10 +2773,16 @@ function utf8Bytes(value) {
 * Fit one result inside a byte budget.
 *
 * The structured value is what the card renders, so it is dropped only when it
-* cannot fit on its own; the text output and the provider diagnostic are then
-* attached in that order, each truncated to whatever budget remains. This keeps
-* one oversized run from growing the domain without bound while preserving the
-* value the card actually displays.
+* cannot fit on its own; the activity trace, the text output, and the provider
+* diagnostic are then attached in that order, each truncated to whatever budget
+* remains. This keeps one oversized run from growing the domain without bound while
+* preserving the value the card actually displays.
+*
+* The trace comes before the raw output on purpose: it is what 运行详情 leads with, it is
+* bounded to a few kilobytes by its own limit, and the raw output is material nobody opens
+* unless they are debugging. When even part of the trace cannot be kept, the marker that
+* reports how many entries were dropped is kept instead — a trace that quietly disappeared
+* would read as a run that called no tools at all.
 * @param record - the complete result.
 * @param maxBytes - the deployment's budget for one record.
 * @returns a record no larger than the budget, when an empty record fits at all.
@@ -2572,6 +2800,11 @@ function trimResult(record, maxBytes) {
 		structured: record.structured
 	};
 	let current = byteSize(withStructured) <= maxBytes ? withStructured : base;
+	const activity = fitActivity(record.activity, current, maxBytes);
+	if (activity !== void 0) current = {
+		...current,
+		activity
+	};
 	for (const field of ["outputText", "diagnostic"]) {
 		const value = record[field];
 		if (value === void 0) continue;
@@ -2602,6 +2835,48 @@ function trimResult(record, maxBytes) {
 		};
 	}
 	return current;
+}
+/**
+* Keep as much of one activity trace as the remaining budget allows.
+*
+* The newest calls are kept first for the same reason the run's own bound keeps them: a
+* trace is read from its end, and the calls nearest the result are the ones that produced
+* it. Whatever is shed is reported by the marker entry, so the stored record still says how
+* many calls happened.
+* @param trace - the trace as the run recorded it.
+* @param base - the record the trace has to fit inside, as far as it is built.
+* @param maxBytes - the deployment's budget for one record.
+* @returns the trace to store, or undefined when none of it fits.
+*/
+function fitActivity(trace, base, maxBytes) {
+	if (trace === void 0) return void 0;
+	const { tools, dropped } = splitActivity(trace);
+	if (tools.length === 0) {
+		const whole = [...trace];
+		return byteSize({
+			...base,
+			activity: whole
+		}) <= maxBytes ? whole : void 0;
+	}
+	for (let keep = tools.length; keep >= 1; keep -= 1) {
+		const omitted = dropped + (tools.length - keep);
+		const candidate = [...omitted === 0 ? [] : [{
+			kind: "truncated",
+			dropped: omitted
+		}], ...tools.slice(tools.length - keep)];
+		if (byteSize({
+			...base,
+			activity: candidate
+		}) <= maxBytes) return candidate;
+	}
+	const omittedOnly = [{
+		kind: "truncated",
+		dropped: dropped + tools.length
+	}];
+	return byteSize({
+		...base,
+		activity: omittedOnly
+	}) <= maxBytes ? omittedOnly : void 0;
 }
 //#endregion
 //#region src/config.ts
@@ -2762,9 +3037,19 @@ function apply(ctx, config) {
 			warn
 		});
 		const disposers = [
-			ctx.effect(() => ctx.on("agent/error", ({ agent, error }) => {
-				runner.observeAgentError(agent.id, error);
-			}), "workbench: child agent failures"),
+			ctx.effect(() => {
+				const bus = ctx;
+				const stopErrors = bus.on("agent/error", ({ agent, error }) => {
+					runner.observeAgentError(agent.id, error);
+				});
+				const stopEvents = bus.on("session/event", (session, event) => {
+					runner.observeChildEvent(session.id, event);
+				});
+				return () => {
+					stopErrors();
+					stopEvents();
+				};
+			}, "workbench: child agent events"),
 			ctx.effect(() => host.webServer.register({
 				kind: "exact",
 				path: WORKBENCH_SKILL_CARD_PATH,

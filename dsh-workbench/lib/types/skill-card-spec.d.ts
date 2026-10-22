@@ -74,6 +74,21 @@ export declare const workbenchTemplateSchema: z.ZodObject<{
     html: z.ZodString;
 }, z.core.$strip>;
 /**
+ * Stored form of one activity entry.
+ *
+ * A discriminated union rather than an optional `dropped` field on one shape: the trace is
+ * a list of calls plus, at most once and only at the front, the count a bound removed. Both
+ * halves are stored, so a bounded trace says so after a reload instead of looking complete.
+ */
+export declare const workbenchActivityEntrySchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"tool">;
+    tool: z.ZodString;
+    argument: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"truncated">;
+    dropped: z.ZodNumber;
+}, z.core.$strip>], "kind">;
+/**
  * Stored schema for one result.
  *
  * `stopReason` stays a plain string because the upstream stop reasons are
@@ -87,6 +102,12 @@ export declare const workbenchTemplateSchema: z.ZodObject<{
  * `model` is declared for the same reason: the runner stamps the route it ran on, and a
  * result that silently lost it would put the user back to guessing which model produced
  * what they are reading.
+ *
+ * `activity` follows the same rule, and it is the fifth field added this way. The runner
+ * writes the trace and 运行详情 renders it after the run, so a schema that did not declare
+ * it would show the stream while the run is live and then lose every line of it on the
+ * next load — a trace that vanishes is worse than no trace, because the card looks like a
+ * run that used no tools.
  */
 export declare const workbenchResultSchema: z.ZodObject<{
     skill: z.ZodString;
@@ -100,6 +121,14 @@ export declare const workbenchResultSchema: z.ZodObject<{
     outputText: z.ZodOptional<z.ZodString>;
     diagnostic: z.ZodOptional<z.ZodString>;
     editedAt: z.ZodOptional<z.ZodNumber>;
+    activity: z.ZodOptional<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        kind: z.ZodLiteral<"tool">;
+        tool: z.ZodString;
+        argument: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"truncated">;
+        dropped: z.ZodNumber;
+    }, z.core.$strip>], "kind">>>;
 }, z.core.$strip>;
 /**
  * Skill card domain declaration.

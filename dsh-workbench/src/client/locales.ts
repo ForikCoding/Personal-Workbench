@@ -167,6 +167,11 @@ export const zh = {
   runStructured: '结构化结果',
   runRawOutput: '原始输出',
   runDiagnostic: '诊断',
+  // The run's activity stream: the tool calls below, the local clock on a running card, and
+  // the one line that admits a bounded trace dropped its oldest entries.
+  runActivity: '活动记录',
+  runElapsed: '用时',
+  runActivityTruncated: '之前还有 {dropped} 条已省略',
   // The stop reasons this build can name. The upstream union is merge-extensible, so an
   // unlisted reason is shown as it arrived rather than guessed at.
   runStopCompleted: '正常结束',
@@ -376,6 +381,11 @@ export const en: Record<keyof typeof zh, string> = {
   runStructured: 'Structured result',
   runRawOutput: 'Raw output',
   runDiagnostic: 'Diagnostic',
+  // The run's activity stream: the tool calls below, the local clock on a running card, and
+  // the one line that admits a bounded trace dropped its oldest entries.
+  runActivity: 'Activity',
+  runElapsed: 'Elapsed',
+  runActivityTruncated: '{dropped} earlier entries omitted',
   // The stop reasons this build can name. The upstream union is merge-extensible, so an
   // unlisted reason is shown as it arrived rather than guessed at.
   runStopCompleted: 'Completed',

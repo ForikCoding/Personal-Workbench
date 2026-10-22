@@ -9,6 +9,7 @@
  */
 
 import type {
+  WorkbenchActivityEntry,
   WorkbenchCardConfigRecord,
   WorkbenchCardConfigView,
   WorkbenchCardResult,
@@ -17,6 +18,7 @@ import type {
   WorkbenchSkillCardSnapshot,
   WorkbenchTemplateRecord,
 } from './skill-card-contract.ts'
+import { splitActivity } from './skill-card-activity.ts'
 import {
   WORKBENCH_CARD_NAME_MAX_LENGTH,
   WORKBENCH_SANDBOX_MODES,
@@ -491,10 +493,16 @@ function utf8Bytes(value: string): number {
  * Fit one result inside a byte budget.
  *
  * The structured value is what the card renders, so it is dropped only when it
- * cannot fit on its own; the text output and the provider diagnostic are then
- * attached in that order, each truncated to whatever budget remains. This keeps
- * one oversized run from growing the domain without bound while preserving the
- * value the card actually displays.
+ * cannot fit on its own; the activity trace, the text output, and the provider
+ * diagnostic are then attached in that order, each truncated to whatever budget
+ * remains. This keeps one oversized run from growing the domain without bound while
+ * preserving the value the card actually displays.
+ *
+ * The trace comes before the raw output on purpose: it is what 运行详情 leads with, it is
+ * bounded to a few kilobytes by its own limit, and the raw output is material nobody opens
+ * unless they are debugging. When even part of the trace cannot be kept, the marker that
+ * reports how many entries were dropped is kept instead — a trace that quietly disappeared
+ * would read as a run that called no tools at all.
  * @param record - the complete result.
  * @param maxBytes - the deployment's budget for one record.
  * @returns a record no larger than the budget, when an empty record fits at all.
@@ -516,6 +524,9 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
     : { ...base, structured: record.structured }
   let current = byteSize(withStructured) <= maxBytes ? withStructured : base
 
+  const activity = fitActivity(record.activity, current, maxBytes)
+  if (activity !== undefined) current = { ...current, activity }
+
   for (const field of ['outputText', 'diagnostic'] as const) {
     const value = record[field]
     if (value === undefined) continue
@@ -536,4 +547,41 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
   }
 
   return current
+}
+
+/**
+ * Keep as much of one activity trace as the remaining budget allows.
+ *
+ * The newest calls are kept first for the same reason the run's own bound keeps them: a
+ * trace is read from its end, and the calls nearest the result are the ones that produced
+ * it. Whatever is shed is reported by the marker entry, so the stored record still says how
+ * many calls happened.
+ * @param trace - the trace as the run recorded it.
+ * @param base - the record the trace has to fit inside, as far as it is built.
+ * @param maxBytes - the deployment's budget for one record.
+ * @returns the trace to store, or undefined when none of it fits.
+ */
+function fitActivity(
+  trace: readonly WorkbenchActivityEntry[] | undefined,
+  base: WorkbenchResultRecord,
+  maxBytes: number,
+): readonly WorkbenchActivityEntry[] | undefined {
+  if (trace === undefined) return undefined
+  const { tools, dropped } = splitActivity(trace)
+  if (tools.length === 0) {
+    const whole = [...trace]
+    return byteSize({ ...base, activity: whole }) <= maxBytes ? whole : undefined
+  }
+  for (let keep = tools.length; keep >= 1; keep -= 1) {
+    const omitted = dropped + (tools.length - keep)
+    const candidate: WorkbenchActivityEntry[] = [
+      ...omitted === 0 ? [] : [{ kind: 'truncated' as const, dropped: omitted }],
+      ...tools.slice(tools.length - keep),
+    ]
+    if (byteSize({ ...base, activity: candidate }) <= maxBytes) return candidate
+  }
+  // Not one call fits, but the count still does: an entry saying "37 calls happened and none
+  // of them is stored" is honest, and an absent field would not be.
+  const omittedOnly: WorkbenchActivityEntry[] = [{ kind: 'truncated', dropped: dropped + tools.length }]
+  return byteSize({ ...base, activity: omittedOnly }) <= maxBytes ? omittedOnly : undefined
 }

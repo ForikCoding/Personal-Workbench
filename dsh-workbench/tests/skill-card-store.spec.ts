@@ -488,5 +488,89 @@ describe('workbench skill card store', () => {
       expect(record?.skill).toBe('git-repo')
       expect(Buffer.byteLength(JSON.stringify(record), 'utf8')).toBeLessThanOrEqual(120)
     })
+
+    it('stores an activity trace that fits, keeping its order', async () => {
+      const { store } = setup()
+      await store.putResult('skill-card', {
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+        structured: { html: '<b>a</b>' },
+        activity: [
+          { kind: 'tool', tool: 'pwsh', argument: 'echo hi' },
+          { kind: 'tool', tool: 'read', argument: 'README.md' },
+        ],
+      })
+      expect(store.read().results[0]?.activity).toEqual([
+        { kind: 'tool', tool: 'pwsh', argument: 'echo hi' },
+        { kind: 'tool', tool: 'read', argument: 'README.md' },
+      ])
+    })
+
+    it('keeps the trace when the raw output alone would not have fitted', async () => {
+      // The trace is what 运行详情 leads with, so it is attached before the material nobody
+      // opens unless they are debugging.
+      const { store, tables } = setup({ maxResultBytes: 320 })
+      await store.putResult('skill-card', {
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+        structured: { html: '<b>a</b>' },
+        activity: [
+          { kind: 'tool', tool: 'pwsh', argument: 'echo hi' },
+          { kind: 'tool', tool: 'read', argument: 'README.md' },
+        ],
+        outputText: 'x'.repeat(500),
+      })
+      const record = tables.result.get('skill-card')
+      expect(record?.activity).toEqual([
+        { kind: 'tool', tool: 'pwsh', argument: 'echo hi' },
+        { kind: 'tool', tool: 'read', argument: 'README.md' },
+      ])
+      expect(Buffer.byteLength(JSON.stringify(record), 'utf8')).toBeLessThanOrEqual(320)
+    })
+
+    it('sheds the oldest activity entries and says how many, rather than truncating silently', async () => {
+      // A trace too large for the budget keeps its newest calls and an entry that admits the
+      // rest. An absent field would read as a run that called no tools.
+      const { store, tables } = setup({ maxResultBytes: 400 })
+      const activity = Array.from({ length: 40 }, (_unused, index) => ({
+        kind: 'tool' as const,
+        tool: 'read',
+        argument: `file-${String(index)}`,
+      }))
+      await store.putResult('skill-card', {
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+        activity,
+      })
+      const record = tables.result.get('skill-card')
+      const kept = record?.activity ?? []
+      expect(Buffer.byteLength(JSON.stringify(record), 'utf8')).toBeLessThanOrEqual(400)
+      // The newest call survives; the oldest is gone; a marker accounts for every missing one.
+      expect(kept[kept.length - 1]).toEqual({ kind: 'tool', tool: 'read', argument: 'file-39' })
+      expect(kept[0]?.kind).toBe('truncated')
+      const marked = kept[0]?.kind === 'truncated' ? kept[0].dropped : 0
+      expect(marked + kept.length - 1).toBe(40)
+    })
+
+    it('reports a trace it could not keep at all, instead of dropping the field', async () => {
+      // Even when not one call fits, the count does: "37 calls happened and none is stored"
+      // is honest, and silence is not.
+      const { store, tables } = setup({ maxResultBytes: 200 })
+      const activity = Array.from({ length: 37 }, () => ({
+        kind: 'tool' as const,
+        tool: 'pwsh',
+        argument: 'z'.repeat(60),
+      }))
+      await store.putResult('skill-card', {
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+        activity,
+      })
+      expect(tables.result.get('skill-card')?.activity).toEqual([{ kind: 'truncated', dropped: 37 }])
+    })
   })
 })

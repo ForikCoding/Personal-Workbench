@@ -72,12 +72,15 @@ export const inject = [
 ]
 
 /**
- * Host event bus narrowed to the one event this plugin reads.
+ * Host event bus narrowed to the two events this plugin reads.
  *
- * `agent/error` is contributed by the agent loop's module augmentation, so it is not
- * on the `Events` map this package can see.
+ * Both are contributed by upstream packages' module augmentation — `agent/error` by the
+ * agent loop, `session/event` by the session service — so neither is on the `Events` map
+ * this package can see. They are declared on one interface rather than two because they are
+ * one capability: the identity of a child's traffic. One narrowed shape, one `ctx.on` route,
+ * one disposer.
  */
-interface WorkbenchAgentErrorBus {
+interface WorkbenchChildEventBus {
   /**
    * Observe one agent's turn failure.
    * @param event - the event name.
@@ -87,6 +90,25 @@ interface WorkbenchAgentErrorBus {
   on(
     event: 'agent/error',
     listener: (payload: { readonly agent: { readonly id: string }; readonly error: unknown }) => void,
+  ): () => void
+  /**
+   * Observe every committed session event.
+   *
+   * `session/event` is a plain `emit`, so a passive listener is safe here — unlike
+   * `agent/request`, which is a waterfall whose config a returning listener would replace.
+   * The payload is `(session, event)`; `session.id` is the child's id, which is the same
+   * identity `agent/error` carries as `agent.id`. Measured on a real composition: the
+   * `tool/call` this feature maps arrives here as `{ type, data: { name, arguments, … } }`.
+   * @param event - the event name.
+   * @param listener - receives the session that grew and the event appended to it.
+   * @returns the disposer.
+   */
+  on(
+    event: 'session/event',
+    listener: (
+      session: { readonly id: string },
+      event: { readonly type: string; readonly data?: unknown },
+    ) => void,
   ): () => void
 }
 
@@ -238,13 +260,29 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
       warn,
     })
     const disposers = [
-      // The event is declared by the agent loop's own module augmentation, which this
-      // package does not import, so the bus is narrowed here the same way the service
-      // surface is above. It is the only account of a faulted child: the subagent seam
-      // reduces one to `stopReason: 'error'` and drops the error itself.
-      ctx.effect(() => (ctx as unknown as WorkbenchAgentErrorBus).on('agent/error', ({ agent, error }) => {
-        runner.observeAgentError(agent.id, error)
-      }), 'workbench: child agent failures'),
+      // The two events are declared by upstream packages' own module augmentation, which
+      // this package does not import, so the bus is narrowed here the same way the service
+      // surface is above. They share one effect because they are one capability — the
+      // identity of a child's traffic — and because both listeners attribute by the same
+      // rule: a run records a child's news only while it owns that child.
+      //
+      // `agent/error` is the only account of a faulted child: the subagent seam reduces one
+      // to `stopReason: 'error'` and drops the error itself. `session/event` is the only
+      // account of what the child did: `tool/call` is where a tool name and its first
+      // argument exist, and neither `tool/result` nor `agent/status` carries them.
+      ctx.effect(() => {
+        const bus = ctx as unknown as WorkbenchChildEventBus
+        const stopErrors = bus.on('agent/error', ({ agent, error }) => {
+          runner.observeAgentError(agent.id, error)
+        })
+        const stopEvents = bus.on('session/event', (session, event) => {
+          runner.observeChildEvent(session.id, event)
+        })
+        return () => {
+          stopErrors()
+          stopEvents()
+        }
+      }, 'workbench: child agent events'),
       ctx.effect(() => host.webServer.register({
         kind: 'exact',
         path: WORKBENCH_SKILL_CARD_PATH,

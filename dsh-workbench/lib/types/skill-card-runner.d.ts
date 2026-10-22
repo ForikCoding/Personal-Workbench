@@ -9,6 +9,7 @@
  * @module dsh-workbench/skill-card-runner
  */
 import type { WorkbenchCardConfigView, WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
+import type { WorkbenchActivityEvent } from './skill-card-activity.ts';
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts';
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts';
 /** Outcome of reading one session's skill catalog. */
@@ -208,6 +209,17 @@ export declare class WorkbenchSkillCardRunner {
      * @param error - the failure the agent reported.
      */
     observeAgentError(agentId: string, error: unknown): void;
+    /**
+     * Record one of a child agent's session events against the run that started it.
+     *
+     * The same bus, the same attribution rule, and the same "an agent this runner did not
+     * start is ignored" contract as {@link observeAgentError}: the child's session id is the
+     * identity both events carry. Only `tool/call` produces an entry — the mapping lives in
+     * `skill-card-activity.ts`, together with the redaction and the two bounds.
+     * @param sessionId - the session the event came from, which is the child's id.
+     * @param event - the session event as the bus delivered it.
+     */
+    observeChildEvent(sessionId: string, event: WorkbenchActivityEvent): void;
     /**
      * Read one card's run state.
      * @param cardId - the card.

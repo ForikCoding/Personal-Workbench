@@ -82,6 +82,25 @@ export const workbenchTemplateSchema = z.object({
 })
 
 /**
+ * Stored form of one activity entry.
+ *
+ * A discriminated union rather than an optional `dropped` field on one shape: the trace is
+ * a list of calls plus, at most once and only at the front, the count a bound removed. Both
+ * halves are stored, so a bounded trace says so after a reload instead of looking complete.
+ */
+export const workbenchActivityEntrySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('tool'),
+    tool: z.string().min(1),
+    argument: z.string(),
+  }),
+  z.object({
+    kind: z.literal('truncated'),
+    dropped: z.number().int().positive(),
+  }),
+])
+
+/**
  * Stored schema for one result.
  *
  * `stopReason` stays a plain string because the upstream stop reasons are
@@ -95,6 +114,12 @@ export const workbenchTemplateSchema = z.object({
  * `model` is declared for the same reason: the runner stamps the route it ran on, and a
  * result that silently lost it would put the user back to guessing which model produced
  * what they are reading.
+ *
+ * `activity` follows the same rule, and it is the fifth field added this way. The runner
+ * writes the trace and 运行详情 renders it after the run, so a schema that did not declare
+ * it would show the stream while the run is live and then lose every line of it on the
+ * next load — a trace that vanishes is worse than no trace, because the card looks like a
+ * run that used no tools.
  */
 export const workbenchResultSchema = z.object({
   skill: z.string(),
@@ -105,6 +130,7 @@ export const workbenchResultSchema = z.object({
   outputText: z.string().optional(),
   diagnostic: z.string().optional(),
   editedAt: z.number().finite().nonnegative().optional(),
+  activity: z.array(workbenchActivityEntrySchema).optional(),
 })
 
 /**

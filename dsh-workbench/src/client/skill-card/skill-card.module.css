@@ -125,6 +125,52 @@
   white-space: pre;
 }
 
+/* The run's activity stream: one row per tool call, read top to bottom.
+
+   It is bounded on screen as well as in storage, and the bound is a scrollbar rather than a
+   fold: a long run must not push the card's document off the page, and the whole trace has
+   to stay reachable without a second click. */
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  margin: 4px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.activityItem {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* The tool's own name, unshrunk: it is the column a reader scans. */
+.activityTool {
+  flex: none;
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+/* The first argument, which is model-authored and may be any length up to its own limit.
+   It wraps rather than widening the card. */
+.activityArgument {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A bounded trace's own row. Set apart from the calls because it is not one. */
+.activityTruncated {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 /* The card's rendered document sits in its own frame. Without a border the template's
    content reads as the page's own. Nothing inside it is styled here: the document is
    the user's, inside its own shadow root.

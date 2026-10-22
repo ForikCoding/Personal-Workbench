@@ -242,6 +242,44 @@ describe('the result page', () => {
     expect(block.querySelector('[data-run-stop-reason]')?.textContent).toBe(en.runStopCompleted)
   })
 
+  it('keeps the activity trace inside 运行详情 after the run', async () => {
+    // The stop reason answers why it ended; this answers what it did. Both are the record of
+    // a run that is over, so the trace belongs in the same disclosure — collapsed, like the
+    // raw output, and complete once opened.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({
+            result: result({
+              activity: [
+                { kind: 'tool', tool: 'pwsh', argument: 'Probe one shell call' },
+                { kind: 'tool', tool: 'read', argument: 'D:\\Git\\Personal-Workbench\\README.md' },
+              ],
+            }),
+          }),
+        })}
+      />,
+    )
+    const block = await detail(container)
+    // Inside the disclosure, not beside it.
+    const list = block.querySelector('[data-run-activity]')
+    expect(list).not.toBeNull()
+    expect([...block.querySelectorAll('li')].map(row => row.getAttribute('data-activity-tool')))
+      .toEqual(['pwsh', 'read'])
+    expect(block.textContent).toContain(zh.runActivity)
+    // And it is closed on arrival, like every other block in this record.
+    expect(block.open).toBe(false)
+  })
+
+  it('draws no activity section for a run that recorded none', async () => {
+    // Absence is a fact about the run, not an empty list to render: an empty 活动记录 would
+    // say the child did nothing rather than that nothing was recorded.
+    const { container } = render(<SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />)
+    const block = await detail(container)
+    expect(block.querySelector('[data-run-activity]')).toBeNull()
+    expect(block.textContent).not.toContain(zh.runActivity)
+  })
+
   it('names the model the run used, and says nothing when it inherited one', async () => {
     // Criterion 74. The row is the answer to "which model produced this": absent for a run
     // that inherited the session's route, because the Host was never told what that was and
