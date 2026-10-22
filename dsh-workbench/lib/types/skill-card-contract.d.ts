@@ -507,16 +507,19 @@ export interface WorkbenchCardResult extends WorkbenchResultRecord {
 /**
  * What this deployment can do with a card run, answered once.
  *
- * A card run goes through the subagent service's `startActivation`. A harness that
- * predates it — `0.2.0-rc.2` on the stable channel, which has `start` and
- * `startContinuable` but no activation seam — can load the workbench and edit cards,
- * but cannot start a run. The answer is a property of the composition rather than of a
- * card or a click, so it is probed where the Host half is assembled and carried on
- * every read instead of being asked per run.
+ * A card run starts through one of two subagent seams: `startActivation` on
+ * `0.2.1-alpha.2`, or the one-shot `start` on `0.2.0-rc.2` — the stable channel this
+ * plugin ships into — whose request takes the same members and whose result resolves
+ * to the caller (measured on a real host composition). A harness that offers neither
+ * can load the workbench and edit cards, but cannot start a run. The answer is a
+ * property of the composition rather than of a card or a click, so it is probed where
+ * the Host half is assembled and carried on every read instead of being asked per run.
  */
 export interface WorkbenchRunCapabilities {
-    /** Whether the subagent service exposes `startActivation`. */
+    /** Whether the subagent service exposes `startActivation` (0.2.1-alpha.2). */
     readonly startActivation: boolean;
+    /** Whether the subagent service exposes the one-shot `start` (0.2.0-rc.2). */
+    readonly start: boolean;
 }
 /** Complete configuration and result state, as read and as echoed after a write. */
 export interface WorkbenchSkillCardSnapshot {
@@ -735,9 +738,10 @@ export type WorkbenchSkillCardErrorCode = 'unauthorized' | 'forbidden' | 'invali
 /**
  * Running is unavailable on this harness, not wrong with this card.
  *
- * The composition found no `startActivation` seam, so the run control is disabled and
- * the card states why. A run that arrives anyway — a stale click, a direct route call,
- * a template button — is refused with this same code rather than throwing.
+ * The composition found neither run seam — no `startActivation` (0.2.1-alpha.2) and
+ * no one-shot `start` (0.2.0-rc.2) — so the run control is disabled and the card
+ * states why. A run that arrives anyway — a stale click, a direct route call, a
+ * template button — is refused with this same code rather than throwing.
  */
  | 'run-unavailable'
 /**

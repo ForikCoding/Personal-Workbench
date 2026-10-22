@@ -126,17 +126,20 @@ describe('workbench skill card runner', () => {
   })
 
   describe('start preconditions', () => {
-    it('refuses a card run on a harness without the activation seam', async () => {
-      // The stable channel pins 0.2.0-rc.2, whose subagent service has start and
-      // startContinuable but no startActivation. The composition already probed it; this is
-      // the second line, so a call that arrives anyway is answered with a state rather than
-      // throwing `undefined is not a function` out of the route.
+    it('refuses a card run on a harness without either run seam', async () => {
+      // A harness that offers neither startActivation (0.2.1-alpha.2) nor the one-shot
+      // start (0.2.0-rc.2) cannot run cards. The composition already probed it; this is
+      // the second line, so a call that arrives anyway is answered with a state rather
+      // than throwing `undefined is not a function` out of the route.
       const { runner, fake } = setup({ startActivation: false })
       const outcome = await runner.start(request())
       expect(outcome).toMatchObject({ status: 'rejected', code: 'run-unavailable' })
-      // The refusal names the member the harness is missing, which is the operator's remedy.
-      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('startActivation')
+      // The refusal names both members and where each exists, which is the operator's remedy.
+      const detail = outcome.status === 'rejected' ? outcome.detail : ''
+      expect(detail).toContain('startActivation')
+      expect(detail).toContain('start')
       expect(fake.activations).toEqual([])
+      expect(fake.starts).toEqual([])
     })
 
     it('refuses a bare run the same way, which is the template-button path', async () => {
@@ -373,6 +376,71 @@ describe('workbench skill card runner', () => {
           outputText: 'done',
         },
       }])
+      expect(fake.disposed.count).toBe(1)
+    })
+
+    it('runs the same card through the older channel one-shot seam', async () => {
+      // 0.2.0-rc.2 — the stable channel this plugin ships into — has exactly the one-shot
+      // start and no startActivation. Measured on a real host composition: the request
+      // carries the same members (no cwd, no delivery), the child inherits the parent's
+      // header and sandbox root, and the result resolves to the caller with the capture.
+      const { runner, fake, saved } = setup({
+        startActivation: false,
+        start: true,
+        outcomes: [{ output: [{ type: 'text', text: 'done' }], stopReason: 'completed', structured: { branch: 'main' } }],
+      })
+      const started = await runner.start(request())
+      expect(started).toMatchObject({ status: 'started' })
+
+      const state = await settle(runner)
+      expect(state).toMatchObject({
+        phase: 'settled',
+        result: {
+          skill: 'git-repo',
+          stopReason: 'completed',
+          structured: { branch: 'main' },
+          outputText: 'done',
+        },
+      })
+      expect(saved).toEqual([{
+        cardId: 'skill-card',
+        record: {
+          skill: 'git-repo',
+          executedAt: 42,
+          stopReason: 'completed',
+          structured: { branch: 'main' },
+          outputText: 'done',
+        },
+      }])
+
+      // The one-shot call carried the whole request the activation request would have:
+      // the rooted parent, the skill wrapper, the contract, and the provider name. No
+      // `cwd` and no `delivery` exist on this seam, and none is needed.
+      const call = fake.starts[0]
+      expect(call?.provider).toBe('spawn')
+      expect(call?.spec.parent).not.toBe(AGENT)
+      expect(call?.spec.parent?.session?.header?.cwd).toBe('/repo')
+      expect(call?.spec.label).toBe('workbench:skill-card')
+      expect(call?.spec.outputSchema).toEqual({ type: 'object', properties: {} })
+      expect(call?.spec.prompt[0]?.text).toContain('<skill_content name="git-repo">')
+      expect(call?.spec).not.toHaveProperty('cwd')
+      expect(call?.spec).not.toHaveProperty('delivery')
+      expect(fake.activations).toEqual([])
+      expect(fake.disposed.count).toBe(1)
+    })
+
+    it('keeps cancellation working through the one-shot seam', async () => {
+      // The stop button and the deadline both cancel through the run's signal, which is
+      // the canonical channel on this seam too: an abort settles the child as aborted.
+      const { runner, fake } = setup({
+        startActivation: false,
+        start: true,
+        outcomes: ['hang'],
+      })
+      await runner.start(request())
+      runner.cancel('skill-card')
+      const state = await settle(runner)
+      expect(state).toMatchObject({ phase: 'cancelled' })
       expect(fake.disposed.count).toBe(1)
     })
 

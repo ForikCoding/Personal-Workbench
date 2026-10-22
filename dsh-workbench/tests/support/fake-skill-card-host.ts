@@ -13,6 +13,8 @@ import type {
   WorkbenchSkillDefinition,
   WorkbenchSkillLookup,
   WorkbenchSkillSummary,
+  WorkbenchStartHandle,
+  WorkbenchStartSpec,
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from '../../src/skill-card-host.ts'
@@ -86,11 +88,19 @@ export interface FakeHostOptions {
   /**
    * Whether the double exposes the activation seam.
    *
-   * `false` models a harness that predates it — `0.2.0-rc.2` on the stable channel, whose
-   * subagent service has `start` and `startContinuable` but no `startActivation`. Every
-   * case that does not say otherwise keeps the seam.
+   * `false` models a harness that replaced it — `0.2.1-alpha.2` provides the seam, and a
+   * case without it models the older channel. Every case that does not say otherwise
+   * keeps the seam.
    */
   readonly startActivation?: boolean
+  /**
+   * Whether the double exposes the older channel's one-shot `start`.
+   *
+   * `true` models `0.2.0-rc.2` — the stable channel, whose subagent service has exactly
+   * this method and no `startActivation`. Defaults to `false`, so a case that wants the
+   * older channel says so; a case that wants a run-less harness keeps both seams off.
+   */
+  readonly start?: boolean
   /**
    * What the directory probe answers.
    *
@@ -120,6 +130,8 @@ export interface FakeHost {
   /** The one filesystem read the runner gates a start on. */
   readonly statDirectory: WorkbenchDirectoryProbe
   readonly activations: WorkbenchActivationSpec[]
+  /** One-shot `start` calls the plugin made, in order; empty unless the case opted in. */
+  readonly starts: WorkbenchStartCall[]
     /** Card agents the plugin created, in order; each carries the directory it rooted at. */
     readonly createdAgents: WorkbenchAgent[]
     /** Session ids of card agents the plugin tore down. */
@@ -142,6 +154,12 @@ export interface FakeHost {
   readonly settleChild: (result: WorkbenchSubagentResult) => void
 }
 
+/** One recorded one-shot `start` call: the provider name and the mapped spec. */
+export interface WorkbenchStartCall {
+  readonly provider: string
+  readonly spec: WorkbenchStartSpec
+}
+
 /**
  * Build a Host double.
  * @param options - what the double answers with.
@@ -149,6 +167,7 @@ export interface FakeHost {
  */
 export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   const activations: WorkbenchActivationSpec[] = []
+  const starts: WorkbenchStartCall[] = []
   const lookups: WorkbenchSkillLookup[] = []
   const disposed = { count: 0 }
   const providers = options.providers ?? { spawn: { outputSchema: true } }
@@ -180,6 +199,34 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   const disposedAgents: string[] = []
   const archivedSessions: string[] = []
   const sandboxModes: { sessionId: string; mode: WorkbenchSandboxMode }[] = []
+
+  /**
+   * Script one child run's result promise.
+   *
+   * Shared by both seams, because the runner's behaviour under a script must not
+   * depend on which seam carried it: `'hang'` settles on abort, `'manual'` hands
+   * settlement to the spec, anything else settles immediately.
+   * @param signal - the cancellation signal the run started with.
+   * @returns the child's terminal result promise.
+   */
+  const scriptedChild = (signal: AbortSignal): Promise<WorkbenchSubagentResult> => {
+    const scripted = outcomes[call] ?? { output: [], stopReason: 'completed' }
+    call += 1
+    if (scripted === 'hang') {
+      return new Promise<WorkbenchSubagentResult>((resolve) => {
+        const abort = (): void => { resolve({ output: [], stopReason: 'aborted' }) }
+        // A cancel can land before the activation is even requested, so an
+        // already-aborted signal has to settle immediately rather than wait
+        // for an event that will never fire again.
+        if (signal.aborted) { abort(); return }
+        signal.addEventListener('abort', abort, { once: true })
+      })
+    }
+    if (scripted === 'manual') {
+      return new Promise<WorkbenchSubagentResult>((resolve) => { settleManual = resolve })
+    }
+    return Promise.resolve(scripted)
+  }
 
   const host: WorkbenchSkillCardHost = {
     agents: {
@@ -239,26 +286,15 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       ...options.startActivation === false ? {} : {
         startActivation: async (spec: WorkbenchActivationSpec): Promise<WorkbenchActivation> => {
           activations.push(spec)
-          const scripted = outcomes[call] ?? { output: [], stopReason: 'completed' }
-          call += 1
-          if (scripted === 'hang') {
-            const result = new Promise<WorkbenchSubagentResult>((resolve) => {
-              const abort = (): void => { resolve({ output: [], stopReason: 'aborted' }) }
-              // A cancel can land before the activation is even requested, so an
-              // already-aborted signal has to settle immediately rather than wait
-              // for an event that will never fire again.
-              if (spec.signal.aborted) { abort(); return }
-              spec.signal.addEventListener('abort', abort, { once: true })
-            })
-            return { childId: 'child', result, dispose: async () => { disposed.count += 1 } }
-          }
-          if (scripted === 'manual') {
-            const result = new Promise<WorkbenchSubagentResult>((resolve) => { settleManual = resolve })
-            return { childId: 'child', result, dispose: async () => { disposed.count += 1 } }
-          }
-          return { childId: 'child', result: Promise.resolve(scripted), dispose: async () => { disposed.count += 1 } }
+          return { childId: 'child', result: scriptedChild(spec.signal), dispose: async () => { disposed.count += 1 } }
         },
       },
+      ...options.start === true ? {
+        start: async (provider: string, spec: WorkbenchStartSpec): Promise<WorkbenchStartHandle> => {
+          starts.push({ provider, spec })
+          return { id: 'child', result: scriptedChild(spec.signal), dispose: async () => { disposed.count += 1 } }
+        },
+      } : {},
     },
     llm: {
       listModels: async (provider) => {
@@ -270,5 +306,5 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
   }
-  return { host, workingDirectory, statDirectory, activations, lookups, disposed, createdAgents, disposedAgents, archivedSessions, sandboxModes, settleChild }
+  return { host, workingDirectory, statDirectory, activations, starts, lookups, disposed, createdAgents, disposedAgents, archivedSessions, sandboxModes, settleChild }
 }

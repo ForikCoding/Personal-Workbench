@@ -550,8 +550,11 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
  */
 function parseCapabilities(value: unknown): WorkbenchRunCapabilities | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
-  const startActivation = (value as { startActivation?: unknown }).startActivation
-  return typeof startActivation === 'boolean' ? { startActivation } : undefined
+  const body = value as { startActivation?: unknown; start?: unknown }
+  if (typeof body.startActivation !== 'boolean' && typeof body.start !== 'boolean') return undefined
+  // Either field decides the run gate, so a missing one reads as `false` rather than
+  // being carried through: an absent seam is exactly what the gate states.
+  return { startActivation: body.startActivation === true, start: body.start === true }
 }
 
 /**

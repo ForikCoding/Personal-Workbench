@@ -43,16 +43,24 @@ describe('subagent provider validation', () => {
 })
 
 describe('subagent seam probe', () => {
-  it('records the seam when the service exposes it', () => {
-    // The beta channel's harness: 0.2.1-alpha.2 provides startActivation.
-    expect(probeSubagentSeam(fakeHost().host.subagents)).toEqual({ startActivation: true })
+  it('records the activation seam when the service exposes it', () => {
+    // The beta channel's harness: 0.2.1-alpha.2 provides startActivation and no start.
+    expect(probeSubagentSeam(fakeHost().host.subagents))
+      .toEqual({ startActivation: true, start: false })
   })
 
-  it('records its absence on a harness that predates it', () => {
-    // The stable channel pins 0.2.0-rc.2, whose subagent service has start and
-    // startContinuable and no activation seam. That is a capability answer, not a fault
-    // of the composition, so the probe returns a verdict instead of throwing.
+  it('records the one-shot seam on the older channel', () => {
+    // The stable channel pins 0.2.0-rc.2, whose subagent service has exactly the
+    // one-shot start and no activation seam. Measured on a real host composition: the
+    // request carries the same members and the result resolves to the caller.
+    expect(probeSubagentSeam(fakeHost({ startActivation: false, start: true }).host.subagents))
+      .toEqual({ startActivation: false, start: true })
+  })
+
+  it('records a run-less harness when neither seam exists', () => {
+    // A capability answer, not a fault of the composition, so the probe returns a
+    // verdict instead of throwing.
     expect(probeSubagentSeam(fakeHost({ startActivation: false }).host.subagents))
-      .toEqual({ startActivation: false })
+      .toEqual({ startActivation: false, start: false })
   })
 })

@@ -33,6 +33,7 @@ import type {
   WorkbenchSkillCardHost,
   WorkbenchSkillDefinition,
   WorkbenchSkillLookup,
+  WorkbenchSubagentHost,
   WorkbenchSubagentResult,
   WorkbenchWorkingDirectory,
 } from './skill-card-host.ts'
@@ -41,13 +42,13 @@ import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
 import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
 
 /**
- * Why a card run cannot start on a harness without the activation seam.
+ * Why a card run cannot start on a harness without either run seam.
  *
- * One sentence naming the exact member the harness must provide and where it exists: this
- * text is an operator's remedy, so it says which version and channel has the seam.
+ * One sentence naming the exact members the harness must provide and where each exists:
+ * this text is an operator's remedy, so it says which version and channel has which seam.
  */
 const SUBAGENT_SEAM_DETAIL =
-  'this harness provides no subagents.startActivation, so a card run cannot start; card runs need a harness that exposes it (0.2.1-alpha.2, the beta channel)'
+  'this harness provides neither subagents.startActivation (0.2.1-alpha.2, the beta channel) nor the one-shot subagents.start (0.2.0-rc.2, the stable channel), so a card run cannot start'
 
 /** Outcome of reading one session's skill catalog. */
 export type WorkbenchCatalogOutcome =
@@ -358,15 +359,15 @@ export class WorkbenchSkillCardRunner {
    * @returns the started run's state, or why it was refused.
    */
   async start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome> {
-    // The activation seam is the first capability every mode needs, and the composition
-    // has already probed it once. This is the second line rather than a probe: a stale
-    // click, a direct route call, or a template button that arrives on a harness without
-    // the seam has to be refused here. Letting it through would reach the one call that
-    // needs the seam and throw `undefined is not a function` out of the request handler,
-    // which is a stack trace where a state belongs.
+    // A run seam is the first capability every mode needs, and the composition has
+    // already probed it once. This is the second line rather than a probe: a stale
+    // click, a direct route call, or a template button that arrives on a harness
+    // without either seam has to be refused here. Letting it through would reach the
+    // one call that needs a seam and throw `undefined is not a function` out of the
+    // request handler, which is a stack trace where a state belongs.
     const subagents = this.options.host.subagents
-    const activation = subagents.startActivation
-    if (typeof activation !== 'function') {
+    const activate = this.activationSeam(subagents)
+    if (activate === undefined) {
       return reject('run-unavailable', SUBAGENT_SEAM_DETAIL)
     }
     const mode = request.mode
@@ -517,9 +518,10 @@ export class WorkbenchSkillCardRunner {
     this.runs.set(request.cardId, run)
     this.active += 1
 
-    // Bound to the service it came from: the attempt path calls it from a different
-    // method, and the real one reads its own receiver.
-    const execution = this.execute(run, input, activation.bind(subagents))
+    // Bound to the service it came from, and to the seam this harness offers: the
+    // attempt path calls it from a different method, and the real ones read their
+    // own receiver.
+    const execution = this.execute(run, input, activate)
     this.inflight.add(execution)
     void execution
       .catch((error: unknown) => { this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`) })
@@ -539,6 +541,38 @@ export class WorkbenchSkillCardRunner {
    */
   private congested(cardId: string): boolean {
     return this.runs.get(cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns
+  }
+
+  /**
+   * Resolve the run seam this harness offers, bound to its service.
+   *
+   * Which seam exists is a property of the installed harness, so the runner adapts
+   * rather than requires one: `startActivation` (0.2.1-alpha.2) is used as-is, and the
+   * older channel's one-shot `start` (0.2.0-rc.2) is wrapped — its request carries the
+   * same `prompt`, `parent`, `signal`, `outputSchema` and `agentOptions` (no `cwd`, no
+   * `delivery`: the child inherits the parent's header at start and the result resolves
+   * to the caller — all measured on a real host composition), and its handle carries
+   * `id` where an activation carries `childId`. A harness offering neither returns
+   * `undefined`, which the start path refuses with the seam detail.
+   * @param subagents - the subagent service.
+   * @returns the bound seam, or undefined when this harness offers no run seam.
+   */
+  private activationSeam(subagents: WorkbenchSubagentHost): WorkbenchActivationSeam | undefined {
+    const startActivation = subagents.startActivation
+    if (typeof startActivation === 'function') return startActivation.bind(subagents)
+    const start = subagents.start
+    if (typeof start !== 'function') return undefined
+    return async spec => {
+      const handle = await start.call(subagents, spec.provider, {
+        ...spec.label === undefined ? {} : { label: spec.label },
+        prompt: spec.request.prompt,
+        parent: spec.request.parent,
+        signal: spec.signal,
+        ...spec.request.outputSchema === undefined ? {} : { outputSchema: spec.request.outputSchema },
+        ...spec.request.agentOptions === undefined ? {} : { agentOptions: spec.request.agentOptions },
+      })
+      return { childId: handle.id, result: handle.result, dispose: () => handle.dispose() }
+    }
   }
 
   /**
@@ -724,7 +758,7 @@ export class WorkbenchSkillCardRunner {
    * Run one card's skill to a terminal state.
    * @param run - the run record to settle.
    * @param input - resolved agent, skill name, and output contract.
-   * @param activate - the activation seam, already known to exist and bound to its service.
+   * @param activate - the run seam, already known to exist and bound to its service.
    * @returns resolution after the run reaches a terminal phase.
    */
   private async execute(
@@ -777,7 +811,7 @@ await this.finish(run, outcome)
    * @param input - the agent, skill, and either the card's template and contract or nothing.
    * @param cwd - the agent's working directory.
    * @param skill - the loaded skill.
-   * @param activate - the activation seam, known to exist.
+   * @param activate - the run seam, known to exist.
    * @returns the attempt's outcome.
    */
   private async attempt(

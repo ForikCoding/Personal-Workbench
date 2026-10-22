@@ -201,17 +201,69 @@ export interface WorkbenchSubagentHost {
         };
     } | undefined;
     /**
-     * Start one child execution.
+     * Start one child execution through the activation seam.
      *
-     * Optional because the harness this plugin is installed into may predate the seam: the
-     * stable channel pins `0.2.0-rc.2`, whose subagent service offers `start` and
-     * `startContinuable` but no `startActivation`. A deployment without it is still a valid
-     * one — the workbench loads and its cards stay readable and editable — so the surface
-     * says so instead of pretending the method exists.
+     * Optional because the seam a run uses is a property of the installed harness:
+     * `0.2.1-alpha.2` provides this method, while `0.2.0-rc.2` — the stable channel —
+     * provides the one-shot `start` below instead. A harness offering neither is still a
+     * valid deployment — the workbench loads and its cards stay readable and editable —
+     * so the surface says so instead of pretending the method exists. The runner prefers
+     * this seam and wraps {@link WorkbenchSubagentHost.start} when only it exists.
      * @param spec - provider, label, cancellation, delivery, and request.
      * @returns the started activation.
      */
     startActivation?(spec: WorkbenchActivationSpec): Promise<WorkbenchActivation>;
+    /**
+     * Start one child execution through the one-shot seam the older channel offers.
+     *
+     * Optional because the seam a run uses is a property of the installed harness:
+     * `0.2.1-alpha.2` replaced this method with `startActivation`, and `0.2.0-rc.2` —
+     * the stable channel this plugin ships into — has exactly this method. Measured
+     * on a real host composition: the request takes the same `prompt`, `parent`,
+     * `signal`, `outputSchema` and `agentOptions` the activation request takes (no
+     * `cwd`, no `delivery` — the child inherits the parent's header at start and the
+     * result resolves to the caller), the sandbox mode reaches the child through the
+     * parent's recorded override, and the returned handle carries `id` where the
+     * activation carries `childId`.
+     * @param provider - registered backend name.
+     * @param spec - label, cancellation, and request.
+     * @returns the started execution's handle.
+     */
+    start?(provider: string, spec: WorkbenchStartSpec): Promise<WorkbenchStartHandle>;
+}
+/**
+ * One requested child execution on the older channel's one-shot seam.
+ *
+ * Declared structurally against `0.2.0-rc.2`'s `SubagentStartRequest`, narrowed to
+ * the members a card run sets. `cwd` and `delivery` are deliberately absent: the
+ * older request has neither, and a card run never needed them — the child's sandbox
+ * root comes from the parent's session header, and the result resolves to the caller.
+ */
+export interface WorkbenchStartSpec {
+    /** Optional short display label persisted with the child. */
+    readonly label?: string;
+    /** Content delivered as the child's user message. */
+    readonly prompt: readonly WorkbenchContentBlock[];
+    /** The spawning agent; derives workspace, lineage, and delegation depth. */
+    readonly parent: WorkbenchAgent;
+    /** Cancellation; canonical both before and after startup. */
+    readonly signal: AbortSignal;
+    /** Output contract the child must satisfy; omitted asks for no structured value. */
+    readonly outputSchema?: unknown;
+    /** Route the child runs on; omitted inherits the parent's route. */
+    readonly agentOptions?: WorkbenchAgentOptions;
+}
+/** One started child execution on the older channel's one-shot seam. */
+export interface WorkbenchStartHandle {
+    /** Session identity of the child. */
+    readonly id: string;
+    /** Terminal outcome; resolves when the child settles. */
+    readonly result: Promise<WorkbenchSubagentResult>;
+    /**
+     * Stop the run and release its resources.
+     * @returns resolution after teardown.
+     */
+    dispose(): Promise<void>;
 }
 /**
  * The activation seam itself, once the harness is known to provide it.

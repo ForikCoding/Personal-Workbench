@@ -380,7 +380,7 @@ describe('skill card result page', () => {
     expect(alert.textContent).toContain('skillCardProblemRunFailed')
   })
 
-  it('reports a run refused because the activation seam is missing', async () => {
+  it('reports a run refused because no run seam is available', async () => {
     // The stale click: the snapshot this page holds says the harness can run, and the route
     // answers that it cannot. The refusal belongs on the page as its own state, localized
     // by the same code table as every other failure, rather than escaping as a stack.
@@ -391,7 +391,7 @@ describe('skill card result page', () => {
           api: readyApi(async () => ({
             status: 'rejected',
             code: 'run-unavailable',
-            message: 'this harness provides no subagents.startActivation',
+            message: 'this harness provides neither subagents.startActivation nor the one-shot subagents.start',
           })),
         })}
       />,

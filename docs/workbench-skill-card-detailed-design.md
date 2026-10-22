@@ -779,7 +779,7 @@ async function run(request: WorkbenchRunRequest): Promise<RunOutcome> {
 
 **注意第 2 步与第 6 步的关系。** 客户端在发起运行前已经查过一次模板（为了给用户即时反馈），但宿主**再查一次自己的存储**：进程边界不可信，而且"有没有模板"本来就是宿主自己的答案。整份模板文本正是从这里进入 prompt 的——它不经过客户端，也不经过任何重新序列化。
 
-> 上面第 7 步是**装配期已确认 `startActivation` 存在之后**的路径。这个方法从 `0.2.1-alpha.2` 起才有，`0.2.0-rc.2` 只有 `start` / `startContinuable`：在那里装配期的探测会记录"没有"，运行控件随之为灰，`runner.start()` 也会在走到这里之前拒绝（`run-unavailable`）。窄接口里的注写明了这一点。
+> 上面第 7 步有**两条宿主路径**，装配期的探测决定走哪条（**第十五版**）。`startActivation` 从 `0.2.1-alpha.2` 起才有，是首选路径，代码原样；`0.2.0-rc.2`——稳定通道，插件主要发布面——只有一次性 `start(provider, spec)`，runner 为它包一层适配：spec 里放同样的 `prompt`/`parent`/`signal`/`outputSchema`/`agentOptions`（那条请求**没有 `cwd`、没有 `delivery`**——子代理从父继承会话头，结果本就以 caller 可等待的 `SubagentResult` 返回，句柄的 `id` 对应激活的 `childId`）。权限照旧经父代理的 `sandbox/mode` 覆盖传给子代理（`overrideOf(parent.session)` → 子会话追加 `source: 'delegation'` 事件，两个通道同机制），活动流水照旧走根总线。**两条入口都没有**的 harness 上，装配期探测记录"没有"，运行控件随之为灰，`runner.start()` 也会在走到这里之前拒绝（`run-unavailable`）。适配的存在性由真实宿主组合测过（rc.2 与 0.2.1-alpha.2 各一遍：结构化捕获、子代理沙箱根 = 卡片目录、总线 `tool/call`、取消），假件按同一形状建模。
 
 #### 模型：钉住这次运行的路由（第十二版）
 
@@ -991,7 +991,7 @@ export interface WorkbenchSkillCardHost {
 readonly workingDirectory?: WorkbenchWorkingDirectory
 ```
 
-> **`startActivation` 也是 `0.2.1-alpha.2` 才有的方法。** 稳定通道钉的 `0.2.0-rc.2` 的子代理服务只有 `start` / `startContinuable`，没有激活入口。所以窄接口里的 `startActivation` 是**可选**的：装配时（`src/index.ts`）探测一次并把结论随卡片快照下发，客户端据此禁用「运行」并写明缺的是 `startActivation` 与需要的版本；`runner.start()` 里另有一道同名的拒绝，让早已发出的点击、直接的路由调用或模板按钮得到 `run-unavailable`，而不是 `undefined is not a function`。不回退到旧 API，也不改宿主版本。工作目录的降级是"换一种取法"，这一条是"没有就是没有"——能读能改，只有不能跑。
+> **运行入口是可选成员，而且从第十五版起有两条。** `startActivation` 是 `0.2.1-alpha.2` 的激活入口；稳定通道钉的 `0.2.0-rc.2` 的子代理服务只有一次性 `start`——第十五版把它也认作运行入口（runner 包一层适配，见执行一节第 7 步的注）。所以窄接口里两个成员都是**可选**的：装配时（`src/index.ts`）探测一次并把结论（`{ startActivation, start }`）随卡片快照下发，客户端在**两条都没有**时禁用「运行」并写明各自需要的版本；`runner.start()` 里另有一道同名的拒绝，让早已发出的点击、直接的路由调用或模板按钮得到 `run-unavailable`，而不是 `undefined is not a function`。插件不伪装任何一条存在，宿主版本由用户改。工作目录的降级是"换一种取法"，这一条是"没有就是没有"——能读能改，只有不能跑。
 
 #### 子代理自身的失败要单独捕获
 

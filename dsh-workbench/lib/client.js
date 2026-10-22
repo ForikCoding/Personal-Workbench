@@ -253,7 +253,7 @@ window.__ModuleLoader__.load({
 			skillCardProblemTemplateInvalid: "模板不合法",
 			skillCardProblemRunning: "已经有一个运行在进行",
 			skillCardProblemRunFailed: "这次运行没有产出可用的结果",
-			skillCardProblemRunUnavailable: "当前 harness 不能运行卡片：卡片运行需要提供 startActivation 的 harness（0.2.1-alpha.2 / beta 通道），已安装的 harness 没有提供",
+			skillCardProblemRunUnavailable: "当前 harness 不能运行卡片：卡片运行需要提供 startActivation（0.2.1-alpha.2 / beta 通道）或 start（0.2.0-rc.2 / 稳定通道）之一，已安装的 harness 两个都没有提供",
 			skillCardProblemWorkspaceMissing: "这张卡还没有选择工作目录，先选一个目录再运行",
 			skillCardProblemWorkspaceInvalid: "工作目录不存在或不是文件夹",
 			skillCardWorkspace: "工作目录",
@@ -420,7 +420,7 @@ window.__ModuleLoader__.load({
 			skillCardProblemTemplateInvalid: "The template is not valid",
 			skillCardProblemRunning: "Another run is already in flight",
 			skillCardProblemRunFailed: "The run produced no usable result",
-			skillCardProblemRunUnavailable: "This harness cannot run cards: a card run needs a harness that provides startActivation (0.2.1-alpha.2, the beta channel), and the installed harness does not",
+			skillCardProblemRunUnavailable: "This harness cannot run cards: a card run needs one of startActivation (0.2.1-alpha.2, the beta channel) or start (0.2.0-rc.2, the stable channel), and the installed harness provides neither",
 			skillCardProblemWorkspaceMissing: "No workspace directory is selected for this card; choose one before running",
 			skillCardProblemWorkspaceInvalid: "The workspace directory does not exist or is not a folder",
 			skillCardWorkspace: "Workspace",
@@ -1153,8 +1153,12 @@ window.__ModuleLoader__.load({
 		*/
 		function parseCapabilities(value) {
 			if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
-			const startActivation = value.startActivation;
-			return typeof startActivation === "boolean" ? { startActivation } : void 0;
+			const body = value;
+			if (typeof body.startActivation !== "boolean" && typeof body.start !== "boolean") return void 0;
+			return {
+				startActivation: body.startActivation === true,
+				start: body.start === true
+			};
 		}
 		/**
 		* Validate one directory-check body.
@@ -2697,7 +2701,7 @@ window.__ModuleLoader__.load({
 			const workspaceStat = workspacePath !== void 0 && workspaceCheck?.path === workspacePath ? workspaceCheck.stat : void 0;
 			const workspaceField = (0, react.useMemo)(() => resolveWorkspaceField(card?.workspace, workspaceStat), [card?.workspace, workspaceStat]);
 			const canChooseWorkspace = !pickerRefused && workspacePicker !== void 0 && workspacePicker.available();
-			const runUnavailable = (0, react.useMemo)(() => config.kind === "ready" && config.snapshot.capabilities?.startActivation === false ? { code: "run-unavailable" } : void 0, [config]);
+			const runUnavailable = (0, react.useMemo)(() => config.kind === "ready" && config.snapshot.capabilities?.startActivation === false && config.snapshot.capabilities.start === false ? { code: "run-unavailable" } : void 0, [config]);
 			const result = resultOverride ?? run?.result ?? stored;
 			const previous = (0, react.useMemo)(() => {
 				if (previousResult === void 0) return void 0;

@@ -185,6 +185,21 @@ export declare class WorkbenchSkillCardRunner {
      */
     private congested;
     /**
+     * Resolve the run seam this harness offers, bound to its service.
+     *
+     * Which seam exists is a property of the installed harness, so the runner adapts
+     * rather than requires one: `startActivation` (0.2.1-alpha.2) is used as-is, and the
+     * older channel's one-shot `start` (0.2.0-rc.2) is wrapped — its request carries the
+     * same `prompt`, `parent`, `signal`, `outputSchema` and `agentOptions` (no `cwd`, no
+     * `delivery`: the child inherits the parent's header at start and the result resolves
+     * to the caller — all measured on a real host composition), and its handle carries
+     * `id` where an activation carries `childId`. A harness offering neither returns
+     * `undefined`, which the start path refuses with the seam detail.
+     * @param subagents - the subagent service.
+     * @returns the bound seam, or undefined when this harness offers no run seam.
+     */
+    private activationSeam;
+    /**
      * Answer whether a card's route can actually be run here.
      *
      * Three separate reasons, and each refuses rather than falling back to the session's
@@ -260,7 +275,7 @@ export declare class WorkbenchSkillCardRunner {
      * Run one card's skill to a terminal state.
      * @param run - the run record to settle.
      * @param input - resolved agent, skill name, and output contract.
-     * @param activate - the activation seam, already known to exist and bound to its service.
+     * @param activate - the run seam, already known to exist and bound to its service.
      * @returns resolution after the run reaches a terminal phase.
      */
     private execute;
@@ -270,7 +285,7 @@ export declare class WorkbenchSkillCardRunner {
      * @param input - the agent, skill, and either the card's template and contract or nothing.
      * @param cwd - the agent's working directory.
      * @param skill - the loaded skill.
-     * @param activate - the activation seam, known to exist.
+     * @param activate - the run seam, known to exist.
      * @returns the attempt's outcome.
      */
     private attempt;

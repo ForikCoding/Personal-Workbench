@@ -77,7 +77,7 @@ function setup(options: {
     store,
     fence: fence(options.rejection),
     maxTemplateBytes: options.maxTemplateBytes ?? 1024,
-    capabilities: options.capabilities ?? { startActivation: true },
+    capabilities: options.capabilities ?? { startActivation: true, start: false },
     warn,
   })
   return { handle, tables, warn, store }
@@ -119,18 +119,27 @@ describe('workbench skill card route', () => {
       revision: '7:0',
       cards: [{ cardId: 'skill-card', skill: 'git-repo', templateSkills: ['git-repo'], template: '<b>{{branch}}</b>' }],
       results: [{ cardId: 'skill-card', skill: 'git-repo', executedAt: 12, stopReason: 'completed' }],
-      capabilities: { startActivation: true },
+      capabilities: { startActivation: true, start: false },
     })
     expect(response.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('reports a harness without the activation seam on the same read', async () => {
+  it('reports a harness without either run seam on the same read', async () => {
     // The card cannot run there, but it can still be read and edited: the verdict travels
     // with the state so the surface disables one control instead of failing a click.
-    const { handle } = setup({ capabilities: { startActivation: false } })
+    const { handle } = setup({ capabilities: { startActivation: false, start: false } })
     const response = await run(handle, new FakeRequest('GET'))
     expect(response.statusCode).toBe(200)
-    expect(JSON.parse(response.body).capabilities).toEqual({ startActivation: false })
+    expect(JSON.parse(response.body).capabilities).toEqual({ startActivation: false, start: false })
+  })
+
+  it('reports the older channel one-shot seam as runnable', async () => {
+    // 0.2.0-rc.2 has start and no startActivation: runs are available there through the
+    // one-shot seam, so the verdict must not disable the control.
+    const { handle } = setup({ capabilities: { startActivation: false, start: true } })
+    const response = await run(handle, new FakeRequest('GET'))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).capabilities).toEqual({ startActivation: false, start: true })
   })
 
   it('writes a configuration patch and echoes the new state', async () => {
@@ -600,7 +609,7 @@ describe('workbench skill card run route', () => {
     }
   })
 
-  it('refuses a run on a harness without the activation seam, naming it', async () => {
+  it('refuses a run on a harness without either run seam, naming the remedy', async () => {
     // A stale click, a direct route call, or a button inside a result reaches the route
     // after the client already knows. The answer is a stated problem, not a thrown stack.
     const { run: handle, fake } = runtime({ startActivation: false })

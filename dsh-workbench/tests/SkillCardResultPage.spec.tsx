@@ -396,14 +396,15 @@ describe('the result page', () => {
     })
   })
 
-  it('keeps the card readable and disables only the run control without the seam', async () => {
-    // A harness that predates startActivation — 0.2.0-rc.2 on the stable channel — still
-    // loads the workbench and shows the card, its template and its result. Running is the
-    // one thing it cannot do, and the sentence beside the disabled control says why.
+  it('keeps the card readable and disables only the run control without any run seam', async () => {
+    // A harness that offers neither startActivation (0.2.1-alpha.2) nor the one-shot
+    // start (0.2.0-rc.2) still loads the workbench and shows the card, its template and
+    // its result. Running is the one thing it cannot do, and the sentence beside the
+    // disabled control says why.
     const { container } = render(
       <SkillCardResultPage
         {...props({
-          api: pageApi({ result: result(), capabilities: { startActivation: false } }),
+          api: pageApi({ result: result(), capabilities: { startActivation: false, start: false } }),
         })}
       />,
     )
@@ -414,9 +415,11 @@ describe('the result page', () => {
       return element as HTMLElement
     })
     expect(notice.textContent).toBe(zh.skillCardProblemRunUnavailable)
-    // The copy names the member the harness must provide, not just that something failed.
+    // The copy names both members and where each exists, not just that something failed.
     expect(notice.textContent).toContain('startActivation')
+    expect(notice.textContent).toContain('start')
     expect(notice.textContent).toContain('0.2.1-alpha.2')
+    expect(notice.textContent).toContain('0.2.0-rc.2')
 
     const run = [...container.querySelectorAll('button')]
       .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
@@ -426,6 +429,29 @@ describe('the result page', () => {
     // still offered. Only running is unavailable.
     expect(container.querySelector('[data-result-surface]')).not.toBeNull()
     expect(container.querySelector('[data-result-edit-start]')).not.toBeNull()
+  })
+
+  it('keeps the run control available on the older channel one-shot seam', async () => {
+    // 0.2.0-rc.2 — the stable channel — has start and no startActivation. Measured on a
+    // real host composition: that seam runs a card. The control must not disable there.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({
+            result: result(),
+            workspace: { path: WORKSPACE_PATH },
+            capabilities: { startActivation: false, start: true },
+          }),
+        })}
+      />,
+    )
+    await detail(container)
+    await waitFor(() => {
+      expect(container.querySelector('[data-run-unavailable]')).toBeNull()
+    })
+    const run = [...container.querySelectorAll('button')]
+      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
+    expect(run?.disabled).toBe(false)
   })
 
   it('disables the run control when no workspace is chosen, and says so', async () => {

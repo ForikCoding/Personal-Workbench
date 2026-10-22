@@ -217,9 +217,9 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
     // snapshot and states it before a control is pressed; the runner refuses a call that
     // arrives anyway.
     const capabilities = probeSubagentSeam(runtime.subagents)
-    if (!capabilities.startActivation) {
+    if (!capabilities.startActivation && !capabilities.start) {
       ctx.logger.warn(
-        'workbench: this harness exposes no subagents.startActivation, so skill card runs are unavailable; card runs need 0.2.1-alpha.2 (the beta channel)',
+        'workbench: this harness exposes neither subagents.startActivation (0.2.1-alpha.2, the beta channel) nor the one-shot subagents.start (0.2.0-rc.2, the stable channel), so skill card runs are unavailable',
       )
     }
     const domain = await ctx.storageDomain.open(WORKBENCH_SKILL_CARD_DOMAIN)

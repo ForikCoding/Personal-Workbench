@@ -41,8 +41,8 @@ export const zh = {
   skillCardProblemTemplateInvalid: '模板不合法',
   skillCardProblemRunning: '已经有一个运行在进行',
   skillCardProblemRunFailed: '这次运行没有产出可用的结果',
-  // 这张卡能读、能改，只有"运行"不行：宿主没有提供子代理的激活入口。
-  skillCardProblemRunUnavailable: '当前 harness 不能运行卡片：卡片运行需要提供 startActivation 的 harness（0.2.1-alpha.2 / beta 通道），已安装的 harness 没有提供',
+  // 这张卡能读、能改，只有"运行"不行：宿主没有提供任何一条运行入口。
+  skillCardProblemRunUnavailable: '当前 harness 不能运行卡片：卡片运行需要提供 startActivation（0.2.1-alpha.2 / beta 通道）或 start（0.2.0-rc.2 / 稳定通道）之一，已安装的 harness 两个都没有提供',
   // The workspace. A card runs in the directory the user picked for it and nowhere else:
   // no default, no inference from the session, and no free-text path.
   skillCardProblemWorkspaceMissing: '这张卡还没有选择工作目录，先选一个目录再运行',
@@ -255,8 +255,8 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardProblemTemplateInvalid: 'The template is not valid',
   skillCardProblemRunning: 'Another run is already in flight',
   skillCardProblemRunFailed: 'The run produced no usable result',
-  // The card itself is fine: the harness under it is missing the seam a run needs.
-  skillCardProblemRunUnavailable: 'This harness cannot run cards: a card run needs a harness that provides startActivation (0.2.1-alpha.2, the beta channel), and the installed harness does not',
+  // The card itself is fine: the harness under it is missing every seam a run needs.
+  skillCardProblemRunUnavailable: 'This harness cannot run cards: a card run needs one of startActivation (0.2.1-alpha.2, the beta channel) or start (0.2.0-rc.2, the stable channel), and the installed harness provides neither',
   // The workspace. A card runs in the directory the user picked for it and nowhere else:
   // no default, no inference from the session, and no free-text path.
   skillCardProblemWorkspaceMissing: 'No workspace directory is selected for this card; choose one before running',

@@ -697,7 +697,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // Recorded by the Host once, at composition, and read here rather than asked per click.
   // Memoized on the configuration so the view's own identity stays stable between renders.
   const runUnavailable = useMemo<WorkbenchCardProblem | undefined>(
-    () => config.kind === 'ready' && config.snapshot.capabilities?.startActivation === false
+    () => config.kind === 'ready'
+      && config.snapshot.capabilities?.startActivation === false
+      && config.snapshot.capabilities.start === false
       ? { code: 'run-unavailable' }
       : undefined,
     [config],
@@ -1259,9 +1261,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     ...refineProblem === undefined ? {} : { refineProblem },
     // The deciding question is whether there is a model the run could name, never whether
     // the picker loaded: a known route keeps a card runnable with no catalog at all. A
-    // harness without the activation seam is the one answer that closes this off for
-    // every card, and the view states it beside the disabled control. The directory is the
-    // same kind of answer: a card only runs where the user put it.
+    // harness without either run seam is the one answer that closes this off for every
+    // card, and the view states it beside the disabled control. The directory is the same
+    // kind of answer: a card only runs where the user put it.
     runnable: runUnavailable === undefined
       && sessionId !== undefined
       && card?.skill !== undefined

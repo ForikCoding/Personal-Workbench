@@ -13,7 +13,7 @@ import type { WorkbenchSubagentHost } from './skill-card-host.ts'
 export type SubagentProviderSource = Pick<WorkbenchSubagentHost, 'list' | 'getProvider'>
 
 /** The part of the subagent surface the seam probe reads. */
-export type SubagentSeamSource = Pick<WorkbenchSubagentHost, 'startActivation'>
+export type SubagentSeamSource = Pick<WorkbenchSubagentHost, 'startActivation' | 'start'>
 
 /**
  * Refuse a subagent backend that cannot produce structured output.
@@ -38,15 +38,23 @@ export function assertSubagentProvider(subagents: SubagentProviderSource, provid
 }
 
 /**
- * Record whether the subagent service exposes the seam a card run needs.
+ * Record whether the subagent service exposes a seam a card run can start on.
  *
- * The answer is a property of the composition, so it is read once, where the Host half is
- * assembled, and never again per run: it is the same for every card and every click. The
- * recorded value travels to the client, which disables its run control and states the
- * requirement, and the runner keeps its own refusal for a call that arrives anyway.
+ * Two seams qualify, and which one exists is a property of the installed harness:
+ * `0.2.1-alpha.2` offers `startActivation`, while `0.2.0-rc.2` — the stable channel
+ * this plugin ships into — offers the one-shot `start` with the same request members
+ * and an awaitable structured result (measured on a real host composition). Either
+ * one makes runs available; only a harness with neither is run-less. The answer is
+ * read once, where the Host half is assembled, and never again per run: it is the
+ * same for every card and every click. The recorded value travels to the client,
+ * which disables its run control and states the requirement, and the runner keeps
+ * its own refusal for a call that arrives anyway.
  * @param subagents - the subagent service.
- * @returns the recorded capability; `startActivation: false` on a harness that predates it.
+ * @returns the recorded capabilities; both `false` on a harness that offers neither seam.
  */
 export function probeSubagentSeam(subagents: SubagentSeamSource): WorkbenchRunCapabilities {
-  return { startActivation: typeof subagents.startActivation === 'function' }
+  return {
+    startActivation: typeof subagents.startActivation === 'function',
+    start: typeof subagents.start === 'function',
+  }
 }
