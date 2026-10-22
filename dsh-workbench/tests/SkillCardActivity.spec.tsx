@@ -8,13 +8,14 @@
  * a poll landing, because a Host that stops answering would then freeze the clock.
  */
 
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { SkillCardBody } from '../src/client/skill-card/SkillCard.tsx'
 import { ActivityTrace, elapsedText } from '../src/client/skill-card/ActivityTrace.tsx'
 import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
 import type { WorkbenchActivityEntry, WorkbenchRunState } from '../src/skill-card-contract.ts'
+import { WORKBENCH_ACTIVITY_PREVIEW_LENGTH } from '../src/skill-card-contract.ts'
 import { zh } from '../src/client/locales.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -123,6 +124,31 @@ describe('a running card', () => {
     expect(rows[1]?.textContent).not.toContain(zh.runActivityReasoning)
     expect(rows[2]?.textContent).toBe('mcp__xiaoneng__get_task_listtanghao27478')
     expect(rows[3]?.textContent).toBe(`${zh.runActivityReasoning}拿到了 34 条。`)
+  })
+
+  it('keeps a long thought to two lines until the reader expands it', () => {
+    // The whole span is in the DOM from the start — expanding is a class change, not a
+    // fetch — so a reader who opens a finished card reads the same text the live run showed.
+    const long = `${'想'.repeat(WORKBENCH_ACTIVITY_PREVIEW_LENGTH + 30)}把这句话讲完。`
+    const container = renderRunning([{ kind: 'reasoning', text: long }])
+    const row = container.querySelector('[data-activity-kind="reasoning"]')
+    expect(row?.getAttribute('data-activity-expanded')).toBe('false')
+    expect(row?.textContent).toContain(long)
+    const toggle = row?.querySelector('[data-activity-toggle]')
+    expect(toggle?.textContent).toBe(zh.runActivityExpand)
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(toggle as Element)
+    expect(row?.getAttribute('data-activity-expanded')).toBe('true')
+    expect(row?.querySelector('[data-activity-toggle]')?.textContent).toBe(zh.runActivityCollapse)
+  })
+
+  it('offers no toggle for narration short enough to show whole', () => {
+    // A control that expands nothing is noise: two lines already hold this text.
+    const container = renderRunning([{ kind: 'text', text: '我这就去查。' }])
+    const row = container.querySelector('[data-activity-kind="text"]')
+    expect(row?.querySelector('[data-activity-toggle]')).toBeNull()
+    expect(row?.getAttribute('data-activity-expanded')).toBeNull()
   })
 
   it('keeps the previous static notice when the run has recorded nothing yet', () => {

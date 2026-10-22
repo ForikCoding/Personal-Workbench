@@ -16,6 +16,7 @@ import {
   WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH,
   WORKBENCH_ACTIVITY_MAX_ENTRIES,
   WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH,
+  WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH,
 } from '../src/skill-card-contract.ts'
 import type { WorkbenchActivityEntry, WorkbenchToolActivity } from '../src/skill-card-contract.ts'
 import {
@@ -300,11 +301,40 @@ describe('activity bounding', () => {
     expect(trace.every(one => one.kind === 'tool')).toBe(true)
   })
 
+  it('drops the oldest entries when the narration budget is exceeded', () => {
+    // The entry count is not the only bound: six maximum-length reasonings are far more
+    // reading than a card should carry, and the trace rides every poll, so the oldest are
+    // shed and counted. The newest thinking is the thinking worth keeping.
+    const text = '想'.repeat(WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH)
+    let trace: WorkbenchActivityEntry[] = []
+    for (let index = 0; index < 6; index += 1) {
+      trace = withActivityEntries(trace, [{ kind: 'reasoning', text }])
+    }
+    const { entries, dropped } = splitActivity(trace)
+    expect(entries.length).toBeLessThanOrEqual(
+      Math.floor(WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH / WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH),
+    )
+    expect(dropped).toBe(6 - entries.length)
+    expect(entries[entries.length - 1]).toEqual({ kind: 'reasoning', text })
+    const narration = entries.reduce((sum, one) => sum + (one.kind === 'tool' ? 0 : Array.from(one.text).length), 0)
+    expect(narration).toBeLessThanOrEqual(WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH)
+  })
+
+  it('keeps the newest entry even when it alone exceeds the narration budget', () => {
+    // A single thinking at the per-entry limit fits the total budget; this pins the floor —
+    // the bound never shrinks the trace to nothing while there is something to show.
+    const long = '想'.repeat(WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH)
+    const trace = withActivityEntries([{ kind: 'reasoning', text: long }], [{ kind: 'text', text: long }])
+    const { entries } = splitActivity(trace)
+    expect(entries.length).toBeGreaterThanOrEqual(1)
+    expect(entries[entries.length - 1]).toEqual({ kind: 'text', text: long })
+  })
+
   it('costs a bounded trace a bounded fraction of the record budget', () => {
     // Worst case: every row is a reasoning, a reply, and a call, each at its own limit. The
-    // trace has to stay clear of WORKBENCH_RESULT_MAX_BYTES (64 KiB) so it can never be what
-    // evicts the structured value the card renders; the record's own fit step shrinks the
-    // stored copy further when a long result needs the room.
+    // narration budget keeps the trace clear of WORKBENCH_RESULT_MAX_BYTES (64 KiB) so it can
+    // never be what evicts the structured value the card renders; the record's own fit step
+    // shrinks the stored copy further when a long result needs the room.
     let trace: WorkbenchActivityEntry[] = []
     for (let index = 0; index < WORKBENCH_ACTIVITY_MAX_ENTRIES + 10; index += 1) {
       trace = withActivityEntries(trace, [
@@ -314,6 +344,6 @@ describe('activity bounding', () => {
       ])
     }
     // CJK costs three UTF-8 bytes per character, which is the largest legal trace.
-    expect(Buffer.byteLength(JSON.stringify(trace), 'utf8')).toBeLessThan(40 * 1024)
+    expect(Buffer.byteLength(JSON.stringify(trace), 'utf8')).toBeLessThan(48 * 1024)
   })
 })

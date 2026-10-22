@@ -16,7 +16,12 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts'
+import type {
+  WorkbenchActivityEntry,
+  WorkbenchNarrationActivity,
+  WorkbenchRunState,
+} from '../../skill-card-contract.ts'
+import { WORKBENCH_ACTIVITY_PREVIEW_LENGTH } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import css from './skill-card.module.css'
 
@@ -90,51 +95,92 @@ export interface ActivityTraceProps {
 export function ActivityTrace({ trace, t }: ActivityTraceProps): ReactNode {
   return (
     <ol className={css.activityList} data-run-activity="">
-      {trace.map((entry, index) => (
-        <li
-          // Entries carry no identity of their own: the trace is append-only and bounded at
-          // its front, so position within it is the stable name a row needs.
-          key={`${String(index)}-${entry.kind === 'tool' ? entry.tool : entry.kind}`}
-          className={activityRowClass(entry)}
-          data-activity-kind={entry.kind}
-          data-activity-tool={entry.kind === 'tool' ? entry.tool : undefined}
-          data-activity-dropped={entry.kind === 'truncated' ? String(entry.dropped) : undefined}
-        >
-          {entry.kind === 'tool'
-            ? (
-              <>
-                <span className={css.activityTool}>{entry.tool}</span>
-                <span className={css.activityArgument}>{entry.argument}</span>
-              </>
-            )
-            : entry.kind === 'truncated'
-              ? t('runActivityTruncated', { dropped: entry.dropped })
-              : (
-                <>
-                  {entry.kind === 'reasoning'
-                    ? <span className={css.activityReasoningLabel}>{t('runActivityReasoning')}</span>
-                    : null}
-                  <span className={css.activityText}>{entry.text}</span>
-                </>
-              )}
-        </li>
-      ))}
+      {trace.map((entry, index) => {
+        if (entry.kind === 'tool') {
+          return (
+            <li
+              // Entries carry no identity of their own: the trace is append-only and bounded
+              // at its front, so position within it is the stable name a row needs.
+              key={`${String(index)}-tool`}
+              className={css.activityItem}
+              data-activity-kind="tool"
+              data-activity-tool={entry.tool}
+            >
+              <span className={css.activityTool}>{entry.tool}</span>
+              <span className={css.activityArgument}>{entry.argument}</span>
+            </li>
+          )
+        }
+        if (entry.kind === 'truncated') {
+          return (
+            <li
+              key={`${String(index)}-truncated`}
+              className={css.activityTruncated}
+              data-activity-kind="truncated"
+              data-activity-dropped={String(entry.dropped)}
+            >
+              {t('runActivityTruncated', { dropped: entry.dropped })}
+            </li>
+          )
+        }
+        return <NarrationRow key={`${String(index)}-${entry.kind}`} entry={entry} t={t} />
+      })}
     </ol>
   )
 }
 
+/** Props of one narration row. */
+interface NarrationRowProps {
+  /** The span the model wrote, reasonings or reply. */
+  readonly entry: WorkbenchNarrationActivity
+  /**
+   * Translate one workbench string.
+   * @param key - dictionary key.
+   * @param params - optional template parameters.
+   * @returns the localized text.
+   */
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+}
+
 /**
- * The row class one entry renders with.
- * @param entry - the entry.
- * @returns the module class name, or undefined when the stylesheet has none.
+ * One span of the model's own words, clamped to two lines until the user opens it.
+ *
+ * The whole stored span is in the DOM either way — expanding is a class change, not a
+ * fetch — so a card read offline and a card read live show the same text. The 展开/收起
+ * control appears only when the text is longer than what two lines can show; a toggle that
+ * expands nothing would be noise.
+ * @param props - the entry and the translator.
+ * @returns the row.
  */
-function activityRowClass(entry: WorkbenchActivityEntry): string | undefined {
-  switch (entry.kind) {
-    case 'tool': return css.activityItem
-    case 'reasoning': return css.activityReasoning
-    case 'text': return css.activityNarration
-    case 'truncated': return css.activityTruncated
-  }
+function NarrationRow({ entry, t }: NarrationRowProps): ReactNode {
+  const [expanded, setExpanded] = useState(false)
+  const long = Array.from(entry.text).length > WORKBENCH_ACTIVITY_PREVIEW_LENGTH
+  const reasoning = entry.kind === 'reasoning'
+  return (
+    <li
+      className={reasoning ? css.activityReasoning : css.activityNarration}
+      data-activity-kind={entry.kind}
+      data-activity-expanded={long ? String(expanded) : undefined}
+    >
+      {reasoning ? <span className={css.activityReasoningLabel}>{t('runActivityReasoning')}</span> : null}
+      <span className={`${css.activityText} ${expanded ? '' : css.activityTextClamped}`.trim()}>
+        {entry.text}
+      </span>
+      {long
+        ? (
+          <button
+            type="button"
+            className={css.activityToggle}
+            data-activity-toggle=""
+            aria-expanded={expanded}
+            onClick={() => { setExpanded(open => !open) }}
+          >
+            {expanded ? t('runActivityCollapse') : t('runActivityExpand')}
+          </button>
+        )
+        : null}
+    </li>
+  )
 }
 
 /** Props of the running notice. */

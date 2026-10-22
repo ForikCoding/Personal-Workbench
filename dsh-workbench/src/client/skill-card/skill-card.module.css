@@ -205,6 +205,34 @@
   overflow-wrap: anywhere;
 }
 
+/* Collapsed narration: two lines, then clipped. The whole span stays in the DOM, so
+   expanding (which removes this class) costs no fetch and the text never reflows from a
+   different source than the one that was stored. */
+.activityTextClamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* The 展开/收起 control: a quiet inline affordance, not a button-shaped action. */
+.activityToggle {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.activityToggle:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
 /* A bounded trace's own row. Set apart from the calls because it is not one. */
 .activityTruncated {
   color: var(--dsw-alias-label-tertiary);

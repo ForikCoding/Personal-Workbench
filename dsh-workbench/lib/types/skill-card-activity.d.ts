@@ -108,13 +108,17 @@ export declare function splitActivity(trace: readonly WorkbenchActivityEntry[] |
     readonly dropped: number;
 };
 /**
- * Fit one trace to the entry bound, keeping the newest entries.
+ * Fit one trace to the entry and narration budgets, keeping the newest entries.
  *
- * The dropped count is carried as the marker entry rather than as a second field on the
- * record, so it survives the same round trip as the entries do and cannot be lost by a
- * reader that ignores it.
+ * Two limits bite here and whichever binds first decides: the entry count
+ * ({@link WORKBENCH_ACTIVITY_MAX_ENTRIES}) bounds a run that calls many tools, and the
+ * narration characters ({@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH}) bound a run whose
+ * thinking is long. Entries are dropped from the front, and the count of everything dropped
+ * is carried as the marker entry rather than as a second field on the record, so it
+ * survives the same round trip as the entries do and cannot be lost by a reader that
+ * ignores it.
  * @param trace - the trace to fit, already carrying any earlier marker.
- * @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
+ * @returns the entries kept, newest last, plus one marker when anything was dropped.
  */
 export declare function boundActivity(trace: readonly WorkbenchActivityEntry[]): WorkbenchActivityEntry[];
 /**

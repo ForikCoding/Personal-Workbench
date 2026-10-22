@@ -409,6 +409,17 @@ const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024;
 /** Maximum request-body bytes accepted by the configuration route. */
 const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024;
 /**
+* Longest narration text one activity entry carries, in characters.
+*
+* Narration is the model's own words — its reasoning and its reply text — and the card lets
+* the user open a row to read all of it, so the entry carries the whole span up to this
+* budget rather than a preview; the client clamps it to two lines until the user expands.
+* 3000 characters covers the thinking of an ordinary step whole; a pathological step is cut
+* with the ellipsis, and {@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH} bounds the trace.
+* Redaction runs before this cut, so a credential is replaced whole.
+*/
+const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 3e3;
+/**
 * Skill name grammar, matching the skill registry's own rule exactly: kebab
 * case, with no leading, trailing, or repeated hyphen.
 */
@@ -909,7 +920,7 @@ function truncateActivityText(text) {
 * @returns the text, unchanged when it fits.
 */
 function truncateNarrationText(text) {
-	return truncateTo(text, 240);
+	return truncateTo(text, WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH);
 }
 /**
 * Cut a string to a character budget, marking the cut.
@@ -1042,23 +1053,45 @@ function splitActivity(trace) {
 	};
 }
 /**
-* Fit one trace to the entry bound, keeping the newest entries.
+* Fit one trace to the entry and narration budgets, keeping the newest entries.
 *
-* The dropped count is carried as the marker entry rather than as a second field on the
-* record, so it survives the same round trip as the entries do and cannot be lost by a
-* reader that ignores it.
+* Two limits bite here and whichever binds first decides: the entry count
+* ({@link WORKBENCH_ACTIVITY_MAX_ENTRIES}) bounds a run that calls many tools, and the
+* narration characters ({@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH}) bound a run whose
+* thinking is long. Entries are dropped from the front, and the count of everything dropped
+* is carried as the marker entry rather than as a second field on the record, so it
+* survives the same round trip as the entries do and cannot be lost by a reader that
+* ignores it.
 * @param trace - the trace to fit, already carrying any earlier marker.
-* @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
+* @returns the entries kept, newest last, plus one marker when anything was dropped.
 */
 function boundActivity(trace) {
 	const { entries, dropped } = splitActivity(trace);
-	const over = Math.max(0, entries.length - 64);
-	const kept = over === 0 ? entries : entries.slice(over);
-	const total = dropped + over;
+	let first = Math.max(0, entries.length - 64);
+	let kept = entries.slice(first);
+	let narration = narrationCharacters(kept);
+	while (narration > 12e3 && kept.length > 1) {
+		const shed = kept[0];
+		if (shed === void 0) break;
+		kept = kept.slice(1);
+		first += 1;
+		narration -= shed.kind === "tool" ? 0 : Array.from(shed.text).length;
+	}
+	const total = dropped + first;
 	return [...total === 0 ? [] : [{
 		kind: "truncated",
 		dropped: total
 	}], ...kept];
+}
+/**
+* Count the narration characters one trace carries.
+* @param entries - the entries to measure.
+* @returns their combined narration length in characters.
+*/
+function narrationCharacters(entries) {
+	let total = 0;
+	for (const entry of entries) if (entry.kind !== "tool") total += Array.from(entry.text).length;
+	return total;
 }
 /**
 * Append entries to a trace and fit the result.

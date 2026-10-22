@@ -32,6 +32,7 @@ import {
   WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH,
   WORKBENCH_ACTIVITY_MAX_ENTRIES,
   WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH,
+  WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH,
 } from './skill-card-contract.ts'
 
 /** One session event, as the Host bus delivers it. */
@@ -294,21 +295,46 @@ export function splitActivity(trace: readonly WorkbenchActivityEntry[] | undefin
 }
 
 /**
- * Fit one trace to the entry bound, keeping the newest entries.
+ * Fit one trace to the entry and narration budgets, keeping the newest entries.
  *
- * The dropped count is carried as the marker entry rather than as a second field on the
- * record, so it survives the same round trip as the entries do and cannot be lost by a
- * reader that ignores it.
+ * Two limits bite here and whichever binds first decides: the entry count
+ * ({@link WORKBENCH_ACTIVITY_MAX_ENTRIES}) bounds a run that calls many tools, and the
+ * narration characters ({@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH}) bound a run whose
+ * thinking is long. Entries are dropped from the front, and the count of everything dropped
+ * is carried as the marker entry rather than as a second field on the record, so it
+ * survives the same round trip as the entries do and cannot be lost by a reader that
+ * ignores it.
  * @param trace - the trace to fit, already carrying any earlier marker.
- * @returns a trace of at most {@link WORKBENCH_ACTIVITY_MAX_ENTRIES} entries plus its marker.
+ * @returns the entries kept, newest last, plus one marker when anything was dropped.
  */
 export function boundActivity(trace: readonly WorkbenchActivityEntry[]): WorkbenchActivityEntry[] {
   const { entries, dropped } = splitActivity(trace)
-  const over = Math.max(0, entries.length - WORKBENCH_ACTIVITY_MAX_ENTRIES)
-  const kept = over === 0 ? entries : entries.slice(over)
-  const total = dropped + over
+  let first = Math.max(0, entries.length - WORKBENCH_ACTIVITY_MAX_ENTRIES)
+  let kept = entries.slice(first)
+  let narration = narrationCharacters(kept)
+  while (narration > WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH && kept.length > 1) {
+    const shed = kept[0]
+    if (shed === undefined) break
+    kept = kept.slice(1)
+    first += 1
+    narration -= shed.kind === 'tool' ? 0 : Array.from(shed.text).length
+  }
+  const total = dropped + first
   const marker: WorkbenchTraceTruncation[] = total === 0 ? [] : [{ kind: 'truncated', dropped: total }]
   return [...marker, ...kept]
+}
+
+/**
+ * Count the narration characters one trace carries.
+ * @param entries - the entries to measure.
+ * @returns their combined narration length in characters.
+ */
+function narrationCharacters(entries: readonly (WorkbenchToolActivity | WorkbenchNarrationActivity)[]): number {
+  let total = 0
+  for (const entry of entries) {
+    if (entry.kind !== 'tool') total += Array.from(entry.text).length
+  }
+  return total
 }
 
 /**

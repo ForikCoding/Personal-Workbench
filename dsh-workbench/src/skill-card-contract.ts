@@ -75,14 +75,11 @@ export const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024
 /**
  * How many entries one run's activity trace keeps, before the oldest are dropped.
  *
- * 64 rather than a rounder number because the two budgets meet here: a tool entry costs at
- * most a tool name plus 61 characters of argument, a narration entry at most
- * {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH} characters, so the worst trace — every row a
- * reasoning and a reply — is about 34 KB, still under {@link WORKBENCH_RESULT_MAX_BYTES}
- * (64 KiB) with room for the rendered result beside it; the record's own fit step shrinks
- * the copy it stores if a long result needs the space. 64 rows is already more than anyone
- * reads in 运行详情, and a longer run is summarised by the count it dropped rather than by
- * an unbounded array.
+ * 64 rows is more than anyone reads in 运行详情; a longer run is summarised by the count it
+ * dropped rather than by an unbounded array. The count is not the trace's only bound: the
+ * narration budget ({@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH}) drops the oldest
+ * entries too, whichever limit bites first, so neither many short calls nor a few very long
+ * thoughts can make the trace the run's largest payload.
  */
 export const WORKBENCH_ACTIVITY_MAX_ENTRIES = 64
 
@@ -98,12 +95,32 @@ export const WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH = 60
 /**
  * Longest narration text one activity entry carries, in characters.
  *
- * Narration is the model's own words — its reasoning and its reply text — shown while the
- * run happens. 240 characters is a readable paragraph: enough for the user to follow the
- * line of thought, short enough that a trace of 64 entries does not become the run's
- * largest payload. Redaction runs before this cut, so a credential is replaced whole.
+ * Narration is the model's own words — its reasoning and its reply text — and the card lets
+ * the user open a row to read all of it, so the entry carries the whole span up to this
+ * budget rather than a preview; the client clamps it to two lines until the user expands.
+ * 3000 characters covers the thinking of an ordinary step whole; a pathological step is cut
+ * with the ellipsis, and {@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH} bounds the trace.
+ * Redaction runs before this cut, so a credential is replaced whole.
  */
-export const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 240
+export const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 3_000
+
+/**
+ * Most narration characters one whole trace keeps, across all its entries.
+ *
+ * The per-entry budget alone cannot bound the trace: 64 entries at 3000 characters each is
+ * hundreds of kilobytes, and the trace rides every poll of a running card. When this budget
+ * is exceeded the oldest entries are dropped — and counted by the marker — so a run that
+ * thinks a lot keeps its recent thinking readable instead of its oldest thinking enormous.
+ */
+export const WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH = 12_000
+
+/**
+ * Narration length, in characters, beyond which the client offers 展开/收起.
+ *
+ * Two lines of the card's trace hold roughly this much; shorter narration is shown whole
+ * with no toggle, because a control that expands nothing is noise.
+ */
+export const WORKBENCH_ACTIVITY_PREVIEW_LENGTH = 120
 
 /**
  * One tool call a run's child made, as the activity trace records it.
@@ -127,7 +144,9 @@ export interface WorkbenchToolActivity {
  * `reasoning` is the thinking the model emits before a step; `text` is what it says to the
  * user. Both are redacted and cut to {@link WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH}, and both
  * are shown next to the tool calls so a card reads like a conversation rather than a
- * tool log. The raw message is never carried.
+ * tool log. The client shows two lines and expands to the stored text on demand, which is
+ * why the entry keeps the whole span rather than a preview. The raw message is never
+ * carried.
  */
 export interface WorkbenchNarrationActivity {
   /** Which kind of narration this is: the thinking, or the reply text. */

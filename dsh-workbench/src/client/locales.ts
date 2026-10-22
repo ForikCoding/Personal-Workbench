@@ -173,6 +173,8 @@ export const zh = {
   runElapsed: '用时',
   runActivityTruncated: '之前还有 {dropped} 条已省略',
   runActivityReasoning: '思考',
+  runActivityExpand: '展开',
+  runActivityCollapse: '收起',
   // The stop reasons this build can name. The upstream union is merge-extensible, so an
   // unlisted reason is shown as it arrived rather than guessed at.
   runStopCompleted: '正常结束',
@@ -388,6 +390,8 @@ export const en: Record<keyof typeof zh, string> = {
   runElapsed: 'Elapsed',
   runActivityTruncated: '{dropped} earlier entries omitted',
   runActivityReasoning: 'Thinking',
+  runActivityExpand: 'Expand',
+  runActivityCollapse: 'Collapse',
   // The stop reasons this build can name. The upstream union is merge-extensible, so an
   // unlisted reason is shown as it arrived rather than guessed at.
   runStopCompleted: 'Completed',
