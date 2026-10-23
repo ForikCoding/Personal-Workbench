@@ -82,46 +82,6 @@ export function resultHtml(value: unknown): string | undefined {
 }
 
 /**
- * Remove the template's indentation from one result's HTML.
- *
- * The child returns the content of the region it was asked to fill, so every line
- * carries the indentation the region had in the template. A template whose region sits
- * inside a table six levels deep therefore starts its content far from column zero, and
- * the code block that shows the raw region wastes that lead on every line.
- *
- * This is a display projection and nothing else: the stored value is spliced back into
- * the template verbatim, so the one thing this must never do is become the value.
- *
- * Blank lines have no indentation of their own, so they are left empty and take no part
- * in finding the prefix. A fragment whose lines share no leading whitespace is returned
- * untouched, because there is nothing to remove and `pre` is faithful by default.
- * @param html - the region HTML exactly as stored.
- * @returns the same HTML with the non-blank lines' common leading whitespace removed.
- */
-export function dedentedHtml(html: string): string {
-  const lines = html.split('\n')
-  const indents = lines
-    .filter(line => line.trim() !== '')
-    .map(line => (/^[ \t]*/.exec(line)?.[0]) ?? '')
-  const [first = '', ...rest] = indents
-  let prefix = first
-  for (const indent of rest) {
-    let shared = 0
-    while (shared < prefix.length && shared < indent.length && prefix[shared] === indent[shared]) {
-      shared += 1
-    }
-    prefix = prefix.slice(0, shared)
-    if (prefix === '') return html
-  }
-  // Also the whole-fragment cases: no blank-free line at all, or one single line that
-  // was never indented.
-  if (prefix === '') return html
-  return lines
-    .map(line => (line.trim() === '' ? '' : line.slice(prefix.length)))
-    .join('\n')
-}
-
-/**
  * Splice one result's HTML into its template's region.
  * @param template - the template as stored.
  * @param html - the region content the result carries.

@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
 // The Loader never fetches a sibling stylesheet, so this one ships inside
 // the factory and installs on first evaluation.
 {
-  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_14mdo_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_14mdo_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_14mdo_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_14mdo_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_14mdo_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_14mdo_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_14mdo_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_14mdo_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_14mdo_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_14mdo_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_14mdo_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide. */\n._cell_14mdo_91 {\n  display: grid;\n  min-width: 0;\n}\n\n._createRoot_14mdo_96 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n._createTile_14mdo_105 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_14mdo_105:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. */\n._createMark_14mdo_134 {\n  font-size: 20px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._createTile_14mdo_105:hover ._createMark_14mdo_134 {\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_14mdo_105:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_14mdo_81 {\n    grid-template-columns: 1fr;\n  }\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1xt6b_4 {\n  display: block;\n}\n\n._body_1xt6b_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._cardActions_1xt6b_14 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1xt6b_22 {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n  width: 100%;\n  min-width: 0;\n}\n\n._pageViewHead_1xt6b_30 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._pageViewTitle_1xt6b_37 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 16px;\n  font-weight: 500;\n  line-height: 24px;\n  overflow-wrap: anywhere;\n}\n\n._pageViewSubtitle_1xt6b_47 {\n  flex: none;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runProblem_1xt6b_54 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The hairline that separates the run's debug detail from the result above it. */\n._runOutput_1xt6b_65 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  padding-top: 8px;\n}\n\n._runOutputSummary_1xt6b_70 {\n  cursor: pointer;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._runOutputLabel_1xt6b_76 {\n  margin: 8px 0 4px;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n._runFacts_1xt6b_82 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 2px 12px;\n  margin: 8px 0 0;\n  font-size: 12px;\n}\n\n._runFacts_1xt6b_82 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runFacts_1xt6b_82 dd {\n  margin: 0;\n  overflow-wrap: anywhere;\n}\n\n._runPre_1xt6b_99 {\n  max-height: 320px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* The region HTML as the run produced it: real newlines, and long lines scroll rather\n   than fold. A folded tag reads as several lines of a different tag. */\n._runPreHtml_1xt6b_115 {\n  max-height: 320px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre;\n}\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom.\n\n   It is bounded on screen as well as in storage, and the bound is a scrollbar rather than a\n   fold: a long run must not push the card's document off the page, and the whole trace has\n   to stay reachable without a second click. */\n._activityList_1xt6b_134 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  max-height: 160px;\n  margin: 4px 0 0;\n  padding: 0;\n  overflow-y: auto;\n  list-style: none;\n}\n\n._activityItem_1xt6b_145 {\n  display: flex;\n  gap: 8px;\n  min-width: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityTool_1xt6b_155 {\n  flex: none;\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n/* The first argument, which is model-authored and may be any length up to its own limit.\n   It wraps rather than widening the card. */\n._activityArgument_1xt6b_163 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The model thinking: set apart from the calls because it is what the card is *reasoning*,\n   not what it is doing. Muted and italic so the eye can skip it and still read the calls. */\n._activityReasoning_1xt6b_170 {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  font-style: italic;\n  line-height: 18px;\n}\n\n/* The 思考 chip that marks a reasoning row, echoed by the chat's own thinking label. */\n._activityReasoningLabel_1xt6b_182 {\n  flex: none;\n  font-style: normal;\n  font-size: 11px;\n  color: var(--dsw-alias-label-tertiary);\n  border: 1px solid var(--dsw-alias-separator-secondary);\n  border-radius: 4px;\n  padding: 0 4px;\n  line-height: 14px;\n}\n\n/* The model speaking to the user: plain narration, no chip. */\n._activityNarration_1xt6b_194 {\n  min-width: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n/* Narration text wraps like an argument does. */\n._activityText_1xt6b_203 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* Collapsed narration: two lines, then clipped. The whole span stays in the DOM, so\n   expanding (which removes this class) costs no fetch and the text never reflows from a\n   different source than the one that was stored. */\n._activityTextClamped_1xt6b_211 {\n  display: -webkit-box;\n  -webkit-line-clamp: 2;\n  line-clamp: 2;\n  -webkit-box-orient: vertical;\n  overflow: hidden;\n}\n\n/* The 展开/收起 control: a quiet inline affordance, not a button-shaped action. */\n._activityToggle_1xt6b_220 {\n  flex: none;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n  text-decoration: underline;\n}\n\n._activityToggle_1xt6b_220:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_1xt6b_237 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1xt6b_251 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1xt6b_263 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* Revising the result is a sentence about what is on screen, so the composer sits\n   directly under it: field and send on one line, the log of what was already asked\n   below. */\n._composer_1xt6b_273 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* The field grows upwards from one row and the regenerating control sits beside it, so\n   the control has to stay at the bottom edge rather than float beside the middle of a\n   four-row field. The gap is what keeps a disabled control reading as \"nothing written\n   yet\" instead of as part of the field. */\n._composerRow_1xt6b_284 {\n  display: flex;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because\n   this is the same kind of input as the conversation's: `min-height: 36px` and\n   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in\n   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value\n   `--dsw-radius-panel`, and the type is the card's own inherited\n   `var(--dsh-content-font-size, 14px)` over\n   `calc(24px + var(--dsh-content-font-delta, 0px))`.\n   The bottom inset is the one value restated rather than copied: the chat field's bottom\n   space comes from the toolbar row beneath it, while this field ends on its own border,\n   so it repeats the top inset instead of sitting its last line on the edge. */\n._composerInput_1xt6b_301 {\n  /* The chat card's own stroke colour, so the field's edge is the same hairline the\n     elevation token draws around the conversation's composer. */\n  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-width: 0;\n  min-height: 36px;\n  /* Four rows of the same line box, plus its own insets and border. Past that the field\n     scrolls rather than growing. */\n  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 8px 4px 14px;\n  border: 0;\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  box-shadow: var(--dsw-elevation-soft);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._composerInput_1xt6b_301::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The chat composer's own disabled treatment: the text it holds stays readable but stops\n   looking like something that can be written into. */\n._composerInput_1xt6b_301:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._composerInput_1xt6b_301:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1xt6b_342 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1xt6b_350 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1xt6b_358 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1xt6b_365 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1xt6b_375 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1xt6b_387 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1xt6b_392 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1xt6b_397 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1xt6b_406 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1xt6b_413 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1xt6b_420 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1xt6b_427 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1xt6b_436 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1xt6b_445 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 20px 0;\n}\n\n._section_1xt6b_445:first-child {\n  padding-top: 0;\n}\n\n._section_1xt6b_445 + ._section_1xt6b_445 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1xt6b_461 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1xt6b_473 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1xt6b_473 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1xt6b_473 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1xt6b_498 {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  height: 28px;\n  padding: 0 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1xt6b_514 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1xt6b_522 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n._workspaceValue_1xt6b_533 {\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 3px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1xt6b_550 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceLeaf_1xt6b_554 {\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1xt6b_564 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1xt6b_575 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._select_1xt6b_582,\n._editor_1xt6b_583 {\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n}\n\n._select_1xt6b_582 {\n  height: 28px;\n  padding: 0 6px;\n}\n\n._editor_1xt6b_583 {\n  min-height: 320px;\n  padding: 6px;\n  font-family: monospace;\n  resize: vertical;\n}\n\n/* The editor is the page's main work surface, so one line above it carries the three\n   facts a writer needs while typing: where the region is, what the template declares,\n   and how much of the size budget it uses. */\n._editorStatus_1xt6b_606 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1xt6b_614 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1xt6b_619 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The one control this line carries: writing the missing markers. It inherits the\n   line's type so it reads as part of the sentence. */\n._editorStatusAction_1xt6b_625 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-link);\n  font: inherit;\n  text-decoration: underline;\n  cursor: pointer;\n}\n\n/* Gutter plus text area in one row. The two must share font, size, line height and\n   vertical padding, or the numbers stop lining up with the lines they label. */\n._editorPane_1xt6b_637 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1xt6b_650 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1xt6b_668 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1xt6b_668:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1xt6b_688 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1xt6b_696 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1xt6b_637 ._editor_1xt6b_583 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n}\n\n._editorPane_1xt6b_637 ._editor_1xt6b_583:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1xt6b_637:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1xt6b_583:focus-visible,\n._select_1xt6b_582:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1xt6b_725 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1xt6b_735 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1xt6b_735:hover,\n._violationJump_1xt6b_735:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The preview's own surface, inset from the page. What is inside is the user's\n   document in a shadow root, so only this frame is styled here. */\n._previewSurface_1xt6b_755 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._previewLabel_1xt6b_767 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._preview_1xt6b_755 {\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px;\n}\n\n._settingsActions_1xt6b_779 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1xt6b_786 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1xt6b_797 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1xt6b_804 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1xt6b_814 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1xt6b_821 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall. */\n._configFooter_1xt6b_827 {\n  position: sticky;\n  bottom: 0;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 12px 0 16px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n}\n\n._footerActions_1xt6b_841 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1xt6b_847 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1xt6b_852 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1xt6b_841 ._deleteCard_1xt6b_860 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1xt6b_841 ._deleteCard_1xt6b_860:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1xt6b_870 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The permission note, demoted to a footnote: it is a statement about the page, not\n   part of the document the card renders, and it stands beneath everything. */\n._permission_1xt6b_879 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1xt6b_889 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1xt6b_898 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1xt6b_898 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1xt6b_898 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1xt6b_918 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1xt6b_934 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1xt6b_934[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are\n   pointless; narrower, stacking them pushes whichever is second below the fold, so the\n   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */\n._panes_1xt6b_949 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 16px;\n  align-items: start;\n}\n\n/* A grid child defaults to min-width auto, which lets the editor's content widen the\n   column instead of scrolling inside it. */\n._panes_1xt6b_949 > ._section_1xt6b_445 {\n  min-width: 0;\n}\n\n._paneTabs_1xt6b_962 {\n  display: flex;\n  gap: 4px;\n  padding: 3px;\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._paneTab_1xt6b_962 {\n  flex: 1 1 auto;\n  padding: 5px 10px;\n  border: 0;\n  border-radius: calc(var(--dsw-radius-sm) - 1px);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._paneTab_1xt6b_962[aria-selected='true'] {\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n._paneTab_1xt6b_962:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (min-width: 1100px) {\n  ._panes_1xt6b_949 {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    gap: 24px;\n  }\n\n  /* Both panes are visible, so a tab strip would only repeat their headings. */\n  ._paneTabs_1xt6b_962 {\n    display: none;\n  }\n}\n\n@media (max-width: 1099px) {\n  /* The selected tab already names the pane, so the heading would say it twice. */\n  ._panes_1xt6b_949 ._sectionTitle_1xt6b_461 {\n    display: none;\n  }\n\n  ._panes_1xt6b_949[data-pane='edit'] > ._section_1xt6b_445:nth-of-type(2),\n  ._panes_1xt6b_949[data-pane='preview'] > ._section_1xt6b_445:nth-of-type(1) {\n    display: none;\n  }\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_1qbpg_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  box-sizing: border-box;\n  height: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_1qbpg_17 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_1qbpg_24 {\n  cursor: pointer;\n}\n\n._activatable_1qbpg_24:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_1qbpg_24:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_1qbpg_41 {\n  grid-row: span 2;\n}\n\n._spanLarge_1qbpg_45 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_1qbpg_50 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_1qbpg_62 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_1qbpg_69 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_1qbpg_81 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_1qbpg_94 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_1qbpg_104 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_1qbpg_111 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_1qbpg_3:hover ._iconButton_1qbpg_111,\n._card_1qbpg_3:focus-within ._iconButton_1qbpg_111 {\n  opacity: 1;\n}\n\n._iconButton_1qbpg_111:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_1qbpg_111:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_1qbpg_147 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_1qbpg_147:active {\n  cursor: grabbing;\n}\n\n._body_1qbpg_157 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n._failure_1qbpg_164 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_1qbpg_172 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
+  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_14mdo_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_14mdo_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_14mdo_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_14mdo_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_14mdo_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_14mdo_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_14mdo_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_14mdo_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_14mdo_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_14mdo_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_14mdo_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide. */\n._cell_14mdo_91 {\n  display: grid;\n  min-width: 0;\n}\n\n._createRoot_14mdo_96 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n._createTile_14mdo_105 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_14mdo_105:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. */\n._createMark_14mdo_134 {\n  font-size: 20px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._createTile_14mdo_105:hover ._createMark_14mdo_134 {\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_14mdo_105:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_14mdo_81 {\n    grid-template-columns: 1fr;\n  }\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1xpkz_4 {\n  display: block;\n}\n\n._body_1xpkz_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._cardActions_1xpkz_14 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1xpkz_22 {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n  width: 100%;\n  min-width: 0;\n}\n\n._pageViewHead_1xpkz_30 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._pageViewTitle_1xpkz_37 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 16px;\n  font-weight: 500;\n  line-height: 24px;\n  overflow-wrap: anywhere;\n}\n\n._pageViewSubtitle_1xpkz_47 {\n  flex: none;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runProblem_1xpkz_54 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result, set off from it by the same\n   hairline the record used to carry. */\n._runTrace_1xpkz_66 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  padding-top: 8px;\n}\n\n._runOutputLabel_1xpkz_71 {\n  margin: 8px 0 4px;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom.\n\n   It is bounded on screen as well as in storage, and the bound is a scrollbar rather than a\n   fold: a long run must not push the card's document off the page, and the whole trace has\n   to stay reachable without a second click. */\n._activityList_1xpkz_83 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  max-height: 160px;\n  margin: 4px 0 0;\n  padding: 0;\n  overflow-y: auto;\n  list-style: none;\n}\n\n._activityItem_1xpkz_94 {\n  display: flex;\n  gap: 8px;\n  min-width: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityTool_1xpkz_104 {\n  flex: none;\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n/* The first argument, which is model-authored and may be any length up to its own limit.\n   It wraps rather than widening the card. */\n._activityArgument_1xpkz_112 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The model thinking: set apart from the calls because it is what the card is *reasoning*,\n   not what it is doing. Muted and italic so the eye can skip it and still read the calls. */\n._activityReasoning_1xpkz_119 {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  font-style: italic;\n  line-height: 18px;\n}\n\n/* The 思考 chip that marks a reasoning row, echoed by the chat's own thinking label. */\n._activityReasoningLabel_1xpkz_131 {\n  flex: none;\n  font-style: normal;\n  font-size: 11px;\n  color: var(--dsw-alias-label-tertiary);\n  border: 1px solid var(--dsw-alias-separator-secondary);\n  border-radius: 4px;\n  padding: 0 4px;\n  line-height: 14px;\n}\n\n/* The model speaking to the user: plain narration, no chip. */\n._activityNarration_1xpkz_143 {\n  min-width: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n/* Narration text wraps like an argument does. */\n._activityText_1xpkz_152 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* Collapsed narration: two lines, then clipped. The whole span stays in the DOM, so\n   expanding (which removes this class) costs no fetch and the text never reflows from a\n   different source than the one that was stored. */\n._activityTextClamped_1xpkz_160 {\n  display: -webkit-box;\n  -webkit-line-clamp: 2;\n  line-clamp: 2;\n  -webkit-box-orient: vertical;\n  overflow: hidden;\n}\n\n/* The 展开/收起 control: a quiet inline affordance, not a button-shaped action. */\n._activityToggle_1xpkz_169 {\n  flex: none;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n  text-decoration: underline;\n}\n\n._activityToggle_1xpkz_169:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_1xpkz_186 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1xpkz_200 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1xpkz_212 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* Revising the result is a sentence about what is on screen, so the composer sits\n   directly under it: field and send on one line, the log of what was already asked\n   below. */\n._composer_1xpkz_222 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* The field grows upwards from one row and the regenerating control sits beside it, so\n   the control has to stay at the bottom edge rather than float beside the middle of a\n   four-row field. The gap is what keeps a disabled control reading as \"nothing written\n   yet\" instead of as part of the field. */\n._composerRow_1xpkz_233 {\n  display: flex;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because\n   this is the same kind of input as the conversation's: `min-height: 36px` and\n   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in\n   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value\n   `--dsw-radius-panel`, and the type is the card's own inherited\n   `var(--dsh-content-font-size, 14px)` over\n   `calc(24px + var(--dsh-content-font-delta, 0px))`.\n   The bottom inset is the one value restated rather than copied: the chat field's bottom\n   space comes from the toolbar row beneath it, while this field ends on its own border,\n   so it repeats the top inset instead of sitting its last line on the edge. */\n._composerInput_1xpkz_250 {\n  /* The chat card's own stroke colour, so the field's edge is the same hairline the\n     elevation token draws around the conversation's composer. */\n  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-width: 0;\n  min-height: 36px;\n  /* Four rows of the same line box, plus its own insets and border. Past that the field\n     scrolls rather than growing. */\n  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 8px 4px 14px;\n  border: 0;\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  box-shadow: var(--dsw-elevation-soft);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._composerInput_1xpkz_250::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The chat composer's own disabled treatment: the text it holds stays readable but stops\n   looking like something that can be written into. */\n._composerInput_1xpkz_250:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._composerInput_1xpkz_250:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1xpkz_291 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1xpkz_299 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1xpkz_307 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1xpkz_314 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1xpkz_324 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1xpkz_336 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1xpkz_341 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1xpkz_346 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1xpkz_355 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1xpkz_362 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1xpkz_369 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1xpkz_376 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1xpkz_385 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1xpkz_394 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 20px 0;\n}\n\n._section_1xpkz_394:first-child {\n  padding-top: 0;\n}\n\n._section_1xpkz_394 + ._section_1xpkz_394 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1xpkz_410 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1xpkz_422 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1xpkz_422 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1xpkz_422 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1xpkz_447 {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  height: 28px;\n  padding: 0 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1xpkz_463 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1xpkz_471 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n._workspaceValue_1xpkz_482 {\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 3px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1xpkz_499 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceLeaf_1xpkz_503 {\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1xpkz_513 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1xpkz_524 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._select_1xpkz_531,\n._editor_1xpkz_532 {\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n}\n\n._select_1xpkz_531 {\n  height: 28px;\n  padding: 0 6px;\n}\n\n._editor_1xpkz_532 {\n  min-height: 320px;\n  padding: 6px;\n  font-family: monospace;\n  resize: vertical;\n}\n\n/* The editor is the page's main work surface, so one line above it carries the three\n   facts a writer needs while typing: where the region is, what the template declares,\n   and how much of the size budget it uses. */\n._editorStatus_1xpkz_555 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1xpkz_563 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1xpkz_568 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The one control this line carries: writing the missing markers. It inherits the\n   line's type so it reads as part of the sentence. */\n._editorStatusAction_1xpkz_574 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-link);\n  font: inherit;\n  text-decoration: underline;\n  cursor: pointer;\n}\n\n/* Gutter plus text area in one row. The two must share font, size, line height and\n   vertical padding, or the numbers stop lining up with the lines they label. */\n._editorPane_1xpkz_586 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1xpkz_599 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1xpkz_617 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1xpkz_617:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1xpkz_637 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1xpkz_645 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1xpkz_586 ._editor_1xpkz_532 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n}\n\n._editorPane_1xpkz_586 ._editor_1xpkz_532:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1xpkz_586:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1xpkz_532:focus-visible,\n._select_1xpkz_531:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1xpkz_674 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1xpkz_684 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1xpkz_684:hover,\n._violationJump_1xpkz_684:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The preview's own surface, inset from the page. What is inside is the user's\n   document in a shadow root, so only this frame is styled here. */\n._previewSurface_1xpkz_704 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._previewLabel_1xpkz_716 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._preview_1xpkz_704 {\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px;\n}\n\n._settingsActions_1xpkz_728 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1xpkz_735 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1xpkz_746 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1xpkz_753 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1xpkz_763 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1xpkz_770 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall. */\n._configFooter_1xpkz_776 {\n  position: sticky;\n  bottom: 0;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 12px 0 16px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n}\n\n._footerActions_1xpkz_790 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1xpkz_796 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1xpkz_801 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1xpkz_790 ._deleteCard_1xpkz_809 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1xpkz_790 ._deleteCard_1xpkz_809:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1xpkz_819 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The permission note, demoted to a footnote: it is a statement about the page, not\n   part of the document the card renders, and it stands beneath everything. */\n._permission_1xpkz_828 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1xpkz_838 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1xpkz_847 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1xpkz_847 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1xpkz_847 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1xpkz_867 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1xpkz_883 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1xpkz_883[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are\n   pointless; narrower, stacking them pushes whichever is second below the fold, so the\n   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */\n._panes_1xpkz_898 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 16px;\n  align-items: start;\n}\n\n/* A grid child defaults to min-width auto, which lets the editor's content widen the\n   column instead of scrolling inside it. */\n._panes_1xpkz_898 > ._section_1xpkz_394 {\n  min-width: 0;\n}\n\n._paneTabs_1xpkz_911 {\n  display: flex;\n  gap: 4px;\n  padding: 3px;\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._paneTab_1xpkz_911 {\n  flex: 1 1 auto;\n  padding: 5px 10px;\n  border: 0;\n  border-radius: calc(var(--dsw-radius-sm) - 1px);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._paneTab_1xpkz_911[aria-selected='true'] {\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n._paneTab_1xpkz_911:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (min-width: 1100px) {\n  ._panes_1xpkz_898 {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    gap: 24px;\n  }\n\n  /* Both panes are visible, so a tab strip would only repeat their headings. */\n  ._paneTabs_1xpkz_911 {\n    display: none;\n  }\n}\n\n@media (max-width: 1099px) {\n  /* The selected tab already names the pane, so the heading would say it twice. */\n  ._panes_1xpkz_898 ._sectionTitle_1xpkz_410 {\n    display: none;\n  }\n\n  ._panes_1xpkz_898[data-pane='edit'] > ._section_1xpkz_394:nth-of-type(2),\n  ._panes_1xpkz_898[data-pane='preview'] > ._section_1xpkz_394:nth-of-type(1) {\n    display: none;\n  }\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_1qbpg_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  box-sizing: border-box;\n  height: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_1qbpg_17 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_1qbpg_24 {\n  cursor: pointer;\n}\n\n._activatable_1qbpg_24:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_1qbpg_24:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_1qbpg_41 {\n  grid-row: span 2;\n}\n\n._spanLarge_1qbpg_45 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_1qbpg_50 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_1qbpg_62 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_1qbpg_69 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_1qbpg_81 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_1qbpg_94 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_1qbpg_104 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_1qbpg_111 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_1qbpg_3:hover ._iconButton_1qbpg_111,\n._card_1qbpg_3:focus-within ._iconButton_1qbpg_111 {\n  opacity: 1;\n}\n\n._iconButton_1qbpg_111:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_1qbpg_111:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_1qbpg_147 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_1qbpg_147:active {\n  cursor: grabbing;\n}\n\n._body_1qbpg_157 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n._failure_1qbpg_164 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_1qbpg_172 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
   if (typeof document !== 'undefined' && document.querySelector("style[data-plugin-css=\"dsh-workbench\"]") === null) {
     const tag = document.createElement('style');
     tag.dataset.pluginCss = "dsh-workbench";
@@ -336,29 +336,17 @@ window.__ModuleLoader__.load({
 			skillCardDelete: "删除卡片",
 			removeCard: "删除卡片",
 			runStatusRunning: "运行中",
-			runStartedAt: "开始于",
-			runStopReason: "结束原因",
-			runModel: "模型",
-			runEditedAt: "手工编辑",
 			skillCardResultEdit: "编辑",
 			resultEditLabel: "结果内容",
 			resultEditPlaceholder: "这里是这段区间的 HTML：改完保存，它就是这张卡的结果",
 			resultEditEmpty: "结果为空，没有可保存的内容。这张卡可以再运行一次，也可以在这里直接填入区间 HTML。",
 			resultEditTooLarge: "内容有 {bytes} 字节，超过 {max} 字节上限，未保存。",
-			runDetailSummary: "运行详情",
-			runStructured: "结构化结果",
-			runRawOutput: "原始输出",
-			runDiagnostic: "诊断",
 			runActivity: "活动记录",
 			runElapsed: "用时",
 			runActivityTruncated: "之前还有 {dropped} 条已省略",
 			runActivityReasoning: "思考",
 			runActivityExpand: "展开",
 			runActivityCollapse: "收起",
-			runStopCompleted: "正常结束",
-			runStopError: "出错",
-			runStopAborted: "已中止",
-			runStructuredRest: "其余字段",
 			skillCardRunningBody: "技能正在执行，完成后结果会显示在这里。",
 			refinePlaceholder: "说明要改哪里，例如「按时间倒序」",
 			refineAction: "重新生成",
@@ -506,29 +494,17 @@ window.__ModuleLoader__.load({
 			skillCardDelete: "Delete card",
 			removeCard: "Delete card",
 			runStatusRunning: "Running",
-			runStartedAt: "Started",
-			runStopReason: "Stop reason",
-			runModel: "Model",
-			runEditedAt: "Edited by hand",
 			skillCardResultEdit: "Edit",
 			resultEditLabel: "Result content",
 			resultEditPlaceholder: "The region’s HTML: saving it becomes this card’s result",
 			resultEditEmpty: "The result is empty, so there is nothing to save. Run this card again, or type the region HTML here.",
 			resultEditTooLarge: "The content is {bytes} bytes, over the {max}-byte limit, so nothing was saved.",
-			runDetailSummary: "Run details",
-			runStructured: "Structured result",
-			runRawOutput: "Raw output",
-			runDiagnostic: "Diagnostic",
 			runActivity: "Activity",
 			runElapsed: "Elapsed",
 			runActivityTruncated: "{dropped} earlier entries omitted",
 			runActivityReasoning: "Thinking",
 			runActivityExpand: "Expand",
 			runActivityCollapse: "Collapse",
-			runStopCompleted: "Completed",
-			runStopError: "Error",
-			runStopAborted: "Aborted",
-			runStructuredRest: "Other fields",
 			skillCardRunningBody: "The skill is executing. Its result appears here when it finishes.",
 			refinePlaceholder: "Say what to change, e.g. “newest first”",
 			refineAction: "Regenerate",
@@ -2160,36 +2136,6 @@ window.__ModuleLoader__.load({
 			return typeof html === "string" && html.trim() !== "" ? html : void 0;
 		}
 		/**
-		* Remove the template's indentation from one result's HTML.
-		*
-		* The child returns the content of the region it was asked to fill, so every line
-		* carries the indentation the region had in the template. A template whose region sits
-		* inside a table six levels deep therefore starts its content far from column zero, and
-		* the code block that shows the raw region wastes that lead on every line.
-		*
-		* This is a display projection and nothing else: the stored value is spliced back into
-		* the template verbatim, so the one thing this must never do is become the value.
-		*
-		* Blank lines have no indentation of their own, so they are left empty and take no part
-		* in finding the prefix. A fragment whose lines share no leading whitespace is returned
-		* untouched, because there is nothing to remove and `pre` is faithful by default.
-		* @param html - the region HTML exactly as stored.
-		* @returns the same HTML with the non-blank lines' common leading whitespace removed.
-		*/
-		function dedentedHtml(html) {
-			const lines = html.split("\n");
-			const [first = "", ...rest] = lines.filter((line) => line.trim() !== "").map((line) => /^[ \t]*/.exec(line)?.[0] ?? "");
-			let prefix = first;
-			for (const indent of rest) {
-				let shared = 0;
-				while (shared < prefix.length && shared < indent.length && prefix[shared] === indent[shared]) shared += 1;
-				prefix = prefix.slice(0, shared);
-				if (prefix === "") return html;
-			}
-			if (prefix === "") return html;
-			return lines.map((line) => line.trim() === "" ? "" : line.slice(prefix.length)).join("\n");
-		}
-		/**
 		* Splice one result's HTML into its template's region.
 		* @param template - the template as stored.
 		* @param html - the region content the result carries.
@@ -3473,97 +3419,93 @@ window.__ModuleLoader__.load({
 			return Object.hasOwn(LOCALIZED_CODES, code) ? code : "unavailable";
 		}
 		var skill_card_module_default = {
-			template: "_template_1xt6b_4",
-			body: "_body_1xt6b_8",
-			cardActions: "_cardActions_1xt6b_14",
-			pageView: "_pageView_1xt6b_22",
-			pageViewHead: "_pageViewHead_1xt6b_30",
-			pageViewTitle: "_pageViewTitle_1xt6b_37",
-			pageViewSubtitle: "_pageViewSubtitle_1xt6b_47",
-			runProblem: "_runProblem_1xt6b_54",
-			runOutput: "_runOutput_1xt6b_65",
-			runOutputSummary: "_runOutputSummary_1xt6b_70",
-			runOutputLabel: "_runOutputLabel_1xt6b_76",
-			runFacts: "_runFacts_1xt6b_82",
-			runPre: "_runPre_1xt6b_99",
-			runPreHtml: "_runPreHtml_1xt6b_115",
-			activityList: "_activityList_1xt6b_134",
-			activityItem: "_activityItem_1xt6b_145",
-			activityTool: "_activityTool_1xt6b_155",
-			activityArgument: "_activityArgument_1xt6b_163",
-			activityReasoning: "_activityReasoning_1xt6b_170",
-			activityReasoningLabel: "_activityReasoningLabel_1xt6b_182",
-			activityNarration: "_activityNarration_1xt6b_194",
-			activityText: "_activityText_1xt6b_203",
-			activityTextClamped: "_activityTextClamped_1xt6b_211",
-			activityToggle: "_activityToggle_1xt6b_220",
-			activityTruncated: "_activityTruncated_1xt6b_237",
-			resultSurface: "_resultSurface_1xt6b_251",
-			resultEditor: "_resultEditor_1xt6b_263",
-			composer: "_composer_1xt6b_273",
-			composerRow: "_composerRow_1xt6b_284",
-			composerInput: "_composerInput_1xt6b_301",
-			composerProblem: "_composerProblem_1xt6b_342",
-			refineLog: "_refineLog_1xt6b_350",
-			refineLogHead: "_refineLogHead_1xt6b_358",
-			refineLogTitle: "_refineLogTitle_1xt6b_365",
-			refineLogList: "_refineLogList_1xt6b_375",
-			refineLogItem: "_refineLogItem_1xt6b_387",
-			refineLogInstruction: "_refineLogInstruction_1xt6b_392",
-			refineLogTime: "_refineLogTime_1xt6b_397",
-			refineLogNote: "_refineLogNote_1xt6b_406",
-			notice: "_notice_1xt6b_413",
-			noticeTitle: "_noticeTitle_1xt6b_420",
-			noticeBody: "_noticeBody_1xt6b_427",
-			settings: "_settings_1xt6b_436",
-			section: "_section_1xt6b_445",
-			sectionTitle: "_sectionTitle_1xt6b_461",
-			fieldGrid: "_fieldGrid_1xt6b_473",
-			field: "_field_1xt6b_473",
-			fieldValue: "_fieldValue_1xt6b_498",
-			fieldLabel: "_fieldLabel_1xt6b_514",
-			workspaceRow: "_workspaceRow_1xt6b_522",
-			workspaceValue: "_workspaceValue_1xt6b_533",
-			workspaceValueInvalid: "_workspaceValueInvalid_1xt6b_550",
-			workspaceLeaf: "_workspaceLeaf_1xt6b_554",
-			workspacePath: "_workspacePath_1xt6b_564",
-			fieldNote: "_fieldNote_1xt6b_575",
-			select: "_select_1xt6b_582",
-			editor: "_editor_1xt6b_583",
-			editorStatus: "_editorStatus_1xt6b_606",
-			editorStatusMissing: "_editorStatusMissing_1xt6b_614",
-			editorStatusWarn: "_editorStatusWarn_1xt6b_619",
-			editorStatusAction: "_editorStatusAction_1xt6b_625",
-			editorPane: "_editorPane_1xt6b_637",
-			gutter: "_gutter_1xt6b_650",
-			gutterLine: "_gutterLine_1xt6b_668",
-			gutterLineRegion: "_gutterLineRegion_1xt6b_688",
-			gutterLineActions: "_gutterLineActions_1xt6b_696",
-			violations: "_violations_1xt6b_725",
-			violationJump: "_violationJump_1xt6b_735",
-			previewSurface: "_previewSurface_1xt6b_755",
-			previewLabel: "_previewLabel_1xt6b_767",
-			preview: "_preview_1xt6b_755",
-			settingsActions: "_settingsActions_1xt6b_779",
-			actionBuilder: "_actionBuilder_1xt6b_786",
-			builderRow: "_builderRow_1xt6b_797",
-			builderField: "_builderField_1xt6b_804",
-			hint: "_hint_1xt6b_814",
-			hintError: "_hintError_1xt6b_821",
-			configFooter: "_configFooter_1xt6b_827",
-			footerActions: "_footerActions_1xt6b_841",
-			footerSpacer: "_footerSpacer_1xt6b_847",
-			deletePrompt: "_deletePrompt_1xt6b_852",
-			deleteCard: "_deleteCard_1xt6b_860",
-			writeFailure: "_writeFailure_1xt6b_870",
-			permission: "_permission_1xt6b_879",
-			actionPanel: "_actionPanel_1xt6b_889",
-			actionFacts: "_actionFacts_1xt6b_898",
-			actionPayload: "_actionPayload_1xt6b_918",
-			bareRun: "_bareRun_1xt6b_934",
-			panes: "_panes_1xt6b_949",
-			paneTabs: "_paneTabs_1xt6b_962",
-			paneTab: "_paneTab_1xt6b_962"
+			template: "_template_1xpkz_4",
+			body: "_body_1xpkz_8",
+			cardActions: "_cardActions_1xpkz_14",
+			pageView: "_pageView_1xpkz_22",
+			pageViewHead: "_pageViewHead_1xpkz_30",
+			pageViewTitle: "_pageViewTitle_1xpkz_37",
+			pageViewSubtitle: "_pageViewSubtitle_1xpkz_47",
+			runProblem: "_runProblem_1xpkz_54",
+			runTrace: "_runTrace_1xpkz_66",
+			runOutputLabel: "_runOutputLabel_1xpkz_71",
+			activityList: "_activityList_1xpkz_83",
+			activityItem: "_activityItem_1xpkz_94",
+			activityTool: "_activityTool_1xpkz_104",
+			activityArgument: "_activityArgument_1xpkz_112",
+			activityReasoning: "_activityReasoning_1xpkz_119",
+			activityReasoningLabel: "_activityReasoningLabel_1xpkz_131",
+			activityNarration: "_activityNarration_1xpkz_143",
+			activityText: "_activityText_1xpkz_152",
+			activityTextClamped: "_activityTextClamped_1xpkz_160",
+			activityToggle: "_activityToggle_1xpkz_169",
+			activityTruncated: "_activityTruncated_1xpkz_186",
+			resultSurface: "_resultSurface_1xpkz_200",
+			resultEditor: "_resultEditor_1xpkz_212",
+			composer: "_composer_1xpkz_222",
+			composerRow: "_composerRow_1xpkz_233",
+			composerInput: "_composerInput_1xpkz_250",
+			composerProblem: "_composerProblem_1xpkz_291",
+			refineLog: "_refineLog_1xpkz_299",
+			refineLogHead: "_refineLogHead_1xpkz_307",
+			refineLogTitle: "_refineLogTitle_1xpkz_314",
+			refineLogList: "_refineLogList_1xpkz_324",
+			refineLogItem: "_refineLogItem_1xpkz_336",
+			refineLogInstruction: "_refineLogInstruction_1xpkz_341",
+			refineLogTime: "_refineLogTime_1xpkz_346",
+			refineLogNote: "_refineLogNote_1xpkz_355",
+			notice: "_notice_1xpkz_362",
+			noticeTitle: "_noticeTitle_1xpkz_369",
+			noticeBody: "_noticeBody_1xpkz_376",
+			settings: "_settings_1xpkz_385",
+			section: "_section_1xpkz_394",
+			sectionTitle: "_sectionTitle_1xpkz_410",
+			fieldGrid: "_fieldGrid_1xpkz_422",
+			field: "_field_1xpkz_422",
+			fieldValue: "_fieldValue_1xpkz_447",
+			fieldLabel: "_fieldLabel_1xpkz_463",
+			workspaceRow: "_workspaceRow_1xpkz_471",
+			workspaceValue: "_workspaceValue_1xpkz_482",
+			workspaceValueInvalid: "_workspaceValueInvalid_1xpkz_499",
+			workspaceLeaf: "_workspaceLeaf_1xpkz_503",
+			workspacePath: "_workspacePath_1xpkz_513",
+			fieldNote: "_fieldNote_1xpkz_524",
+			select: "_select_1xpkz_531",
+			editor: "_editor_1xpkz_532",
+			editorStatus: "_editorStatus_1xpkz_555",
+			editorStatusMissing: "_editorStatusMissing_1xpkz_563",
+			editorStatusWarn: "_editorStatusWarn_1xpkz_568",
+			editorStatusAction: "_editorStatusAction_1xpkz_574",
+			editorPane: "_editorPane_1xpkz_586",
+			gutter: "_gutter_1xpkz_599",
+			gutterLine: "_gutterLine_1xpkz_617",
+			gutterLineRegion: "_gutterLineRegion_1xpkz_637",
+			gutterLineActions: "_gutterLineActions_1xpkz_645",
+			violations: "_violations_1xpkz_674",
+			violationJump: "_violationJump_1xpkz_684",
+			previewSurface: "_previewSurface_1xpkz_704",
+			previewLabel: "_previewLabel_1xpkz_716",
+			preview: "_preview_1xpkz_704",
+			settingsActions: "_settingsActions_1xpkz_728",
+			actionBuilder: "_actionBuilder_1xpkz_735",
+			builderRow: "_builderRow_1xpkz_746",
+			builderField: "_builderField_1xpkz_753",
+			hint: "_hint_1xpkz_763",
+			hintError: "_hintError_1xpkz_770",
+			configFooter: "_configFooter_1xpkz_776",
+			footerActions: "_footerActions_1xpkz_790",
+			footerSpacer: "_footerSpacer_1xpkz_796",
+			deletePrompt: "_deletePrompt_1xpkz_801",
+			deleteCard: "_deleteCard_1xpkz_809",
+			writeFailure: "_writeFailure_1xpkz_819",
+			permission: "_permission_1xpkz_828",
+			actionPanel: "_actionPanel_1xpkz_838",
+			actionFacts: "_actionFacts_1xpkz_847",
+			actionPayload: "_actionPayload_1xpkz_867",
+			bareRun: "_bareRun_1xpkz_883",
+			panes: "_panes_1xpkz_898",
+			paneTabs: "_paneTabs_1xpkz_911",
+			paneTab: "_paneTab_1xpkz_911"
 		};
 		//#endregion
 		//#region src/client/skill-card/ActivityTrace.tsx
@@ -5805,29 +5747,6 @@ window.__ModuleLoader__.load({
 			].map((part) => String(part).padStart(2, "0")).join(":");
 		}
 		/**
-		* Chinese and English copy for every stop reason this build knows by name.
-		*
-		* The upstream stop-reason union is merge-extensible, so this is a partial map rather
-		* than an exhaustive one: a value that is not here arrived from a build newer than this
-		* one, and it has no copy to borrow.
-		*/
-		var STOP_REASON_KEYS = {
-			completed: "runStopCompleted",
-			error: "runStopError",
-			aborted: "runStopAborted"
-		};
-		/**
-		* Name one run's stop reason.
-		* @param reason - the reason exactly as the run reported it.
-		* @param t - translator.
-		* @returns the localized name, or the raw value when this build has no copy for it —
-		* printing the value is honest, while a made-up label would not be.
-		*/
-		function stopReasonText(reason, t) {
-			const key = STOP_REASON_KEYS[reason];
-			return key === void 0 ? reason : t(key);
-		}
-		/**
 		* State one bare run's progress or verdict.
 		*
 		* Only the verdict travels, because there is nothing else to show: no structured value
@@ -5921,115 +5840,31 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/**
-		* Split one structured value into the HTML it carries and what is left over.
-		* @param value - the result's structured value, which is never undefined here.
-		* @returns the parts to render.
-		*/
-		function readStructured(value) {
-			if (typeof value !== "object" || value === null || Array.isArray(value)) return {
-				kind: "json",
-				json: JSON.stringify(value, null, 2)
-			};
-			const html = resultHtml(value);
-			if (html === void 0) return {
-				kind: "json",
-				json: JSON.stringify(value, null, 2)
-			};
-			const rest = {};
-			for (const [key, field] of Object.entries(value)) if (key !== "html") rest[key] = field;
-			return Object.keys(rest).length === 0 ? {
-				kind: "html",
-				html
-			} : {
-				kind: "html",
-				html,
-				rest: JSON.stringify(rest, null, 2)
-			};
-		}
-		/**
-		* Render everything a finished run left behind.
+		* Where the card's output ends: the run's activity trace.
 		*
-		* The structured value is what the template renders; the raw output, the stop reason,
-		* and the provider's diagnostic are what answer "why is there no data". Every part of it
-		* is omitted when it carries nothing: a row whose value is absent is a row that says
-		* "empty", not a row that says what happened.
+		* The card's output is what the run did — the model's own words and the tool calls it
+		* made, in the order they happened. The technical record that used to sit beside it (stop
+		* reason, model, start time, structured value, raw output, diagnostic) is gone by the
+		* product owner's decision: the result above is the content, and the failure line above
+		* the surface already says why a run produced none. Absent for a run that recorded no
+		* entry, and then the section is not drawn at all — an empty list would say the run did
+		* nothing rather than that nothing was recorded.
 		* @param props - the card view and the translator.
-		* @returns the output block.
+		* @returns the trace section, or null when the run left no trace.
 		*/
-		function RunOutput({ view, t }) {
-			const result = view.result;
-			if (result === void 0) return null;
-			const parts = result.structured === void 0 ? void 0 : readStructured(result.structured);
-			const outputText = result.outputText === void 0 || result.outputText.trim() === "" ? void 0 : result.outputText;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-				className: skill_card_module_default.runOutput,
-				"data-run-detail": "",
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", {
-						className: skill_card_module_default.runOutputSummary,
-						children: t("runDetailSummary")
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dl", {
-						className: skill_card_module_default.runFacts,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("runStopReason") }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", {
-								"data-run-stop-reason": result.stopReason,
-								children: stopReasonText(result.stopReason, t)
-							}),
-							result.model === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("runModel") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dd", {
-								"data-run-model": `${result.model.provider}/${result.model.model}`,
-								children: [
-									result.model.provider,
-									" / ",
-									result.model.model
-								]
-							})] }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("runStartedAt") }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: new Date(result.executedAt).toLocaleString() }),
-							result.editedAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("runEditedAt") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", {
-								"data-run-edited-at": String(result.editedAt),
-								children: new Date(result.editedAt).toLocaleString()
-							})] }),
-							result.diagnostic === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("runDiagnostic") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: result.diagnostic })] })
-						]
-					}),
-					result.activity === void 0 || result.activity.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: skill_card_module_default.runOutputLabel,
-						children: t("runActivity")
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityTrace, {
-						trace: result.activity,
-						t
-					})] }),
-					parts === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: skill_card_module_default.runOutputLabel,
-							children: t("runStructured")
-						}),
-						parts.kind === "json" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
-							className: skill_card_module_default.runPre,
-							children: parts.json
-						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
-							className: skill_card_module_default.runPreHtml,
-							"data-run-html": "",
-							children: dedentedHtml(parts.html)
-						}),
-						parts.kind === "html" && parts.rest !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: skill_card_module_default.runOutputLabel,
-							children: t("runStructuredRest")
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
-							className: skill_card_module_default.runPre,
-							children: parts.rest
-						})] }) : null
-					] }),
-					outputText === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: skill_card_module_default.runOutputLabel,
-						children: t("runRawOutput")
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
-						className: skill_card_module_default.runPre,
-						children: outputText
-					})] })
-				]
+		function RunTrace({ view, t }) {
+			const activity = view.result?.activity;
+			if (activity === void 0 || activity.length === 0) return null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+				className: skill_card_module_default.runTrace,
+				"data-run-trace": "",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: skill_card_module_default.runOutputLabel,
+					children: t("runActivity")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityTrace, {
+					trace: activity,
+					t
+				})]
 			});
 		}
 		/** Rows the revision field grows to before it scrolls instead. */
@@ -6276,7 +6111,7 @@ window.__ModuleLoader__.load({
 						onConfirm: actions.confirmAction,
 						onCancel: actions.cancelAction
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunOutput, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunTrace, {
 						view,
 						t
 					}),

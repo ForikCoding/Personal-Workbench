@@ -19,6 +19,8 @@
 >
 > **本轮（第十七版）让运行中的流水读起来像一段对话，而不是一串日志。** 它原先只记工具调用（`mcp__xiaoneng__get_task_list tanghao27478`）；现在同一条 `session/event` 总线上，`assistant/message` 的 `reasoning` 与 `text` 块也各成一条 narration 条目，和工具行按发生顺序排队——推理渲染在「思考」小标签下，回复文本作普通旁白，也就是用户要的"边想边做"。**每行默认两行、可展开到全文**：条目存的是这段 narration 的全文（`WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH` = 3000 字），客户端 `-webkit-line-clamp: 2` 收起、超过 `WORKBENCH_ACTIVITY_PREVIEW_LENGTH`（120 字）才给「展开/收起」，展开只去掉那个 class、不重新取数。**尺寸现在是两道闸**：每段 3000 字，整条流水的 narration 总量 12000 字（超了从最旧丢起、照旧记进 marker）——只靠 64 条上限挡不住几百 KB。脱敏仍在截断之前，存盘时 `fitActivity()` 再按剩余预算裁一次。落在 **M1**（契约与三个上限）、**M5**（`observeChildEvent` 改用 `activityEntriesFor`，一条事件可贡献多条）、**M10**（`ActivityTrace` 的三种行、「思考」标签与 `NarrationRow` 的展开、`skill-card.module.css` 的新类）、**M13**（两本字典各加 `runActivityReasoning` / `runActivityExpand` / `runActivityCollapse`）与附录 B 上；**632 → 708 passed | 3 skipped**，`check` exit 0。
 
+> **本轮（第十八版）删掉了「运行详情」，卡片改以自己的输出为准。** 产品负责人的决定：结果页下方那块 `<details>`（结束原因、模型、开始时间、手工编辑、结构化值、原始输出、诊断）整块移除，取而代之的是**输出流水**——第十七版那条「思考 / 回复 / 工具调用」的 trace，运行中与运行后都在同一处。这不是回归，是产品方向：卡片要展示的是它做了什么（`ActivityTrace`），而"为什么失败"退回日志与会话存储（页面上仍有一句 `view.problem` 的 detail）。代价写在 M10：结构化值与原始输出不再可读、手工编辑过的结果不再有任何一处标出 `editedAt`；十个 locale 键与 `stopReasonText` / `STOP_REASON_KEYS` / `dedentedHtml` 一并删除。落在 **M10**（`RunOutput` → `RunTrace`、`.runTrace` 样式、`.runFacts` / `.runPre*` 删除）、**M13**（两本字典各删十键）、**M14**（结果页用例重写：不再断言诊断块，改断言输出流水与「不再有 details」）与**附录 B**（49/50/51/60/68/72/74 标撤回）上；**708 → 692 passed | 3 skipped**（删掉了 16 条随块一起消失的用例），`check` exit 0。
+
 ## 怎么读这份文档
 
 每个模块按 **STAR** 四段展开，读法如下：
@@ -87,7 +89,7 @@
 | **M7** | 插件入口与配置 | `src/index.ts`、`src/config.ts` | 启动时装配全部能力，暴露可调项 |
 | **M8** | 客户端传输与状态 | `src/client/skill-card/api.ts`、`controller.ts`、`run-start.ts` | 页面需要的 view 与 actions，含微调的内存状态（记录、上一版、回退） |
 | **M9** | 卡片组件与装配 | `src/client/skill-card/SkillCard.tsx`、`src/client/index.ts` | 卡片本体，以及补上缺失的工厂注册 |
-| **M10** | 编辑器与配置页（含结果页） | `src/client/skill-card/SkillCardSettings.tsx`、`SkillCardPages.tsx`、`ActionDeclarationPanel.tsx`、`declarations.ts`、`skeleton.ts`、`workspace.ts`（工作目录字段的三态）、`workspace-picker.ts`（目录选择器）、`WorkbenchPage.tsx`（面板标题） | 三段配置页、行号栏、状态行、键盘、违例定位、声明构建器、骨架、并排/切换、页脚与两段式删除、工作目录字段与它的选择器；结果页的结果表面、运行详情与微调编辑区（含运行中的停止控制） |
+| **M10** | 编辑器与配置页（含结果页） | `src/client/skill-card/SkillCardSettings.tsx`、`SkillCardPages.tsx`、`ActionDeclarationPanel.tsx`、`declarations.ts`、`skeleton.ts`、`workspace.ts`（工作目录字段的三态）、`workspace-picker.ts`（目录选择器）、`WorkbenchPage.tsx`（面板标题） | 三段配置页、行号栏、状态行、键盘、违例定位、声明构建器、骨架、并排/切换、页脚与两段式删除、工作目录字段与它的选择器；结果页的结果表面、输出流水与微调编辑区（含运行中的停止控制） |
 | **M11** | 依赖与构建 | `package.json`、构建配置 | 声明新依赖，保持构建面不变 |
 | **M12** | 失败、可观测与安全（横切） | 贯穿各模块 | 两个不可信来源的处置与权限边界 |
 | **M13** | 测试设计 | `tests/` | 每层怎么验、验什么 |
@@ -1691,7 +1693,7 @@ P10 之后，运行中 / 已出结果 / 失败的呈现都在**结果页**：运
 8. **声明构建器**代写声明行，且**块按它本来的缩进整块重发**。
 9. **缺失目标告警但不阻塞保存**；**骨架**可一键插入且零违例。
 10. **页脚**：保存 / 关闭 / 两段式删除；写入失败在页脚**内部**以 `role="alert"` 出现。
-11. **结果页**：渲染的文档在一个有边框、圆角与内边距的表层里——边界只靠这三样（它曾经还靠一行「结果」标题与细线，第十一版按产品决定移除，**不要恢复**）；运行详情默认折叠、标题写「运行详情」、`html` 按真实换行且去掉区间缩进、结束原因本地化、缺失字段整行不出现；权限说明降为页脚。状态与时间只在「运行详情」里读。
+11. **结果页**：渲染的文档在一个有边框、圆角与内边距的表层里——边界只靠这三样（它曾经还靠一行「结果」标题与细线，第十一版按产品决定移除，**不要恢复**）；**输出流水**（`[data-run-trace]`）把这次运行做了什么按顺序摊开，逐行可展开到全文；权限说明降为页脚；「运行详情」整块已在第十八版删除，状态与时间不再单独设栏。
 12. **微调编辑区**：结果下方一句话 + 「重新生成」+ 修改记录 + 「回到上一版」，记录与上一版**只在本次会话**；编辑区与聊天输入区同形并随内容长高；运行中那个位置变成「停止」。
 13. **结果的手工编辑**：入口只在有结果且没有运行占住卡片时出现在「运行」左边；编辑器改的是**存盘片段**（不从 DOM 读）、与模板编辑器同一套键盘；保存拒绝内容策略、空内容与超预算三件事；保存后片段成为结果、`editedAt` 落盘并在运行详情里显示、编辑前那一版可用「回到上一版」取回，而这次编辑**不进修改记录**。
 14. **工作目录字段**：基本信息四个控件排成**两行两列**；主值是**目录名最后一段**、完整路径是它下面的次要文字；字段三种状态（`missing` / `invalid` / `ready`）与运行控件的禁用一一对应；旁边只有一个按钮，打开**平台自己的选择器**——**没有可打字的框**，也没有工作区下拉。
@@ -1815,40 +1817,30 @@ runnable: sessionId !== undefined && card?.skill !== undefined && card.template 
 
 **结果页的脚注换了内容。** 原来那句「运行时使用当前会话的完整工具权限」在每卡有模式之后**已经不成立**（`skillCardPermission` 随它一起删掉），现在读作「运行时权限：{模式}」，模式名仍来自上面那张表，并带一个 `data-run-permission` 钩子。它仍然是整页最后一行：关于这一页的说明，不是这一页的内容。
 
-#### 结果页：结果表面与运行详情
+#### 结果页：结果表面与输出流水
 
-结果页（`SkillCardResultPage`）是另一个整栏视图，它在面板标题之下摞了三层：**结果表面 → 微调编辑区 → 运行详情**，最下面是一句权限脚注。它曾经在结果表面之上还有一行状态行，第十一版按产品决定移除了。
+结果页（`SkillCardResultPage`）是另一个整栏视图，它在面板标题之下摞了四层：**结果表面 → 微调编辑区 → 输出流水 → 权限脚注**。它曾经在结果表面之上还有一行状态行（第十一版移除），也曾经在三层之下还有一块「运行详情」（第十八版按产品负责人决定整块删除）。
 
 | 层 | 内容 | 为什么在这一层 |
 | --- | --- | --- |
 | 结果表面 | 边框 + 圆角 + 内边距，里面是影子根渲染的文档 | 渲染的文档是用户模板的内容；没有框，它就没有归属 |
 | 微调编辑区 | 多行编辑区 + 「重新生成」（运行中变「停止」）+ 记录头部行 + 记录 + 只在本次会话 | 对结果的下一句话，紧跟结果 |
-| 运行详情 | 默认折叠的 `<details>`，开关写「运行详情」：结束原因、**模型**（有才出现）、时间、结构化值、原始输出、诊断 | 调试信息，不是内容 |
+| 输出流水 | `[data-run-trace]`：`runActivity` 标签 + `ActivityTrace`（思考 / 回复 / 工具调用，逐行可展开） | 这就是卡片自己的输出：它做了什么、想了什么 |
 | 脚注 | `skillCardRunsWithPermission`（「运行时权限：{模式}」，第十五版换了内容） | 关于这一页的说明，不是这一页的内容 |
 
 **结果表面只加框，不改文档。** `.resultSurface` 只有 `border` / `border-radius` / `padding`，**没有背景色，也没有任何会进入影子根的样式**：用户模板的排版与配色一个字都不动。
 
 **边界只靠内边距**（第十一版）：用户模板常常自带阴影与圆角，那块阴影会压在表层边框接缝上。表层原先靠一行「结果」`h3` 加它下面的细线（`resultHead`）让容器的上边界读得出来；那一行被产品负责人判为噪音并整行移除，**没有被任何东西替代**。留下的是边框、圆角与 `padding: 12px`——**内边距现在承担全部边界职责**：它把渲染文档（连同它自己的阴影）挡在边框之内。把 `padding` 调小或去掉，文档就会贴到边框上，这条界线也随之消失。表层的 `display: flex` 与 `flex-direction: column` 留着，内容槽还是它唯一的孩子。
 
-**状态与时间只在「运行详情」里读。** 结束原因（`runStopReason` 那一行）与开始时间（`runStartedAt` 那一行）都是详情里的行，运行中的状态则由正文的运行提示（`skillCardRunningBody`）说明。页面没有一行概述，也没有 `data-run-status` 这个钩子：它随那一行一起删掉了，没有第二个读者。`clockText` 留了下来，但只服务微调记录里那条时间。
+**状态与时间不再单独读（第十八版）。** 第十一版删掉状态行时，结束原因与开始时间还留在「运行详情」里；第十八版把那块也删了，所以这两个事实今天只在失败时的提示行（`view.problem` 的 detail）里出现，页面没有一行概述，也没有 `data-run-status` 这个钩子。`clockText` 仍服务微调记录里那条时间。
 
-**运行中的流水是一段对话，不是一串工具（第十七版）。** 卡片正面在运行期间显示一条活动流水（`ActivityTrace`），它同时是「运行详情」里那一块 —— 同一个组件渲染两次，用户运行中看到的和事后翻记录看到的不会漂移。第十七版之前这条流水**只有工具调用**（`mcp__xiaoneng__get_task_list tanghao27478`），读起来像日志；现在同一条总线上还有模型的**推理与回复文本**：`session/event` 的 `assistant/message` 按内容块顺序贡献 narration 条目，`reasoning` 块渲染在「思考」小标签下、`text` 块作为普通旁白，和工具行按发生顺序排队 —— 也就是 DeepSeek 对话里那种"边想边做"的样子。
+**运行中的流水是一段对话，不是一串工具（第十七版）。** 卡片正面在运行期间显示一条活动流水（`ActivityTrace`），运行结束后同一组件继续显示在「输出流水」这一层 —— 用户运行中看到的和事后看到的是同一份数据，不会漂移。第十七版之前这条流水**只有工具调用**（`mcp__xiaoneng__get_task_list tanghao27478`），读起来像日志；现在同一条总线上还有模型的**推理与回复文本**：`session/event` 的 `assistant/message` 按内容块顺序贡献 narration 条目，`reasoning` 块渲染在「思考」小标签下、`text` 块作为普通旁白，和工具行按发生顺序排队 —— 也就是 DeepSeek 对话里那种"边想边做"的样子。
 
-**每行默认两行、可展开到全文。** 条目里存的是这段 narra­tion 的**全文**（上限 `WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH` = 3000 字），不是预览：客户端用 `-webkit-line-clamp: 2` 收起，超过 `WORKBENCH_ACTIVITY_PREVIEW_LENGTH`（120 字）的行给一个「展开 / 收起」小控件，展开只是去掉那个 class、不改数据 —— 所以离线读到的那份和运行中看到的是同一段文字，不存在"展开时再取一次"。没有超过 120 字的行不给控件：一个展开不出东西的按钮只是噪音。
+**每行默认两行、可展开到全文。** 条目里存的是这段 narration 的**全文**（上限 `WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH` = 3000 字），不是预览：客户端用 `-webkit-line-clamp: 2` 收起，超过 `WORKBENCH_ACTIVITY_PREVIEW_LENGTH`（120 字）的行给一个「展开 / 收起」小控件，展开只是去掉那个 class、不改数据 —— 所以离线读到的那份和运行中看到的是同一段文字，不存在"展开时再取一次"。没有超过 120 字的行不给控件：一个展开不出东西的按钮只是噪音。
 
 三条边界照旧，一条都没放松：**形状**只认 `tool/call` 与 `assistant/message` 两种事件；**秘密**在截断之前先脱敏（推理同样是模型写的，同样可能带出 token）；**尺寸**现在有两道 —— 每段 narration 截到 3000 字，**整条流水的 narration 总量**再截到 `WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH`（12000 字），超了就从最旧的一条开始丢、丢掉的照旧记进 marker。只有条数上限是不够的：64 条 × 3000 字会是几百 KB，而这条流水跟着每一次轮询走。真正存盘时 `fitActivity()` 还会按剩余预算再裁一次。
 
-**运行详情的五处修正**，都由"读不了"引起（前三处是第八版，后两处是第九版）：
-
-1. **`html` 不再是 JSON 里的一段字符串。** `readStructured` 把 `html` 抽出来单独渲染成 `<pre data-run-html>`（等宽、`overflow: auto`、**`white-space: pre`**），其余字段仍是 `JSON.stringify(rest, null, 2)`。抽字段时**按名字逐个拷贝**而不是解构重建，剩下的字段因此保持存储时的顺序——这是这次运行的原始记录，重排一次值就等于把记录改了一次。
-2. **缺失的字段整行不出现。** 没有输出文本就没有「原始输出」那一行（那句"这次运行没有留下输出"已从两本字典里删掉），没有诊断就没有诊断行，没有结构化值就没有结构化块。**一个空行说的是"空"，不是"发生了什么"。** 第十二版加的「模型」行守着同一条规则：`result.model` 缺席时整行不存在——那是**继承了会话模型**的运行，宿主并不知道解出来的路由是什么，写一个猜出来的名字比不写更糟。
-3. **默认折叠。** `<details>` 不带 `open`：它是"为什么没有数据"的答案，不是数据本身。测试钉的是**没有 `open` 属性**，不只是 `open` 为假——后来被加回去的正是那个属性。
-4. **开关的文案是「运行详情」。** 它一度写作「原始输出」，可块里是四行：结束原因、开始时间、结构化值、原始输出。开关用一个子行的名字命名，等于只说了四分之一。今天两个含义用**两个 key**：`runDetailSummary`（开关）与 `runRawOutput`（那一行）。
-5. **代码块去掉区间的公共缩进，结束原因说中文。** 两件事都是显示层的：
-   - **去缩进**：模型回填的是模板里那段区间的内容，于是每一行都带着区间在模板里的缩进；一份缩进在表格深层的模板，代码块从四百多像素的地方才开始。`dedentedHtml()` 取**非空行的最长公共前导空白**并去掉；空行不参与计算、去掉后不留缩进；没有公共前缀时原文返回。**它只用于显示**：存盘的值要被原样拼回模板，所以那一个是**不能**被改写的（结果页用例同时断言两侧：代码块是去缩进的，影子根里的文档仍是原始的 8 空格缩进）。
-   - **结束原因本地化**：`STOP_REASON_KEYS` 是一张**部分映射**（`completed` / `error` / `aborted` → `正常结束` / `出错` / `已中止`），不是穷举。上游的 `stopReason` 是可合并扩展的联合类型，遇到没写进表里的值**原样打印**——编一个看起来合理的标签，等于说出一件这次运行没做过的事。原始值仍挂在 `data-run-stop-reason` 上。
-
-`html` 为空或只有空白时**不抽出来**：它留在 JSON 里（`{"html": "  "}`），因为一个空的代码块既看不出"空"，也看不出空在哪。这是纯显示上的取舍——值本身一个字节都没动。
+**「运行详情」整块删除（第十八版）。** 产品负责人的决定：那一块里的结束原因、模型、开始时间、手工编辑、结构化值、原始输出、诊断全部不再展示，`<details>` 元素本身也删掉（`data-run-detail`、`runDetailSummary`、`runStopReason`、`runModel`、`runStartedAt`、`runEditedAt`、`runStructured`、`runStructuredRest`、`runRawOutput`、`runDiagnostic` 十个键与它们的中英文案一并删除；`stopReasonText` / `STOP_REASON_KEYS` / `dedentedHtml` 随之成为死代码并删除）。**代价要写在这里**：一次运行**为什么**失败只剩页面上那句问题行（`view.problem` 的 detail，例如 `the run ended as refusal`），结构化值与原始输出不再可读；手工编辑过的结果也不再有任何一处说"它被改过"（记录里的 `editedAt` 仍在，只是没有读者）。这不是回归，是产品决定：卡片展示的是它自己做了什么（输出流水），调试细节退回日志与会话存储。**不要把它加回去。**
 
 #### 结果的手工编辑
 
@@ -2219,9 +2211,9 @@ const escaped = useRef(false)
 - 声明块由面板代写，加多少条都不会漂；指向尚无目标的声明会被告知，但不会拦住保存。
 - 空模板一键得到一份能通过分析的起手文档。
 - 保存与删除都在手边（粘性页脚），删除要两次按下，写入失败不会被滚动带走。
-- 结果页上：结果有框（框的边界靠边框、圆角与内边距，没有标题行、也没有状态行），权限说明退到脚注；运行详情默认折叠、开关写「运行详情」、`html` 按真实换行且去掉区间缩进读得懂、结束原因是中文、缺失的字段不占行。
+- 结果页上：结果有框（框的边界靠边框、圆角与内边距，没有标题行、也没有状态行），权限说明退到脚注；输出流水把运行做了什么摊开（第十八版删掉了原来的「运行详情」整块）。
 - 不满意时不必重跑：一句话改一次，记录在旁边，退一步就在记录里；这两样只在本次会话里，页面上写着这句话。那句话写在一块与聊天输入区同形的编辑区里（1–4 行随内容长高，`Enter` 提交、`Shift+Enter` 换行），运行中它的「重新生成」变成「停止」。
-- 结果也可以**由人直接改**：头部一个次级「编辑」把结果表面就地切成编辑器，改的是存盘那段片段；五个内容策略构造、空内容与超预算都在保存前被拒并说明理由；保存后它就是这张卡的结果，运行详情里多一行「手工编辑」，**一步**回退仍在，「修改记录」仍然是 0 条——那份记录记的是指令，不是编辑。
+- 结果也可以**由人直接改**：头部一个次级「编辑」把结果表面就地切成编辑器，改的是存盘那段片段；五个内容策略构造、空内容与超预算都在保存前被拒并说明理由；保存后它就是这张卡的结果（记录里的 `editedAt` 落盘，但第十八版起页面不再展示它），**一步**回退仍在，「修改记录」仍然是 0 条——那份记录记的是指令，不是编辑。
 - 这个面板的每个视图——网格、结果页、配置页——都在「工作台」标题之下；卡片页自己的头部排在它下面。
 - 没有任何一处靠"引用一个主题没定义的令牌"来假装有样式。
 
@@ -2329,8 +2321,8 @@ const escaped = useRef(false)
 | 没有模板 | 说明要先写模板 + 去配置 |
 | 子代理后端不支持 | 说明是部署配置问题 |
 | 模板不合法（标记问题、占位符语法、违禁构造） | 编辑器就地指出位置或原因，保存按钮禁用 |
-| 结果里没有 `html`（重试后） | 错误态 + 「运行详情」 |
-| 子代理自身报错 | 错误态 + 原因（来自 `agent/error` 的诊断），可在运行详情里查看 |
+| 结果里没有 `html`（重试后） | 错误态（页面上的问题行说明原因） |
+| 子代理自身报错 | 错误态 + 原因（来自 `agent/error` 的诊断落在记录里；页面只留问题行） |
 | 旧结果（结构化值里没有 `html`） | 按"尚未运行"呈现，不显示空框 |
 | 结果过期 | 显示"已过期"与执行时间 |
 
@@ -2912,9 +2904,9 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 46 写入失败在页脚内以 `role="alert"` 呈现 | M10「粘性页脚」的失败行；`SkillCardSettings.spec.tsx` |
 | 47 排序手柄在末位、三级色、随悬浮/聚焦显现 | M9「排序手柄」；`WorkbenchCardShell.spec.tsx`（显现是 CSS） |
 | 48 卡片名称重载后仍在（schema 覆盖写入字段） | M4「约束：store 写入的每个字段都必须在 schema 里声明」；`skill-card-spec.spec.ts` |
-| 49 `html` 按真实换行渲染（显示时去区间缩进），其余字段仍是 JSON | M10「结果页」的 `readStructured` 与 `.runPreHtml`、`render.ts` 的 `dedentedHtml`；`SkillCardResultPage.spec.tsx`、`render.spec.ts`（去缩进本身见 60；`white-space: pre` / `overflow: auto` 是 CSS，未断言） |
-| 50 缺失的字段整行不出现 | M10「结果页」的五处修正（`runNoOutput` 已从两本字典删除）；`SkillCardResultPage.spec.tsx`（`原始输出` 在无输出文本时完全不出现） |
-| 51 运行详情默认折叠 | M10「结果页」（`<details>` 不带 `open`；测试钉"没有 `open` 属性"）；`SkillCardResultPage.spec.tsx`（折叠动画不可测） |
+| 49 ~~`html` 按真实换行渲染（显示时去区间缩进），其余字段仍是 JSON~~ **已撤回（第十八版）：整块删除** | —（代码与用例一并删除；替代物是输出流水，见 93 组之后的说明） |
+| 50 ~~缺失的字段整行不出现~~ **已撤回（第十八版）：块不存在了** | — |
+| 51 ~~运行详情默认折叠~~ **已撤回（第十八版）：块不存在了** | 现在的结果页用例断言**页面上没有任何 `<details>`**（`SkillCardResultPage.spec.tsx`） |
 | 52 ~~状态行：状态 + 开始时间 + 用时~~ **已撤回（第十一版）** | ~~M10「结果页」的 `runStatusLine` / `runStateText` / `runStateMark` / `clockText`~~；那一行及其函数已删除，`clockText` 现在只服务微调记录。**这一条不主张任何东西已通过**，需求侧见 §14.4 |
 | 53 输入为空时「重新生成」不可按 | M10「微调编辑区」的 `empty` 门 + M8 的 `refine()` 门（运行中那个位置是「停止」，见 57）；`SkillCardRefine.spec.tsx` |
 | 54 成功：就地替换 + 记录（指令 + 紧跟的时间）+ 头部行条数 + 「回到上一版」在头部 + 提示行在最后 + 一步回退 | M8「微调状态」（`settleRefinement`、`previousResult`、`resultOverride`）+ M10「微调编辑区」的记录块；`SkillCardRefine.spec.tsx`；提示词与落盘见 `skill-card-refine.spec.ts` |
@@ -2923,7 +2915,7 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 57 运行中主控件变「停止」，与头部共用同一个取消 | M10「微调编辑区」的 `onStop`/`data-refine-stop` + M8 的 `cancel()`，以及"被取消按失败结算"（M8 三处记录点的第 3 条）；`SkillCardRefine.spec.tsx`（"共用同一个动作"是源码事实，无独立断言） |
 | 58 面板标题在每个视图上，卡片页自己的头部在其下；配置页头部仍只有「返回」 | M10「页面的形状」（`WorkbenchPage.tsx` 无条件渲染标题）+ M10「微调编辑区」所属页面的头部；`WorkbenchPage.spec.tsx`（标题随页面渲染）、`SkillCardPages.spec.tsx`（配置页头部只有返回）。**卡片页那一半没有 DOM 断言**：`WorkbenchPage.spec.tsx` 的用例都把 `useSelection` 定为 `undefined` |
 | 59 编辑区与聊天输入区同形、1–4 行随内容长高、`Enter` 提交 / `Shift+Enter` 换行 / 组字不提交 | M10「微调编辑区」（`rows` 与 `useLayoutEffect` 的 `scrollHeight` 测量、`isComposing` 判断）+ `skill-card.module.css` 的 `.composerInput`（尺寸来自 `InputBar.module.css`）；`SkillCardRefine.spec.tsx`（高度本身不可测：jsdom 无布局） |
-| 60 运行详情：开关写「运行详情」、代码块去公共缩进（显示层）、结束原因本地化、未知值原样 | M10「结果页」的第 4、5 处修正（`runDetailSummary` / `runRawOutput` 两个 key、`dedentedHtml`、`STOP_REASON_KEYS` 部分映射）；`SkillCardResultPage.spec.tsx`、`render.spec.ts` |
+| 60 ~~运行详情：开关文案、去缩进、结束原因本地化~~ **已撤回（第十八版）** | 相关键、`dedentedHtml` 与 `STOP_REASON_KEYS` 全部删除 |
 | 61 「编辑」入口：有结果且没有运行占住卡片时才有，位置在「运行」左边，打开期间运行不可按 | M10「结果的手工编辑」（`editable` 与 `editing`、头部的 ghost 控件、`disabled` 条件），以及"编辑器打开时微调编辑区不画"；`SkillCardResultEdit.spec.tsx` |
 | 62 编辑的是存盘片段、保存后成为卡片结果、页面按回执更新 | M10「结果的手工编辑」（`html={resultHtml(view.result?.structured) ?? ''}`、`saveResultEdit`）+ M8（`saveResult`、`replaceResult`）+ M6（`PUT /result` 回执）；`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts`、`skill-card-result-api.spec.ts` |
 | 63 取消不写任何东西，视图原样返回 | M10「结果的手工编辑」（`onCancel` 只 `setEditing(false)`）；`SkillCardResultEdit.spec.tsx` |
@@ -2931,13 +2923,13 @@ P10 让技能卡的 X 从"藏起来"变成"删掉"，但当时外壳与布局域
 | 65 空内容被拒，消息说结果为空且这张卡可以再运行一次 | M10 的 `empty` 门与 `resultEditEmpty`；M10/存储边界（`putEditedResult` 的 `invalid`）；`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts` |
 | 66 超 `WORKBENCH_RESULT_MAX_BYTES` 拒绝、绝不截断（编辑器 + 路由 + store） | M10 的字节读数与 `overBudget` 门 + M6 的 `Math.min(maxResultBytes, WORKBENCH_RESULT_MAX_BYTES)` + M4/M10 的 `putEditedResult`（片段与整条记录两道预算，均不裁剪）；`SkillCardResultEdit.spec.tsx`、`skill-card-result-edit.spec.ts` |
 | 67 保存后可退回一步，且这次编辑不进修改记录 | M8 的 `saveResultEdit`（把 `prior` 放进 `previousResult`、不动 `refinements`）+ M8 `undoRefine` + M10「微调编辑区」的头部行；`SkillCardResultEdit.spec.tsx` |
-| 68 记录带 `editedAt`，运行详情有一行「手工编辑」和时间 | M1 的 `editedAt` + M10「结果页」`RunOutput` 的新行 + M8 `parseResultEdit` 的形状校验；`SkillCardResultEdit.spec.tsx`、`skill-card-result-api.spec.ts` |
+| 68 记录带 `editedAt`（**页面不再展示该行，第十八版撤回后半句**） | M1 的 `editedAt` + M8 `parseResultEdit` 的形状校验；`skill-card-result-api.spec.ts` |
 | 69 保存不伪造运行：保 `skill`/`stopReason`/输出/诊断，只换 `structured.html`，刷新 `executedAt`、写 `editedAt`；下一次运行覆盖 | M10/store 的 `putEditedResult`（`moment()` 与 `structuredRecord()`）+ M10「结果的手工编辑」+ `putResult` 的既有语义；`skill-card-result-edit.spec.ts` |
 | 70 `editedAt` 在存储 schema 里声明，重启后仍在 | M4 的 `workbenchResultSchema` 与「约束：store 写入的每个字段都必须在 schema 里声明」；`skill-card-spec.spec.ts` |
 | 71 卡片模型以 `{ provider, model }` 存储并声明在 schema 里，重启后仍在 | M1「卡片模型：一对 id，不是一个字符串」+ M4（`workbenchCardModelSchema`、合并与清空语义）；`skill-card-spec.spec.ts`、`skill-card-store.spec.ts`、`skill-card-route.spec.ts` |
 | 72 结果的 `model` 同样在 schema 里声明 | M1（`WorkbenchResultRecord.model?`）+ M4（`workbenchResultSchema.model`、`trimResult` 的基础记录）+ M5（记录落 `model`）；`skill-card-spec.spec.ts`、`skill-card-runner.spec.ts` |
 | 73 模型字段三态与运行控件；从不提供自由文本 id | M10「卡片的模型字段」（`resolveModelField`、`modelKey`/`parseModelKey`、`ModelField` 组件）+ M8（目录读进 state 并订阅、`runnable` 与 `modelField` AND）+ M9（`ctx.inject(['modelDirectories'])` 与座位）；`skill-card-model.spec.ts`、`SkillCardSettings.spec.tsx`、`SkillCardPages.spec.tsx`（原生下拉的展开与像素高度不可测） |
-| 74 结果里的模型看得见（运行详情那一行） | M5（记录带路由）+ M10「结果页」的 `RunOutput`（`model` 缺席则整行不存在）；`SkillCardResultPage.spec.tsx`、`skill-card-runner.spec.ts` |
+| 74 ~~结果里的模型看得见（运行详情那一行）~~ **已撤回（第十八版）**；记录仍带 `model`，只是没有读者 | M5（记录带路由）+ `skill-card-runner.spec.ts` |
 | 75 卡片写了模型时以 `agentOptions` 启动子代理 | M5「模型：钉住这次运行的路由」（第 7 步的条件展开）；`skill-card-runner.spec.ts` |
 | 76 卡片没写模型时一个字段都不传（照旧继承） | M5 同一节（`selection.model === undefined` 时整个键不出现）；`skill-card-runner.spec.ts` |
 | 77 后端不支持 `agentOptions` 时拒绝，消息点名路由 | M5 `modelRefusal()` 的第一条；`skill-card-runner.spec.ts` |

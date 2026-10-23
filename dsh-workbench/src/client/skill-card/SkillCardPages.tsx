@@ -32,7 +32,7 @@ import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
-import { dedentedHtml, resultHtml } from './render.ts'
+import { resultHtml } from './render.ts'
 import css from './skill-card.module.css'
 
 /**
@@ -49,31 +49,6 @@ function clockText(at: number): string {
   return [date.getHours(), date.getMinutes(), date.getSeconds()]
     .map(part => String(part).padStart(2, '0'))
     .join(':')
-}
-
-/**
- * Chinese and English copy for every stop reason this build knows by name.
- *
- * The upstream stop-reason union is merge-extensible, so this is a partial map rather
- * than an exhaustive one: a value that is not here arrived from a build newer than this
- * one, and it has no copy to borrow.
- */
-const STOP_REASON_KEYS: Readonly<Record<string, WorkbenchLocaleKey | undefined>> = {
-  completed: 'runStopCompleted',
-  error: 'runStopError',
-  aborted: 'runStopAborted',
-}
-
-/**
- * Name one run's stop reason.
- * @param reason - the reason exactly as the run reported it.
- * @param t - translator.
- * @returns the localized name, or the raw value when this build has no copy for it —
- * printing the value is honest, while a made-up label would not be.
- */
-function stopReasonText(reason: string, t: (key: WorkbenchLocaleKey) => string): string {
-  const key = STOP_REASON_KEYS[reason]
-  return key === undefined ? reason : t(key)
 }
 
 /**
@@ -174,141 +149,32 @@ function ActionPanel({
 }
 
 /**
- * One structured value, split for display.
+ * Where the card's output ends: the run's activity trace.
  *
- * `html` is the region the document renders, so it is shown as the HTML it is. Every
- * other field stays JSON: it is the run's raw record, and re-formatting a value would
- * make the record disagree with what was stored.
- */
-type StructuredParts =
-  | { readonly kind: 'html'; readonly html: string; readonly rest?: string }
-  | { readonly kind: 'json'; readonly json: string }
-
-/**
- * Split one structured value into the HTML it carries and what is left over.
- * @param value - the result's structured value, which is never undefined here.
- * @returns the parts to render.
- */
-function readStructured(value: unknown): StructuredParts {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    // Nothing to lift out, so the value stays exactly what it serialises to.
-    return { kind: 'json', json: JSON.stringify(value, null, 2) }
-  }
-  const html = resultHtml(value)
-  if (html === undefined) return { kind: 'json', json: JSON.stringify(value, null, 2) }
-  // Copied field by field rather than destructured, so the remaining fields keep the
-  // order they were stored in.
-  const rest: Record<string, unknown> = {}
-  for (const [key, field] of Object.entries(value)) {
-    if (key !== 'html') rest[key] = field
-  }
-  return Object.keys(rest).length === 0
-    ? { kind: 'html', html }
-    : { kind: 'html', html, rest: JSON.stringify(rest, null, 2) }
-}
-
-/**
- * Render everything a finished run left behind.
- *
- * The structured value is what the template renders; the raw output, the stop reason,
- * and the provider's diagnostic are what answer "why is there no data". Every part of it
- * is omitted when it carries nothing: a row whose value is absent is a row that says
- * "empty", not a row that says what happened.
+ * The card's output is what the run did — the model's own words and the tool calls it
+ * made, in the order they happened. The technical record that used to sit beside it (stop
+ * reason, model, start time, structured value, raw output, diagnostic) is gone by the
+ * product owner's decision: the result above is the content, and the failure line above
+ * the surface already says why a run produced none. Absent for a run that recorded no
+ * entry, and then the section is not drawn at all — an empty list would say the run did
+ * nothing rather than that nothing was recorded.
  * @param props - the card view and the translator.
- * @returns the output block.
+ * @returns the trace section, or null when the run left no trace.
  */
-function RunOutput({
+function RunTrace({
   view,
   t,
 }: {
   readonly view: WorkbenchCardView
   readonly t: (key: WorkbenchLocaleKey) => string
 }): ReactNode {
-  const result = view.result
-  if (result === undefined) return null
-  const parts = result.structured === undefined ? undefined : readStructured(result.structured)
-  const outputText = result.outputText === undefined || result.outputText.trim() === ''
-    ? undefined
-    : result.outputText
+  const activity = view.result?.activity
+  if (activity === undefined || activity.length === 0) return null
   return (
-    // Collapsed on purpose, and the simplest way to say so is to give the element no
-    // `open`: this block is the run's raw record, while the result above is the content.
-    // Only a reader asking "why is this empty" opens it.
-    <details className={css.runOutput} data-run-detail="">
-      {/* The summary names the whole block. It used to read "raw output", which named
-          one of the four rows inside it and buried the other three. */}
-      <summary className={css.runOutputSummary}>{t('runDetailSummary')}</summary>
-      <dl className={css.runFacts}>
-        <dt>{t('runStopReason')}</dt>
-        <dd data-run-stop-reason={result.stopReason}>{stopReasonText(result.stopReason, t)}</dd>
-        {/* The route this result came from. Absent for a run that inherited the session's
-            model: the Host was never told which route that resolved to, and inventing one
-            would be worse than saying nothing. */}
-        {result.model === undefined ? null : (
-          <>
-            <dt>{t('runModel')}</dt>
-            <dd data-run-model={`${result.model.provider}/${result.model.model}`}>
-              {result.model.provider}
-              {' / '}
-              {result.model.model}
-            </dd>
-          </>
-        )}
-        <dt>{t('runStartedAt')}</dt>
-        <dd>{new Date(result.executedAt).toLocaleString()}</dd>
-        {/* A hand-edited result states that it was edited, on its own row and with its own
-            time: the record still carries the run's skill and stop reason, so nothing else
-            here would say a person changed the HTML. */}
-        {result.editedAt === undefined ? null : (
-          <>
-            <dt>{t('runEditedAt')}</dt>
-            <dd data-run-edited-at={String(result.editedAt)}>{new Date(result.editedAt).toLocaleString()}</dd>
-          </>
-        )}
-        {result.diagnostic === undefined ? null : (
-          <>
-            <dt>{t('runDiagnostic')}</dt>
-            <dd>{result.diagnostic}</dd>
-          </>
-        )}
-      </dl>
-      {/* What the child did, before what it produced: the trace is chronological and the
-          structured value is the answer it arrived at. Absent for a run that recorded no
-          tool call, and then the section is not drawn at all — an empty list would say the
-          run did nothing rather than that nothing was recorded. */}
-      {(result.activity === undefined || result.activity.length === 0)
-        ? null
-        : (
-          <>
-            <p className={css.runOutputLabel}>{t('runActivity')}</p>
-            <ActivityTrace trace={result.activity} t={t} />
-          </>
-        )}
-      {parts === undefined ? null : (
-        <>
-          <p className={css.runOutputLabel}>{t('runStructured')}</p>
-          {parts.kind === 'json'
-            ? <pre className={css.runPre}>{parts.json}</pre>
-            // Indentation is the template region's, not the fragment's: it is dropped
-            // for display only, and the stored value keeps it for the splice.
-            : <pre className={css.runPreHtml} data-run-html="">{dedentedHtml(parts.html)}</pre>}
-          {parts.kind === 'html' && parts.rest !== undefined
-            ? (
-              <>
-                <p className={css.runOutputLabel}>{t('runStructuredRest')}</p>
-                <pre className={css.runPre}>{parts.rest}</pre>
-              </>
-            )
-            : null}
-        </>
-      )}
-      {outputText === undefined ? null : (
-        <>
-          <p className={css.runOutputLabel}>{t('runRawOutput')}</p>
-          <pre className={css.runPre}>{outputText}</pre>
-        </>
-      )}
-    </details>
+    <section className={css.runTrace} data-run-trace="">
+      <p className={css.runOutputLabel}>{t('runActivity')}</p>
+      <ActivityTrace trace={activity} t={t} />
+    </section>
   )
 }
 
@@ -684,7 +550,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             onCancel={actions.cancelAction}
           />
         )}
-      <RunOutput view={view} t={t} />
+      <RunTrace view={view} t={t} />
       {/* What this card's runs may write, stated beneath everything because it is not the
           content and still has to be readable before pressing Run. The skill it executes is
           disk content, so the mode is the sentence that says how far that can reach — and a

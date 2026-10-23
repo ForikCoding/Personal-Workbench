@@ -61,68 +61,17 @@
   line-height: 18px;
 }
 
-/* The hairline that separates the run's debug detail from the result above it. */
-.runOutput {
+/* The run's output section: the trace beneath the result, set off from it by the same
+   hairline the record used to carry. */
+.runTrace {
   border-top: 1px solid var(--dsw-alias-border-l1);
   padding-top: 8px;
-}
-
-.runOutputSummary {
-  cursor: pointer;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
 }
 
 .runOutputLabel {
   margin: 8px 0 4px;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
-}
-
-.runFacts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 2px 12px;
-  margin: 8px 0 0;
-  font-size: 12px;
-}
-
-.runFacts dt {
-  color: var(--dsw-alias-label-secondary);
-}
-
-.runFacts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.runPre {
-  max-height: 320px;
-  margin: 0;
-  padding: 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
-  overflow: auto;
-  font-family: monospace;
-  font-size: 12px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/* The region HTML as the run produced it: real newlines, and long lines scroll rather
-   than fold. A folded tag reads as several lines of a different tag. */
-.runPreHtml {
-  max-height: 320px;
-  margin: 0;
-  padding: 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
-  overflow: auto;
-  font-family: monospace;
-  font-size: 12px;
-  white-space: pre;
 }
 
 /* The run's activity stream: one row per entry — a tool call, a span of the model's own

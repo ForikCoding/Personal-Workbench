@@ -579,33 +579,6 @@ describe('what the editor refuses', () => {
 })
 
 describe('the edited result', () => {
-  it('states that it was edited by hand, with the time', async () => {
-    // Criterion 68. The record keeps the run's skill and stop reason, so nothing else on
-    // the page would say a person replaced the HTML.
-    const { props } = fixture()
-    const container = await show(props)
-    const field = openEditor()
-    fireEvent.change(field, { target: { value: '<b>新</b>' } })
-    fireEvent.click(saveButton())
-    await waitFor(() => { expect(container.querySelector('[data-run-edited-at]')).not.toBeNull() })
-
-    const block = container.querySelector('details') as HTMLDetailsElement
-    const labels = [...block.querySelectorAll('dt')].map(term => term.textContent)
-    expect(labels).toContain(zh.runEditedAt)
-    const row = block.querySelector('[data-run-edited-at]')
-    expect(row?.textContent).toBe(new Date(EDITED_AT).toLocaleString())
-    // The run facts are still the run's: editing replaces the fragment, not the record.
-    expect(block.querySelector('[data-run-stop-reason]')?.getAttribute('data-run-stop-reason'))
-      .toBe('completed')
-  })
-
-  it('shows no 手工编辑 row for a result no one edited', async () => {
-    const { props } = fixture()
-    const container = await show(props)
-    expect(container.querySelector('[data-run-edited-at]')).toBeNull()
-    expect(container.textContent).not.toContain(zh.runEditedAt)
-  })
-
   it('is one step back away from the run’s own version, without entering the log', async () => {
     // Criterion 67. The undo stack is a separate mechanism from the revision log: a hand
     // edit is recoverable, and it is deliberately not a 修改记录 entry — that log records

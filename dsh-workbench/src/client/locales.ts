@@ -144,14 +144,6 @@ export const zh = {
   // The one state word the page still says in words: the in-flight notice that replaces
   // the document. Every other state is what the content itself shows.
   runStatusRunning: '运行中',
-  runStartedAt: '开始于',
-  runStopReason: '结束原因',
-  // The route a result came from. Its own row rather than part of the stop-reason line:
-  // a user reading a result must never have to guess which model produced it.
-  runModel: '模型',
-  // A result whose region HTML was replaced by hand says so on its own row. It is not a
-  // 修改记录 entry: that log records instructions, and a hand edit is not one.
-  runEditedAt: '手工编辑',
   // Editing a stored result by hand: the entry in the result head, the field, and the two
   // reasons an edit cannot be stored. The empty one names the way out — run the card again
   // — because an empty region renders as a broken-looking card rather than as nothing.
@@ -160,13 +152,6 @@ export const zh = {
   resultEditPlaceholder: '这里是这段区间的 HTML：改完保存，它就是这张卡的结果',
   resultEditEmpty: '结果为空，没有可保存的内容。这张卡可以再运行一次，也可以在这里直接填入区间 HTML。',
   resultEditTooLarge: '内容有 {bytes} 字节，超过 {max} 字节上限，未保存。',
-  // The disclosure's own name, which had been the raw output row's: the block holds the
-  // stop reason, the start time, the structured value and the raw output, so naming it
-  // after one of the four described a quarter of what opening it shows.
-  runDetailSummary: '运行详情',
-  runStructured: '结构化结果',
-  runRawOutput: '原始输出',
-  runDiagnostic: '诊断',
   // The run's activity stream: the tool calls and the model's own words below, the local
   // clock on a running card, and the one line that admits a bounded trace dropped entries.
   runActivity: '活动记录',
@@ -175,14 +160,6 @@ export const zh = {
   runActivityReasoning: '思考',
   runActivityExpand: '展开',
   runActivityCollapse: '收起',
-  // The stop reasons this build can name. The upstream union is merge-extensible, so an
-  // unlisted reason is shown as it arrived rather than guessed at.
-  runStopCompleted: '正常结束',
-  runStopError: '出错',
-  runStopAborted: '已中止',
-  // The structured value's region HTML is shown as HTML rather than as one JSON string,
-  // so the fields left over need a name of their own.
-  runStructuredRest: '其余字段',
   skillCardRunningBody: '技能正在执行，完成后结果会显示在这里。',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
@@ -361,14 +338,6 @@ export const en: Record<keyof typeof zh, string> = {
   // The one state word the page still says in words: the in-flight notice that replaces
   // the document. Every other state is what the content itself shows.
   runStatusRunning: 'Running',
-  runStartedAt: 'Started',
-  runStopReason: 'Stop reason',
-  // The route a result came from. Its own row rather than part of the stop-reason line:
-  // a user reading a result must never have to guess which model produced it.
-  runModel: 'Model',
-  // A result whose region HTML was replaced by hand says so on its own row. It is not a
-  // revision-log entry: that log records instructions, and a hand edit is not one.
-  runEditedAt: 'Edited by hand',
   // Editing a stored result by hand: the entry in the result head, the field, and the two
   // reasons an edit cannot be stored. The empty one names the way out — run the card again
   // — because an empty region renders as a broken-looking card rather than as nothing.
@@ -377,13 +346,6 @@ export const en: Record<keyof typeof zh, string> = {
   resultEditPlaceholder: 'The region’s HTML: saving it becomes this card’s result',
   resultEditEmpty: 'The result is empty, so there is nothing to save. Run this card again, or type the region HTML here.',
   resultEditTooLarge: 'The content is {bytes} bytes, over the {max}-byte limit, so nothing was saved.',
-  // The disclosure's own name, which had been the raw output row's: the block holds the
-  // stop reason, the start time, the structured value and the raw output, so naming it
-  // after one of the four described a quarter of what opening it shows.
-  runDetailSummary: 'Run details',
-  runStructured: 'Structured result',
-  runRawOutput: 'Raw output',
-  runDiagnostic: 'Diagnostic',
   // The run's activity stream: the tool calls and the model's own words below, the local
   // clock on a running card, and the one line that admits a bounded trace dropped entries.
   runActivity: 'Activity',
@@ -392,14 +354,6 @@ export const en: Record<keyof typeof zh, string> = {
   runActivityReasoning: 'Thinking',
   runActivityExpand: 'Expand',
   runActivityCollapse: 'Collapse',
-  // The stop reasons this build can name. The upstream union is merge-extensible, so an
-  // unlisted reason is shown as it arrived rather than guessed at.
-  runStopCompleted: 'Completed',
-  runStopError: 'Error',
-  runStopAborted: 'Aborted',
-  // The structured value's region HTML is shown as HTML rather than as one JSON string,
-  // so the fields left over need a name of their own.
-  runStructuredRest: 'Other fields',
   skillCardRunningBody: 'The skill is executing. Its result appears here when it finishes.',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a

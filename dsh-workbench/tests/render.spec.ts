@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { dedentedHtml, filledTemplate, renderTemplate, resultHtml } from '../src/client/skill-card/render.ts'
+import { filledTemplate, renderTemplate, resultHtml } from '../src/client/skill-card/render.ts'
 
 /**
  * Render one document and hand back the shadow root.
@@ -46,36 +46,6 @@ describe('workbench skill card render', () => {
       for (const value of [undefined, null, 'text', 7, [], {}, { html: 7 }, { html: '' }, { html: '   ' }]) {
         expect(resultHtml(value)).toBeUndefined()
       }
-    })
-  })
-
-  describe('presenting a result', () => {
-    it('removes the indentation every non-blank line shares', () => {
-      expect(dedentedHtml('      <tr>\n        <td>a</td>\n      </tr>'))
-        .toBe('<tr>\n  <td>a</td>\n</tr>')
-    })
-
-    it('ignores blank lines when finding that indentation, and leaves them empty', () => {
-      // A blank line has no indentation of its own; counting it would make the common
-      // prefix empty and the block would stay where it was.
-      expect(dedentedHtml('    <tr>\n\n      <td>a</td>\n    \n    </tr>'))
-        .toBe('<tr>\n\n  <td>a</td>\n\n</tr>')
-    })
-
-    it('leaves the text untouched when the lines share no indentation', () => {
-      const html = '<tr>\n      <td>a</td>\n</tr>'
-      expect(dedentedHtml(html)).toBe(html)
-      expect(dedentedHtml('<p>a</p>')).toBe('<p>a</p>')
-      expect(dedentedHtml('   ')).toBe('   ')
-    })
-
-    it('returns a new string rather than rewriting the value it was given', () => {
-      // The dedent is display-only: the stored HTML is spliced into the template
-      // verbatim, so nothing may be normalised in place.
-      const html = '   <tr>\n     <td>a</td>\n   </tr>'
-      const shown = dedentedHtml(html)
-      expect(shown).not.toBe(html)
-      expect(html).toBe('   <tr>\n     <td>a</td>\n   </tr>')
     })
   })
 
