@@ -2770,6 +2770,7 @@ window.__ModuleLoader__.load({
 				}
 				setRefineProblem(void 0);
 				setProblem(void 0);
+				setResultOverride(result);
 				refinement.current = {
 					instruction: text,
 					prior: result,

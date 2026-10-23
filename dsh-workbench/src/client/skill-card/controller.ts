@@ -804,6 +804,11 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     }
     setRefineProblem(undefined)
     setProblem(undefined)
+    // The surface keeps what it was showing while the revision runs. `stored` cannot be
+    // that fallback: a result a run in this session produced lives in the run state only
+    // (the snapshot is not re-read after a run), so once the refine run replaces the run
+    // state the page would fall back to "not run" with the very result being revised gone.
+    setResultOverride(result)
     refinement.current = { instruction: text, prior: result, priorHtml }
     void startCardRefine(api, cardId, live, text, priorHtml).then((outcome) => {
       if (outcome.status !== 'ok') {

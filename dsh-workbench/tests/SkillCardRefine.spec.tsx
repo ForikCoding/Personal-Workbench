@@ -402,6 +402,46 @@ describe('refining a result', () => {
     expect(shadowText(container)).toContain('一')
   })
 
+  it('keeps a result this session produced on screen while the revision runs', async () => {
+    // The snapshot is read once at mount, so a result a run produced in this session lives
+    // only in the run state. Starting a revision must not fall back to "not run": the thing
+    // being revised would disappear exactly while it is being revised.
+    const running: WorkbenchRunState = {
+      cardId: 'skill-card',
+      phase: 'running',
+      startedAt: STARTED_AT,
+      retried: false,
+    }
+    let revising = false
+    const { api } = pageApi({
+      result: null,
+      start: async (request) => {
+        if (request.mode.kind === 'card') return { status: 'ok', state: settled(FIRST_HTML) }
+        revising = true
+        return { status: 'ok', state: running }
+      },
+      // The mount-time adoption read answers "nothing in flight"; once the revision runs,
+      // the polls keep reporting it.
+      poll: async () => revising ? { status: 'ok', state: running } : { status: 'missing' },
+    })
+    const container = render(<SkillCardResultPage {...props(api)} />).container
+    // The head's control waits for the directory check before it may start anything.
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement).disabled).toBe(false)
+    })
+    // Produce a result with a run; nothing is stored, so `stored` stays empty.
+    fireEvent.click(screen.getByRole('button', { name: zh.skillCardRun }))
+    await waitFor(() => { expect(shadowText(container)).toContain('旧') })
+
+    ask('按时间倒序')
+    await waitFor(() => {
+      expect(container.querySelector('[data-result-busy="true"]')).not.toBeNull()
+    })
+    // Still the result that run produced, not the empty state.
+    expect(shadowText(container)).toContain('旧')
+    expect(container.textContent).not.toContain(zh.skillCardNotRunTitle)
+  })
+
   it('shows a busy result and disables the composer while a run holds the card', async () => {
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
