@@ -169,22 +169,22 @@ describe('the result page', () => {
     await loaded(container)
     const section = container.querySelector('[data-run-trace]')
     expect(section).not.toBeNull()
-    // On the page itself, not behind a disclosure.
+    // On the page itself, not behind a collapsed disclosure; the turn header opens it.
     expect(section?.closest('details')).toBeNull()
-    expect(section?.textContent).toContain(zh.runActivity)
+    expect(section?.textContent).toContain(zh.runActivityCompleted)
     expect(section?.textContent).toContain('先查列表。')
-    expect([...container.querySelectorAll('[data-run-trace] li')]
+    expect([...container.querySelectorAll('[data-run-trace] [data-activity-kind]')]
       .map(row => row.getAttribute('data-activity-tool')))
       .toEqual([null, 'pwsh', 'read'])
   })
 
   it('draws no trace section for a run that recorded none', async () => {
-    // Absence is a fact about the run, not an empty list to render: an empty 活动记录
-    // would say the child did nothing rather than that nothing was recorded.
+    // Absence is a fact about the run, not an empty list to render: an empty
+    // activity trace would say the child did nothing rather than that nothing was recorded.
     const { container } = render(<SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />)
     await loaded(container)
     expect(container.querySelector('[data-run-trace]')).toBeNull()
-    expect(container.textContent).not.toContain(zh.runActivity)
+    expect(container.textContent).not.toContain(zh.runActivityCompleted)
   })
 
   it('no longer draws the technical record the product owner removed', async () => {

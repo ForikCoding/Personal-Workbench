@@ -186,6 +186,49 @@ describe('workbench storage schemas', () => {
     expect(workbenchResultSchema.parse(result)).toEqual(result)
   })
 
+  it('keeps the narration a child run wrote, next to its tool calls', () => {
+    // The runner records the model's own words as `reasoning` and `text` entries; 运行详情
+    // renders them beside the calls. A schema that declared only `tool` and `truncated`
+    // read a result like this as invalid, so the domain backed it up and skipped it on the
+    // next start and the run result vanished after a restart.
+    const result = {
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      activity: [
+        { kind: 'reasoning', text: '先查列表，再逐行取字段。' },
+        { kind: 'tool', tool: 'pwsh', argument: 'Probe one shell call' },
+        { kind: 'text', text: '我这就去查。' },
+      ],
+    }
+    const parsed = workbenchResultSchema.parse(result)
+    expect(parsed).toEqual(result)
+    // Round trip in the shape storage actually performs: stringify, parse, parse again.
+    expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(result)
+  })
+
+  it('keeps a narration-only trace, and a trace that mixes all four kinds', () => {
+    const narrationOnly = {
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      activity: [{ kind: 'reasoning', text: '想' }, { kind: 'text', text: '说' }],
+    }
+    expect(workbenchResultSchema.parse(narrationOnly)).toEqual(narrationOnly)
+    const allKinds = {
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      activity: [
+        { kind: 'truncated', dropped: 2 },
+        { kind: 'reasoning', text: '想' },
+        { kind: 'tool', tool: 'read', argument: 'a' },
+        { kind: 'text', text: '说' },
+      ],
+    }
+    expect(workbenchResultSchema.parse(allKinds)).toEqual(allKinds)
+  })
+
   it('leaves a run that called no tools without a trace field', () => {
     // Absent is not the same fact as an empty list: the result page draws no activity
     // section for it, and the schema must not invent an empty one.

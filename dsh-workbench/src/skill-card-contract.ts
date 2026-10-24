@@ -123,6 +123,17 @@ export const WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH = 12_000
 export const WORKBENCH_ACTIVITY_PREVIEW_LENGTH = 120
 
 /**
+ * The child's schema-emission tool, kept out of the activity trace.
+ *
+ * A run's final structured output is emitted through this tool, and the emitted value is
+ * the card's own result — the same content the result page already shows. A row for the
+ * call would display that value a second time, cut to an argument, so the call is neither
+ * recorded nor rendered. The shared constant keeps the builder and the client filter on
+ * the same name.
+ */
+export const WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL = 'structured_output'
+
+/**
  * One tool call a run's child made, as the activity trace records it.
  *
  * Two fields and nothing else: the tool's name, and the first argument it was given,

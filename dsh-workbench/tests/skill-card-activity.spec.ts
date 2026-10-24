@@ -97,6 +97,17 @@ describe('activity mapping', () => {
     for (const event of others) expect(activityEntryFor(event)).toBeUndefined()
   })
 
+  it('drops the schema-emission call, whose value is the card result itself', () => {
+    // The run's final structured output is emitted through `structured_output`, and the
+    // emitted value is what the result page shows; a trace row would display it a second
+    // time. The call is not an entry, in either mapping, so it never shows or counts.
+    const event = call('structured_output', {
+      output: '<tr><td><span class="task-id">T202610223746</span></td>…',
+    })
+    expect(activityEntryFor(event)).toBeUndefined()
+    expect(activityEntriesFor(event)).toEqual([])
+  })
+
   it('ignores a tool call that names no tool', () => {
     // A payload without a usable name cannot become "tool name + argument", so it is not an
     // entry rather than an entry with a blank name.

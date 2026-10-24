@@ -126,12 +126,13 @@ export declare const zh: {
     resultEditPlaceholder: string;
     resultEditEmpty: string;
     resultEditTooLarge: string;
-    runActivity: string;
     runElapsed: string;
     runActivityTruncated: string;
     runActivityReasoning: string;
-    runActivityExpand: string;
-    runActivityCollapse: string;
+    runActivityArgument: string;
+    runActivityCompleted: string;
+    runActivityStopped: string;
+    runActivityFailed: string;
     skillCardRunningBody: string;
     refinePlaceholder: string;
     refineAction: string;

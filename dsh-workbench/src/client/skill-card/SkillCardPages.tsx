@@ -152,12 +152,14 @@ function ActionPanel({
  * Where the card's output ends: the run's activity trace.
  *
  * The card's output is what the run did — the model's own words and the tool calls it
- * made, in the order they happened. The technical record that used to sit beside it (stop
- * reason, model, start time, structured value, raw output, diagnostic) is gone by the
- * product owner's decision: the result above is the content, and the failure line above
- * the surface already says why a run produced none. Absent for a run that recorded no
- * entry, and then the section is not drawn at all — an empty list would say the run did
- * nothing rather than that nothing was recorded.
+ * made, in the order they happened. The trace opens under the settled turn-process header
+ * (已完成 / 已停止 / 已失败), which folds the whole stream like the conversation's Turn
+ * process row. The technical record that used to sit beside it (model, start time,
+ * structured value, raw output, diagnostic) is gone by the product owner's decision: the
+ * result above is the content, and the failure line above the surface already says why a
+ * run produced none. Absent for a run that recorded no entry, and then the section is not
+ * drawn at all — an empty list would say the run did nothing rather than that nothing was
+ * recorded.
  * @param props - the card view and the translator.
  * @returns the trace section, or null when the run left no trace.
  */
@@ -168,12 +170,11 @@ function RunTrace({
   readonly view: WorkbenchCardView
   readonly t: (key: WorkbenchLocaleKey) => string
 }): ReactNode {
-  const activity = view.result?.activity
-  if (activity === undefined || activity.length === 0) return null
+  const result = view.result
+  if (result === undefined || result.activity === undefined || result.activity.length === 0) return null
   return (
     <section className={css.runTrace} data-run-trace="">
-      <p className={css.runOutputLabel}>{t('runActivity')}</p>
-      <ActivityTrace trace={activity} t={t} />
+      <ActivityTrace trace={result.activity} settled={{ stopReason: result.stopReason }} t={t} />
     </section>
   )
 }
@@ -374,6 +375,30 @@ function RefinePanel({
 }
 
 /**
+ * Render the stop control alone, where the composer's dialog would be.
+ *
+ * A fresh run holds the card and the composer has nothing to send: its field is disabled
+ * and the row only exists for the stop control. Standing the control on its own keeps the
+ * run interruptible from where the user is looking — the head's run button scrolls away
+ * once the live trace grows — without the dialog sitting under the stream as if it were
+ * part of it.
+ * @param props - the interrupt, and the translator.
+ * @returns the row.
+ */
+function RunStopRow({ onStop, t }: {
+  readonly onStop: () => void
+  readonly t: (key: WorkbenchLocaleKey) => string
+}): ReactNode {
+  return (
+    <div className={css.runStopRow} data-run-stop-row="">
+      <Button variant="ghost" size="sm" onClick={onStop} data-refine-stop="">
+        {t('refineStop')}
+      </Button>
+    </div>
+  )
+}
+
+/**
  * Render the card's result in the whole display column, with its run control.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
  * @returns the result page.
@@ -400,6 +425,13 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   })
   const running = view.run?.phase === 'running'
   const bareRunning = view.bareRun?.phase === 'running'
+  // Any run holding the card: a fresh run, a refinement of the result, or a bare run.
+  // While one does, the page belongs to that run — the settled record of the previous one
+  // is not its subject.
+  const busy = running || bareRunning
+  // A refinement is a run that revises what is on screen. Its composer stays: it is the row
+  // the instruction was just sent from, and it carries that run's stop control.
+  const refining = view.refining === true
   // The composer needs something to revise: a card that has never run, or a stored
   // result from before the region language, has no HTML to start from.
   const refinable = resultHtml(view.result?.structured) !== undefined
@@ -411,7 +443,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // itself is read from the record the page shows, never from the rendered DOM: the DOM is
   // the template's document with the fragment spliced into it, and its text is not the
   // value the splice needs.
-  const editable = view.result !== undefined && !running && !bareRunning
+  const editable = view.result !== undefined && !busy
   return (
     <section className={css.pageView}>
       <header className={css.pageViewHead}>
@@ -527,18 +559,26 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             </section>
             {/* Revising with a sentence and revising by hand are two modes of the same
                 paragraph, and only one can be on screen: while the editor is open, the
-                composer would be asking a model to replace the draft being written. */}
-            {refinable && !editing
+                composer would be asking a model to replace the draft being written. A
+                refinement keeps it, because that run's stop control lives in it. */}
+            {refinable && !editing && (refining || !busy)
               ? (
                 <RefinePanel
                   view={view}
                   t={t}
-                  busy={running || bareRunning}
+                  busy={busy}
                   onRefine={actions.refine}
                   onUndo={actions.undoRefine}
                   onStop={actions.cancel}
                 />
               )
+              : null}
+            {/* A run in flight has nothing to send: the field would sit disabled under the
+                running stream as if it were part of it. The stop control stays on its own,
+                where the dialog was, because the head's run button scrolls away once the
+                live trace grows. */}
+            {busy && !refining
+              ? <RunStopRow onStop={actions.cancel} t={t} />
               : null}
           </>
         )
@@ -550,7 +590,10 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             onCancel={actions.cancelAction}
           />
         )}
-      <RunTrace view={view} t={t} />
+      {/* The settled trace of the previous run belongs to that run. While a run holds the
+          card the live stream above is the subject, and a 「已完成」 header under it would
+          label a record nobody is reading. */}
+      {busy ? null : <RunTrace view={view} t={t} />}
       {/* What this card's runs may write, stated beneath everything because it is not the
           content and still has to be readable before pressing Run. The skill it executes is
           disk content, so the mode is the sentence that says how far that can reach — and a

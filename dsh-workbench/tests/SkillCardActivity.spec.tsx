@@ -6,6 +6,10 @@
  * it has done anything, keeps the sentence it showed before this feature existed rather than
  * an empty list. And 用时 advances on the browser's own clock: the reading must not depend on
  * a poll landing, because a Host that stops answering would then freeze the clock.
+ *
+ * The rows wear the conversation's run-record chrome (icon, title, one-line summary,
+ * disclosure on click); this spec pins the workbench's composition — which row exists, what
+ * its summary shows, and that a click opens the stored text — not the primitives' rendering.
  */
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
@@ -92,62 +96,92 @@ function renderRunning(activity?: readonly WorkbenchActivityEntry[]): HTMLElemen
 }
 
 describe('a running card', () => {
-  it('shows the tool call the child made and the first argument it was given', () => {
+  it('shows the tool call the child made with its category icon, name, and first-line argument', () => {
     const container = renderRunning([
       { kind: 'tool', tool: 'pwsh', argument: 'Probe one shell call' },
       { kind: 'tool', tool: 'read', argument: 'D:\\Git\\Personal-Workbench\\README.md' },
     ])
-    const rows = [...container.querySelectorAll('[data-run-activity] li')]
-    expect(rows.map(row => row.textContent)).toEqual([
-      'pwshProbe one shell call',
-      'readD:\\Git\\Personal-Workbench\\README.md',
-    ])
-    // The tool name is a field of its own, so the row reads as "tool, then what it was given".
+    const rows = [...container.querySelectorAll('[data-run-activity] [data-activity-kind="tool"]')]
+    expect(rows).toHaveLength(2)
+    // The row reads as its tool name, then the summary, then the whole stored argument.
+    expect(rows[0]?.textContent).toBe('pwshProbe one shell call')
+    expect(rows[1]?.textContent).toBe('readD:\\Git\\Personal-Workbench\\README.md')
     expect(rows.map(row => row.getAttribute('data-activity-tool'))).toEqual(['pwsh', 'read'])
+    // A category icon stands beside the name, like the conversation's tool rows.
+    expect(rows[0]?.querySelector('[data-icon="api"]')).not.toBeNull()
+    expect(rows[1]?.querySelector('[data-icon="browse"]')).not.toBeNull()
+  })
+
+  it('keeps the schema-emission call out of the stream, stored or live', () => {
+    // `structured_output` carries the card's own result, which the result page already
+    // shows; a row for it would be that same value again. The row is skipped on read, so
+    // even a trace recorded before the builder filtered it stops showing.
+    const container = renderRunning([
+      { kind: 'tool', tool: 'structured_output', argument: '<tr><td>…' },
+      { kind: 'tool', tool: 'read', argument: 'README.md' },
+    ])
+    const rows = [...container.querySelectorAll('[data-run-activity] [data-activity-kind]')]
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.getAttribute('data-activity-tool')).toBe('read')
   })
 
   it('shows the model’s reasoning and its reply text beside the calls it made', () => {
     // The point of the narration entries: a card reads like a conversation, not a tool log.
-    // The reasoning carries the 思考 chip; the reply text does not.
+    // The reasoning carries the 思考 title; the reply text is a plain body with no chrome.
     const container = renderRunning([
       { kind: 'reasoning', text: '先查列表，再逐行取字段。' },
       { kind: 'text', text: '我这就去查。' },
       { kind: 'tool', tool: 'mcp__xiaoneng__get_task_list', argument: 'tanghao27478' },
       { kind: 'reasoning', text: '拿到了 34 条。' },
     ])
-    const rows = [...container.querySelectorAll('[data-run-activity] li')]
+    const rows = [...container.querySelectorAll('[data-run-activity] [data-activity-kind]')]
     expect(rows.map(row => row.getAttribute('data-activity-kind'))).toEqual([
       'reasoning', 'text', 'tool', 'reasoning',
     ])
-    expect(rows[0]?.textContent).toBe(`${zh.runActivityReasoning}先查列表，再逐行取字段。`)
+    const reasoningSummary = rows[0]?.querySelector('[data-disclosure-row]')
+    expect(reasoningSummary?.textContent).toBe(`${zh.runActivityReasoning}先查列表，再逐行取字段。`)
     expect(rows[1]?.textContent).toBe('我这就去查。')
-    expect(rows[1]?.textContent).not.toContain(zh.runActivityReasoning)
+    expect(rows[1]?.querySelector('[data-disclosure-row]')).toBeNull()
     expect(rows[2]?.textContent).toBe('mcp__xiaoneng__get_task_listtanghao27478')
-    expect(rows[3]?.textContent).toBe(`${zh.runActivityReasoning}拿到了 34 条。`)
+    expect(rows[3]?.querySelector('[data-disclosure-row]')?.textContent).toBe(`${zh.runActivityReasoning}拿到了 34 条。`)
   })
 
-  it('keeps a long thought to two lines until the reader expands it', () => {
-    // The whole span is in the DOM from the start — expanding is a class change, not a
-    // fetch — so a reader who opens a finished card reads the same text the live run showed.
+  it('folds a reasoning row to its first line and opens the full thought on click', () => {
+    // The whole span is in the DOM from the start — expanding is a toggle, not a fetch — so
+    // a reader who opens a finished card reads the same text the live run showed.
     const long = `${'想'.repeat(WORKBENCH_ACTIVITY_PREVIEW_LENGTH + 30)}把这句话讲完。`
     const container = renderRunning([{ kind: 'reasoning', text: long }])
     const row = container.querySelector('[data-activity-kind="reasoning"]')
-    expect(row?.getAttribute('data-activity-expanded')).toBe('false')
-    expect(row?.textContent).toContain(long)
-    const toggle = row?.querySelector('[data-activity-toggle]')
-    expect(toggle?.textContent).toBe(zh.runActivityExpand)
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    const disclosure = row?.querySelector('[data-disclosure-row]') as Element
+    // Collapsed: one-line summary (the first line), and the expandable body not yet shown.
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
+    expect(row?.querySelector('[data-disclosure-open]')).not.toBe('true')
+    expect(disclosure?.textContent).toBe(`${zh.runActivityReasoning}${long.split('\n')[0]}`)
 
-    fireEvent.click(toggle as Element)
-    expect(row?.getAttribute('data-activity-expanded')).toBe('true')
-    expect(row?.querySelector('[data-activity-toggle]')?.textContent).toBe(zh.runActivityCollapse)
+    fireEvent.click(disclosure)
+    const open = row?.querySelector('[data-disclosure-open]')
+    expect(open?.getAttribute('data-disclosure-open')).toBe('true')
+    expect(row?.textContent).toContain(long)
   })
 
-  it('offers no toggle for narration short enough to show whole', () => {
-    // A control that expands nothing is noise: two lines already hold this text.
-    const container = renderRunning([{ kind: 'text', text: '我这就去查。' }])
+  it('opens a tool row to the whole stored argument on click', () => {
+    const argument = `--command "probe the shell"\nsecond line that only appears expanded`
+    const container = renderRunning([{ kind: 'tool', tool: 'pwsh', argument }])
+    const row = container.querySelector('[data-activity-kind="tool"]') as Element
+    // Collapsed summary is the first line only.
+    expect(row.textContent).not.toContain('second line')
+    fireEvent.click(row.querySelector('[data-disclosure-row]') as Element)
+    expect(row.textContent).toContain(argument)
+    expect(row.textContent).toContain(zh.runActivityArgument)
+  })
+
+  it('keeps the model’s reply text fully visible without chrome', () => {
+    // The answer is not a step to fold: it reads like an assistant message in the chat.
+    const long = `第一段正文。\n\n${'第二段比较长，'.repeat(20)}`
+    const container = renderRunning([{ kind: 'text', text: long }])
     const row = container.querySelector('[data-activity-kind="text"]')
-    expect(row?.querySelector('[data-activity-toggle]')).toBeNull()
+    expect(row?.textContent).toBe(long)
+    expect(row?.querySelector('[data-disclosure-row]')).toBeNull()
     expect(row?.getAttribute('data-activity-expanded')).toBeNull()
   })
 
@@ -169,7 +203,7 @@ describe('a running card', () => {
     expect(marker?.getAttribute('data-activity-dropped')).toBe('6')
     expect(marker?.textContent).toBe(zh.runActivityTruncated.replace('{dropped}', '6'))
     // It is a row in the same list, not a caption somewhere else.
-    expect(container.querySelectorAll('[data-run-activity] li')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(2)
   })
 
   it('ticks 用时 on its own clock, without waiting for a poll', () => {
@@ -213,6 +247,34 @@ describe('activity trace rendering', () => {
     // The list itself has no empty state: the two callers differ about what "nothing yet"
     // means, and only the running card has a sentence to keep.
     const { container } = render(<ActivityTrace trace={[]} t={t} />)
-    expect(container.querySelectorAll('li')).toHaveLength(0)
+    expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(0)
+  })
+
+  it('renders the settled turn-process header with the outcome word and folds the trace', () => {
+    const { container } = render(
+      <ActivityTrace
+        trace={[
+          { kind: 'tool', tool: 'read', argument: 'README.md' },
+          { kind: 'reasoning', text: '总结。' },
+        ]}
+        settled={{ stopReason: 'completed' }}
+        t={t}
+      />,
+    )
+    const header = container.querySelector('[data-turn-process]') as Element
+    expect(header).not.toBeNull()
+    expect(header.textContent).toContain(zh.runActivityCompleted)
+    expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(2)
+    // Folding hides the rows; the whole stream sits under the header like the chat's process.
+    fireEvent.click(header)
+    expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(0)
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('names an aborted and a failed settle differently', () => {
+    const aborted = render(<ActivityTrace trace={[{ kind: 'text', text: 'x' }]} settled={{ stopReason: 'aborted' }} t={t} />)
+    expect(aborted.container.querySelector('[data-turn-process]')?.textContent).toContain(zh.runActivityStopped)
+    const failed = render(<ActivityTrace trace={[{ kind: 'text', text: 'x' }]} settled={{ stopReason: 'error' }} t={t} />)
+    expect(failed.container.querySelector('[data-turn-process]')?.textContent).toContain(zh.runActivityFailed)
   })
 })

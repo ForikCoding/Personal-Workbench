@@ -68,125 +68,169 @@
   padding-top: 8px;
 }
 
-.runOutputLabel {
-  margin: 8px 0 4px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+/* The run's activity stream: one row per entry — a tool call, a span of the model's own
+   words, or the marker — read top to bottom. The rows wear the conversation's run-record
+   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,
+   so a long trace reads like the chat it came from rather than a log dump.
+
+   The list is not bounded: like the conversation's own run record, it grows with its
+   content and the page scrolls, so a long reasoning span opens to its full text rather
+   than a narrow frame. */
+.runTraceList {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-/* The run's activity stream: one row per entry — a tool call, a span of the model's own
-   words, or the marker — read top to bottom.
-
-   It is bounded on screen as well as in storage, and the bound is a scrollbar rather than a
-   fold: a long run must not push the card's document off the page, and the whole trace has
-   to stay reachable without a second click. */
 .activityList {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 160px;
   margin: 4px 0 0;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
 }
 
 .activityItem {
-  display: flex;
-  gap: 8px;
+  display: block;
   min-width: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
 }
 
 /* The tool's own name, unshrunk: it is the column a reader scans. */
-.activityTool {
-  flex: none;
-  color: var(--dsw-alias-label-primary);
-  font-weight: 500;
+.activityToolRow {
+  min-width: 0;
 }
 
-/* The first argument, which is model-authored and may be any length up to its own limit.
-   It wraps rather than widening the card. */
-.activityArgument {
+/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header
+   with the secondary tier; the workbench only sizes the pieces it supplies. */
+.activityRow {
+  min-width: 0;
+}
+
+.activityTitle {
+  font-weight: 400;
+}
+
+/* The 2x2 separator between the title and the collapsed summary, matching the
+   conversation's run rows. */
+.activitySep {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  margin: 0 8px;
+  border-radius: 1px;
+  background: var(--dsw-alias-label-caption);
+}
+
+/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */
+.activitySummary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+}
+
+/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */
+.activityBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 0 4px 22px;
+}
+
+.activityBodyLabel {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+}
+
+.activityBodyText {
   min-width: 0;
   overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
-/* The model thinking: set apart from the calls because it is what the card is *reasoning*,
-   not what it is doing. Muted and italic so the eye can skip it and still read the calls. */
+/* The model thinking: a disclosure row like the conversation's, set apart from the calls
+   because it is what the card is *reasoning*, not what it is doing. */
 .activityReasoning {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
   min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  font-style: italic;
-  line-height: 18px;
 }
 
-/* The 思考 chip that marks a reasoning row, echoed by the chat's own thinking label. */
-.activityReasoningLabel {
-  flex: none;
-  font-style: normal;
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-  border: 1px solid var(--dsw-alias-separator-secondary);
-  border-radius: 4px;
-  padding: 0 4px;
-  line-height: 14px;
-}
-
-/* The model speaking to the user: plain narration, no chip. */
+/* The model speaking to the user: plain narration, no chrome — it is the reply, not a
+   step. Reads like an assistant message in the conversation. */
 .activityNarration {
   min-width: 0;
+  margin: 0;
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--dsh-content-font-size, 14px);
+  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
   overflow-wrap: anywhere;
-}
-
-/* Narration text wraps like an argument does. */
-.activityText {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/* Collapsed narration: two lines, then clipped. The whole span stays in the DOM, so
-   expanding (which removes this class) costs no fetch and the text never reflows from a
-   different source than the one that was stored. */
-.activityTextClamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* The 展开/收起 control: a quiet inline affordance, not a button-shaped action. */
-.activityToggle {
-  flex: none;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.activityToggle:hover {
-  color: var(--dsw-alias-label-primary);
 }
 
 /* A bounded trace's own row. Set apart from the calls because it is not one. */
 .activityTruncated {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+}
+
+/* The settled turn-process header above a trace, matching the conversation's Turn process
+   row: a full-width button with the outcome word and a chevron that folds the whole stream. */
+.turnProcess {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: calc(33px + var(--dsh-content-font-delta, 0px));
+  padding: 0 0 8px;
+  border: none;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: var(--dsh-content-font-size, 14px);
+  cursor: pointer;
+  text-align: left;
+  transition: color 100ms ease;
+}
+
+.turnProcess:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.turnProcessLabel {
+  min-width: 0;
+  overflow: hidden;
+  font-size: inherit;
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turnProcessChevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  color: inherit;
+  transition: transform 100ms ease;
+}
+
+.turnProcess[data-open] .turnProcessChevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turnProcess,
+  .turnProcessChevron {
+    transition: none;
+  }
 }
 
 /* The card's rendered document sits in its own frame. Without a border the template's
@@ -234,6 +278,14 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  min-width: 0;
+}
+
+/* The stop control standing where the composer's dialog would be: aligned to the row's
+   trailing edge like the composer's own button, with no field in front of it. */
+.runStopRow {
+  display: flex;
+  justify-content: flex-end;
   min-width: 0;
 }
 

@@ -9,6 +9,14 @@
  * the running notice keeps the card's previous static sentence for a run that has recorded
  * nothing yet, so the card never shows an empty frame.
  *
+ * The rows match the conversation's run record: each tool call and each reasoning span is a
+ * disclosure row with a leading icon, a title, and a one-line summary that expands to the
+ * full stored text — the same chrome `ui-chat` gives a Tool row and a Reasoning row. The
+ * model's reply text stays a plain body, like an assistant message in the conversation,
+ * because it is the reply rather than a step of the work. A settled trace opens under a
+ * turn-process header (已完成 / 已停止 / 已失败) that folds the whole stream, mirroring the
+ * conversation's Turn process header.
+ *
  * Nothing here redacts or truncates. Both happened on the Host, before the entry was stored
  * or sent: a client-side filter would leave the raw argument in the wire payload, which is
  * the one place it must not be.
@@ -32,6 +40,15 @@ export interface ActivityTraceProps {
     /** Entries as the Host recorded them, oldest first. */
     readonly trace: readonly WorkbenchActivityEntry[];
     /**
+     * How the trace's turn header reads, when the trace is settled.
+     *
+     * Absent keeps the trace headerless, for callers that bring their own header (the running
+     * card's notice). Present renders the conversation-style turn-process row above the list.
+     */
+    readonly settled?: {
+        readonly stopReason: string;
+    } | undefined;
+    /**
      * Translate one workbench string.
      * @param key - dictionary key.
      * @param params - optional template parameters.
@@ -40,18 +57,18 @@ export interface ActivityTraceProps {
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
 }
 /**
- * Render one activity trace as an ordered list.
+ * Render one activity trace as an ordered list of disclosure rows.
  *
  * One row per entry, oldest first, in the order the child produced them: a tool call
- * (tool's own name, then the first argument exactly as the Host stored it — already
- * redacted and already cut, with the ellipsis that says so), the model's own narration
- * (its reasoning under a 思考 label, its reply text as plain narration), and the
- * truncation marker as a row of its own, because a bounded trace that stayed silent would
- * read as a complete one.
- * @param props - the entries and the translator.
+ * (category icon, tool name, one-line argument summary, full argument on expand; already
+ * redacted and already cut on the Host, with the ellipsis that says so), the model's own
+ * reasoning (think icon, one-line summary, full text on expand), its reply text as a plain
+ * body, and the truncation marker as a row of its own, because a bounded trace that stayed
+ * silent would read as a complete one.
+ * @param props - the entries, the optional settled header, and the translator.
  * @returns the list.
  */
-export declare function ActivityTrace({ trace, t }: ActivityTraceProps): ReactNode;
+export declare function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactNode;
 /** Props of the running notice. */
 export interface RunningNoticeProps {
     /** The run in flight, for its start time and its trace. */
@@ -69,8 +86,7 @@ export interface RunningNoticeProps {
  *
  * The trace when there is one, and the card's own previous sentence when there is not: a run
  * whose first tool has not been called yet has nothing to list, and an empty list under a
- * running title reads as a broken stream rather than as a run that has not got there.
- * 用时 sits on the title line, where it advances on this component's timer.
+ * running title would read as a broken stream.
  * @param props - the run and the translator.
  * @returns the notice.
  */

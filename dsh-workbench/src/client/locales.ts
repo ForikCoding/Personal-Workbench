@@ -153,13 +153,15 @@ export const zh = {
   resultEditEmpty: '结果为空，没有可保存的内容。这张卡可以再运行一次，也可以在这里直接填入区间 HTML。',
   resultEditTooLarge: '内容有 {bytes} 字节，超过 {max} 字节上限，未保存。',
   // The run's activity stream: the tool calls and the model's own words below, the local
-  // clock on a running card, and the one line that admits a bounded trace dropped entries.
-  runActivity: '活动记录',
+  // clock on a running card, the one line that admits a bounded trace dropped entries, and
+  // the settled turn-process header's outcome words.
   runElapsed: '用时',
   runActivityTruncated: '之前还有 {dropped} 条已省略',
   runActivityReasoning: '思考',
-  runActivityExpand: '展开',
-  runActivityCollapse: '收起',
+  runActivityArgument: '参数',
+  runActivityCompleted: '已完成',
+  runActivityStopped: '已停止',
+  runActivityFailed: '已失败',
   skillCardRunningBody: '技能正在执行，完成后结果会显示在这里。',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
@@ -347,13 +349,15 @@ export const en: Record<keyof typeof zh, string> = {
   resultEditEmpty: 'The result is empty, so there is nothing to save. Run this card again, or type the region HTML here.',
   resultEditTooLarge: 'The content is {bytes} bytes, over the {max}-byte limit, so nothing was saved.',
   // The run's activity stream: the tool calls and the model's own words below, the local
-  // clock on a running card, and the one line that admits a bounded trace dropped entries.
-  runActivity: 'Activity',
+  // clock on a running card, the one line that admits a bounded trace dropped entries, and
+  // the settled turn-process header's outcome words.
   runElapsed: 'Elapsed',
   runActivityTruncated: '{dropped} earlier entries omitted',
   runActivityReasoning: 'Thinking',
-  runActivityExpand: 'Expand',
-  runActivityCollapse: 'Collapse',
+  runActivityArgument: 'Arguments',
+  runActivityCompleted: 'Completed',
+  runActivityStopped: 'Stopped',
+  runActivityFailed: 'Failed',
   skillCardRunningBody: 'The skill is executing. Its result appears here when it finishes.',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a

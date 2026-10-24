@@ -31,6 +31,7 @@ import type {
 import {
   WORKBENCH_ACTIVITY_ARGUMENT_MAX_LENGTH,
   WORKBENCH_ACTIVITY_MAX_ENTRIES,
+  WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL,
   WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH,
   WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH,
 } from './skill-card-contract.ts'
@@ -266,6 +267,10 @@ export function activityEntryFor(event: WorkbenchActivityEvent): WorkbenchToolAc
   if (typeof data !== 'object' || data === null) return undefined
   const name: unknown = Reflect.get(data, 'name')
   if (typeof name !== 'string' || name === '') return undefined
+  // The schema-emission call is not a step of the visible work: its value is the card's own
+  // result, so the trace neither records nor shows it (see
+  // WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL). It never counts against the entry budget.
+  if (name === WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL) return undefined
   const argument = firstArgumentOf(Reflect.get(data, 'arguments'))
   return {
     kind: 'tool',

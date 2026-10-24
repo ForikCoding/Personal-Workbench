@@ -85,14 +85,29 @@ export const workbenchTemplateSchema = z.object({
  * Stored form of one activity entry.
  *
  * A discriminated union rather than an optional `dropped` field on one shape: the trace is
- * a list of calls plus, at most once and only at the front, the count a bound removed. Both
- * halves are stored, so a bounded trace says so after a reload instead of looking complete.
+ * a list of calls and narration plus, at most once and only at the front, the count a bound
+ * removed. Both halves are stored, so a bounded trace says so after a reload instead of
+ * looking complete.
+ *
+ * Every kind {@link WorkbenchActivityEntry} declares is stored. The runner writes a
+ * narration entry for each reasoning and text span of the child's own words, and the
+ * result page renders them, so a schema that omitted either would read a good record as
+ * invalid and the domain would back it up and skip it on the next start — the user sees a
+ * run result that vanished after a restart.
  */
 export const workbenchActivityEntrySchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('tool'),
     tool: z.string().min(1),
     argument: z.string(),
+  }),
+  z.object({
+    kind: z.literal('reasoning'),
+    text: z.string(),
+  }),
+  z.object({
+    kind: z.literal('text'),
+    text: z.string(),
   }),
   z.object({
     kind: z.literal('truncated'),
