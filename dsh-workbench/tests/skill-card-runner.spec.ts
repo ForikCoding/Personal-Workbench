@@ -359,6 +359,7 @@ describe('workbench skill card runner', () => {
         startedAt: 42,
         retried: false,
         result: {
+          runId: '42',
           skill: 'git-repo',
           executedAt: 42,
           stopReason: 'completed',
@@ -369,6 +370,7 @@ describe('workbench skill card runner', () => {
       expect(saved).toEqual([{
         cardId: 'skill-card',
         record: {
+          runId: '42',
           skill: 'git-repo',
           executedAt: 42,
           stopReason: 'completed',
@@ -405,6 +407,7 @@ describe('workbench skill card runner', () => {
       expect(saved).toEqual([{
         cardId: 'skill-card',
         record: {
+          runId: '42',
           skill: 'git-repo',
           executedAt: 42,
           stopReason: 'completed',

@@ -24,6 +24,13 @@ export interface SkillCardPageProps {
     /** Card being shown. */
     readonly cardId: string;
     /**
+     * The run a result view opens, when it is not the card's latest.
+     *
+     * A run-history row opens its own run by this id; absent means the latest. The run
+     * history and the configuration pages ignore it.
+     */
+    readonly runId?: string;
+    /**
      * Resolve the session a run hangs off.
      * @returns the session id, or undefined when none is available.
      */
@@ -64,11 +71,12 @@ export interface SkillCardPageProps {
      * Open one of a card's full-panel views.
      *
      * A card-target action starts that card's run and then shows it, so the result page
-     * is the one that needs this.
+     * is the one that needs this. `runId` names the run a result view opens.
      * @param cardId - the card to show.
-     * @param view - which of its two views.
+     * @param view - which of its views.
+     * @param runId - the run a result view shows, omitted for the latest.
      */
-    readonly openCard: (cardId: string, view: 'result' | 'config') => void;
+    readonly openCard: (cardId: string, view: 'result' | 'runs' | 'config', runId?: string) => void;
     /**
      * Translate one workbench string.
      * @param key - dictionary key.
@@ -77,6 +85,16 @@ export interface SkillCardPageProps {
      */
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
 }
+/**
+ * Render the card's run history in the whole display column.
+ *
+ * Every card opens here first: the list names each run and its outcome, newest first,
+ * and a row opens that run's result. Running from this page is the one control the list
+ * carries, because a card that has not run yet is exactly the state this page shows.
+ * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
+ * @returns the run history page.
+ */
+export declare function SkillCardRunsPage(props: SkillCardPageProps): ReactNode;
 /**
  * Render the card's result in the whole display column, with its run control.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.

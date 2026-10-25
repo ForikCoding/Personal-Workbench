@@ -16,6 +16,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
+import type { WorkbenchResultRecord } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
 import { useSkillCard } from './controller.ts'
 import type {
@@ -32,7 +33,7 @@ import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
-import { resultHtml } from './render.ts'
+import { resultHtml, resultSummary } from './render.ts'
 import css from './skill-card.module.css'
 
 /**
@@ -49,6 +50,43 @@ function clockText(at: number): string {
   return [date.getHours(), date.getMinutes(), date.getSeconds()]
     .map(part => String(part).padStart(2, '0'))
     .join(':')
+}
+
+/**
+ * Format one run's completion moment for the history list.
+ *
+ * Runs span days, so the row shows the date and the time the run completed, written by
+ * hand for the same reason as {@link clockText}: the list is scanned, and a locale's own
+ * clock or date shape would change how the rows line up.
+ * @param at - milliseconds since the epoch.
+ * @returns `YYYY-MM-DD HH:MM` in the browser's own time zone.
+ */
+function runTimeText(at: number): string {
+  const date = new Date(at)
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/**
+ * The outcome word one settled run shows in the history list.
+ *
+ * The same three outcomes the turn-process header names, so the list and the detail
+ * never disagree about what a run became.
+ * @param stopReason - the run's terminal stop reason.
+ * @param t - translator.
+ * @returns the localized outcome word.
+ */
+function runOutcomeText(
+  stopReason: string,
+  t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string,
+): string {
+  // The in-flight row is a record the controller builds, not one a run stored; its
+  // stop reason is the synthetic 'running', read before the settled outcomes so a live
+  // run never reads as the completed fallback.
+  return stopReason === 'running' ? t('runHistoryRunning')
+    : stopReason === 'aborted' ? t('runActivityStopped')
+      : stopReason === 'error' || stopReason === 'failed' ? t('runActivityFailed')
+        : t('runActivityCompleted')
 }
 
 /**
@@ -186,6 +224,13 @@ export interface SkillCardPageProps {
   /** Card being shown. */
   readonly cardId: string
   /**
+   * The run a result view opens, when it is not the card's latest.
+   *
+   * A run-history row opens its own run by this id; absent means the latest. The run
+   * history and the configuration pages ignore it.
+   */
+  readonly runId?: string
+  /**
    * Resolve the session a run hangs off.
    * @returns the session id, or undefined when none is available.
    */
@@ -226,11 +271,12 @@ export interface SkillCardPageProps {
    * Open one of a card's full-panel views.
    *
    * A card-target action starts that card's run and then shows it, so the result page
-   * is the one that needs this.
+   * is the one that needs this. `runId` names the run a result view opens.
    * @param cardId - the card to show.
-   * @param view - which of its two views.
+   * @param view - which of its views.
+   * @param runId - the run a result view shows, omitted for the latest.
    */
-  readonly openCard: (cardId: string, view: 'result' | 'config') => void
+  readonly openCard: (cardId: string, view: 'result' | 'runs' | 'config', runId?: string) => void
   /**
    * Translate one workbench string.
    * @param key - dictionary key.
@@ -375,6 +421,170 @@ function RefinePanel({
 }
 
 /**
+ * Render the card's run history in the whole display column.
+ *
+ * Every card opens here first: the list names each run and its outcome, newest first,
+ * and a row opens that run's result. Running from this page is the one control the list
+ * carries, because a card that has not run yet is exactly the state this page shows.
+ * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
+ * @returns the run history page.
+ */
+export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
+  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props
+  const cardTitle = useCallback(
+    (id: string, name: string | undefined): string => cardFaceTitle({ cardId: id, name }, t),
+    [t],
+  )
+  const { view, actions } = useSkillCard({
+    api,
+    cardId,
+    session: runSessionId,
+    ...pickerSessionId === undefined ? {} : { pickerSession: pickerSessionId },
+    models,
+    workspacePicker,
+    openCard,
+    // A run another card's button started can be in flight when this list opens; the
+    // history page owns the run control for this card, so it adopts it like the result
+    // page does.
+    watchRun: true,
+    cardTitle,
+  })
+  const running = view.run?.phase === 'running'
+  const bareRunning = view.bareRun?.phase === 'running'
+  // The list is this view's subject, so a run holds it the same way it holds the result
+  // page: the run control turns into its cancel, and the rows dim so the run in flight
+  // is the only thing the user is looking at. Opening a row is deferred until it settles.
+  const busy = running || bareRunning
+  return (
+    <section className={css.pageView}>
+      <header className={css.pageViewHead}>
+        <Button variant="ghost" size="sm" onClick={onBack}>{t('skillCardBack')}</Button>
+        <h2 className={css.pageViewTitle}>{view.name ?? fallbackTitle}</h2>
+        {view.skill !== undefined && <span className={css.pageViewSubtitle}>{view.skill}</span>}
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={bareRunning || (!running && !view.runnable)}
+          onClick={running ? actions.cancel : actions.run}
+        >
+          {running ? t('skillCardCancel') : t('skillCardRun')}
+        </Button>
+      </header>
+      {/* The same sentences the result page states, so a run this list's button cannot
+          start says why here too: the list is where the user pressed it. */}
+      {view.modelField.kind === 'unavailable'
+        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+        : null}
+      {view.workspaceField.kind === 'missing'
+        ? (
+          <p className={css.runProblem} data-run-workspace-missing="">
+            {t(problemKey('workspace-missing'))}
+          </p>
+        )
+        : null}
+      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
+        ? (
+          <p className={css.runProblem} data-run-workspace-invalid="">
+            {t(problemKey('workspace-invalid'))}
+            {` · ${view.workspaceField.path}`}
+          </p>
+        )
+        : null}
+      {view.runUnavailable === undefined
+        ? null
+        : (
+          <p className={css.runProblem} data-run-unavailable="">
+            {t(problemKey(view.runUnavailable.code))}
+          </p>
+        )}
+      {view.problem === undefined || view.refineProblem !== undefined ? null : (
+        <p className={css.runProblem} role="alert">
+          {t(problemKey(view.problem.code))}
+          {view.problem.detail === '' ? '' : ` · ${view.problem.detail}`}
+        </p>
+      )}
+      {view.bareRun === undefined ? null : (
+        <p className={css.bareRun} data-bare-run={view.bareRun.phase}>
+          {bareRunText(view.bareRun, t)}
+        </p>
+      )}
+      <p className={css.runHistoryCount} data-run-history-count="">
+        {t('runHistoryCount', { count: view.runs.length })}
+      </p>
+      {view.runs.length === 0
+        ? (
+          <p className={css.runHistoryEmpty} data-run-history-empty="">
+            {t('runHistoryEmpty')}
+          </p>
+        )
+        : (
+          <ol className={css.runHistoryList} data-run-history-list="">
+            {view.runs.map(run => (
+              <RunHistoryRow
+                key={run.runId}
+                run={run}
+                busy={busy}
+                t={t}
+                onOpen={() => { openCard(cardId, 'result', run.runId) }}
+              />
+            ))}
+          </ol>
+        )}
+    </section>
+  )
+}
+
+/**
+ * One row of the run history: when the run completed, what it became, and a summary.
+ *
+ * The row is a button because the whole row is the way in; the summary is the first
+ * visible line of the run's region, so a row that failed and produced no text still
+ * reads as its outcome word. An edited run carries the marker after its time.
+ * @param props - the run, whether the card is busy, the translator, and the open action.
+ * @returns the row.
+ */
+function RunHistoryRow({
+  run,
+  busy,
+  t,
+  onOpen,
+}: {
+  readonly run: WorkbenchResultRecord
+  readonly busy: boolean
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  readonly onOpen: () => void
+}): ReactNode {
+  const summary = resultSummary(resultHtml(run.structured) ?? '')
+  return (
+    <li className={css.runHistoryItem}>
+      <button
+        type="button"
+        className={css.runHistoryRow}
+        onClick={onOpen}
+        disabled={busy}
+        data-run-history-row=""
+        data-run-outcome={run.stopReason}
+      >
+        <span className={css.runHistoryMeta}>
+          <span className={css.runHistoryTime} data-run-history-time="">
+            {runTimeText(run.executedAt)}
+          </span>
+          {run.editedAt === undefined
+            ? null
+            : <span className={css.runHistoryEdited} data-run-history-edited="">{t('runHistoryEdited')}</span>}
+          <span className={css.runHistoryOutcome} data-run-history-outcome="">
+            {runOutcomeText(run.stopReason, t)}
+          </span>
+        </span>
+        {summary === undefined
+          ? null
+          : <span className={css.runHistorySummary} data-run-history-summary="">{summary}</span>}
+      </button>
+    </li>
+  )
+}
+
+/**
  * Render the card's result in the whole display column, with its run control.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
  * @returns the result page.
@@ -390,6 +600,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   const { view, actions } = useSkillCard({
     api,
     cardId,
+    ...props.runId === undefined ? {} : { runId: props.runId },
     session: runSessionId,
     ...pickerSessionId === undefined ? {} : { pickerSession: pickerSessionId },
     models,

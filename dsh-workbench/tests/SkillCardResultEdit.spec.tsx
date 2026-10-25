@@ -68,6 +68,7 @@ const EDITED_AT = new Date(2024, 0, 3, 9, 15, 0).getTime()
 function stored(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResult {
   return {
     cardId: 'skill-card',
+    runId: 'run-1',
     skill: 'git-repo',
     executedAt: RAN_AT,
     stopReason: 'completed',
@@ -79,7 +80,7 @@ function stored(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResu
 /** What one fixture records about the interaction. */
 interface Recorded {
   /** Every fragment the page asked to store, in order. */
-  readonly saves: { readonly cardId: string; readonly html: string }[]
+  readonly saves: { readonly cardId: string; readonly runId: string; readonly html: string }[]
   /** Every write of any other kind, which an edit must never issue. */
   readonly writes: unknown[]
   /** Every run the page started. */
@@ -94,7 +95,7 @@ interface Recorded {
  */
 function fixture(options: {
   readonly result?: WorkbenchCardResult | null
-  readonly save?: (cardId: string, html: string) => Promise<WorkbenchResultWrite>
+  readonly save?: (cardId: string, runId: string, html: string) => Promise<WorkbenchResultWrite>
   readonly start?: (request: WorkbenchRunRequest) => Promise<{ status: 'ok'; state: WorkbenchRunState }>
   readonly poll?: WorkbenchSkillCardApi['poll']
   readonly catalog?: readonly WorkbenchSkillCatalogEntry[]
@@ -141,18 +142,18 @@ function fixture(options: {
     // The directory the fixture's card is pointed at, when it has one. A check for a card
     // without a workspace is never answered, because there is no path to check.
     statDirectory: async () => ({ status: 'ok', stat: PRESENT_DIRECTORY }),
-    saveResult: async (cardId, html) => {
-      recorded.saves.push({ cardId, html })
-      if (options.save !== undefined) return await options.save(cardId, html)
-      // The Host's own answer: the run's facts stay, the fragment is replaced, and the
-      // record now says when it was edited.
+    saveResult: async (cardId, runId, html) => {
+      recorded.saves.push({ cardId, runId, html })
+      if (options.save !== undefined) return await options.save(cardId, runId, html)
+      // The Host's own answer: the run's facts stay (its moment included), the fragment
+      // is replaced, and the record now says when it was edited.
       return {
         status: 'ok',
         revision: '1:1',
         result: {
           ...stored(),
           cardId,
-          executedAt: EDITED_AT,
+          runId,
           editedAt: EDITED_AT,
           structured: { html },
         },
@@ -270,7 +271,7 @@ describe('offering the result editor', () => {
     fireEvent.change(field, { target: { value: '<b>改过</b>' } })
     fireEvent.click(saveButton())
     await waitFor(() => { expect(recorded.saves).toHaveLength(1) })
-    expect(recorded.saves[0]).toEqual({ cardId: 'skill-card', html: '<b>改过</b>' })
+    expect(recorded.saves[0]).toEqual({ cardId: 'skill-card', runId: 'run-1', html: '<b>改过</b>' })
   })
 
   it('takes the control away while a run holds the card', async () => {
@@ -420,7 +421,7 @@ describe('saving and leaving', () => {
     fireEvent.click(saveButton())
 
     await waitFor(() => { expect(recorded.saves).toHaveLength(1) })
-    expect(recorded.saves[0]).toEqual({ cardId: 'skill-card', html: '<b>新</b>' })
+    expect(recorded.saves[0]).toEqual({ cardId: 'skill-card', runId: 'run-1', html: '<b>新</b>' })
     // The fragment travels alone: no template, and no configuration write.
     expect(recorded.writes).toEqual([])
     expect(recorded.starts).toEqual([])

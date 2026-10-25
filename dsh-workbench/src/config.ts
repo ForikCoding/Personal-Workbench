@@ -5,6 +5,7 @@
 
 import z from '@deepseek-ai/schemastery'
 import {
+  WORKBENCH_MAX_RESULTS_PER_CARD,
   WORKBENCH_RESULT_MAX_BYTES,
   WORKBENCH_TEMPLATE_MAX_BYTES,
   WORKBENCH_TEMPLATE_MAX_PER_CARD,
@@ -29,6 +30,8 @@ export interface Config {
   maxTemplatesPerCard: number
   /** Bytes one stored execution result may occupy. */
   maxResultBytes: number
+  /** Completed runs one card keeps before the oldest are dropped. */
+  maxResultsPerCard: number
   /** Milliseconds one skill card run may take before it is cancelled. */
   runTimeoutMs: number
   /** Runs allowed to be in flight across all cards. */
@@ -51,6 +54,9 @@ export const Config: z<Config> = z.object({
   maxTemplateBytes: z.number().step(1).min(1024).max(WORKBENCH_TEMPLATE_MAX_BYTES).default(WORKBENCH_TEMPLATE_MAX_BYTES),
   maxTemplatesPerCard: z.number().step(1).min(1).max(64).default(WORKBENCH_TEMPLATE_MAX_PER_CARD),
   maxResultBytes: z.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
+  // One ceiling shared with the wire contract, so a deployment can only make the
+  // history shorter, never longer than the client and the store both assume.
+  maxResultsPerCard: z.number().step(1).min(1).max(WORKBENCH_MAX_RESULTS_PER_CARD).default(WORKBENCH_MAX_RESULTS_PER_CARD),
   // A run that drives external MCP tools can spend minutes in model steps alone: a
   // served catalog of a hundred tools makes every step large, and a spilled tool result
   // costs another read. Two minutes cancelled a real card mid-run; five leaves room

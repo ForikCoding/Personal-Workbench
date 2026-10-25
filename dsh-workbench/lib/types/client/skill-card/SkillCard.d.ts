@@ -47,9 +47,9 @@ export interface SkillCardFace {
     /**
      * Open one of this card's full-panel views in the whole display column.
      * @param cardId - the card to show.
-     * @param view - which of its two views.
+     * @param view - which of its views; `result` without a run opens the latest run.
      */
-    readonly openCard: (cardId: string, view: 'result' | 'config') => void;
+    readonly openCard: (cardId: string, view: 'result' | 'runs' | 'config') => void;
 }
 /** Composed props of the skill card entry. */
 export type SkillCardProps = PropsRuntime<'workbench.cards'> & PropsRenderFactories & InjectFace<SkillCardFace> & {

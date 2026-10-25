@@ -149,10 +149,11 @@ export interface WorkbenchSkillCardApi {
    * A write of its own rather than a run: it spends no model call, and the Host keeps the
    * record's run facts — the skill and the stop reason — as they are.
    * @param cardId - the card whose result is being replaced.
+   * @param runId - which of the card's runs the edit applies to.
    * @param html - the region HTML to store, verbatim.
    * @returns the stored record and revision, or the refusal.
    */
-  saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>
+  saveResult(cardId: string, runId: string, html: string): Promise<WorkbenchResultWrite>
   /**
    * Ask the Host whether one path is a directory a card may run in.
    *
@@ -348,7 +349,7 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
       }
     },
 
-    async saveResult(cardId, html) {
+    async saveResult(cardId, runId, html) {
       let response: Response
       try {
         response = await fetcher(WORKBENCH_SKILL_CARD_RESULT_PATH, {
@@ -357,7 +358,7 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
           redirect: 'error',
           cache: 'no-store',
           headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cardId, html }),
+          body: JSON.stringify({ cardId, runId, html }),
         })
       } catch (error) {
         return { status: 'unavailable', reason: `skill card request failed: ${messageOf(error)}` }
@@ -519,12 +520,14 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
   for (const raw of body.results) {
     if (typeof raw !== 'object' || raw === null) return undefined
     const entry = raw as {
+      runId?: unknown
       cardId?: unknown
       skill?: unknown
       executedAt?: unknown
       stopReason?: unknown
       model?: unknown
     }
+    if (typeof entry.runId !== 'string' || entry.runId.length === 0) return undefined
     if (typeof entry.cardId !== 'string' || !isWorkbenchCardId(entry.cardId)) return undefined
     if (typeof entry.skill !== 'string' || typeof entry.executedAt !== 'number' || typeof entry.stopReason !== 'string') {
       return undefined
@@ -532,7 +535,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     // The run-detail row names the route straight from this value, so a malformed one is
     // refused here rather than printed as if it were real provenance.
     if (entry.model !== undefined && !isWorkbenchCardModel(entry.model)) return undefined
-    results.push({ ...(raw as WorkbenchCardResult), cardId: entry.cardId })
+    results.push({ ...(raw as WorkbenchCardResult), runId: entry.runId, cardId: entry.cardId })
   }
 
   return {
@@ -623,6 +626,7 @@ export function parseResultEdit(
   if (typeof body.revision !== 'string') return undefined
   if (typeof body.result !== 'object' || body.result === null) return undefined
   const raw = body.result as {
+    runId?: unknown
     cardId?: unknown
     skill?: unknown
     executedAt?: unknown
@@ -630,6 +634,7 @@ export function parseResultEdit(
     model?: unknown
     editedAt?: unknown
   }
+  if (typeof raw.runId !== 'string' || raw.runId.length === 0) return undefined
   if (typeof raw.cardId !== 'string' || !isWorkbenchCardId(raw.cardId)) return undefined
   if (typeof raw.skill !== 'string' || typeof raw.executedAt !== 'number' || typeof raw.stopReason !== 'string') {
     return undefined
@@ -640,7 +645,10 @@ export function parseResultEdit(
   if (raw.editedAt !== undefined && (typeof raw.editedAt !== 'number' || !Number.isFinite(raw.editedAt))) {
     return undefined
   }
-  return { revision: body.revision, result: { ...(body.result as WorkbenchCardResult), cardId: raw.cardId } }
+  return {
+    revision: body.revision,
+    result: { ...(body.result as WorkbenchCardResult), runId: raw.runId, cardId: raw.cardId },
+  }
 }
 
 /**

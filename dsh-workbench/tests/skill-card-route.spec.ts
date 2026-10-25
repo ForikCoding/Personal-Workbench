@@ -24,6 +24,9 @@ import type { FakeSkillCardSeed, FakeSkillCardTables } from './support/fake-skil
 import { WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHostOptions } from './support/fake-skill-card-host.ts'
 
+/** The run a seeded result belongs to. */
+const RUN_RUN = '7'
+
 /** Fence double with a configurable rejection. */
 function fence(rejection: 401 | 403 | undefined): SkillCardRouteFence {
   return { requestRejection: () => rejection }
@@ -70,6 +73,7 @@ function setup(options: {
     maxTemplateBytes: options.maxTemplateBytes ?? 1024,
     maxTemplatesPerCard: 4,
     maxResultBytes: 512,
+    maxResultsPerCard: 30,
     bootStamp: 7,
   })
   const warn = vi.fn()
@@ -109,7 +113,7 @@ describe('workbench skill card route', () => {
       seed: {
         card: { 'skill-card': { skill: 'git-repo' } },
         template: { 'skill-card_git-repo': { html: '<b>{{branch}}</b>' } },
-        result: { 'skill-card': { skill: 'git-repo', executedAt: 12, stopReason: 'completed' } },
+        result: { [`skill-card_${RUN_RUN}`]: { runId: RUN_RUN, skill: 'git-repo', executedAt: 12, stopReason: 'completed' } },
       },
     })
     const response = await run(handle, new FakeRequest('GET'))
@@ -118,7 +122,7 @@ describe('workbench skill card route', () => {
       apiVersion: 1,
       revision: '7:0',
       cards: [{ cardId: 'skill-card', skill: 'git-repo', templateSkills: ['git-repo'], template: '<b>{{branch}}</b>' }],
-      results: [{ cardId: 'skill-card', skill: 'git-repo', executedAt: 12, stopReason: 'completed' }],
+      results: [{ cardId: 'skill-card', runId: RUN_RUN, skill: 'git-repo', executedAt: 12, stopReason: 'completed' }],
       capabilities: { startActivation: true, start: false },
     })
     expect(response.headers.get('cache-control')).toBe('no-store')

@@ -61,6 +61,7 @@ const FIRST_HTML = '<b>旧</b>'
 function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResult {
   return {
     cardId: 'skill-card',
+    runId: 'run-1',
     skill: 'git-repo',
     executedAt: STARTED_AT,
     stopReason: 'completed',
@@ -81,7 +82,8 @@ function settled(html: string, overrides: Partial<WorkbenchRunState> = {}): Work
     phase: 'settled',
     startedAt: STARTED_AT,
     retried: false,
-    result: result({ executedAt: STARTED_AT + 1_000, structured: { html } }),
+    // A refine is a new run, so it carries its own run id.
+    result: result({ runId: 'run-2', executedAt: STARTED_AT + 1_000, structured: { html } }),
     ...overrides,
   }
 }

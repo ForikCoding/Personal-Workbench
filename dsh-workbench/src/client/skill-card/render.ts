@@ -82,6 +82,48 @@ export function resultHtml(value: unknown): string | undefined {
 }
 
 /**
+ * Longest visible summary one run-history row shows, in code points.
+ *
+ * A row is one line in a list the user scans, so the summary is a preview, not the
+ * document: 120 characters names the run's content without turning the list into the
+ * result page.
+ */
+export const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120
+
+/**
+ * Read the first line of visible text out of one region fragment.
+ *
+ * Block-level elements each start their own line (a heading and its paragraph are two
+ * lines, not one run-on), and an explicit newline does too; the very first line of the
+ * fragment is the summary. Scripts never run: the fragment is not attached, and the
+ * cleaning pass that a rendered document gets is not applied to a list preview. A
+ * fragment with no visible text has no summary.
+ * @param html - the region HTML a stored result carries.
+ * @returns the first line, truncated, or undefined when the fragment is all markup.
+ */
+const BLOCK_BOUNDARY = /<\/(p|h[1-6]|div|li|tr|blockquote|pre|ul|ol|table|section|article|header|footer)>/gi
+
+export function resultSummary(html: string): string | undefined {
+  let text = ''
+  try {
+    const host = document.createElement('div')
+    // A closing block tag is a line break even though the browser's textContent flattens
+    // it: "first line" is the first paragraph, not the whole first run of paragraphs.
+    host.innerHTML = html.replace(BLOCK_BOUNDARY, '$&\n')
+    text = host.textContent ?? ''
+  } catch {
+    // A fragment the browser refuses is not one the card could render either.
+    return undefined
+  }
+  const line = text.split('\n').map(part => part.trim()).find(part => part !== '')
+  if (line === undefined) return undefined
+  const points = Array.from(line)
+  return points.length <= WORKBENCH_RESULT_SUMMARY_MAX_LENGTH
+    ? line
+    : `${points.slice(0, WORKBENCH_RESULT_SUMMARY_MAX_LENGTH).join('')}…`
+}
+
+/**
  * Splice one result's HTML into its template's region.
  * @param template - the template as stored.
  * @param html - the region content the result carries.

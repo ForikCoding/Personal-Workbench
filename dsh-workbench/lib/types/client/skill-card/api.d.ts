@@ -149,10 +149,11 @@ export interface WorkbenchSkillCardApi {
      * A write of its own rather than a run: it spends no model call, and the Host keeps the
      * record's run facts — the skill and the stop reason — as they are.
      * @param cardId - the card whose result is being replaced.
+     * @param runId - which of the card's runs the edit applies to.
      * @param html - the region HTML to store, verbatim.
      * @returns the stored record and revision, or the refusal.
      */
-    saveResult(cardId: string, html: string): Promise<WorkbenchResultWrite>;
+    saveResult(cardId: string, runId: string, html: string): Promise<WorkbenchResultWrite>;
     /**
      * Ask the Host whether one path is a directory a card may run in.
      *

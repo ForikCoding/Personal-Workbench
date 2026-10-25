@@ -22,6 +22,8 @@ export interface Config {
     maxTemplatesPerCard: number;
     /** Bytes one stored execution result may occupy. */
     maxResultBytes: number;
+    /** Completed runs one card keeps before the oldest are dropped. */
+    maxResultsPerCard: number;
     /** Milliseconds one skill card run may take before it is cancelled. */
     runTimeoutMs: number;
     /** Runs allowed to be in flight across all cards. */

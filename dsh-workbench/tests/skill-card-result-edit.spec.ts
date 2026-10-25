@@ -27,8 +27,12 @@ const RAN_AT = 1_000
 /** When the hand edit is saved. */
 const EDITED_AT = 2_000
 
+/** The run the starting record belongs to. */
+const RAN_RUN = '7'
+
 /** The result a card starts with: a run's own record, with a second structured field. */
 const RAN: WorkbenchResultRecord = {
+  runId: RAN_RUN,
   skill: 'git-repo',
   executedAt: RAN_AT,
   stopReason: 'completed',
@@ -70,7 +74,9 @@ function setup(options: {
   const result = options.result === null ? undefined : options.result ?? RAN
   const seed: FakeSkillCardSeed = {
     card: { 'skill-card': { skill: 'git-repo' } },
-    ...result === undefined ? {} : { result: { 'skill-card': result } },
+    // The composite key: the card plus the run the record belongs to. A legacy bare-card
+    // key is seeded only by the spec that exercises the migration.
+    ...result === undefined ? {} : { result: { [`skill-card_${result.runId}`]: result } },
   }
   const tables = fakeSkillCardTables(seed)
   const store = new WorkbenchSkillCardStore({
@@ -82,8 +88,9 @@ function setup(options: {
     maxTemplateBytes: 1024,
     maxTemplatesPerCard: 4,
     maxResultBytes: options.maxResultBytes ?? WORKBENCH_RESULT_MAX_BYTES,
+    maxResultsPerCard: 30,
     bootStamp: 7,
-    // The store's own clock: an edit stamps two moments, and neither waits for a second.
+    // The store's own clock: an edit stamps one moment, and it does not wait for a second.
     now: () => EDITED_AT,
   })
   const warn = vi.fn()
@@ -102,41 +109,70 @@ function setup(options: {
  * @returns the request body.
  */
 function body(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { cardId: 'skill-card', html: '<b>新</b>', ...overrides }
+  return { cardId: 'skill-card', runId: RAN_RUN, html: '<b>新</b>', ...overrides }
 }
 
 describe('the store’s hand-edit path', () => {
   it('replaces the region HTML and keeps every other fact of the run', async () => {
     // Criterion 69. A save must not fabricate a run: the skill and the stop reason stay, the
-    // raw output and the diagnostic stay, and the rest of the structured value stays.
+    // raw output and the diagnostic stay, and the rest of the structured value stays. The
+    // run's moment stays too — editing must not move the record in the run history.
     const { store, tables } = setup()
-    const outcome = await store.putEditedResult('skill-card', '<b>新</b>')
+    const outcome = await store.putEditedResult('skill-card', RAN_RUN, '<b>新</b>')
     expect(outcome.status).toBe('written')
     const written = {
       ...RAN,
-      executedAt: EDITED_AT,
       editedAt: EDITED_AT,
       structured: { branch: 'main', html: '<b>新</b>' },
     }
     expect(outcome.status === 'written' && outcome.result).toEqual({ cardId: 'skill-card', ...written })
     // What the table holds is the same record, not a projection of it.
-    expect(tables.operations).toEqual([{ table: 'result', kind: 'put', key: 'skill-card', value: written }])
+    expect(tables.operations).toEqual([{ table: 'result', kind: 'put', key: 'skill-card_7', value: written }])
     expect(store.read().results).toEqual([{ cardId: 'skill-card', ...written }])
   })
 
   it('stamps a second edit with its own moment, and one provenance field only', async () => {
     const { store } = setup()
-    await store.putEditedResult('skill-card', '<b>一</b>')
-    const second = await store.putEditedResult('skill-card', '<b>二</b>')
+    await store.putEditedResult('skill-card', RAN_RUN, '<b>一</b>')
+    const second = await store.putEditedResult('skill-card', RAN_RUN, '<b>二</b>')
     expect(second.status === 'written' && second.result.editedAt).toBe(EDITED_AT)
     expect(second.status === 'written' && second.result.structured).toEqual({ branch: 'main', html: '<b>二</b>' })
+    expect(second.status === 'written' && second.result.executedAt).toBe(RAN_AT)
+  })
+
+  it('migrates a legacy record keyed by the card alone on its first edit', async () => {
+    // Records written before the run-history layout live under the bare card id. The edit
+    // reads them, stamps the legacy run id, and moves them to the composite key so the old
+    // key is not a duplicate.
+    const tables = fakeSkillCardTables({
+      card: { 'skill-card': { skill: 'git-repo' } },
+      result: { 'skill-card': { ...RAN, runId: '0' } },
+    })
+    const store = new WorkbenchSkillCardStore({
+      domainName: 'workbench_skill_card',
+      card: tables.card,
+      template: tables.template,
+      result: tables.result,
+      events: { on: () => () => {} },
+      maxTemplateBytes: 1024,
+      maxTemplatesPerCard: 4,
+      maxResultBytes: WORKBENCH_RESULT_MAX_BYTES,
+      maxResultsPerCard: 30,
+      bootStamp: 7,
+      now: () => EDITED_AT,
+    })
+    expect(store.read().results[0]?.runId).toBe('0')
+    const outcome = await store.putEditedResult('skill-card', '0', '<b>新</b>')
+    expect(outcome.status).toBe('written')
+    expect(tables.result.get('skill-card_0')?.editedAt).toBe(EDITED_AT)
+    expect(tables.result.get('skill-card')).toBeUndefined()
   })
 
   it('refuses a card that holds no result, because there is nothing to keep', async () => {
     // The record's skill and stop reason are the two facts a hand edit has nothing to say
     // about, so a card without a result has no record an edit could stand on.
     const { store, tables } = setup({ result: null })
-    await expect(store.putEditedResult('skill-card', '<b>新</b>')).resolves.toEqual({ status: 'missing' })
+    await expect(store.putEditedResult('skill-card', RAN_RUN, '<b>新</b>')).resolves.toEqual({ status: 'missing' })
     expect(tables.operations).toEqual([])
   })
 
@@ -145,7 +181,7 @@ describe('the store’s hand-edit path', () => {
     // boundary that actually stores it, and an empty region renders as a broken card.
     const { store, tables } = setup()
     for (const blank of ['', '   ', '\n\t ']) {
-      const outcome = await store.putEditedResult('skill-card', blank)
+      const outcome = await store.putEditedResult('skill-card', RAN_RUN, blank)
       expect(outcome.status).toBe('invalid')
     }
     expect(tables.operations).toEqual([])
@@ -154,7 +190,7 @@ describe('the store’s hand-edit path', () => {
   it('refuses an oversized fragment instead of trimming it', async () => {
     // Criterion 66, store half. Truncating would store one document and display another.
     const { store, tables } = setup({ maxResultBytes: 200 })
-    const outcome = await store.putEditedResult('skill-card', 'x'.repeat(201))
+    const outcome = await store.putEditedResult('skill-card', RAN_RUN, 'x'.repeat(201))
     expect(outcome).toEqual({ status: 'too-large', bytes: 201 })
     expect(tables.operations).toEqual([])
   })
@@ -166,25 +202,29 @@ describe('the store’s hand-edit path', () => {
       maxResultBytes: 300,
       result: { ...RAN, outputText: 'y'.repeat(200) },
     })
-    const outcome = await store.putEditedResult('skill-card', 'x'.repeat(120))
+    const outcome = await store.putEditedResult('skill-card', RAN_RUN, 'x'.repeat(120))
     expect(outcome.status).toBe('too-large')
     expect(tables.operations).toEqual([])
   })
 
-  it('loses its provenance when the card runs again', async () => {
-    // Criterion 69, second half. A later run overwrites the edit — that is the existing
-    // semantics of running a card, and it is why `editedAt` is not a history.
+  it('leaves an edit where it was when the card runs again', async () => {
+    // A later run appends, never overwrites: each run has its own record, so the edit that
+    // preceded it stays in the history exactly where it was, edited marker and all.
     const { store } = setup()
-    await store.putEditedResult('skill-card', '<b>新</b>')
+    await store.putEditedResult('skill-card', RAN_RUN, '<b>新</b>')
     await store.putResult('skill-card', {
+      runId: '8',
       skill: 'git-repo',
       executedAt: EDITED_AT + 1,
       stopReason: 'completed',
       structured: { html: '<b>运行</b>' },
     })
-    const [stored] = store.read().results
-    expect(stored).not.toHaveProperty('editedAt')
-    expect(stored?.structured).toEqual({ html: '<b>运行</b>' })
+    const [newest, older] = store.read().results
+    expect(newest?.runId).toBe('8')
+    expect(newest).not.toHaveProperty('editedAt')
+    expect(older?.runId).toBe(RAN_RUN)
+    expect(older?.editedAt).toBe(EDITED_AT)
+    expect(older?.structured).toEqual({ branch: 'main', html: '<b>新</b>' })
   })
 })
 
@@ -218,8 +258,9 @@ describe('the result-edit route', () => {
     expect(parsed.revision).toBe(store.revision)
     expect(parsed.result).toEqual({
       cardId: 'skill-card',
+      runId: RAN_RUN,
       skill: 'git-repo',
-      executedAt: EDITED_AT,
+      executedAt: RAN_AT,
       editedAt: EDITED_AT,
       stopReason: 'completed',
       structured: { branch: 'main', html: '<b>新</b>' },
@@ -245,6 +286,8 @@ describe('the result-edit route', () => {
       { request: new FakeRequest('PUT', []), message: 'body must be an object' },
       { request: new FakeRequest('PUT', body({ cardId: 'Skill-Card' })), message: 'cardId must be a namespaced card id' },
       { request: new FakeRequest('PUT', body({ cardId: undefined })), message: 'cardId must be a namespaced card id' },
+      { request: new FakeRequest('PUT', body({ runId: '' })), message: 'runId must name the run being edited' },
+      { request: new FakeRequest('PUT', body({ runId: undefined })), message: 'runId must name the run being edited' },
       { request: new FakeRequest('PUT', body({ html: 7 })), message: 'html must be a string' },
       { request: new FakeRequest('PUT', body({ html: undefined })), message: 'html must be a string' },
       { request: new FakeRequest('PUT', undefined), message: 'request body is empty' },
@@ -298,7 +341,7 @@ describe('the result-edit route', () => {
   it('reports a storage failure without echoing the record', async () => {
     const tables = fakeSkillCardTables({
       card: { 'skill-card': { skill: 'git-repo' } },
-      result: { 'skill-card': RAN },
+      result: { [`skill-card_${RAN_RUN}`]: RAN },
     })
     tables.result.failPuts(new Error('disk on fire'))
     const store = new WorkbenchSkillCardStore({
@@ -310,6 +353,7 @@ describe('the result-edit route', () => {
       maxTemplateBytes: 1024,
       maxTemplatesPerCard: 4,
       maxResultBytes: WORKBENCH_RESULT_MAX_BYTES,
+      maxResultsPerCard: 30,
       bootStamp: 7,
       now: () => EDITED_AT,
     })

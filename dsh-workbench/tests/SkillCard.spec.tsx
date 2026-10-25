@@ -29,6 +29,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   return {
     status: 'ready',
     runnable: false,
+    runs: [],
     // The face renders neither the model field nor a run control; the body cases below are
     // about the content, so the card is stated without a route.
     modelField: { kind: 'unavailable' },
@@ -50,7 +51,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
 }
 
 /** One stored result: the region content a run produced. */
-const RESULT = { skill: 'git-repo', executedAt: 1, stopReason: 'completed', structured: { html: '<p>v</p>' } }
+const RESULT = { runId: 'run-1', skill: 'git-repo', executedAt: 1, stopReason: 'completed', structured: { html: '<p>v</p>' } }
 
 /** A template whose region is the only part a run fills. */
 const TEMPLATE = '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->'

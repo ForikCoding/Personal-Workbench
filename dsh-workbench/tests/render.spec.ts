@@ -8,7 +8,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { filledTemplate, renderTemplate, resultHtml } from '../src/client/skill-card/render.ts'
+import {
+  WORKBENCH_RESULT_SUMMARY_MAX_LENGTH,
+  filledTemplate,
+  renderTemplate,
+  resultHtml,
+  resultSummary,
+} from '../src/client/skill-card/render.ts'
 
 /**
  * Render one document and hand back the shadow root.
@@ -45,6 +51,29 @@ describe('workbench skill card render', () => {
       // instead, and there is nothing in it to show.
       for (const value of [undefined, null, 'text', 7, [], {}, { html: 7 }, { html: '' }, { html: '   ' }]) {
         expect(resultHtml(value)).toBeUndefined()
+      }
+    })
+  })
+
+  describe('summarizing a result', () => {
+    it('takes the first paragraph as the first line, not the run whole', () => {
+      expect(resultSummary('<p>第一句。</p><p>第二句。</p>')).toBe('第一句。')
+    })
+
+    it('treats an explicit newline as a line break too', () => {
+      expect(resultSummary('第一行。\n第二行。')).toBe('第一行。')
+    })
+
+    it('truncates one long line at the budget with an ellipsis', () => {
+      const long = '字'.repeat(WORKBENCH_RESULT_SUMMARY_MAX_LENGTH + 10)
+      const summary = resultSummary(`<p>${long}</p>`)
+      expect(summary?.length).toBe(WORKBENCH_RESULT_SUMMARY_MAX_LENGTH + 1)
+      expect(summary?.endsWith('…')).toBe(true)
+    })
+
+    it('has no summary for a fragment with no visible text', () => {
+      for (const html of ['<b></b>', '<br>', '   ', '']) {
+        expect(resultSummary(html)).toBeUndefined()
       }
     })
   })

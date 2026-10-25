@@ -53,6 +53,18 @@ export const WORKBENCH_TEMPLATE_MAX_PER_CARD = 16
 export const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024
 
 /**
+ * How many completed runs one card keeps, before the oldest are dropped.
+ *
+ * A card stores every run because a run record is the answer to "what did this card do
+ * and when", not just the latest answer to "what does this card say now". The list cannot
+ * grow without bound — each record rides every read of the configuration — so the oldest
+ * completed runs are dropped once the card holds this many. 30 runs is weeks of daily use
+ * on an ordinary card, and the record that matters most (the latest) is never the one
+ * dropped.
+ */
+export const WORKBENCH_MAX_RESULTS_PER_CARD = 30
+
+/**
  * Longest revision instruction a refine run accepts, in characters.
  *
  * The instruction is the user's own sentence about what to change, so the limit only
@@ -369,6 +381,40 @@ export function parseTemplateKey(key: string): { readonly cardId: string; readon
 }
 
 /**
+ * Separator between the card and the run in a composite result key.
+ *
+ * Same character as the template key's separator, and safe for the same reason:
+ * card ids and run ids (millisecond timestamps) both admit no underscore, so the
+ * first one always splits the halves. The two key spaces live in different tables,
+ * so the shared character is not a collision.
+ */
+const RESULT_KEY_SEPARATOR = '_'
+
+/**
+ * Compose the storage key holding one card's one run's result.
+ * @param cardId - workbench card identity.
+ * @param runId - the run identity from {@link WorkbenchResultRecord.runId}.
+ * @returns the composite record key.
+ */
+export function resultKey(cardId: string, runId: string): string {
+  return `${cardId}${RESULT_KEY_SEPARATOR}${runId}`
+}
+
+/**
+ * Split a composite result key.
+ * @param key - a key produced by {@link resultKey}.
+ * @returns the two halves, or undefined when the key is not composite.
+ */
+export function parseResultKey(key: string): { readonly cardId: string; readonly runId: string } | undefined {
+  const separator = key.indexOf(RESULT_KEY_SEPARATOR)
+  if (separator <= 0) return undefined
+  const cardId = key.slice(0, separator)
+  const runId = key.slice(separator + 1)
+  if (!isWorkbenchCardId(cardId) || runId.length === 0) return undefined
+  return { cardId, runId }
+}
+
+/**
  * One exact provider/model route a card runs on.
  *
  * Stored as the pair rather than as a `"provider/model"` string: a provider id may
@@ -569,6 +615,16 @@ export interface WorkbenchTemplateRecord {
  * future provider legitimately adds.
  */
 export interface WorkbenchResultRecord {
+  /**
+   * Identity of the run that produced this record, unique within the card.
+   *
+   * The card stores every completed run, addressed by this id. It is distinct from
+   * `executedAt` on purpose: {@link WorkbenchResultRecord.editedAt} shows that a hand
+   * edit replaced the HTML, but the record's place in the run history is the run's —
+   * a record that was edited is still the run that produced it, and its position in
+   * the list must not move because it was edited.
+   */
+  readonly runId: string
   /** Skill that produced the result. */
   readonly skill: string
   /** Completion time in milliseconds since the epoch. */
@@ -619,6 +675,14 @@ export interface WorkbenchResultRecord {
 export interface WorkbenchResultEditRequest {
   /** Card whose stored result is being edited. */
   readonly cardId: string
+  /**
+   * Which of the card's runs the edit applies to.
+   *
+   * The card stores every run, and the result page can be showing any of them, so an
+   * edit has to name its record. The record's own {@link WorkbenchResultRecord.runId}
+   * is the identity that survives the edit.
+   */
+  readonly runId: string
   /** The region HTML to store, verbatim. */
   readonly html: string
 }

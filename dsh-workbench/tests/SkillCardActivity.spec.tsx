@@ -57,6 +57,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   return {
     status: 'ready',
     runnable: true,
+    runs: [],
     modelField: { kind: 'fixed', model: { provider: 'deepseek', model: 'deepseek-chat' } },
     workspaceField: { kind: 'missing' },
     permission: 'workspace-write',

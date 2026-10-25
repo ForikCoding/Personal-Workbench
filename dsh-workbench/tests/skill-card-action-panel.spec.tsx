@@ -171,6 +171,7 @@ function fixture(options: {
   ]
   const results = options.results ?? [{
     cardId: 'clicker',
+    runId: 'run-1',
     skill: CLICKER_SKILL,
     executedAt: 1,
     stopReason: 'completed',
@@ -334,6 +335,7 @@ describe('action confirmation panel', () => {
     const { renderPage } = fixture({
       results: [{
         cardId: 'clicker',
+        runId: 'run-1',
         skill: CLICKER_SKILL,
         executedAt: 1,
         stopReason: 'completed',
@@ -396,6 +398,7 @@ describe('action confirmation panel', () => {
     const { recorded, renderPage } = fixture({
       results: [{
         cardId: 'clicker',
+        runId: 'run-1',
         skill: CLICKER_SKILL,
         executedAt: 1,
         stopReason: 'completed',
@@ -422,6 +425,7 @@ describe('action confirmation panel', () => {
     const { recorded, renderPage } = fixture({
       results: [{
         cardId: 'clicker',
+        runId: 'run-1',
         skill: CLICKER_SKILL,
         executedAt: 1,
         stopReason: 'completed',
@@ -446,6 +450,7 @@ describe('action confirmation panel', () => {
     const { recorded, renderPage } = fixture({
       results: [{
         cardId: 'clicker',
+        runId: 'run-1',
         skill: CLICKER_SKILL,
         executedAt: 1,
         stopReason: 'completed',
@@ -665,7 +670,7 @@ describe('a confirmed skill target', () => {
             phase,
             startedAt: 1,
             retried: false,
-            ...phase === 'settled' ? { result: { skill: 'task-finish', executedAt: 2, stopReason: 'completed' } } : {},
+            ...phase === 'settled' ? { result: { runId: 'run-2', skill: 'task-finish', executedAt: 2, stopReason: 'completed' } } : {},
           },
         }),
     })
@@ -702,7 +707,7 @@ describe('a confirmed skill target', () => {
             retried: false,
             failure: 'the skill run ended as error: the model call was rejected',
             failureCode: 'run-failed',
-            result: { skill: 'task-finish', executedAt: 2, stopReason: 'error', diagnostic: 'the model call was rejected' },
+            result: { runId: 'run-2', skill: 'task-finish', executedAt: 2, stopReason: 'error', diagnostic: 'the model call was rejected' },
           },
         }),
     })

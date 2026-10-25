@@ -123,7 +123,7 @@ describe('a bare skill run', () => {
     })
     await runner.start(bare())
     const state = await settle(runner)
-    expect(state?.result).toEqual({ skill: 'git-repo', executedAt: 42, stopReason: 'completed' })
+    expect(state?.result).toEqual({ runId: '42', skill: 'git-repo', executedAt: 42, stopReason: 'completed' })
     expect(saved).toEqual([])
   })
 

@@ -189,6 +189,13 @@ export interface WorkbenchCardView {
   readonly template?: string
   /** Most recent result: the live run's, or the stored one. */
   readonly result?: WorkbenchResultRecord
+  /**
+   * Every completed run this card has, newest first.
+   *
+   * The run-history page lists these; a row opens the run detail by its
+   * {@link WorkbenchResultRecord.runId}. Empty until the card has run.
+   */
+  readonly runs: readonly WorkbenchResultRecord[]
   /** Live run state, once a run has been started in this session. */
   readonly run?: WorkbenchRunState
   /** Present when the card cannot show or do what it should. */
@@ -374,6 +381,14 @@ export interface WorkbenchSkillCardOptions {
   /** Card identity. */
   readonly cardId: string
   /**
+   * Which of the card's runs the result view shows.
+   *
+   * Absent means the latest stored run, which is what the grid's own surface and any
+   * navigation that predates the run history expect. A run history row opens its own
+   * run by this id, and the stored lookup then names exactly that record.
+   */
+  readonly runId?: string
+  /**
    * Read the session a run hangs off.
    *
    * A callback rather than a value, because the click path has to know whether a
@@ -436,9 +451,9 @@ export interface WorkbenchSkillCardOptions {
    * A card target starts its run and then jumps to that card, which is a navigation
    * only the panel can perform.
    * @param cardId - the card to show.
-   * @param view - which of its two views.
+   * @param view - which of its views.
    */
-  readonly openCard?: (cardId: string, view: 'result' | 'config') => void
+  readonly openCard?: (cardId: string, view: 'result' | 'runs' | 'config') => void
   /**
    * Whether to adopt a run that is already in flight for this card.
    *
@@ -604,6 +619,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
           // would see the transition a frame late.
           settleRefinement(result.state)
           setRun(result.state)
+          // A terminal run has been stored by the host by now, so the snapshot is read
+          // again here: the history list is derived from it, and the run that just
+          // finished belongs on top of it without a page remount.
+          if (result.state.phase === 'settled' || result.state.phase === 'cancelled') refresh()
           return
         }
         if (result.status === 'missing') setRun(undefined)
@@ -614,7 +633,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       stopped = true
       clearInterval(timer)
     }
-  }, [api, cardId, running, settleRefinement])
+  }, [api, cardId, running, refresh, settleRefinement])
 
   // A bare run reports only its verdict, so the loop stops at the first terminal
   // phase and nothing beyond the diagnostic is read off the state.
@@ -648,9 +667,40 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const card = config.kind === 'ready'
     ? config.snapshot.cards.find(entry => entry.cardId === cardId)
     : undefined
+  // The card's runs read newest first in the snapshot, so the first entry of its block is
+  // the latest. A named run (the history detail view) picks its own record instead.
   const stored = config.kind === 'ready'
-    ? config.snapshot.results.find(entry => entry.cardId === cardId)
+    ? options.runId === undefined
+      ? config.snapshot.results.find(entry => entry.cardId === cardId)
+      : config.snapshot.results.find(entry => entry.cardId === cardId && entry.runId === options.runId)
     : undefined
+  // A run this session started is on the history the moment it is in flight, before the
+  // host has stored anything: the running row is the run itself. Its id is the start
+  // time — the same id the settled record will carry — so once the run settles and the
+  // snapshot is re-read, that stored record replaces the in-flight row in place instead
+  // of the run appearing twice.
+  const liveRunRecord = run?.startedAt === undefined
+    ? undefined
+    : run.result ?? {
+      runId: String(run.startedAt),
+      skill: card?.skill ?? '',
+      executedAt: run.startedAt,
+      // Not a stored stop reason: it names what the history row shows while the run is
+      // neither complete nor stored. A cancelled run stores nothing, so its row keeps
+      // the aborted verdict for this session only.
+      stopReason: run.phase === 'cancelled' ? 'aborted' : 'running',
+    } satisfies WorkbenchResultRecord
+  // The whole history this card can show, newest first, as the run-list page reads it.
+  // Derived in the controller so the page and the result view agree on ordering.
+  const runs = config.kind === 'ready'
+    ? (() => {
+      const stored = config.snapshot.results
+        .filter(entry => entry.cardId === cardId)
+        .sort((left, right) => right.executedAt - left.executedAt)
+      if (liveRunRecord === undefined || stored.some(entry => entry.runId === liveRunRecord.runId)) return stored
+      return [liveRunRecord, ...stored]
+    })()
+    : []
   // A card's own route wins and the session's selection is only the default it shows. The
   // field answers both questions at once: what the picker offers, and whether a run can
   // name the model it would use.
@@ -757,13 +807,16 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       if (outcome.status === 'ok') {
         setRun(outcome.state)
         setProblem(undefined)
+        // A run that finished before its first poll still has to land on the history
+        // list, so the snapshot is re-read when the start response is already terminal.
+        if (outcome.state.phase === 'settled' || outcome.state.phase === 'cancelled') refresh()
         return
       }
       setProblem(outcome.status === 'rejected'
         ? { code: asErrorCode(outcome.code), detail: outcome.message }
         : { code: 'unavailable', detail: outcome.reason })
     })
-  }, [api, cardId, session, card?.skill, card?.template, workspaceField])
+  }, [api, cardId, refresh, session, card?.skill, card?.template, workspaceField])
 
   const cancel = useCallback(() => { void api.cancel(cardId) }, [api, cardId])
 
@@ -844,8 +897,12 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setProblem({ code: 'run-in-progress', detail: '' })
       return false
     }
+    // The edit replaces the record the page is showing, which is the one the user is
+    // revising; its run id is what names it in the card's history.
+    const targetRunId = result?.runId
+    if (targetRunId === undefined) return false
     const prior = result
-    const outcome = await api.saveResult(cardId, html)
+    const outcome = await api.saveResult(cardId, targetRunId, html)
     if (outcome.status !== 'ok') {
       // A stored write that failed used to leave the screen looking like a success, which
       // is the defect this branch exists to avoid: the editor stays open and the page
@@ -1251,6 +1308,8 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     ...card?.skill === undefined ? {} : { skill: card.skill },
     ...card?.template === undefined ? {} : { template: card.template },
     ...result === undefined ? {} : { result },
+    // The history is always present, so a card that never ran still lists zero runs.
+    runs,
     ...run === undefined ? {} : { run },
     // A refinement revises what is on screen, so the screen keeps showing it until the
     // new version arrives. Replacing the result with a progress notice threw away the
@@ -1302,6 +1361,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     card?.permission,
     canChooseWorkspace,
     result,
+    runs,
     catalog,
     catalogStatus,
     catalogFailure,
@@ -1331,9 +1391,11 @@ function defaultCardTitle(cardId: string, name: string | undefined): string {
 /**
  * Put one written result into a snapshot's result list.
  *
- * Replaced in place rather than appended: the list is ordered by card id and one card has
- * exactly one result, so appending would show the same card twice from one read onwards.
- * @param results - the snapshot's results, ascending by card id.
+ * The edit targets one run, so the matching record is the card/run pair the Host just
+ * stored — never another of the card's runs, and never appended as if the card gained a
+ * run the edit did not create. Ordering follows the snapshot's own rule: cards ascending,
+ * one card's runs newest first.
+ * @param results - the snapshot's results, ascending by card id, runs newest first.
  * @param written - the record the Host just stored.
  * @returns a new list holding that record.
  */
@@ -1341,14 +1403,14 @@ function replaceResult(
   results: readonly WorkbenchCardResult[],
   written: WorkbenchCardResult,
 ): readonly WorkbenchCardResult[] {
-  let found = false
-  const next = results.map((entry) => {
-    if (entry.cardId !== written.cardId) return entry
-    found = true
-    return written
-  })
-  if (!found) next.push(written)
-  return next.sort((left, right) => (left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : 0))
+  const index = results.findIndex(entry => entry.cardId === written.cardId && entry.runId === written.runId)
+  const next = index === -1
+    ? [...results, written]
+    : results.map((entry, at) => at === index ? written : entry)
+  return next.sort((left, right) =>
+    left.cardId < right.cardId ? -1
+      : left.cardId > right.cardId ? 1
+        : right.executedAt - left.executedAt)
 }
 
 /**

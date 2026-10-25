@@ -51,9 +51,10 @@ export interface WorkbenchPageInjected {
      * Open one of a card's full-panel views.
      *
      * A card action whose target is a card starts that card's run and then shows it,
-     * which is a navigation across cards rather than within one.
+     * which is a navigation across cards rather than within one. `runId` names the
+     * run a result view opens; omitted resolves to the card's latest run.
      */
-    readonly openCard: (cardId: string, view: WorkbenchCardSelection['view']) => void;
+    readonly openCard: (cardId: string, view: WorkbenchCardSelection['view'], runId?: string) => void;
 }
 /** Composed props of the workbench page. */
 export type WorkbenchPageProps = PropsRuntime<'main'> & PropsRenderSlots<'workbench.cards'> & InjectFace<WorkbenchPageInjected> & {

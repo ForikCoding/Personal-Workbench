@@ -884,9 +884,12 @@ await this.finish(run, outcome)
       const result = await activation.result
       // A refine run settles exactly like a card run: it captured `{ html }`, so the
       // record is the same shape and the store, retry and failure paths are reused.
+      // The run's own start is its identity: unique within the card, stable for its
+      // whole life, and already carried by the record the page polls.
+      const runId = String(run.startedAt)
       const stored = input.kind === 'bare'
-        ? toBareRecord(input.skill, result, this.now(), input.model)
-        : toResultRecord(input.skill, result, this.now(), input.model)
+        ? toBareRecord(input.skill, result, this.now(), input.model, runId)
+        : toResultRecord(input.skill, result, this.now(), input.model, runId)
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
       const record = result.stopReason === 'error'
@@ -1091,6 +1094,7 @@ function toCatalogEntry(skill: {
  * @param result - the child's terminal result.
  * @param executedAt - completion time.
  * @param model - the route the run was pinned to, when the card named one.
+ * @param runId - the run identity, unique within the card.
  * @returns the stored record.
  */
 function toResultRecord(
@@ -1098,9 +1102,11 @@ function toResultRecord(
   result: WorkbenchSubagentResult,
   executedAt: number,
   model: WorkbenchCardModel | undefined,
+  runId: string,
 ): WorkbenchResultRecord {
   const text = textOf(result.output)
   return {
+    runId,
     skill,
     executedAt,
     stopReason: result.stopReason,
@@ -1122,6 +1128,7 @@ function toResultRecord(
  * @param result - the child's terminal result.
  * @param executedAt - completion time.
  * @param model - the route the run was pinned to, when the card named one.
+ * @param runId - the run identity, unique within the card.
  * @returns the in-memory record.
  */
 function toBareRecord(
@@ -1129,8 +1136,10 @@ function toBareRecord(
   result: WorkbenchSubagentResult,
   executedAt: number,
   model: WorkbenchCardModel | undefined,
+  runId: string,
 ): WorkbenchResultRecord {
   return {
+    runId,
     skill,
     executedAt,
     stopReason: result.stopReason,

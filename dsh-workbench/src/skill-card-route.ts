@@ -363,7 +363,7 @@ async function handleResultEdit(
       throw new SkillCardRequestError(400, 'invalid-request', body.reason)
     }
     const edit = parseResultEdit(body.value, options.maxResultBytes)
-    const outcome = await options.store.putEditedResult(edit.cardId, edit.html)
+    const outcome = await options.store.putEditedResult(edit.cardId, edit.runId, edit.html)
     if (outcome.status === 'missing') {
       sendError(response, 404, 'not-found', 'this card holds no result to edit')
       return
@@ -411,9 +411,12 @@ function parseResultEdit(value: unknown, maxResultBytes: number): WorkbenchResul
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'body must be an object')
   }
-  const body = value as { cardId?: unknown; html?: unknown }
+  const body = value as { cardId?: unknown; runId?: unknown; html?: unknown }
   if (typeof body.cardId !== 'string' || !isWorkbenchCardId(body.cardId)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'cardId must be a namespaced card id')
+  }
+  if (typeof body.runId !== 'string' || body.runId.length === 0) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'runId must name the run being edited')
   }
   if (typeof body.html !== 'string') {
     throw new SkillCardRequestError(400, 'invalid-request', 'html must be a string')
@@ -426,7 +429,7 @@ function parseResultEdit(value: unknown, maxResultBytes: number): WorkbenchResul
     // than as a malformed request. It is refused, never truncated.
     throw new SkillCardRequestError(413, 'too-large', 'html exceeds the byte limit')
   }
-  return { cardId: body.cardId, html: body.html }
+  return { cardId: body.cardId, runId: body.runId, html: body.html }
 }
 
 /** Everything the directory-check route needs. */

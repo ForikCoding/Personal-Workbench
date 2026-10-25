@@ -478,6 +478,40 @@ function parseTemplateKey(key) {
 	};
 }
 /**
+* Separator between the card and the run in a composite result key.
+*
+* Same character as the template key's separator, and safe for the same reason:
+* card ids and run ids (millisecond timestamps) both admit no underscore, so the
+* first one always splits the halves. The two key spaces live in different tables,
+* so the shared character is not a collision.
+*/
+const RESULT_KEY_SEPARATOR = "_";
+/**
+* Compose the storage key holding one card's one run's result.
+* @param cardId - workbench card identity.
+* @param runId - the run identity from {@link WorkbenchResultRecord.runId}.
+* @returns the composite record key.
+*/
+function resultKey(cardId, runId) {
+	return `${cardId}${RESULT_KEY_SEPARATOR}${runId}`;
+}
+/**
+* Split a composite result key.
+* @param key - a key produced by {@link resultKey}.
+* @returns the two halves, or undefined when the key is not composite.
+*/
+function parseResultKey(key) {
+	const separator = key.indexOf(RESULT_KEY_SEPARATOR);
+	if (separator <= 0) return void 0;
+	const cardId = key.slice(0, separator);
+	const runId = key.slice(separator + 1);
+	if (!isWorkbenchCardId(cardId) || runId.length === 0) return void 0;
+	return {
+		cardId,
+		runId
+	};
+}
+/**
 * Whether a value is a usable card route.
 * @param value - candidate value.
 * @returns whether it holds two non-empty ids.
@@ -1805,7 +1839,8 @@ var WorkbenchSkillCardRunner = class {
 		run.childError = void 0;
 		try {
 			const result = await activation.result;
-			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model) : toResultRecord(input.skill, result, this.now(), input.model);
+			const runId = String(run.startedAt);
+			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId) : toResultRecord(input.skill, result, this.now(), input.model, runId);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
 				...stored,
 				diagnostic: run.childError
@@ -1994,11 +2029,13 @@ function toCatalogEntry(skill) {
 * @param result - the child's terminal result.
 * @param executedAt - completion time.
 * @param model - the route the run was pinned to, when the card named one.
+* @param runId - the run identity, unique within the card.
 * @returns the stored record.
 */
-function toResultRecord(skill, result, executedAt, model) {
+function toResultRecord(skill, result, executedAt, model, runId) {
 	const text = textOf(result.output);
 	return {
+		runId,
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
@@ -2019,10 +2056,12 @@ function toResultRecord(skill, result, executedAt, model) {
 * @param result - the child's terminal result.
 * @param executedAt - completion time.
 * @param model - the route the run was pinned to, when the card named one.
+* @param runId - the run identity, unique within the card.
 * @returns the in-memory record.
 */
-function toBareRecord(skill, result, executedAt, model) {
+function toBareRecord(skill, result, executedAt, model, runId) {
 	return {
+		runId,
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
@@ -2267,7 +2306,7 @@ async function handleResultEdit(options, request, response) {
 		if (body.status === "too-large") throw new SkillCardRequestError(413, "too-large", "request body is too large");
 		if (body.status === "invalid") throw new SkillCardRequestError(400, "invalid-request", body.reason);
 		const edit = parseResultEdit(body.value, options.maxResultBytes);
-		const outcome = await options.store.putEditedResult(edit.cardId, edit.html);
+		const outcome = await options.store.putEditedResult(edit.cardId, edit.runId, edit.html);
 		if (outcome.status === "missing") {
 			sendError(response, 404, "not-found", "this card holds no result to edit");
 			return;
@@ -2311,11 +2350,13 @@ function parseResultEdit(value, maxResultBytes) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new SkillCardRequestError(400, "invalid-request", "body must be an object");
 	const body = value;
 	if (typeof body.cardId !== "string" || !isWorkbenchCardId(body.cardId)) throw new SkillCardRequestError(400, "invalid-request", "cardId must be a namespaced card id");
+	if (typeof body.runId !== "string" || body.runId.length === 0) throw new SkillCardRequestError(400, "invalid-request", "runId must name the run being edited");
 	if (typeof body.html !== "string") throw new SkillCardRequestError(400, "invalid-request", "html must be a string");
 	const limit = Math.min(maxResultBytes, WORKBENCH_RESULT_MAX_BYTES);
 	if (Buffer.byteLength(body.html, "utf8") > limit) throw new SkillCardRequestError(413, "too-large", "html exceeds the byte limit");
 	return {
 		cardId: body.cardId,
+		runId: body.runId,
 		html: body.html
 	};
 }
@@ -2652,8 +2693,6 @@ function sendMethodNotAllowed(response, allow) {
 	response.setHeader("cache-control", "no-store");
 	response.end();
 }
-//#endregion
-//#region src/skill-card-store.ts
 /** Errors raised while writing skill card storage, carrying the route's error code. */
 var WorkbenchSkillCardStorageError = class extends Error {
 	operation;
@@ -2727,11 +2766,19 @@ var WorkbenchSkillCardStore = class {
 			});
 		}
 		const results = [];
-		for (const [cardId, record] of this.options.result.entries()) results.push({
-			cardId,
-			...record
-		});
-		results.sort((left, right) => left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : 0);
+		for (const [key, record] of this.options.result.entries()) {
+			const parsed = parseResultKey(key);
+			const cardId = parsed?.cardId ?? key;
+			results.push(parsed === void 0 ? {
+				cardId,
+				...record,
+				runId: "0"
+			} : {
+				cardId,
+				...record
+			});
+		}
+		results.sort((left, right) => left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : right.executedAt - left.executedAt);
 		return {
 			cards,
 			results,
@@ -2762,7 +2809,7 @@ var WorkbenchSkillCardStore = class {
 				if (parseTemplateKey(key)?.cardId !== patch.cardId) continue;
 				await this.run("delete", () => this.options.template.delete(key));
 			}
-			if (this.options.result.get(patch.cardId) !== void 0) await this.run("delete", () => this.options.result.delete(patch.cardId));
+			for (const key of [...this.options.result.entries()].map(([storedKey]) => storedKey).filter((storedKey) => this.resultCardId(storedKey) === patch.cardId)) await this.run("delete", () => this.options.result.delete(key));
 			return {
 				status: "written",
 				snapshot: this.read()
@@ -2799,40 +2846,55 @@ var WorkbenchSkillCardStore = class {
 	}
 	/**
 	* Store one execution result, trimmed to the deployment's byte budget.
+	*
+	* Each completed run lands under its own key, so a card keeps its history; once the
+	* card holds {@link WORKBENCH_MAX_RESULTS_PER_CARD} runs, the oldest are dropped. The
+	* trim and the retention together keep the domain small without asking the runner to
+	* think about either.
 	* @param cardId - card the result belongs to.
-	* @param record - the complete result.
+	* @param record - the complete result; its `runId` must be unique within the card.
 	* @returns resolution after durability.
 	*/
 	async putResult(cardId, record) {
+		if (!isWorkbenchCardId(cardId)) throw new Error(`workbench skill card put: ${JSON.stringify(cardId)} is not a namespaced slug`);
+		if (record.runId.length === 0) throw new Error("workbench skill card put: a result needs a run id");
 		const trimmed = trimResult(record, this.options.maxResultBytes);
-		await this.run("put", () => this.options.result.put(cardId, trimmed));
+		await this.run("put", () => this.options.result.put(resultKey(cardId, trimmed.runId), trimmed));
+		await this.trimToRetention(cardId);
 	}
 	/**
-	* Replace one card's region HTML with a hand-edited fragment.
+	* Replace one card's one run's region HTML with a hand-edited fragment.
 	*
 	* A save must not fabricate a run, so everything a run owned stays as it is: the skill
 	* and the stop reason are kept, the raw output and the diagnostic are kept, and only
-	* `structured.html` is replaced. `executedAt` is refreshed because the record's time is
-	* what the page shows as when the result it displays came about, and `editedAt` says
-	* how. A later run overwrites the whole record, which is the existing semantics of
-	* running a card.
+	* `structured.html` is replaced. `executedAt` stays as the run completed it — editing
+	* the record must not move it in the run history — and `editedAt` says the HTML was
+	* changed by hand. Records written before the run-history layout read under
+	* {@link LEGACY_RUN_ID} and migrate to the composite key on their first edit.
 	*
 	* Nothing here trims: a value over the budget is refused. Trimming a hand edit would
 	* store a document the user did not write and display a different one.
 	* @param cardId - card whose stored result is being edited.
+	* @param runId - which of the card's runs to edit.
 	* @param html - the region HTML to store, verbatim.
 	* @returns the stored record, or why the edit was refused.
 	*/
-	async putEditedResult(cardId, html) {
+	async putEditedResult(cardId, runId, html) {
 		if (!isWorkbenchCardId(cardId)) return {
 			status: "invalid",
 			reason: `card id ${JSON.stringify(cardId)} is not a namespaced slug`
+		};
+		if (runId.length === 0) return {
+			status: "invalid",
+			reason: "an edit has to name the run it edits"
 		};
 		if (html.trim() === "") return {
 			status: "invalid",
 			reason: "an edited result must hold visible content"
 		};
-		const previous = this.options.result.get(cardId);
+		const legacyKey = this.options.result.get(cardId);
+		const compositeKey = this.options.result.get(resultKey(cardId, runId));
+		const previous = compositeKey ?? legacyKey ?? void 0;
 		if (previous === void 0) return { status: "missing" };
 		const editBytes = utf8Bytes(html);
 		if (editBytes > this.options.maxResultBytes) return {
@@ -2842,7 +2904,7 @@ var WorkbenchSkillCardStore = class {
 		const at = this.moment();
 		const record = {
 			...previous,
-			executedAt: at,
+			runId,
 			editedAt: at,
 			structured: {
 				...structuredRecord(previous.structured),
@@ -2854,7 +2916,8 @@ var WorkbenchSkillCardStore = class {
 			status: "too-large",
 			bytes: recordBytes
 		};
-		await this.run("put", () => this.options.result.put(cardId, record));
+		await this.run("put", () => this.options.result.put(resultKey(cardId, runId), record));
+		if (legacyKey !== void 0 && compositeKey === void 0) await this.run("delete", () => this.options.result.delete(cardId));
 		return {
 			status: "written",
 			result: {
@@ -2862,6 +2925,36 @@ var WorkbenchSkillCardStore = class {
 				...record
 			}
 		};
+	}
+	/**
+	* Read the card a result key stores under.
+	* @param key - a stored result key, composite or legacy.
+	* @returns the card id, or undefined when the key is not a result key.
+	*/
+	resultCardId(key) {
+		const parsed = parseResultKey(key);
+		if (parsed !== void 0) return parsed.cardId;
+		return isWorkbenchCardId(key) ? key : void 0;
+	}
+	/**
+	* Drop a card's oldest runs until it holds at most the retention budget.
+	*
+	* Runs are ordered by when they completed; the newest is the one the card shows, so
+	* it is never the one dropped. Runs beyond the budget (and legacy keys among them) are
+	* removed oldest first.
+	* @param cardId - card whose history to trim.
+	* @returns resolution once the dropped records are gone.
+	*/
+	async trimToRetention(cardId) {
+		const own = [...this.options.result.entries()].map(([key, record]) => ({
+			key,
+			record
+		})).filter((entry) => this.resultCardId(entry.key) === cardId).sort((left, right) => left.record.executedAt - right.record.executedAt);
+		for (let droppedFrom = 0; own.length - droppedFrom > this.options.maxResultsPerCard; droppedFrom += 1) {
+			const oldest = own[droppedFrom];
+			if (oldest === void 0) return;
+			await this.run("delete", () => this.options.result.delete(oldest.key));
+		}
 	}
 	/** Stop observing domain changes. Idempotent. */
 	dispose() {
@@ -2976,6 +3069,7 @@ function utf8Bytes(value) {
 function trimResult(record, maxBytes) {
 	if (byteSize(record) <= maxBytes) return record;
 	const base = {
+		runId: record.runId,
 		skill: record.skill,
 		executedAt: record.executedAt,
 		stopReason: record.stopReason,
@@ -3084,6 +3178,7 @@ const Config = z$1.object({
 	maxTemplateBytes: z$1.number().step(1).min(1024).max(WORKBENCH_TEMPLATE_MAX_BYTES).default(WORKBENCH_TEMPLATE_MAX_BYTES),
 	maxTemplatesPerCard: z$1.number().step(1).min(1).max(64).default(16),
 	maxResultBytes: z$1.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
+	maxResultsPerCard: z$1.number().step(1).min(1).max(30).default(30),
 	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(3e5),
 	maxConcurrentRuns: z$1.number().step(1).min(1).max(8).default(1),
 	resultStaleAfterMs: z$1.number().step(1).min(6e4).default(864e5)
@@ -3201,6 +3296,7 @@ function apply(ctx, config) {
 				maxTemplateBytes: config.maxTemplateBytes,
 				maxTemplatesPerCard: config.maxTemplatesPerCard,
 				maxResultBytes: config.maxResultBytes,
+				maxResultsPerCard: config.maxResultsPerCard,
 				bootStamp: Date.now()
 			});
 		} catch (error) {

@@ -42,6 +42,15 @@ export declare function readActionEvent(element: Element): WorkbenchActionEvent;
  */
 export declare function resultHtml(value: unknown): string | undefined;
 /**
+ * Longest visible summary one run-history row shows, in code points.
+ *
+ * A row is one line in a list the user scans, so the summary is a preview, not the
+ * document: 120 characters names the run's content without turning the list into the
+ * result page.
+ */
+export declare const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120;
+export declare function resultSummary(html: string): string | undefined;
+/**
  * Splice one result's HTML into its template's region.
  * @param template - the template as stored.
  * @param html - the region content the result carries.

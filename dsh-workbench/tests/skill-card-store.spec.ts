@@ -27,6 +27,7 @@ interface SetupOptions {
   readonly maxTemplateBytes?: number
   readonly maxTemplatesPerCard?: number
   readonly maxResultBytes?: number
+  readonly maxResultsPerCard?: number
 }
 
 /**
@@ -43,11 +44,12 @@ function setup(options: SetupOptions = {}): {
   const changes = changeSource()
   const budgets: Pick<
     WorkbenchSkillCardStoreOptions,
-    'maxTemplateBytes' | 'maxTemplatesPerCard' | 'maxResultBytes'
+    'maxTemplateBytes' | 'maxTemplatesPerCard' | 'maxResultBytes' | 'maxResultsPerCard'
   > = {
     maxTemplateBytes: options.maxTemplateBytes ?? 1024,
     maxTemplatesPerCard: options.maxTemplatesPerCard ?? 4,
     maxResultBytes: options.maxResultBytes ?? 512,
+    maxResultsPerCard: options.maxResultsPerCard ?? 30,
   }
   const store = new WorkbenchSkillCardStore({
     domainName: 'workbench_skill_card',
@@ -426,9 +428,10 @@ describe('workbench skill card store', () => {
   })
 
   describe('results', () => {
-    it('stores a result that fits', async () => {
+    it('stores a result that fits, under its card and run', async () => {
       const { store, tables } = setup()
       await store.putResult('skill-card', {
+        runId: '7',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
@@ -438,8 +441,9 @@ describe('workbench skill card store', () => {
       expect(tables.operations).toEqual([{
         table: 'result',
         kind: 'put',
-        key: 'skill-card',
+        key: 'skill-card_7',
         value: {
+          runId: '7',
           skill: 'git-repo',
           executedAt: 12,
           stopReason: 'completed',
@@ -449,6 +453,7 @@ describe('workbench skill card store', () => {
       }])
       expect(store.read().results).toEqual([{
         cardId: 'skill-card',
+        runId: '7',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
@@ -457,9 +462,24 @@ describe('workbench skill card store', () => {
       }])
     })
 
+    it('keeps one card runs newest-first', async () => {
+      const { store } = setup()
+      await store.putResult('skill-card', {
+        runId: '1', skill: 'git-repo', executedAt: 100, stopReason: 'completed',
+      })
+      await store.putResult('skill-card', {
+        runId: '2', skill: 'git-repo', executedAt: 300, stopReason: 'completed',
+      })
+      await store.putResult('skill-card', {
+        runId: '3', skill: 'git-repo', executedAt: 200, stopReason: 'completed',
+      })
+      expect(store.read().results.map(entry => entry.runId)).toEqual(['2', '3', '1'])
+    })
+
     it('truncates the text output rather than the rendered value', async () => {
       const { store, tables } = setup({ maxResultBytes: 220 })
       await store.putResult('skill-card', {
+        runId: '2',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
@@ -471,19 +491,20 @@ describe('workbench skill card store', () => {
       expect(stored?.outputText?.length).toBeGreaterThan(0)
       expect(stored?.outputText?.length).toBeLessThan(500)
       // Measured on the stored record: the read view adds the card id on top.
-      expect(Buffer.byteLength(JSON.stringify(tables.result.get('skill-card')), 'utf8')).toBeLessThanOrEqual(220)
+      expect(Buffer.byteLength(JSON.stringify(tables.result.get('skill-card_2')), 'utf8')).toBeLessThanOrEqual(220)
     })
 
     it('drops the structured value when it alone exceeds the budget', async () => {
       const { store, tables } = setup({ maxResultBytes: 120 })
       await store.putResult('skill-card', {
+        runId: '4',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
         structured: { big: 'y'.repeat(500) },
         outputText: 'x'.repeat(500),
       })
-      const record = tables.result.get('skill-card')
+      const record = tables.result.get('skill-card_4')
       expect(record?.structured).toBeUndefined()
       expect(record?.skill).toBe('git-repo')
       expect(Buffer.byteLength(JSON.stringify(record), 'utf8')).toBeLessThanOrEqual(120)
@@ -492,6 +513,7 @@ describe('workbench skill card store', () => {
     it('stores an activity trace that fits, keeping its order', async () => {
       const { store } = setup()
       await store.putResult('skill-card', {
+        runId: '5',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
@@ -512,6 +534,7 @@ describe('workbench skill card store', () => {
       // opens unless they are debugging.
       const { store, tables } = setup({ maxResultBytes: 320 })
       await store.putResult('skill-card', {
+        runId: '6',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
@@ -522,7 +545,7 @@ describe('workbench skill card store', () => {
         ],
         outputText: 'x'.repeat(500),
       })
-      const record = tables.result.get('skill-card')
+      const record = tables.result.get('skill-card_6')
       expect(record?.activity).toEqual([
         { kind: 'tool', tool: 'pwsh', argument: 'echo hi' },
         { kind: 'tool', tool: 'read', argument: 'README.md' },
@@ -540,12 +563,13 @@ describe('workbench skill card store', () => {
         argument: `file-${String(index)}`,
       }))
       await store.putResult('skill-card', {
+        runId: '8',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
         activity,
       })
-      const record = tables.result.get('skill-card')
+      const record = tables.result.get('skill-card_8')
       const kept = record?.activity ?? []
       expect(Buffer.byteLength(JSON.stringify(record), 'utf8')).toBeLessThanOrEqual(400)
       // The newest call survives; the oldest is gone; a marker accounts for every missing one.
@@ -565,12 +589,47 @@ describe('workbench skill card store', () => {
         argument: 'z'.repeat(60),
       }))
       await store.putResult('skill-card', {
+        runId: '9',
         skill: 'git-repo',
         executedAt: 12,
         stopReason: 'completed',
         activity,
       })
-      expect(tables.result.get('skill-card')?.activity).toEqual([{ kind: 'truncated', dropped: 37 }])
+      expect(tables.result.get('skill-card_9')?.activity).toEqual([{ kind: 'truncated', dropped: 37 }])
+    })
+
+    it('drops the oldest runs once a card holds more than its budget', async () => {
+      const { store, tables } = setup({ maxResultsPerCard: 3 })
+      await store.putResult('skill-card', { runId: '1', skill: 'git-repo', executedAt: 100, stopReason: 'completed' })
+      await store.putResult('skill-card', { runId: '2', skill: 'git-repo', executedAt: 200, stopReason: 'completed' })
+      await store.putResult('skill-card', { runId: '3', skill: 'git-repo', executedAt: 300, stopReason: 'completed' })
+      await store.putResult('skill-card', { runId: '4', skill: 'git-repo', executedAt: 400, stopReason: 'completed' })
+      expect(store.read().results.map(entry => entry.runId)).toEqual(['4', '3', '2'])
+      expect(tables.result.get('skill-card_1')).toBeUndefined()
+    })
+
+    it('reads a legacy result keyed by the card alone as that card oldest run', async () => {
+      const { store } = setup({
+        seed: {
+          result: {
+            'skill-card': {
+              runId: '0',
+              skill: 'git-repo',
+              executedAt: 12,
+              stopReason: 'completed',
+              structured: { branch: 'main' },
+            },
+          },
+        },
+      })
+      expect(store.read().results).toEqual([{
+        cardId: 'skill-card',
+        runId: '0',
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+        structured: { branch: 'main' },
+      }])
     })
   })
 })

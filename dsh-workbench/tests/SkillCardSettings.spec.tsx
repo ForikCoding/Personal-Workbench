@@ -47,6 +47,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   return {
     status: 'ready',
     runnable: false,
+    runs: [],
     // A catalog-backed picker with one route selected, which is what the field shows once
     // the directory has answered. Cases that care about the other two states override it.
     modelField: { kind: 'ready', groups: MODEL_GROUPS, selected: MODEL_CURRENT },

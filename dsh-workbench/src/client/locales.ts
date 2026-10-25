@@ -162,6 +162,17 @@ export const zh = {
   runActivityCompleted: '已完成',
   runActivityStopped: '已停止',
   runActivityFailed: '已失败',
+  // The run-history page: the list every card opens on, one row per completed run. The
+  // count states how much history the card holds next to the empty state, and a row shows
+  // the run's own outcome word — the live page's words reused, so the list and the detail
+  // never disagree about what a run became.
+  runHistoryTitle: '运行记录',
+  runHistoryCount: '共 {count} 次运行',
+  runHistoryEmpty: '这张卡还没有运行过，点右上角运行一次吧。',
+  runHistoryEdited: '已编辑',
+  // The row of the run in flight: a record the controller builds while the host has not
+  // stored anything yet, so it is named here rather than pretending a run stored it.
+  runHistoryRunning: '运行中',
   skillCardRunningBody: '技能正在执行，完成后结果会显示在这里。',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
@@ -358,6 +369,12 @@ export const en: Record<keyof typeof zh, string> = {
   runActivityCompleted: 'Completed',
   runActivityStopped: 'Stopped',
   runActivityFailed: 'Failed',
+  // The run-history page: the list every card opens on, one row per completed run.
+  runHistoryTitle: 'Run history',
+  runHistoryCount: '{count} runs',
+  runHistoryEmpty: 'This card has not run yet. Use the run control above to run it.',
+  runHistoryEdited: 'Edited',
+  runHistoryRunning: 'Running',
   skillCardRunningBody: 'The skill is executing. Its result appears here when it finishes.',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a

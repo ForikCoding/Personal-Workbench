@@ -236,6 +236,7 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
         maxTemplateBytes: config.maxTemplateBytes,
         maxTemplatesPerCard: config.maxTemplatesPerCard,
         maxResultBytes: config.maxResultBytes,
+        maxResultsPerCard: config.maxResultsPerCard,
         bootStamp: Date.now(),
       })
     } catch (error) {

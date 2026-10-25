@@ -133,6 +133,11 @@ export declare const zh: {
     runActivityCompleted: string;
     runActivityStopped: string;
     runActivityFailed: string;
+    runHistoryTitle: string;
+    runHistoryCount: string;
+    runHistoryEmpty: string;
+    runHistoryEdited: string;
+    runHistoryRunning: string;
     skillCardRunningBody: string;
     refinePlaceholder: string;
     refineAction: string;

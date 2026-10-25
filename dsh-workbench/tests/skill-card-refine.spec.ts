@@ -139,6 +139,7 @@ describe('a refine run', () => {
     expect(saved).toEqual([{
       cardId: 'skill-card',
       record: {
+        runId: '42',
         skill: 'git-repo',
         executedAt: 42,
         stopReason: 'completed',

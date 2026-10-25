@@ -15,14 +15,24 @@ export type WorkbenchCardState = 'idle' | 'ongoing' | 'done' | 'warning' | 'erro
 /**
  * Which full-panel view the workbench is showing, and for which card.
  *
- * A card has two: the result it produces, and the configuration that produces it.
- * The card face is only an index entry, so this being unset is the grid.
+ * A card has a run history and two detail views: the result a specific run produced,
+ * and the configuration that produces runs. The card face is only an index entry, so
+ * this being unset is the grid. `view: 'result'` without a `runId` is that card's
+ * latest run — the view the run control settles on — while `view: 'runs'` opens the
+ * history list every card lands on first.
  */
 export interface WorkbenchCardSelection {
     /** Card being shown in the full display column. */
     readonly cardId: string;
-    /** Which of the card's two views. */
-    readonly view: 'result' | 'config';
+    /** Which of the card's views. */
+    readonly view: 'result' | 'runs' | 'config';
+    /**
+     * The run a result view shows, when it is not the card's latest.
+     *
+     * Omitted by every navigation that predates the run history — the card face, the
+     * grid, a skill target's jump — which then resolves to the latest run.
+     */
+    readonly runId?: string;
 }
 /**
  * What one card tells the host shell about itself.

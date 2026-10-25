@@ -62,9 +62,9 @@ export interface SkillCardFace {
   /**
    * Open one of this card's full-panel views in the whole display column.
    * @param cardId - the card to show.
-   * @param view - which of its two views.
+   * @param view - which of its views; `result` without a run opens the latest run.
    */
-  readonly openCard: (cardId: string, view: 'result' | 'config') => void
+  readonly openCard: (cardId: string, view: 'result' | 'runs' | 'config') => void
 }
 
 /** Composed props of the skill card entry. */
@@ -116,7 +116,9 @@ export function SkillCard(props: SkillCardProps): ReactNode {
     title: cardFaceTitle({ cardId, name: view.name }, t),
     ...view.skill === undefined ? {} : { subtitle: view.skill },
     ...view.problem === undefined ? {} : { failure: t(problemKey(view.problem.code)) },
-    onActivate: () => { openCard(cardId, 'result') },
+    // A card opens on its run history: the list names every run and each row opens
+    // that run's result, while the grid's naked result read gave no way to the past.
+    onActivate: () => { openCard(cardId, 'runs') },
     // The card owns the removal, and the panel owns the list it renders from, so the
     // panel is told once the Host has committed.
     onRemove: () => { void actions.remove().then(onCardsChanged) },

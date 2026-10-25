@@ -138,6 +138,13 @@ export interface WorkbenchCardView {
     readonly template?: string;
     /** Most recent result: the live run's, or the stored one. */
     readonly result?: WorkbenchResultRecord;
+    /**
+     * Every completed run this card has, newest first.
+     *
+     * The run-history page lists these; a row opens the run detail by its
+     * {@link WorkbenchResultRecord.runId}. Empty until the card has run.
+     */
+    readonly runs: readonly WorkbenchResultRecord[];
     /** Live run state, once a run has been started in this session. */
     readonly run?: WorkbenchRunState;
     /** Present when the card cannot show or do what it should. */
@@ -321,6 +328,14 @@ export interface WorkbenchSkillCardOptions {
     /** Card identity. */
     readonly cardId: string;
     /**
+     * Which of the card's runs the result view shows.
+     *
+     * Absent means the latest stored run, which is what the grid's own surface and any
+     * navigation that predates the run history expect. A run history row opens its own
+     * run by this id, and the stored lookup then names exactly that record.
+     */
+    readonly runId?: string;
+    /**
      * Read the session a run hangs off.
      *
      * A callback rather than a value, because the click path has to know whether a
@@ -383,9 +398,9 @@ export interface WorkbenchSkillCardOptions {
      * A card target starts its run and then jumps to that card, which is a navigation
      * only the panel can perform.
      * @param cardId - the card to show.
-     * @param view - which of its two views.
+     * @param view - which of its views.
      */
-    readonly openCard?: (cardId: string, view: 'result' | 'config') => void;
+    readonly openCard?: (cardId: string, view: 'result' | 'runs' | 'config') => void;
     /**
      * Whether to adopt a run that is already in flight for this card.
      *

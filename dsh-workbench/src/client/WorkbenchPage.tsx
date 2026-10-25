@@ -21,7 +21,7 @@ import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
 import { WorkbenchCreateCard } from './WorkbenchCreateCard.tsx'
 import type { WorkbenchCardType } from './WorkbenchCreateCard.tsx'
-import { SkillCardConfigPage, SkillCardResultPage } from './skill-card/SkillCardPages.tsx'
+import { SkillCardConfigPage, SkillCardResultPage, SkillCardRunsPage } from './skill-card/SkillCardPages.tsx'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import css from './workbench.module.css'
 
@@ -61,9 +61,10 @@ export interface WorkbenchPageInjected {
    * Open one of a card's full-panel views.
    *
    * A card action whose target is a card starts that card's run and then shows it,
-   * which is a navigation across cards rather than within one.
+   * which is a navigation across cards rather than within one. `runId` names the
+   * run a result view opens; omitted resolves to the card's latest run.
    */
-  readonly openCard: (cardId: string, view: WorkbenchCardSelection['view']) => void
+  readonly openCard: (cardId: string, view: WorkbenchCardSelection['view'], runId?: string) => void
 }
 
 /** Composed props of the workbench page. */
@@ -231,21 +232,27 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
       />
     )
     : (() => {
+      // Each view builds its own page props because navigation differs: the result
+      // view's back returns to the run history, while the history and the configuration
+      // return to the grid. The run a result view opens travels as selection.runId.
       const page = {
         api: skillCards.api,
         cardId: selection.cardId,
+        ...selection.runId === undefined ? {} : { runId: selection.runId },
         runSessionId: skillCards.runSessionId,
         ...skillCards.pickerSessionId === undefined ? {} : { pickerSessionId: skillCards.pickerSessionId },
         models: skillCards.models,
         workspacePicker: skillCards.workspacePicker,
         fallbackTitle: labelOf(selection.cardId),
-        onBack: closeCard,
         openCard,
         t,
+        onBack: selection.view === 'result'
+          ? () => openCard(selection.cardId, 'runs')
+          : closeCard,
       }
-      return selection.view === 'result'
-        ? <SkillCardResultPage {...page} />
-        : <SkillCardConfigPage {...page} />
+      if (selection.view === 'result') return <SkillCardResultPage {...page} />
+      if (selection.view === 'runs') return <SkillCardRunsPage {...page} />
+      return <SkillCardConfigPage {...page} />
     })()
 
   return (

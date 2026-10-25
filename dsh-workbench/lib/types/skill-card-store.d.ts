@@ -102,17 +102,28 @@ export interface WorkbenchSkillCardStoreOptions {
     readonly maxTemplatesPerCard: number;
     /** Bytes one result may occupy. */
     readonly maxResultBytes: number;
+    /** Runs one card keeps before the oldest are dropped. */
+    readonly maxResultsPerCard: number;
     /** Process start stamp folded into the revision; tests pass a fixed value. */
     readonly bootStamp: number;
     /**
      * Clock for the moments the store itself stamps.
      *
-     * Only a hand edit needs one: it refreshes `executedAt` and sets `editedAt`, and a spec
-     * has to assert those two without waiting for a real second to pass.
+     * Only a hand edit needs one: it sets `editedAt`, and a spec has to assert that without
+     * waiting for a real second to pass. `executedAt` is deliberately not touched by an
+     * edit — the record's place in the run history is the run's.
      * @returns milliseconds since the epoch.
      */
     readonly now?: () => number;
 }
+/**
+ * Run id a record written before the run-history layout is read under.
+ *
+ * The legacy layout keyed each card's one result by the card id alone. Reading such a
+ * record under this fixed id keeps it addressable — an edit can name it — without the
+ * card having to choose one of its real runs; it is the oldest run the card has.
+ */
+export declare const LEGACY_RUN_ID = "0";
 /** Errors raised while writing skill card storage, carrying the route's error code. */
 export declare class WorkbenchSkillCardStorageError extends Error {
     readonly operation: 'put' | 'delete';
@@ -152,28 +163,50 @@ export declare class WorkbenchSkillCardStore {
     write(patch: WorkbenchSkillCardPatch): Promise<WorkbenchSkillCardWriteResult>;
     /**
      * Store one execution result, trimmed to the deployment's byte budget.
+     *
+     * Each completed run lands under its own key, so a card keeps its history; once the
+     * card holds {@link WORKBENCH_MAX_RESULTS_PER_CARD} runs, the oldest are dropped. The
+     * trim and the retention together keep the domain small without asking the runner to
+     * think about either.
      * @param cardId - card the result belongs to.
-     * @param record - the complete result.
+     * @param record - the complete result; its `runId` must be unique within the card.
      * @returns resolution after durability.
      */
     putResult(cardId: string, record: WorkbenchResultRecord): Promise<void>;
     /**
-     * Replace one card's region HTML with a hand-edited fragment.
+     * Replace one card's one run's region HTML with a hand-edited fragment.
      *
      * A save must not fabricate a run, so everything a run owned stays as it is: the skill
      * and the stop reason are kept, the raw output and the diagnostic are kept, and only
-     * `structured.html` is replaced. `executedAt` is refreshed because the record's time is
-     * what the page shows as when the result it displays came about, and `editedAt` says
-     * how. A later run overwrites the whole record, which is the existing semantics of
-     * running a card.
+     * `structured.html` is replaced. `executedAt` stays as the run completed it — editing
+     * the record must not move it in the run history — and `editedAt` says the HTML was
+     * changed by hand. Records written before the run-history layout read under
+     * {@link LEGACY_RUN_ID} and migrate to the composite key on their first edit.
      *
      * Nothing here trims: a value over the budget is refused. Trimming a hand edit would
      * store a document the user did not write and display a different one.
      * @param cardId - card whose stored result is being edited.
+     * @param runId - which of the card's runs to edit.
      * @param html - the region HTML to store, verbatim.
      * @returns the stored record, or why the edit was refused.
      */
-    putEditedResult(cardId: string, html: string): Promise<WorkbenchResultEditOutcome>;
+    putEditedResult(cardId: string, runId: string, html: string): Promise<WorkbenchResultEditOutcome>;
+    /**
+     * Read the card a result key stores under.
+     * @param key - a stored result key, composite or legacy.
+     * @returns the card id, or undefined when the key is not a result key.
+     */
+    private resultCardId;
+    /**
+     * Drop a card's oldest runs until it holds at most the retention budget.
+     *
+     * Runs are ordered by when they completed; the newest is the one the card shows, so
+     * it is never the one dropped. Runs beyond the budget (and legacy keys among them) are
+     * removed oldest first.
+     * @param cardId - card whose history to trim.
+     * @returns resolution once the dropped records are gone.
+     */
+    private trimToRetention;
     /** Stop observing domain changes. Idempotent. */
     dispose(): void;
     /**

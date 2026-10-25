@@ -201,8 +201,10 @@ export function apply(ctx: ClientContext): void {
   // state lives here rather than in the page so a card can open its own view
   // without the page and the card sharing a React tree.
   const selection = createSnapshotStore<WorkbenchCardSelection | undefined>(undefined)
-  const openCard = (cardId: string, view: WorkbenchCardSelection['view']): void => {
-    selection.set({ cardId, view })
+  const openCard = (cardId: string, view: WorkbenchCardSelection['view'], runId?: string): void => {
+    // A navigation that carries no run drops one a previous view may have set: opening
+    // the latest result or the history must not keep showing the old record's id.
+    selection.set({ cardId, view, ...runId === undefined ? {} : { runId } })
   }
   const closeCard = (): void => { selection.set(undefined) }
 

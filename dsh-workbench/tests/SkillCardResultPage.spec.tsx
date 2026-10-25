@@ -66,6 +66,7 @@ const TOOK_MS = 42_000
 function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResult {
   return {
     cardId: 'skill-card',
+    runId: 'run-1',
     skill: 'git-repo',
     executedAt: STARTED_AT + TOOK_MS,
     stopReason: 'completed',
