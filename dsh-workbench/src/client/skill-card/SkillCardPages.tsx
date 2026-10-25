@@ -375,30 +375,6 @@ function RefinePanel({
 }
 
 /**
- * Render the stop control alone, where the composer's dialog would be.
- *
- * A fresh run holds the card and the composer has nothing to send: its field is disabled
- * and the row only exists for the stop control. Standing the control on its own keeps the
- * run interruptible from where the user is looking — the head's run button scrolls away
- * once the live trace grows — without the dialog sitting under the stream as if it were
- * part of it.
- * @param props - the interrupt, and the translator.
- * @returns the row.
- */
-function RunStopRow({ onStop, t }: {
-  readonly onStop: () => void
-  readonly t: (key: WorkbenchLocaleKey) => string
-}): ReactNode {
-  return (
-    <div className={css.runStopRow} data-run-stop-row="">
-      <Button variant="ghost" size="sm" onClick={onStop} data-refine-stop="">
-        {t('refineStop')}
-      </Button>
-    </div>
-  )
-}
-
-/**
  * Render the card's result in the whole display column, with its run control.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
  * @returns the result page.
@@ -572,13 +548,6 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                   onStop={actions.cancel}
                 />
               )
-              : null}
-            {/* A run in flight has nothing to send: the field would sit disabled under the
-                running stream as if it were part of it. The stop control stays on its own,
-                where the dialog was, because the head's run button scrolls away once the
-                live trace grows. */}
-            {busy && !refining
-              ? <RunStopRow onStop={actions.cancel} t={t} />
               : null}
           </>
         )

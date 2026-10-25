@@ -281,14 +281,6 @@
   min-width: 0;
 }
 
-/* The stop control standing where the composer's dialog would be: aligned to the row's
-   trailing edge like the composer's own button, with no field in front of it. */
-.runStopRow {
-  display: flex;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
 /* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because
    this is the same kind of input as the conversation's: `min-height: 36px` and
    `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in

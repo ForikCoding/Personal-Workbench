@@ -9,14 +9,19 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
 import { PRESENT_DIRECTORY, WORKSPACE_PATH } from './support/fake-skill-card-host.ts'
 import { zh } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
-import type { WorkbenchCardResult, WorkbenchDirectoryStat, WorkbenchRunCapabilities } from '../src/skill-card-contract.ts'
+import type {
+  WorkbenchCardResult,
+  WorkbenchDirectoryStat,
+  WorkbenchRunCapabilities,
+  WorkbenchRunState,
+} from '../src/skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../src/client/skill-card/api.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -379,5 +384,40 @@ describe('the result page', () => {
     // Not repeated inside the frame, where the document lives.
     expect(container.querySelector('[data-result-surface]')?.textContent)
       .not.toContain(zh.skillCardPermissionWorkspaceWrite)
+  })
+
+  it('clears the settled record and the dialog while a run holds the card', async () => {
+    // A run in flight owns the page. The previous run's record is not its subject: its
+    // 「已完成」 header would label a finished run under a live one. The revision dialog is
+    // the same: it has nothing to send while a run is going, and nothing of it — field or
+    // stop control — stands under the stream. Stopping is the head's run button, reading
+    // 「取消」 while a run holds the card.
+    const running: WorkbenchRunState = {
+      cardId: 'skill-card',
+      phase: 'running',
+      startedAt: STARTED_AT,
+      retried: false,
+      activity: [{ kind: 'tool', tool: 'read', argument: 'a.ts' }],
+    }
+    const api: WorkbenchSkillCardApi = {
+      ...pageApi({ result: result({ activity: [{ kind: 'reasoning', text: '旧的思考。' }] }) }),
+      // The mount-time adoption read reports the run already in flight for this card.
+      poll: async () => ({ status: 'ok', state: running }),
+    }
+    const { container } = render(<SkillCardResultPage {...props({ api })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-result-busy="true"]')).not.toBeNull()
+    })
+    // The live stream of this run, and nothing of the settled one.
+    expect(container.textContent).toContain(zh.runStatusRunning)
+    expect(container.querySelector('[data-run-trace]')).toBeNull()
+    expect(container.textContent).not.toContain(zh.runActivityCompleted)
+    expect(container.textContent).not.toContain('旧的思考。')
+    // The dialog is gone entirely — no field, no lone stop control. The head's run button
+    // is the stop: it reads null while the card runs, so the stop stays reachable.
+    expect(container.querySelector('[data-refine-composer]')).toBeNull()
+    expect(container.querySelector('[data-run-stop-row]')).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.refineStop })).toBeNull()
+    expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
   })
 })
