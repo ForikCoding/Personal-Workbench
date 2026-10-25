@@ -21,3 +21,10 @@ dsh-desktop-next/.desktop-next/
 # deepseek-harness submodule
 deepseek-harness/
 
+# Transient captures and stray documents at the repository root. The per-version
+# install docs inside dsh-workbench/ are archived on purpose and stay tracked.
+/.tmp-*.png
+/INSTALL.md
+/dsh-workbench-2.0.19-install.md
+/dsh-workbench-2.0.25-install.md
+
