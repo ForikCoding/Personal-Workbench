@@ -156,6 +156,32 @@ describe('workbench storage schemas', () => {
     expect(parsed).not.toHaveProperty('model')
   })
 
+  it('keeps the run id a result was stored under across a load', () => {
+    // The sixth field added this way, and the one that cost the user the whole visible
+    // board: the runner stored the run id but the schema did not declare it, so a load
+    // stripped it, the client refused the snapshot over one entry with no run id, and
+    // every card on the workbench disappeared.
+    const result = {
+      runId: '1792940383334',
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      structured: { html: '<p>a</p>' },
+    }
+    const parsed = workbenchResultSchema.parse(result)
+    expect(parsed).toEqual(result)
+    // Round trip in the shape storage actually performs: stringify, parse, parse again.
+    expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(result)
+  })
+
+  it('accepts a result written before the run history existed, without inventing an id', () => {
+    // Every card that ran before this field existed stores a result with no run id. The
+    // reader names such a record with the legacy run id; a required field here would have
+    // made the domain back up and skip the card's only result.
+    const parsed = workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed' })
+    expect(parsed).not.toHaveProperty('runId')
+  })
+
   it('keeps the run activity trace across a load', () => {
     // The fifth field added this way. The runner writes the trace and 运行详情 renders it, so
     // the schema has to declare it in the same change: an undeclared field survives the write

@@ -137,6 +137,16 @@ export const workbenchActivityEntrySchema = z.discriminatedUnion('kind', [
  * run that used no tools.
  */
 export const workbenchResultSchema = z.object({
+  // Declared in the same change that started writing it, for the exact reason this
+  // comment block keeps repeating: the runner stores the run id and the reader names
+  // the run by it, but zod drops a key the schema does not declare, so an undeclared
+  // id survived the write and vanished on the next load. The client then refused the
+  // whole snapshot — one undeclared field blanked every card on the board.
+  //
+  // Optional because a record written before the run history was kept has no id: the
+  // reader stamps the legacy run id on it instead of the domain backing it up and
+  // skipping it. A composite-key record keeps the id this field carries.
+  runId: z.string().optional(),
   skill: z.string(),
   executedAt: z.number().finite().nonnegative(),
   stopReason: z.string(),

@@ -476,6 +476,31 @@ describe('workbench skill card store', () => {
       expect(store.read().results.map(entry => entry.runId)).toEqual(['2', '3', '1'])
     })
 
+    it('names a composite record by its key when the stored value carries no run id', async () => {
+      // A field the table schema does not declare is stripped on load, so a value can
+      // reach the store without the run id the key already holds. The key is what the
+      // store wrote, so it is the id that wins — one entry with no run id otherwise made
+      // the client refuse the whole snapshot and blank the board.
+      const { store } = setup({
+        seed: {
+          result: {
+            'skill-card_1792940383334': {
+              skill: 'git-repo',
+              executedAt: 12,
+              stopReason: 'completed',
+            } as never,
+          },
+        },
+      })
+      expect(store.read().results).toEqual([{
+        cardId: 'skill-card',
+        runId: '1792940383334',
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+      }])
+    })
+
     it('truncates the text output rather than the rendered value', async () => {
       const { store, tables } = setup({ maxResultBytes: 220 })
       await store.putResult('skill-card', {

@@ -220,16 +220,17 @@ export class WorkbenchSkillCardStore {
       // it was keyed by the card id alone. It reads as that card's one run, under the
       // legacy run id, so a card's oldest run survives an upgrade instead of vanishing.
       const parsed = parseResultKey(key)
-      // A legacy key carries no run id; the record stored under it does not either, so
-      // the reader names it. For a composite key the record's own id is the source of
-      // truth, and the key's half is the same id — the spread keeps the record's.
       const cardId = parsed?.cardId ?? key
-      // The legacy record stored under a bare card key carries no run id on disk; the
-      // typed record says otherwise, so the stored value is spread first and the reader's
-      // own id stamped after it, which is also the value that must win.
+      // The stored value is spread first and the run id stamped after it, so the key —
+      // the identity the store actually wrote — wins over whatever the record carries.
+      // For a legacy key that is the fixed legacy id; for a composite key it is the key's
+      // own half, which keeps the entry readable even if the table schema in front of this
+      // domain dropped the field. That is not hypothetical: an undeclared `runId` was
+      // stripped on load, the client refused the whole snapshot over one entry with no run
+      // id, and every card on the board disappeared.
       results.push(parsed === undefined
         ? { cardId, ...record, runId: LEGACY_RUN_ID }
-        : { cardId, ...record })
+        : { cardId, ...record, runId: parsed.runId })
     }
     // One card's runs read newest-first, so the client's default (the latest) is the first
     // of its block; cards themselves stay in id order.

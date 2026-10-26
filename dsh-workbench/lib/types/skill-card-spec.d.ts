@@ -123,6 +123,7 @@ export declare const workbenchActivityEntrySchema: z.ZodDiscriminatedUnion<[z.Zo
  * run that used no tools.
  */
 export declare const workbenchResultSchema: z.ZodObject<{
+    runId: z.ZodOptional<z.ZodString>;
     skill: z.ZodString;
     executedAt: z.ZodNumber;
     stopReason: z.ZodString;

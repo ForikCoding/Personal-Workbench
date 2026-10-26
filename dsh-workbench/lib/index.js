@@ -711,6 +711,7 @@ const workbenchActivityEntrySchema = z.discriminatedUnion("kind", [
 * run that used no tools.
 */
 const workbenchResultSchema = z.object({
+	runId: z.string().optional(),
 	skill: z.string(),
 	executedAt: z.number().finite().nonnegative(),
 	stopReason: z.string(),
@@ -2775,7 +2776,8 @@ var WorkbenchSkillCardStore = class {
 				runId: "0"
 			} : {
 				cardId,
-				...record
+				...record,
+				runId: parsed.runId
 			});
 		}
 		results.sort((left, right) => left.cardId < right.cardId ? -1 : left.cardId > right.cardId ? 1 : right.executedAt - left.executedAt);
