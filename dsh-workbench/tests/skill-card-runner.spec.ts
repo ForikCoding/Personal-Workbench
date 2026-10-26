@@ -43,11 +43,17 @@ function setup(options: FakeHostOptions & {
   return { runner, fake, saved, warnings }
 }
 
-/** A run request that passes every precondition. */
+/**
+ * A run request that passes every precondition.
+ *
+ * No session: a card run names none, because the Host gives every run a session of its own.
+ * A refinement is the mode that carries one, and it has its own cases.
+ * @param overrides - fields the case varies.
+ * @returns the request.
+ */
 function request(overrides: Partial<WorkbenchRunRequest> = {}): WorkbenchRunRequest {
   return {
     cardId: 'skill-card',
-    sessionId: AGENT.id,
     mode: { kind: 'card' },
     outputSchema: { type: 'object', properties: {} },
     ...overrides,
@@ -235,9 +241,50 @@ describe('workbench skill card runner', () => {
       expect(fake.activations).toEqual([])
     })
 
-    it('refuses a session with no live agent', async () => {
+    it('refuses a refinement whose session cannot be re-attached', async () => {
+      // A refinement continues the session recorded on the result it revises, so it is the
+      // one mode that reads a session from the request — and the one mode that can be
+      // refused for it. A card run never is: it is given a session of its own.
       const { runner } = setup({ live: false })
-      expect(await runner.start(request())).toMatchObject({ status: 'rejected', code: 'session-not-live' })
+      const outcome = await runner.start(request({
+        mode: { kind: 'refine', instruction: 'i', previous: 'p' },
+        sessionId: 'session-nobody-keeps',
+      }))
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'session-not-live' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('session-nobody-keeps')
+    })
+
+    it('refuses a refinement that names no session at all', async () => {
+      // A result stored before the workbench kept a session per run carries none. Neither
+      // the current session nor a new one is the conversation that wrote it, so the run is
+      // refused rather than started somewhere the document did not come from.
+      const { runner, fake } = setup()
+      const outcome = await runner.start({
+        cardId: 'skill-card',
+        mode: { kind: 'refine', instruction: 'i', previous: 'p' },
+        outputSchema: { type: 'object', properties: {} },
+      })
+      expect(outcome).toEqual({
+        status: 'rejected',
+        code: 'session-not-live',
+        detail: 'the run being refined recorded no session, so there is no session to revise it in',
+      })
+      expect(fake.createdAgents).toEqual([])
+      expect(fake.activations).toEqual([])
+    })
+
+    it('gives a card run a session of its own even when the request names one', async () => {
+      // The whole point of the change: 运行 must not run in the conversation the user is
+      // having. A request that still names that session is answered with a fresh one rather
+      // than joined, so a client one version behind cannot bring the old behaviour back.
+      const { runner, fake, saved } = setup()
+      const outcome = await runner.start(request({ sessionId: AGENT.id }))
+      expect(outcome.status).toBe('started')
+      await settle(runner)
+      expect(fake.createdAgents).toHaveLength(1)
+      expect(fake.createdAgents[0]?.id).not.toBe(AGENT.id)
+      expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
+      expect(saved[0]?.record.sessionId).toBe(fake.createdAgents[0]?.id)
     })
 
     it('refuses an unregistered or incapable backend', async () => {
@@ -353,6 +400,9 @@ describe('workbench skill card runner', () => {
       })
 
       const state = await settle(runner)
+      // The session the run executed in is on the record: it is what 重新生成 sends back to
+      // have a revision run in the same conversation.
+      const sessionId = fake.createdAgents[0]?.id
       expect(state).toEqual({
         cardId: 'skill-card',
         phase: 'settled',
@@ -360,6 +410,7 @@ describe('workbench skill card runner', () => {
         retried: false,
         result: {
           runId: '42',
+          sessionId,
           skill: 'git-repo',
           executedAt: 42,
           stopReason: 'completed',
@@ -371,6 +422,7 @@ describe('workbench skill card runner', () => {
         cardId: 'skill-card',
         record: {
           runId: '42',
+          sessionId,
           skill: 'git-repo',
           executedAt: 42,
           stopReason: 'completed',
@@ -408,6 +460,7 @@ describe('workbench skill card runner', () => {
         cardId: 'skill-card',
         record: {
           runId: '42',
+          sessionId: fake.createdAgents[0]?.id,
           skill: 'git-repo',
           executedAt: 42,
           stopReason: 'completed',
@@ -759,16 +812,31 @@ describe('workbench skill card runner', () => {
 })
 
 /**
- * The card's own agent is what fences a run.
+ * The session a run executes in.
  *
- * A child inherits its parent's session header, and the sandbox derives its writable root
- * from that header, so a card that names a workspace runs under an agent rooted there. The
- * fence itself is out-of-process behaviour (see the skipped workspace-sandbox spec); what
- * this block pins is the plugin's side of it: one agent per card, rooted at the directory,
- * reused across runs, rebuilt when the directory changes, and archived so its session does
- * not pile up in the sidebar.
+ * A run is given a session of its own rather than joining the conversation the user is
+ * having, and that session is what the run's result records so a refinement can continue
+ * it. A child inherits its parent's session header, and the sandbox derives its writable
+ * root from that header, so the session's agent is also what fences the run at the card's
+ * directory. The fence itself is out-of-process behaviour (see the skipped
+ * workspace-sandbox spec); what this block pins is the plugin's side of it: exactly one
+ * session per run, rooted at the directory, archived once the run settles, and named on
+ * the record it produced.
  */
-describe('the card agent that fences a run', () => {
+describe('the session one card run executes in', () => {
+  it('creates and archives exactly one session for a run that named none, and records it', async () => {
+    const { runner, fake, saved } = setup()
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents[0]?.session?.header?.cwd).toBe(WORKSPACE_PATH)
+    // Archived, so the session list does not grow by one row per click, and released, so
+    // the process does not hold a live agent for every card ever run.
+    expect(fake.archivedSessions).toEqual([fake.createdAgents[0]?.id])
+    expect(fake.disposedAgents).toEqual([fake.createdAgents[0]?.id])
+    expect(saved[0]?.record.sessionId).toBe(fake.createdAgents[0]?.id)
+  })
+
   it('gives each run its own agent rooted at the card directory', async () => {
     const { runner, fake } = setup()
     await runner.start(request())
@@ -787,7 +855,7 @@ describe('the card agent that fences a run', () => {
     expect(fake.activations[1]?.request.parent?.session?.header?.cwd).toBe(WORKSPACE_PATH)
   })
 
-  it('rebuilds it when the workspace changes, because the root cannot be moved', async () => {
+  it('roots the session where the card points now, because the root cannot be moved', async () => {
     const created = { ...fakeHostSelection('/repo') }
     const fake = fakeHost({})
     const runner = new WorkbenchSkillCardRunner({
@@ -824,22 +892,37 @@ describe('the card agent that fences a run', () => {
     expect(fake.archivedSessions).toEqual([fake.createdAgents[0]?.id])
   })
 
-  it('publishes a fresh session id when an earlier app run already took the old one', async () => {
-    // What a restart looks like to the host: the card agent from the previous app run
-    // still exists durably under the id the counter alone would rebuild, so the create
-    // must not ask for that id again — the run starts on a session this process minted.
-    const { runner, fake } = setup({ persistedSessionIds: ['workbench-card-skill-card-0'] })
+  it('names each run’s session after the card and the run’s start', async () => {
+    // Readable in the session list, and unique without a random tag: a card runs once at a
+    // time, so the start names the run. The second run starts at the same frozen
+    // millisecond here, which is what the stamp's one-millisecond step is for.
+    const { runner, fake } = setup()
+    await runner.start(request())
+    await settle(runner)
+    await runner.start(request())
+    await settle(runner)
+    expect(fake.createdAgents.map(agent => agent.id)).toEqual([
+      'workbench-skill-card-42',
+      'workbench-skill-card-43',
+    ])
+  })
+
+  it('publishes a different session id when an earlier app run already took the one it would use', async () => {
+    // What a restart looks like to the host: the session from the previous app run is still
+    // stored under the id this run would mint, so the publication is refused once and
+    // retried under the next stamp instead of failing a run the user started.
+    const { runner, fake } = setup({ persistedSessionIds: ['workbench-skill-card-42'] })
     await runner.start(request())
     const state = await settle(runner)
     expect(state).toMatchObject({ phase: 'settled', result: { stopReason: 'completed' } })
-    expect(fake.createdAgents[0]?.id).not.toBe('workbench-card-skill-card-0')
-    expect(fake.createdAgents[0]?.id).toMatch(/^workbench-card-skill-card-[a-z0-9]+-\d+$/)
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents[0]?.id).toBe('workbench-skill-card-43')
+    expect(state?.result?.sessionId).toBe('workbench-skill-card-43')
   })
 
-  it('creates no card agent for a card that names no directory', async () => {
-    // The workspace is mandatory, so this path is refused before any agent exists — the
-    // fallback inside the runner is a guard for a state the user cannot reach, not a
-    // behaviour. Asserting the refusal is what actually holds.
+  it('creates no session for a card that names no directory', async () => {
+    // The workspace is mandatory, so this path is refused before any session exists: a
+    // run has to happen somewhere, and "somewhere" is the card's own answer.
     const { runner, fake } = setup({ selection: { skill: 'git-repo', template: '<b>{{a}}</b>' } })
     const outcome = await runner.start(request())
     expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-missing' })

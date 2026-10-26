@@ -535,6 +535,28 @@ describe('workbench skill card store', () => {
       expect(Buffer.byteLength(JSON.stringify(record), 'utf8')).toBeLessThanOrEqual(120)
     })
 
+    it('keeps the session and the route a trimmed result ran with, because both are provenance', async () => {
+      // Trimming sheds material, never what the record *is*: a result that lost its session
+      // could not be refined, and one that lost its route could not name the model that
+      // produced it. Both are a few characters, and both are attached to the base record.
+      const { store, tables } = setup({ maxResultBytes: 260 })
+      await store.putResult('skill-card', {
+        runId: '7',
+        sessionId: 'workbench-skill-card-1792940383334',
+        skill: 'git-repo',
+        executedAt: 12,
+        stopReason: 'completed',
+        model: { provider: 'deepseek', model: 'deepseek-chat' },
+        structured: { big: 'y'.repeat(500) },
+        outputText: 'x'.repeat(500),
+      })
+      const record = tables.result.get('skill-card_7')
+      expect(record?.sessionId).toBe('workbench-skill-card-1792940383334')
+      expect(record?.model).toEqual({ provider: 'deepseek', model: 'deepseek-chat' })
+      // The payload is what gets shed to make room for them.
+      expect(record?.structured).toBeUndefined()
+    })
+
     it('stores an activity trace that fits, keeping its order', async () => {
       const { store } = setup()
       await store.putResult('skill-card', {

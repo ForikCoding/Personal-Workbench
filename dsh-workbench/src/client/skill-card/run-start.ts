@@ -18,22 +18,22 @@ import type { WorkbenchRunStart, WorkbenchSkillCardApi } from './api.ts'
  * card run fills its template's region, so it always asks for `{ html }`. Nothing here
  * checks whether the card is free — the Host refuses a concurrent run and its refusal
  * is reported as it stands, which is the documented way this race is handled.
+ *
+ * No session travels with the request: the Host gives every run a session of its own, so
+ * a card run never joins — or leaves its traffic in — the conversation the user is having.
  * @param api - transport. Taken here rather than bound to a controller, so this works
  * for a card that is nowhere on screen.
  * @param cardId - the card to run.
- * @param sessionId - the session the run belongs to.
  * @param payload - the clicked row's raw fields; omitted for a run no row triggered.
  * @returns the accepted run state, or the Host's own refusal.
  */
 export async function startCardRun(
   api: WorkbenchSkillCardApi,
   cardId: string,
-  sessionId: string,
   payload?: Record<string, unknown>,
 ): Promise<WorkbenchRunStart> {
   return await api.start({
     cardId,
-    sessionId,
     mode: { kind: 'card' },
     // The row the user confirmed travels with the run: the panel gates nothing unless
     // what it displayed is what the child reads.
@@ -46,12 +46,15 @@ export async function startCardRun(
  * Ask any stored card to revise a result it already produced.
  *
  * The same shape as {@link startCardRun} with the refine mode in place of the card
- * mode: the template and the contract are not the client's to state, and the previous
- * HTML travels verbatim so the child revises the pixels the user is looking at. Both
- * request shapes live here so the mode union is constructed in one module.
+ * mode, plus the one session the Host does need named: the session the revised result was
+ * produced in. A refinement continues that conversation, so it is neither the session the
+ * user is in now nor a new one. The template and the contract are not the client's to
+ * state, and the previous HTML travels verbatim so the child revises the pixels the user is
+ * looking at. Both request shapes live here so the mode union is constructed in one module.
  * @param api - transport.
  * @param cardId - the card whose result is being revised.
- * @param sessionId - the session the run belongs to.
+ * @param sessionId - the session recorded on the result being revised; undefined when the
+ * record carries none, which the Host refuses rather than running somewhere else.
  * @param instruction - what to change, as the user wrote it.
  * @param previous - the region HTML the revision starts from.
  * @returns the accepted run state, or the Host's own refusal.
@@ -59,13 +62,13 @@ export async function startCardRun(
 export async function startCardRefine(
   api: WorkbenchSkillCardApi,
   cardId: string,
-  sessionId: string,
+  sessionId: string | undefined,
   instruction: string,
   previous: string,
 ): Promise<WorkbenchRunStart> {
   return await api.start({
     cardId,
-    sessionId,
+    ...sessionId === undefined ? {} : { sessionId },
     mode: { kind: 'refine', instruction, previous },
     outputSchema: WORKBENCH_OUTPUT_SCHEMA,
   })

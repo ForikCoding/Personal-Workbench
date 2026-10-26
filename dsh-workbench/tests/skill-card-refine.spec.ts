@@ -25,6 +25,14 @@ const PREVIOUS = '<tr>\n  <td>甲</td>\n  <td>乙</td>\n</tr>'
 const INSTRUCTION = '按时间倒序，保留合计'
 
 /**
+ * The session the revised result was produced in.
+ *
+ * Not the live agent's id: a refinement continues a run's own session, which is archived
+ * once that run settles and has to be restored and re-attached for the revision.
+ */
+const REFINED_SESSION = 'workbench-skill-card-42'
+
+/**
  * Build a runner over a fresh fake host.
  * @param options - host behaviour plus the runner settings the cases vary.
  * @returns the runner, the fake host, and what was stored.
@@ -37,7 +45,13 @@ function setup(options: FakeHostOptions & {
   fake: FakeHost
   saved: { cardId: string; record: { structured?: unknown } }[]
 } {
-  const fake = fakeHost(options)
+  // The refined run's session exists durably and its own run archived it, which is the
+  // state every refinement starts from.
+  const fake = fakeHost({
+    persistedSessionIds: [REFINED_SESSION],
+    archivedSessionIds: [REFINED_SESSION],
+    ...options,
+  })
   const saved: { cardId: string; record: { structured?: unknown } }[] = []
   const runner = new WorkbenchSkillCardRunner({
     host: fake.host,
@@ -56,13 +70,16 @@ function setup(options: FakeHostOptions & {
 
 /**
  * A refine run request.
+ *
+ * The session is the one the revised result was produced in: a refinement continues that
+ * conversation, so it is the only mode that names a session at all.
  * @param overrides - fields the case varies.
  * @returns the request.
  */
 function refine(overrides: Partial<WorkbenchRunRequest> = {}): WorkbenchRunRequest {
   return {
     cardId: 'skill-card',
-    sessionId: AGENT.id,
+    sessionId: REFINED_SESSION,
     mode: { kind: 'refine', instruction: INSTRUCTION, previous: PREVIOUS },
     outputSchema: { type: 'object', properties: {} },
     ...overrides,
@@ -120,6 +137,7 @@ describe('a refine run', () => {
     // The request does not carry the template: the Host answers "which document" from its
     // own storage, exactly as it does for a card run.
     const { runner, fake, saved } = setup({
+      persistedSessionIds: [REFINED_SESSION],
       outcomes: [{ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed', structured: { html: '<b>新</b>' } }],
     })
     expect(await runner.start(refine())).toMatchObject({ status: 'started' })
@@ -140,6 +158,7 @@ describe('a refine run', () => {
       cardId: 'skill-card',
       record: {
         runId: '42',
+        sessionId: REFINED_SESSION,
         skill: 'git-repo',
         executedAt: 42,
         stopReason: 'completed',
@@ -147,6 +166,52 @@ describe('a refine run', () => {
         outputText: 'ok',
       },
     }])
+  })
+
+  it('runs in the session of the run being refined, and creates none', async () => {
+    // The whole point of naming the session: a revision continues the conversation that
+    // wrote the document. It is not the session the user is in, and it is not a new one,
+    // so nothing about this run may publish a session of its own.
+    const { runner, fake } = setup()
+    expect(await runner.start(refine())).toMatchObject({ status: 'started' })
+    await settle(runner)
+
+    expect(fake.createdAgents).toEqual([])
+    expect(fake.resumedSessions).toEqual([REFINED_SESSION])
+    // The session was archived when its own run settled, and an archived session's
+    // subagent descendants are refused a model step — so it is restored for the run and
+    // archived again when the run settles.
+    expect(fake.unarchivedSessions).toEqual([REFINED_SESSION])
+    expect(fake.archivedSessions).toEqual([REFINED_SESSION])
+    // The child hangs from the refined run's session, which is what puts it in that
+    // conversation and keeps the sandbox rooted where that run happened.
+    expect(fake.activations[0]?.request.parent?.id).toBe(REFINED_SESSION)
+  })
+
+  it('uses a session that is still live instead of re-attaching it, and leaves it on screen', async () => {
+    // A session the user has open already has an agent: re-attaching one would take a
+    // second write ownership of the same log, which the store refuses. And because it is on
+    // screen rather than archived, the run neither restores nor hides it.
+    const { runner, fake } = setup()
+    expect(await runner.start(refine({ sessionId: AGENT.id }))).toMatchObject({ status: 'started' })
+    await settle(runner)
+    expect(fake.resumedSessions).toEqual([])
+    expect(fake.createdAgents).toEqual([])
+    expect(fake.activations[0]?.request.parent?.id).toBe(AGENT.id)
+    expect(fake.unarchivedSessions).toEqual([])
+    expect(fake.archivedSessions).toEqual([REFINED_SESSION])
+  })
+
+  it('refuses a refine run whose session cannot be restored', async () => {
+    // Restoring is what lifts the archive gate, so a session that stays archived cannot
+    // host the revision: the start is refused rather than left to fail as a blocked child.
+    const { runner, fake } = setup({ unarchiveFailure: 'storage is read-only' })
+    const outcome = await runner.start(refine())
+    expect(outcome).toMatchObject({ status: 'rejected', code: 'session-not-live' })
+    expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('storage is read-only')
+    expect(fake.activations).toEqual([])
+    // The agent the refusal re-attached was released rather than left holding the log.
+    expect(fake.disposedAgents).toEqual([REFINED_SESSION])
   })
 
   it('refuses a refine run with no template stored', async () => {

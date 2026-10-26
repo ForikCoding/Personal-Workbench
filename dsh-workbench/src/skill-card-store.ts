@@ -615,6 +615,9 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
     // short ids, and a trimmed record that lost it would leave the user guessing which
     // model produced the result it still shows.
     ...record.model === undefined ? {} : { model: record.model },
+    // The session is the same kind of fact: a few characters, and the one thing 重新生成
+    // needs. A trimmed record that lost it would show a result nothing can refine.
+    ...record.sessionId === undefined ? {} : { sessionId: record.sessionId },
   }
   const withStructured: WorkbenchResultRecord = record.structured === undefined
     ? base

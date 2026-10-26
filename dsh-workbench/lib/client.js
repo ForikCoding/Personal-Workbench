@@ -364,7 +364,6 @@ window.__ModuleLoader__.load({
 			actionFieldTarget: "目标",
 			actionFieldSkill: "将运行的 skill",
 			actionFieldPayload: "参数",
-			actionFieldSession: "运行所属会话",
 			actionTargetCard: "卡片：{name}",
 			actionTargetSkill: "skill：{name}",
 			actionConfirm: "确认",
@@ -528,7 +527,6 @@ window.__ModuleLoader__.load({
 			actionFieldTarget: "Target",
 			actionFieldSkill: "Skill that will run",
 			actionFieldPayload: "Parameters",
-			actionFieldSession: "Session",
 			actionTargetCard: "Card: {name}",
 			actionTargetSkill: "Skill: {name}",
 			actionConfirm: "Confirm",
@@ -1084,6 +1082,18 @@ window.__ModuleLoader__.load({
 			return errorOf(body)?.message;
 		}
 		/**
+		* Whether a decoded value is an absent or usable session id.
+		*
+		* Shared by the two records that carry one so the rule cannot drift between the snapshot
+		* read and the hand-edit response: absent is every record written before the field
+		* existed, and a present value has to be a non-empty string.
+		* @param value - the decoded field.
+		* @returns whether it is absent, or a usable session id.
+		*/
+		function isOptionalSessionId(value) {
+			return value === void 0 || typeof value === "string" && value.length > 0;
+		}
+		/**
 		* Validate one configuration snapshot body.
 		* @param value - decoded body.
 		* @returns the snapshot, or undefined when a field is outside the contract.
@@ -1128,6 +1138,7 @@ window.__ModuleLoader__.load({
 				const entry = raw;
 				if (typeof entry.runId !== "string" || entry.runId.length === 0) return void 0;
 				if (typeof entry.cardId !== "string" || !isWorkbenchCardId(entry.cardId)) return void 0;
+				if (!isOptionalSessionId(entry.sessionId)) return void 0;
 				if (typeof entry.skill !== "string" || typeof entry.executedAt !== "number" || typeof entry.stopReason !== "string") return;
 				if (entry.model !== void 0 && !isWorkbenchCardModel(entry.model)) return void 0;
 				results.push({
@@ -1219,6 +1230,7 @@ window.__ModuleLoader__.load({
 			const raw = body.result;
 			if (typeof raw.runId !== "string" || raw.runId.length === 0) return void 0;
 			if (typeof raw.cardId !== "string" || !isWorkbenchCardId(raw.cardId)) return void 0;
+			if (!isOptionalSessionId(raw.sessionId)) return void 0;
 			if (typeof raw.skill !== "string" || typeof raw.executedAt !== "number" || typeof raw.stopReason !== "string") return;
 			if (raw.model !== void 0 && !isWorkbenchCardModel(raw.model)) return void 0;
 			if (raw.editedAt !== void 0 && (typeof raw.editedAt !== "number" || !Number.isFinite(raw.editedAt))) return;
@@ -2277,7 +2289,7 @@ window.__ModuleLoader__.load({
 		* The order is the contract, because the user sees only the first failure: an unknown
 		* key is reported before a missing target, and a missing target before a busy one.
 		* @param declarations - the targets the template declares.
-		* @param lookup - cards, skills, and liveness as of this click.
+		* @param lookup - cards and skills as of this click.
 		* @param key - the action key the button carried.
 		* @param payload - that row's raw fields.
 		* @returns the resolved target, or why it cannot run.
@@ -2354,12 +2366,6 @@ window.__ModuleLoader__.load({
 				code: "target-skill-missing",
 				candidates: lookup.skills
 			};
-			if (!lookup.live) return {
-				kind: "failed",
-				key,
-				code: "target-unavailable",
-				candidates: [target.name]
-			};
 			return {
 				kind: "resolved",
 				key,
@@ -2389,17 +2395,18 @@ window.__ModuleLoader__.load({
 		* card run fills its template's region, so it always asks for `{ html }`. Nothing here
 		* checks whether the card is free — the Host refuses a concurrent run and its refusal
 		* is reported as it stands, which is the documented way this race is handled.
+		*
+		* No session travels with the request: the Host gives every run a session of its own, so
+		* a card run never joins — or leaves its traffic in — the conversation the user is having.
 		* @param api - transport. Taken here rather than bound to a controller, so this works
 		* for a card that is nowhere on screen.
 		* @param cardId - the card to run.
-		* @param sessionId - the session the run belongs to.
 		* @param payload - the clicked row's raw fields; omitted for a run no row triggered.
 		* @returns the accepted run state, or the Host's own refusal.
 		*/
-		async function startCardRun(api, cardId, sessionId, payload) {
+		async function startCardRun(api, cardId, payload) {
 			return await api.start({
 				cardId,
-				sessionId,
 				mode: { kind: "card" },
 				...payload === void 0 ? {} : { payload },
 				outputSchema: WORKBENCH_OUTPUT_SCHEMA
@@ -2409,12 +2416,15 @@ window.__ModuleLoader__.load({
 		* Ask any stored card to revise a result it already produced.
 		*
 		* The same shape as {@link startCardRun} with the refine mode in place of the card
-		* mode: the template and the contract are not the client's to state, and the previous
-		* HTML travels verbatim so the child revises the pixels the user is looking at. Both
-		* request shapes live here so the mode union is constructed in one module.
+		* mode, plus the one session the Host does need named: the session the revised result was
+		* produced in. A refinement continues that conversation, so it is neither the session the
+		* user is in now nor a new one. The template and the contract are not the client's to
+		* state, and the previous HTML travels verbatim so the child revises the pixels the user is
+		* looking at. Both request shapes live here so the mode union is constructed in one module.
 		* @param api - transport.
 		* @param cardId - the card whose result is being revised.
-		* @param sessionId - the session the run belongs to.
+		* @param sessionId - the session recorded on the result being revised; undefined when the
+		* record carries none, which the Host refuses rather than running somewhere else.
 		* @param instruction - what to change, as the user wrote it.
 		* @param previous - the region HTML the revision starts from.
 		* @returns the accepted run state, or the Host's own refusal.
@@ -2422,7 +2432,7 @@ window.__ModuleLoader__.load({
 		async function startCardRefine(api, cardId, sessionId, instruction, previous) {
 			return await api.start({
 				cardId,
-				sessionId,
+				...sessionId === void 0 ? {} : { sessionId },
 				mode: {
 					kind: "refine",
 					instruction,
@@ -2725,14 +2735,6 @@ window.__ModuleLoader__.load({
 				setResultOverride(void 0);
 				setPreviousResult(void 0);
 				setRefineProblem(void 0);
-				const live = session();
-				if (live === void 0) {
-					setProblem({
-						code: "session-not-live",
-						detail: ""
-					});
-					return;
-				}
 				const refused = workspaceRefusal(workspaceField);
 				if (refused !== void 0) {
 					setProblem(refused);
@@ -2761,7 +2763,7 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
-				startCardRun(api, cardId, live).then((outcome) => {
+				startCardRun(api, cardId).then((outcome) => {
 					if (outcome.status === "ok") {
 						setRun(outcome.state);
 						setProblem(void 0);
@@ -2780,7 +2782,6 @@ window.__ModuleLoader__.load({
 				api,
 				cardId,
 				refresh,
-				session,
 				card?.skill,
 				card?.template,
 				workspaceField
@@ -2792,9 +2793,9 @@ window.__ModuleLoader__.load({
 				const text = instruction.trim();
 				if (text === "") return;
 				if (run?.phase === "running") return;
-				const live = session();
-				if (live === void 0) {
-					setProblem({
+				const refineSession = result?.sessionId;
+				if (refineSession === void 0) {
+					setRefineProblem({
 						code: "session-not-live",
 						detail: ""
 					});
@@ -2835,7 +2836,7 @@ window.__ModuleLoader__.load({
 					prior: result,
 					priorHtml
 				};
-				startCardRefine(api, cardId, live, text, priorHtml).then((outcome) => {
+				startCardRefine(api, cardId, refineSession, text, priorHtml).then((outcome) => {
 					if (outcome.status !== "ok") {
 						refinement.current = void 0;
 						setRefineProblem(refineStartProblem(outcome));
@@ -2851,7 +2852,6 @@ window.__ModuleLoader__.load({
 				cardId,
 				result,
 				run?.phase,
-				session,
 				settleRefinement,
 				workspaceField
 			]);
@@ -3149,8 +3149,7 @@ window.__ModuleLoader__.load({
 						name: cardTitle(entry.cardId, entry.name),
 						running: busy.has(entry.cardId)
 					})),
-					skills: catalogRead.status === "ok" ? catalogRead.entries.filter((entry) => entry.userInvocable).map((entry) => entry.name) : [],
-					live: live !== void 0
+					skills: catalogRead.status === "ok" ? catalogRead.entries.filter((entry) => entry.userInvocable).map((entry) => entry.name) : []
 				}, key, payload);
 				if (resolution.kind === "failed") {
 					setPendingAction(void 0);
@@ -3161,7 +3160,7 @@ window.__ModuleLoader__.load({
 					return;
 				}
 				const skill = resolution.target.kind === "card" ? snapshot.cards.find((entry) => entry.cardId === resolution.reference)?.skill : resolution.target.name;
-				if (live === void 0 || skill === void 0) {
+				if (skill === void 0) {
 					setPendingAction(void 0);
 					setActionProblem({
 						code: "target-unavailable",
@@ -3190,8 +3189,7 @@ window.__ModuleLoader__.load({
 					target: resolution.target,
 					reference: resolution.reference,
 					skill,
-					payload: resolution.payload,
-					sessionId: live
+					payload: resolution.payload
 				});
 			}, [
 				api,
@@ -3217,7 +3215,7 @@ window.__ModuleLoader__.load({
 				setPendingAction(void 0);
 				setActionProblem(void 0);
 				if (pending.target.kind === "card") {
-					startCardRun(api, pending.reference, pending.sessionId, pending.payload).then((outcome) => {
+					startCardRun(api, pending.reference, pending.payload).then((outcome) => {
 						if (outcome.status !== "ok") {
 							setActionProblem(startProblem(outcome));
 							return;
@@ -3237,7 +3235,6 @@ window.__ModuleLoader__.load({
 				}
 				api.start({
 					cardId,
-					sessionId: pending.sessionId,
 					mode: {
 						kind: "bare",
 						skill: pending.skill
@@ -3325,7 +3322,7 @@ window.__ModuleLoader__.load({
 					refinements,
 					previous,
 					...refineProblem === void 0 ? {} : { refineProblem },
-					runnable: runUnavailable === void 0 && sessionId !== void 0 && card?.skill !== void 0 && card.template !== void 0 && modelField.kind !== "unavailable" && workspaceField.kind === "ready",
+					runnable: runUnavailable === void 0 && card?.skill !== void 0 && card.template !== void 0 && modelField.kind !== "unavailable" && workspaceField.kind === "ready",
 					modelField,
 					workspaceField,
 					permission: effectiveWorkbenchSandboxMode(card?.permission),
@@ -3338,7 +3335,6 @@ window.__ModuleLoader__.load({
 					config,
 					run,
 					problem,
-					sessionId,
 					card?.name,
 					card?.skill,
 					card?.template,
@@ -4100,16 +4096,16 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/skill-card/session.ts
 		/**
-		* Pick the session a run should hang off.
+		* Pick the session a card's catalog read should go through.
 		*
 		* A session the main view still holds wins, because that is the one the user is
 		* working in. The rest are ranked by recency.
 		*
 		* A blank session is an ordinary candidate. "Blank" means no messages yet, which
-		* says nothing about whether the session can run: a freshly opened session has a
-		* live agent, and the Host refuses a session without one on its own terms. The
-		* picker must not pre-empt that judgement, because excluding blank sessions leaves
-		* a first-run user with no candidate at all.
+		* says nothing about whether the catalog can be read through it: a freshly opened session
+		* has a live agent, and the Host answers a catalog read with the global layer when no
+		* session can supply a scope. The picker must not pre-empt that judgement, because
+		* excluding blank sessions leaves a first-run user with no candidate at all.
 		* @param ids - session list order.
 		* @param byId - rows addressed by id.
 		* @returns the chosen session id, or undefined when none qualifies.
@@ -6022,7 +6018,7 @@ window.__ModuleLoader__.load({
 		* Render the in-place confirmation panel.
 		*
 		* It replaces the card's display area rather than opening a dialog: the shared
-		* primitives expose no dialog, and the editor already works the same way. The four
+		* primitives expose no dialog, and the editor already works the same way. The three
 		* facts are fixed and ordered, and the payload is a text node — it came from a model,
 		* and it is shown whole, because it is the only thing standing between that model's
 		* data and the next run.
@@ -6054,11 +6050,6 @@ window.__ModuleLoader__.load({
 								className: skill_card_module_default.actionPayload,
 								children: JSON.stringify(pending.payload, null, 2)
 							})
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("actionFieldSession") }),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", {
-							"data-action-field": "session",
-							children: pending.sessionId
 						})
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {

@@ -457,11 +457,17 @@ function at(path: string, method = 'GET', body?: unknown): FakeRequest {
   return request
 }
 
-/** A run body that passes every precondition. */
+/**
+ * A run body that passes every precondition.
+ *
+ * No `sessionId`: a card run names none, because the Host gives every run a session of its
+ * own. Only a refinement carries one, and those cases add it.
+ * @param overrides - fields the case varies.
+ * @returns the body.
+ */
 function runBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     cardId: 'skill-card',
-    sessionId: 'session-1',
     mode: { kind: 'card' },
     outputSchema: { type: 'object', properties: {} },
     ...overrides,
@@ -569,7 +575,17 @@ describe('workbench skill card run route', () => {
         status: 400,
         code: 'template-missing',
       },
-      { options: { live: false }, status: 409, code: 'session-not-live' },
+      // A refinement whose session cannot be re-attached. The one mode that names a
+      // session is the one mode that can be refused for it; a card run is given one.
+      {
+        options: { live: false },
+        body: runBody({
+          sessionId: 'session-nobody-keeps',
+          mode: { kind: 'refine', instruction: 'i', previous: 'p' },
+        }),
+        status: 409,
+        code: 'session-not-live',
+      },
       { options: { providers: {} }, status: 500, code: 'provider-unavailable' },
       // A card pinned to a route the deployment no longer offers. It conflicts with the
       // state the card was configured against, so the client can say which model is gone
@@ -650,8 +666,11 @@ describe('workbench skill card run route', () => {
     const badCard = await run(handle, at(RUN_PATH, 'POST', runBody({ cardId: 'Skill-Card' })))
     expect(JSON.parse(badCard.body).error.message).toBe('cardId must be a namespaced card id')
 
-    const noSession = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: '' })))
-    expect(JSON.parse(noSession.body).error.message).toBe('sessionId must be a non-empty string')
+    const emptySession = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: '' })))
+    expect(JSON.parse(emptySession.body).error.message).toBe('sessionId must be a non-empty string when present')
+
+    const wrongType = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: 7 })))
+    expect(JSON.parse(wrongType.body).error.message).toBe('sessionId must be a non-empty string when present')
 
     const empty = await run(handle, at(RUN_PATH, 'POST'))
     expect(empty.statusCode).toBe(400)
@@ -733,10 +752,11 @@ describe('workbench skill card run route', () => {
   })
 
   it('accepts a refine run and tells the child what to revise', async () => {
-    // The template is the card's stored one, so the request only names the change and the
-    // HTML it starts from.
-    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    // The template is the card's stored one, so the request only names the change, the
+    // HTML it starts from, and the session that produced that HTML.
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'], live: false, persistedSessionIds: ['session-1'] })
     const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      sessionId: 'session-1',
       mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
     })))
     expect(response.statusCode).toBe(202)
@@ -744,6 +764,9 @@ describe('workbench skill card run route', () => {
     expect(prompt).toContain('<previous_result>\n<b>旧</b>\n</previous_result>')
     expect(prompt).toContain('<revision_request>\n按时间倒序\n</revision_request>')
     expect(fake.activations[0]?.request.outputSchema).toEqual({ type: 'object', properties: {} })
+    // The revision continues that session, and creates none of its own.
+    expect(fake.createdAgents).toEqual([])
+    expect(fake.activations[0]?.request.parent?.id).toBe('session-1')
     runner.cancel('skill-card')
   })
 
@@ -786,8 +809,12 @@ describe('workbench skill card run route', () => {
   })
 
   it('refuses a refine run for a card with no template', async () => {
-    const { run: handle, fake } = runtime({ selection: { skill: 'git-repo', workspace: { path: WORKSPACE_PATH } } })
+    const { run: handle, fake } = runtime({
+      selection: { skill: 'git-repo', workspace: { path: WORKSPACE_PATH } },
+      persistedSessionIds: ['session-1'],
+    })
     const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      sessionId: 'session-1',
       mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
     })))
     expect(response.statusCode).toBe(400)

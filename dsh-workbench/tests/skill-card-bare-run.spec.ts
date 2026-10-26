@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WorkbenchSkillCardRunner } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
 import type { WorkbenchRunRequest } from '../src/skill-card-contract.ts'
-import { AGENT, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
+import { WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHost, FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /**
@@ -48,13 +48,14 @@ function setup(options: FakeHostOptions & {
 
 /**
  * A bare run request.
+ *
+ * No session: a bare run gets one of its own, exactly as a card run does.
  * @param overrides - fields the case varies.
  * @returns the request.
  */
 function bare(overrides: Partial<WorkbenchRunRequest> = {}): WorkbenchRunRequest {
   return {
     cardId: 'skill-card',
-    sessionId: AGENT.id,
     mode: { kind: 'bare', skill: 'git-repo' },
     ...overrides,
   }
@@ -67,7 +68,6 @@ function bare(overrides: Partial<WorkbenchRunRequest> = {}): WorkbenchRunRequest
 function card(): WorkbenchRunRequest {
   return {
     cardId: 'skill-card',
-    sessionId: AGENT.id,
     mode: { kind: 'card' },
     outputSchema: { type: 'object', properties: {} },
   }
@@ -117,13 +117,20 @@ describe('a bare skill run', () => {
 
   it('keeps neither the output text nor a structured value', async () => {
     // A verdict is all a skill target shows, so nothing else may be reachable from the
-    // record it settles with.
-    const { runner, saved } = setup({
+    // record it settles with. The session stays: it is provenance, and it is where a later
+    // run of the same result would continue.
+    const { runner, fake, saved } = setup({
       outcomes: [{ output: [{ type: 'text', text: 'I did the thing' }], stopReason: 'completed' }],
     })
     await runner.start(bare())
     const state = await settle(runner)
-    expect(state?.result).toEqual({ runId: '42', skill: 'git-repo', executedAt: 42, stopReason: 'completed' })
+    expect(state?.result).toEqual({
+      runId: '42',
+      sessionId: fake.createdAgents[0]?.id,
+      skill: 'git-repo',
+      executedAt: 42,
+      stopReason: 'completed',
+    })
     expect(saved).toEqual([])
   })
 

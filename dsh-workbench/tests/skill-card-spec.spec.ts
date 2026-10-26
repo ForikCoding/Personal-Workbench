@@ -262,6 +262,34 @@ describe('workbench storage schemas', () => {
     expect(parsed).not.toHaveProperty('activity')
   })
 
+  it('keeps the session a result was produced in across a load', () => {
+    // The seventh field added this way, and the only one another control reads: 重新生成
+    // sends it back so the revision runs in the conversation that wrote the document. A
+    // load that dropped it would leave every stored result unrefinable, with nothing on
+    // screen to say why.
+    const result = {
+      runId: '1792940383334',
+      sessionId: 'workbench-skill-card-1792940383334',
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      structured: { html: '<p>a</p>' },
+    }
+    const parsed = workbenchResultSchema.parse(result)
+    expect(parsed).toEqual(result)
+    // Round trip in the shape storage actually performs: stringify, parse, parse again.
+    expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(result)
+  })
+
+  it('accepts a result written before the workbench kept a session per run', () => {
+    // Every result stored before this field existed has none. The reader keeps it — it is
+    // still a result the card shows — and only a refinement of it is refused, which is a
+    // state the client can explain. A required field would have made the domain back it up
+    // and skip it, losing the user's history.
+    const parsed = workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed' })
+    expect(parsed).not.toHaveProperty('sessionId')
+  })
+
   it('refuses an activity entry this build cannot render', () => {
     // A record with a kind nothing maps would be drawn as a blank row, so it fails here and
     // the domain backs it up and skips it — the same treatment every other unreadable

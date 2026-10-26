@@ -791,8 +791,13 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   if (typeof body.cardId !== 'string' || !isWorkbenchCardId(body.cardId)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'cardId must be a namespaced card id')
   }
-  if (typeof body.sessionId !== 'string' || body.sessionId.length === 0) {
-    throw new SkillCardRequestError(400, 'invalid-request', 'sessionId must be a non-empty string')
+  // Optional because a normal run is given no session: the Host creates one per run, so a
+  // body without the field is the ordinary case rather than a missing one. One that is
+  // present has to name something real; a refinement needs it, and the runner refuses a
+  // refinement that arrives without it.
+  const sessionId = body.sessionId
+  if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length === 0)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'sessionId must be a non-empty string when present')
   }
   // The row is only checked for shape. Its byte budget belongs to the button attribute
   // that produced it: this value is re-serialized on the way here, so counting bytes
@@ -809,7 +814,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   // absent for a bare run, which asks for no value at all.
   return {
     cardId: body.cardId,
-    sessionId: body.sessionId,
+    ...sessionId === undefined ? {} : { sessionId },
     mode: parseRunMode(body.mode),
     ...payload === undefined ? {} : { payload },
     ...body.outputSchema === undefined ? {} : { outputSchema: body.outputSchema },

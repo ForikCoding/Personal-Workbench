@@ -445,6 +445,19 @@ function errorMessageOf(body: unknown): string | undefined {
 }
 
 /**
+ * Whether a decoded value is an absent or usable session id.
+ *
+ * Shared by the two records that carry one so the rule cannot drift between the snapshot
+ * read and the hand-edit response: absent is every record written before the field
+ * existed, and a present value has to be a non-empty string.
+ * @param value - the decoded field.
+ * @returns whether it is absent, or a usable session id.
+ */
+function isOptionalSessionId(value: unknown): value is string | undefined {
+  return value === undefined || (typeof value === 'string' && value.length > 0)
+}
+
+/**
  * Validate one configuration snapshot body.
  * @param value - decoded body.
  * @returns the snapshot, or undefined when a field is outside the contract.
@@ -522,6 +535,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     const entry = raw as {
       runId?: unknown
       cardId?: unknown
+      sessionId?: unknown
       skill?: unknown
       executedAt?: unknown
       stopReason?: unknown
@@ -529,6 +543,10 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     }
     if (typeof entry.runId !== 'string' || entry.runId.length === 0) return undefined
     if (typeof entry.cardId !== 'string' || !isWorkbenchCardId(entry.cardId)) return undefined
+    // The session travels back to the Host when this result is refined, so a value that is
+    // not a usable id is refused whole rather than sent back as if it named a session. A
+    // record written before the field existed carries none, and that is accepted.
+    if (!isOptionalSessionId(entry.sessionId)) return undefined
     if (typeof entry.skill !== 'string' || typeof entry.executedAt !== 'number' || typeof entry.stopReason !== 'string') {
       return undefined
     }
@@ -628,6 +646,7 @@ export function parseResultEdit(
   const raw = body.result as {
     runId?: unknown
     cardId?: unknown
+    sessionId?: unknown
     skill?: unknown
     executedAt?: unknown
     stopReason?: unknown
@@ -636,6 +655,9 @@ export function parseResultEdit(
   }
   if (typeof raw.runId !== 'string' || raw.runId.length === 0) return undefined
   if (typeof raw.cardId !== 'string' || !isWorkbenchCardId(raw.cardId)) return undefined
+  // The edited record still names the session it came from: 重新生成 reads it from here, so
+  // the same rule the snapshot read applies.
+  if (!isOptionalSessionId(raw.sessionId)) return undefined
   if (typeof raw.skill !== 'string' || typeof raw.executedAt !== 'number' || typeof raw.stopReason !== 'string') {
     return undefined
   }

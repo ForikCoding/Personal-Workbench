@@ -135,7 +135,7 @@ function ActionProblemLine({
  * Render the in-place confirmation panel.
  *
  * It replaces the card's display area rather than opening a dialog: the shared
- * primitives expose no dialog, and the editor already works the same way. The four
+ * primitives expose no dialog, and the editor already works the same way. The three
  * facts are fixed and ordered, and the payload is a text node — it came from a model,
  * and it is shown whole, because it is the only thing standing between that model's
  * data and the next run.
@@ -171,8 +171,6 @@ function ActionPanel({
           {/* Text, never HTML; scrollable, never truncated or collapsed. */}
           <pre className={css.actionPayload}>{JSON.stringify(pending.payload, null, 2)}</pre>
         </dd>
-        <dt>{t('actionFieldSession')}</dt>
-        <dd data-action-field="session">{pending.sessionId}</dd>
       </dl>
       <div className={css.settingsActions}>
         <Button variant="primary" size="sm" onClick={onConfirm} data-action-confirm="">
@@ -231,7 +229,10 @@ export interface SkillCardPageProps {
    */
   readonly runId?: string
   /**
-   * Resolve the session a run hangs off.
+   * Resolve the session this page reads the installed skills through.
+   *
+   * Not the session a run executes in — a run is given one of its own — but the agent scope
+   * a catalog read needs, and the fallback for the model field.
    * @returns the session id, or undefined when none is available.
    */
   readonly runSessionId: () => string | undefined
@@ -239,8 +240,8 @@ export interface SkillCardPageProps {
    * Resolve the session the application's own model picker is attached to.
    *
    * The model field reads this session's directory, so the card offers the catalog a user
-   * choosing a model is looking at. Omitted falls back to the run session, which is the
-   * only session a page without a session list can name.
+   * choosing a model is looking at. Omitted falls back to this page's own session, which is
+   * the only session a page without a session list can name.
    * @returns the session id, or undefined while none is held.
    */
   readonly pickerSessionId?: () => string | undefined

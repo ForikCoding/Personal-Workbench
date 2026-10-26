@@ -29,7 +29,6 @@ function lookup(overrides: Partial<WorkbenchActionLookup> = {}): WorkbenchAction
       { cardId: 'skill-card-2', name: '启动任务', running: false },
     ],
     skills: ['git-repo', 'task-finish'],
-    live: true,
     ...overrides,
   }
 }
@@ -119,17 +118,6 @@ describe('workbench action resolution', () => {
       key: 'finish',
       code: 'target-skill-missing',
       candidates: ['git-repo'],
-    })
-  })
-
-  it('separates "no session" from "no such skill"', () => {
-    // Telling a user their skill is missing when it is installed sends them looking
-    // for a package problem that does not exist.
-    expect(resolveAction(DECLARATIONS, lookup({ live: false }), 'finish', PAYLOAD)).toEqual({
-      kind: 'failed',
-      key: 'finish',
-      code: 'target-unavailable',
-      candidates: ['task-finish'],
     })
   })
 

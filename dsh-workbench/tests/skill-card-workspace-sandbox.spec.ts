@@ -38,13 +38,10 @@
  * The seam keeps doing prompt delivery, structured capture, retry, cancellation and
  * error attribution. Nothing of that needed re-implementing.
  *
- * **The plugin side has since landed**: one card agent per card, created lazily and
- * reused, rebuilt when the stored directory changes, its session archived after each
- * settled run, and every handle released on teardown. Two gaps remain and are deliberate
- * records rather than oversights: deleting a card does not dispose its agent yet (no hook
- * exists; agents live until plugin teardown), and nothing asserts that teardown.
- *
- * What is still unverified is exactly what this file describes — nobody has run the real
+ * **The plugin side has since landed**: one session per run, created for the card's stored
+ * directory, carrying the card's permission mode, archived once the run settles and
+ * released with it; a refinement restores and re-attaches the session it continues. What
+ * remains unverified is exactly what this file describes — nobody has run the real
  * application and watched a write outside the card directory be refused.
  *
  * Still unverified: nothing load-bearing. A seam child parented to a card agent was

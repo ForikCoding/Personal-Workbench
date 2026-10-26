@@ -121,9 +121,14 @@ export declare const workbenchActivityEntrySchema: z.ZodDiscriminatedUnion<[z.Zo
  * it would show the stream while the run is live and then lose every line of it on the
  * next load — a trace that vanishes is worse than no trace, because the card looks like a
  * run that used no tools.
+ *
+ * `sessionId` is the sixth, and the only one another control reads: 重新生成 sends it back
+ * to have the revision run in the session the result came from. Dropping it on load would
+ * leave every past result unrefinable, with nothing on screen to say why.
  */
 export declare const workbenchResultSchema: z.ZodObject<{
     runId: z.ZodOptional<z.ZodString>;
+    sessionId: z.ZodOptional<z.ZodString>;
     skill: z.ZodString;
     executedAt: z.ZodNumber;
     stopReason: z.ZodString;

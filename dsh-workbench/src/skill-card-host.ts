@@ -345,6 +345,21 @@ export interface WorkbenchSkillCardHost {
       readonly meta: { readonly cwd: string }
       readonly parentAgent?: WorkbenchAgent
     }): Promise<WorkbenchAgentHandle>
+    /**
+     * Load one persisted session and run an agent on it again.
+     *
+     * The way back into a session whose agent is gone: a run releases its agent when it
+     * settles, and `create` would refuse the id that already exists durably, so a
+     * refinement of that run's result re-attaches here instead. The resumed agent carries
+     * the session's own header — the directory the card ran in at the time, and the
+     * permission mode its log recorded — which is what keeps a refinement in the
+     * conversation it revises.
+     * @param options - the persisted session to load.
+     * @returns the re-attached agent and the handle that tears it down.
+     */
+    resume(options: {
+      readonly resumeSessionId: string
+    }): Promise<WorkbenchAgentHandle>
   }
   /**
    * The sandbox mode a card's own agent runs under.
@@ -386,15 +401,36 @@ export interface WorkbenchSkillCardHost {
    * A card's run hangs from an agent the plugin creates, and creating a published agent
    * also creates a session — which the sidebar would otherwise list for every card the
    * user ever ran. Archiving is `archivedSessionIds` bookkeeping, not deletion: the
-   * session stays readable and the agent stays reusable.
+   * session stays readable and its log stays refinable. Restoring it is the same
+   * bookkeeping in reverse, and it is what a refinement needs: an archived session, or a
+   * subagent descendant of one, is refused its first model step.
    */
   readonly workspaceRegistry: {
+    /**
+     * Every session currently hidden from the default list.
+     *
+     * Read rather than assumed: a refinement restores a session only when it is archived,
+     * and puts it back in the state it found, so a session the user has open is neither
+     * hidden nor restored on their behalf.
+     * @returns the archived session ids.
+     */
+    readonly archivedSessionIds: readonly string[]
     /**
      * Hide a session from the default list.
      * @param sessionId - the session to archive.
      * @returns resolution once the archive is recorded.
      */
     archiveSession(sessionId: string): Promise<void>
+    /**
+     * Return a session to the default list.
+     *
+     * Called before a run continues an archived session — a session is archived as soon as
+     * its run settles, so every refinement restores one first and archives it again when it
+     * settles in turn.
+     * @param sessionId - the session to restore.
+     * @returns resolution once the archive set no longer holds it.
+     */
+    unarchiveSession(sessionId: string): Promise<void>
   }
 
   readonly subagents: WorkbenchSubagentHost

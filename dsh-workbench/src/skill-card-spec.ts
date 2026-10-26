@@ -135,6 +135,10 @@ export const workbenchActivityEntrySchema = z.discriminatedUnion('kind', [
  * it would show the stream while the run is live and then lose every line of it on the
  * next load — a trace that vanishes is worse than no trace, because the card looks like a
  * run that used no tools.
+ *
+ * `sessionId` is the sixth, and the only one another control reads: 重新生成 sends it back
+ * to have the revision run in the session the result came from. Dropping it on load would
+ * leave every past result unrefinable, with nothing on screen to say why.
  */
 export const workbenchResultSchema = z.object({
   // Declared in the same change that started writing it, for the exact reason this
@@ -147,6 +151,16 @@ export const workbenchResultSchema = z.object({
   // reader stamps the legacy run id on it instead of the domain backing it up and
   // skipping it. A composite-key record keeps the id this field carries.
   runId: z.string().optional(),
+  // Declared in the same change that started writing it. The runner stamps the session a
+  // run executed in so 重新生成 can continue it, and a field the store writes and this
+  // schema does not declare is dropped on the next load: the result would still render,
+  // but 重新生成 would then refuse every run the user made before the restart, because the
+  // record no longer says where it happened.
+  //
+  // Optional because every record written before this field existed has none: the reader
+  // keeps those results and refuses only a refinement of one, which is a state it can
+  // explain. A required field here would have made the domain back up and skip them.
+  sessionId: z.string().optional(),
   skill: z.string(),
   executedAt: z.number().finite().nonnegative(),
   stopReason: z.string(),

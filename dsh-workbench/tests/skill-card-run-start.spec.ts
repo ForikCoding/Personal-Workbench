@@ -48,21 +48,31 @@ function api(start: (request: WorkbenchRunRequest) => Promise<WorkbenchRunStart>
 }
 
 describe('starting a card run', () => {
-  it('asks for one card run with the fixed contract, for any card id', async () => {
+  it('asks for one card run with the fixed contract, for any card id, and names no session', async () => {
     const { api: transport, recording } = api(async request => ({
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    const outcome = await startCardRun(transport, 'other-card', 'session-1')
+    const outcome = await startCardRun(transport, 'other-card')
     // No controller, no mount, and no read of that card's configuration: the request is
-    // the whole interaction.
+    // the whole interaction. And no session: the Host gives every run one of its own, so
+    // a card never runs in the conversation the user is having.
     expect(recording.requests).toEqual([{
       cardId: 'other-card',
-      sessionId: 'session-1',
       mode: { kind: 'card' },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     }])
+    expect(recording.requests[0]).not.toHaveProperty('sessionId')
     expect(outcome.status).toBe('ok')
+  })
+
+  it('carries the clicked row with the run', async () => {
+    const { api: transport, recording } = api(async request => ({
+      status: 'ok',
+      state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
+    }))
+    await startCardRun(transport, 'other-card', { task_number: 'CP-1' })
+    expect(recording.requests[0]?.payload).toEqual({ task_number: 'CP-1' })
   })
 
   it('passes the Host’s refusal through as it stands', async () => {
@@ -73,7 +83,7 @@ describe('starting a card run', () => {
       code: 'run-in-progress',
       message: 'another run is already in flight',
     }))
-    await expect(startCardRun(transport, 'other-card', 'session-1')).resolves.toEqual({
+    await expect(startCardRun(transport, 'other-card')).resolves.toEqual({
       status: 'rejected',
       code: 'run-in-progress',
       message: 'another run is already in flight',
@@ -82,7 +92,7 @@ describe('starting a card run', () => {
 
   it('passes an unreachable Host through as it stands', async () => {
     const { api: transport } = api(async () => ({ status: 'unavailable', reason: 'route answered 500' }))
-    await expect(startCardRun(transport, 'other-card', 'session-1')).resolves.toEqual({
+    await expect(startCardRun(transport, 'other-card')).resolves.toEqual({
       status: 'unavailable',
       reason: 'route answered 500',
     })
@@ -90,21 +100,33 @@ describe('starting a card run', () => {
 })
 
 describe('starting a refine run', () => {
-  it('asks for a refine of the HTML on screen, with the same fixed contract', async () => {
+  it('asks for a refine of the HTML on screen in the session the result came from', async () => {
     // The template stays the Host's to read from storage, so the request carries only the
-    // instruction and the result being revised.
+    // instruction, the result being revised, and the one session the Host does need: the
+    // session that result was produced in, which is where the revision has to run.
     const { api: transport, recording } = api(async request => ({
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    const outcome = await startCardRefine(transport, 'skill-card', 'session-1', '按时间倒序', '<b>旧</b>')
+    const outcome = await startCardRefine(transport, 'skill-card', 'session-run-7', '按时间倒序', '<b>旧</b>')
     expect(recording.requests).toEqual([{
       cardId: 'skill-card',
-      sessionId: 'session-1',
+      sessionId: 'session-run-7',
       mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     }])
     expect(outcome.status).toBe('ok')
+  })
+
+  it('sends no session at all when the result recorded none', async () => {
+    // A record written before the workbench kept a session per run. The Host refuses the
+    // run rather than choosing a session; this side must not invent one either.
+    const { api: transport, recording } = api(async request => ({
+      status: 'ok',
+      state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
+    }))
+    await startCardRefine(transport, 'skill-card', undefined, 'i', 'p')
+    expect(recording.requests[0]).not.toHaveProperty('sessionId')
   })
 
   it('passes a refusal through as it stands', async () => {
@@ -113,7 +135,7 @@ describe('starting a refine run', () => {
       code: 'run-in-progress',
       message: 'another run is already in flight',
     }))
-    await expect(startCardRefine(transport, 'skill-card', 'session-1', 'i', 'p')).resolves.toEqual({
+    await expect(startCardRefine(transport, 'skill-card', 'session-run-7', 'i', 'p')).resolves.toEqual({
       status: 'rejected',
       code: 'run-in-progress',
       message: 'another run is already in flight',

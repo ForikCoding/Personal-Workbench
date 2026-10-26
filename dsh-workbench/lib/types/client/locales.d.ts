@@ -149,7 +149,6 @@ export declare const zh: {
     actionFieldTarget: string;
     actionFieldSkill: string;
     actionFieldPayload: string;
-    actionFieldSession: string;
     actionTargetCard: string;
     actionTargetSkill: string;
     actionConfirm: string;

@@ -54,6 +54,14 @@ const STARTED_AT = new Date(2024, 0, 2, 14, 28, 36).getTime()
 const FIRST_HTML = '<b>旧</b>'
 
 /**
+ * The session the stored result was produced in.
+ *
+ * A refinement continues that conversation, so this — not the session the user is in — is
+ * the id the request names.
+ */
+const REFINE_SESSION = 'workbench-skill-card-42'
+
+/**
  * Build one result record.
  * @param overrides - fields the case varies.
  * @returns the record.
@@ -62,12 +70,25 @@ function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResu
   return {
     cardId: 'skill-card',
     runId: 'run-1',
+    sessionId: REFINE_SESSION,
     skill: 'git-repo',
     executedAt: STARTED_AT,
     stopReason: 'completed',
     structured: { html: FIRST_HTML },
     ...overrides,
   }
+}
+
+/**
+ * The same record as it was stored before the workbench kept a session per run.
+ *
+ * Absence, not an empty value: such a record names no session, and the page must refuse to
+ * refine it rather than pick one.
+ * @returns the record with no session.
+ */
+function legacyResult(): WorkbenchCardResult {
+  const { sessionId: _sessionId, ...rest } = result()
+  return rest
 }
 
 /**
@@ -207,7 +228,7 @@ describe('refining a result', () => {
     expect(button).toHaveProperty('disabled', true)
   })
 
-  it('sends the instruction and the HTML on screen, and nothing else', async () => {
+  it('sends the instruction, the HTML on screen, and the session it came from', async () => {
     const { api, requests } = pageApi({
       start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),
     })
@@ -216,12 +237,29 @@ describe('refining a result', () => {
     await waitFor(() => { expect(requests).toHaveLength(1) })
     expect(requests[0]).toEqual({
       cardId: 'skill-card',
-      sessionId: 'session-1',
+      // The session recorded on the result being refined: a revision continues that
+      // conversation, not the one the user happens to be in.
+      sessionId: REFINE_SESSION,
       // The template comes from the card's stored selection, so it is not in the request;
       // the previous HTML travels verbatim, and so does the instruction.
       mode: { kind: 'refine', instruction: '按时间倒序', previous: FIRST_HTML },
       outputSchema: expect.anything(),
     })
+  })
+
+  it('refuses to refine a result that recorded no session, before spending a call', async () => {
+    // A result stored before the workbench kept a session per run. The Host refuses such a
+    // refinement too; saying so here is what keeps the composer from looking broken when
+    // the ask comes back refused.
+    const { api, requests } = pageApi({
+      result: legacyResult(),
+      start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),
+    })
+    await show(api)
+    ask('按时间倒序')
+    const alert = await screen.findByRole('alert')
+    expect(alert.getAttribute('data-refine-problem')).toBe('session-not-live')
+    expect(requests).toEqual([])
   })
 
   it('replaces the result, appends a log entry and allows one step back', async () => {

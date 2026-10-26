@@ -1,9 +1,13 @@
 /**
- * Choosing the session a skill card run hangs off.
+ * Choosing the session a skill card reads its catalog through.
  *
  * A root-scoped panel gets no "current session" seat, so the workbench states the
  * rule itself. The read happens when the user asks, which is also the freshest
  * point: a session opened after the card rendered is still found.
+ *
+ * It is not the session a run executes in: a run is given one of its own by the Host, so a
+ * card's traffic never lands in this conversation. What this session still supplies is the
+ * agent scope a catalog read needs, and the fallback model directory.
  * @module dsh-workbench/client/skill-card/session
  */
 
@@ -18,16 +22,16 @@ export interface WorkbenchSessionRow {
 }
 
 /**
- * Pick the session a run should hang off.
+ * Pick the session a card's catalog read should go through.
  *
  * A session the main view still holds wins, because that is the one the user is
  * working in. The rest are ranked by recency.
  *
  * A blank session is an ordinary candidate. "Blank" means no messages yet, which
- * says nothing about whether the session can run: a freshly opened session has a
- * live agent, and the Host refuses a session without one on its own terms. The
- * picker must not pre-empt that judgement, because excluding blank sessions leaves
- * a first-run user with no candidate at all.
+ * says nothing about whether the catalog can be read through it: a freshly opened session
+ * has a live agent, and the Host answers a catalog read with the global layer when no
+ * session can supply a scope. The picker must not pre-empt that judgement, because
+ * excluding blank sessions leaves a first-run user with no candidate at all.
  * @param ids - session list order.
  * @param byId - rows addressed by id.
  * @returns the chosen session id, or undefined when none qualifies.

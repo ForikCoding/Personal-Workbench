@@ -123,6 +123,22 @@ export interface FakeHostOptions {
    * for the same id and fail its start.
    */
   readonly persistedSessionIds?: readonly string[]
+  /**
+   * Session ids the double starts with in the archive set.
+   *
+   * A refinement asks whether its session is archived before restoring it, so a case that
+   * wants the ordinary path — a session its own run archived — seeds it here. A case that
+   * seeds nothing is modelling a session the user has open.
+   */
+  readonly archivedSessionIds?: readonly string[]
+  /**
+   * When set, restoring an archived session fails with this detail.
+   *
+   * The double throws the error the real registry throws, so a case can prove the runner
+   * refuses a refinement it could not restore rather than starting a child the archive
+   * gate would block.
+   */
+  readonly unarchiveFailure?: string
 }
 
 /** The fake host plus what a spec wants to assert about. */
@@ -142,10 +158,19 @@ export interface FakeHost {
   readonly starts: WorkbenchStartCall[]
     /** Card agents the plugin created, in order; each carries the directory it rooted at. */
     readonly createdAgents: WorkbenchAgent[]
-    /** Session ids of card agents the plugin tore down. */
+    /** Session ids the plugin tore down. */
     readonly disposedAgents: string[]
-    /** Session ids the plugin archived to keep them out of the sidebar. */
+    /** Session ids in the archive set: what the plugin hid to keep them out of the sidebar. */
     readonly archivedSessions: string[]
+    /** Session ids the plugin restored to run in again, in order. */
+    readonly unarchivedSessions: string[]
+    /**
+     * Session ids the plugin re-attached instead of creating.
+     *
+     * A refinement of a settled run has to continue that run's session, and the agent is
+     * gone by then, so what this records is the way back in.
+     */
+    readonly resumedSessions: string[]
   /**
    * Permission modes the plugin applied, in order, with the session each was recorded on.
    *
@@ -205,7 +230,10 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   // `FakeSkillCardHost` so a case can prove creation and disposal actually happened.
   const createdAgents: WorkbenchAgent[] = []
   const disposedAgents: string[] = []
-  const archivedSessions: string[] = []
+  // The archive set itself, seeded with what the case says the host already hid.
+  const archivedSessions: string[] = [...options.archivedSessionIds ?? []]
+  const unarchivedSessions: string[] = []
+  const resumedSessions: string[] = []
   const sandboxModes: { sessionId: string; mode: WorkbenchSandboxMode }[] = []
   // Ids that are already published: what a case seeds, plus everything this double
   // has minted — the create above refuses both, like the real session store.
@@ -247,10 +275,13 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       // fake keeps that and nothing else. `disposeCount` lets a case prove the plugin
       // actually tears one down when the workspace changes. Publication is exclusive:
       // an id in `taken` — seeded or minted here — fails the create, matching the
-      // durable session store the real host publishes into.
+      // durable session store the real host publishes into, down to the error's name,
+      // which is the one thing the runner retries on.
       create: async (createOptions) => {
         if (taken.has(createOptions.sessionId)) {
-          throw new Error(`session "${createOptions.sessionId}" already exists`)
+          const occupied = new Error(`session "${createOptions.sessionId}" already exists`)
+          occupied.name = 'SessionAlreadyExistsError'
+          throw occupied
         }
         taken.add(createOptions.sessionId)
         const created: WorkbenchAgent = {
@@ -261,6 +292,22 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
         return {
           agent: created,
           dispose: async () => { disposedAgents.push(createOptions.sessionId) },
+        }
+      },
+      // Re-attachment is only possible for a session that exists, which is what `taken`
+      // holds, and it fails the way the real factory does for a session no store keeps.
+      resume: async (resumeOptions) => {
+        if (!taken.has(resumeOptions.resumeSessionId)) {
+          throw new Error(`session "${resumeOptions.resumeSessionId}" is not persisted`)
+        }
+        resumedSessions.push(resumeOptions.resumeSessionId)
+        const resumed: WorkbenchAgent = {
+          id: resumeOptions.resumeSessionId,
+          session: { header: { cwd: options.cwd ?? '/repo' } },
+        }
+        return {
+          agent: resumed,
+          dispose: async () => { disposedAgents.push(resumeOptions.resumeSessionId) },
         }
       },
     },
@@ -275,10 +322,21 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
         sandboxModes.push({ sessionId, mode })
       },
     },
-    // Archiving is recorded, not simulated: a case can then prove the plugin hid the
-    // session a card agent published instead of leaving it in the sidebar.
+    // Archiving and restoring are recorded, not simulated, but the archived set itself is
+    // kept: a refinement asks whether its session is archived before deciding to restore it,
+    // and putting it back in the state it found is what stops a run from hiding a session the
+    // user has open.
     workspaceRegistry: {
-      archiveSession: async (sessionId: string) => { archivedSessions.push(sessionId) },
+      get archivedSessionIds() { return [...archivedSessions] },
+      archiveSession: async (sessionId: string) => {
+        if (!archivedSessions.includes(sessionId)) archivedSessions.push(sessionId)
+      },
+      unarchiveSession: async (sessionId: string) => {
+        if (options.unarchiveFailure !== undefined) throw new Error(options.unarchiveFailure)
+        const at = archivedSessions.indexOf(sessionId)
+        if (at !== -1) archivedSessions.splice(at, 1)
+        unarchivedSessions.push(sessionId)
+      },
     },
     skills: {
       list: async (lookup) => {
@@ -323,5 +381,5 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
   }
-  return { host, workingDirectory, statDirectory, activations, starts, lookups, disposed, createdAgents, disposedAgents, archivedSessions, sandboxModes, settleChild }
+  return { host, workingDirectory, statDirectory, activations, starts, lookups, disposed, createdAgents, disposedAgents, archivedSessions, unarchivedSessions, resumedSessions, sandboxModes, settleChild }
 }

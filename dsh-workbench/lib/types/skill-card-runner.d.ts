@@ -21,15 +21,17 @@ export type WorkbenchCatalogOutcome = {
     readonly code: WorkbenchSkillCardErrorCode;
     readonly detail: string;
 };
+/** One refused start, shared by the two things a start resolves before it records a run. */
+interface RejectedStart {
+    readonly status: 'rejected';
+    readonly code: WorkbenchSkillCardErrorCode;
+    readonly detail: string;
+}
 /** Outcome of asking one card's run to start. */
 export type WorkbenchRunStartOutcome = {
     readonly status: 'started';
     readonly state: WorkbenchRunState;
-} | {
-    readonly status: 'rejected';
-    readonly code: WorkbenchSkillCardErrorCode;
-    readonly detail: string;
-};
+} | RejectedStart;
 /** What one card is configured to run. */
 export interface WorkbenchCardSelection {
     /** Selected skill; absent means the card is unconfigured. */
@@ -132,23 +134,14 @@ export declare class WorkbenchSkillCardRunner {
      */
     constructor(options: WorkbenchSkillCardRunnerOptions);
     /**
-     * One rooted agent per card, created on the card's first run and reused after that.
+     * Highest session stamp published for each card, in this process.
      *
-     * Reuse is not an optimisation: the directory and the permission mode are fixed when the
-     * agent is created, so a second run of the same card can only keep both by keeping the
-     * agent. The path and the mode are stored beside the handle so a change to either is
-     * detected and rebuilt — a mode is a session event, and this runner never mutates a live
-     * agent's mode.
+     * A session id cannot be published twice, and the id is the run's start — so two runs of
+     * one card that start within the same millisecond, which is what a fixed clock in a spec
+     * produces, would ask for the same id. Keeping the last stamp makes the second run's id
+     * one greater than the first, so ids stay readable and unique without a random tag.
      */
-    private readonly cardAgents;
-    /** Distinguishes successive card agents; a session id cannot be published twice. */
-    private cardAgentSeq;
-    /**
-     * Per-process tag beside the counter: the counter restarts at zero every boot, while a
-     * session published by a previous boot still exists durably, so an id made of the card
-     * and the counter alone would collide with it on the first run after a restart.
-     */
-    private readonly cardAgentBoot;
+    private readonly sessionStamps;
     /**
      * Read the skill catalog a card can choose from.
      *
@@ -176,16 +169,17 @@ export declare class WorkbenchSkillCardRunner {
      *
      * Every precondition is answered before anything is started, so a rejected
      * start never leaves a child behind and never costs a model call.
-     * @param request - card, session, what the run is asked to do, and the client's contract.
+     * @param request - card, what the run is asked to do, the session a refinement continues,
+     * and the client's contract.
      * @returns the started run's state, or why it was refused.
      */
     start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome>;
     /**
      * Whether one more start would exceed the card's or the deployment's limit.
      *
-     * Asked twice per start: once before the card's agent is resolved, so a refused start
-     * cannot rebuild an agent a run still hangs from, and once immediately before the run is
-     * recorded, so the reservation itself stays synchronous.
+     * Asked twice per start: once before the run's session is resolved, so a refused start
+     * publishes no session and restores none underneath a child still running in it, and once
+     * immediately before the run is recorded, so the reservation itself stays synchronous.
      * @param cardId - the card the run belongs to.
      * @returns whether another run is already in flight or the limit is reached.
      */
@@ -260,29 +254,86 @@ export declare class WorkbenchSkillCardRunner {
      */
     dispose(): Promise<void>;
     /**
-     * The agent a card's run should hang from, with the card's permission mode applied.
+     * Publish the session one card run executes in, with the card's permission mode applied.
      *
-     * A card that names a workspace gets an agent rooted at that directory; a card that
-     * does not falls back to the session's agent, which is what every run used before
-     * workspaces existed. The sandbox derives its writable root from the session header,
-     * and a child inherits its parent's header, so this is the whole mechanism that fences
-     * a run — no `cwd` is passed and the seam stays untouched.
-     *
-     * An agent lives for exactly one run: the runner retires it when the run settles
-     * (archiving its session and releasing it), because an archived session cannot host a
-     * subagent descendant. Within one run the cache still matters: a workspace change
-     * rebuilds, and the same path and mode reuse the agent the current run started from.
+     * A card's run gets a session of its own rather than joining the conversation the user is
+     * having: the run is the card's work, and every card sharing one session would mix every
+     * card's traffic into one conversation. The session is rooted at the card's directory, and
+     * a child inherits its parent's session header — which is where the sandbox derives its
+     * writable root from — so this agent is the whole mechanism that fences the run; no `cwd`
+     * is passed and the seam stays untouched. See docs/workbench-workspace-fence-plan.md.
      *
      * The mode is applied once, here, at creation. A child inherits its parent's explicit
-     * override, so recording it on this agent is what makes the card's permission govern
-     * every run started from it, refinements and template-button runs included.
-     * @param cardId - the card whose agent is wanted.
-     * @param fallback - the session's agent, used when the card names no directory.
-     * @returns the agent to start the run from.
-     * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the new agent is
-     * disposed first, so a refused start leaves nothing running under no mode.
+     * override, so recording it on this agent is what makes the card's permission govern the
+     * run started from it.
+     * @param cardId - the card whose run is starting.
+     * @param cwd - the card's workspace directory, which roots the session.
+     * @param startedAt - the run's start, used to name the session.
+     * @returns the resolved session, or why it could not be published.
+     * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the agent is
+     * released first, so a refused start leaves nothing running under no mode.
      */
-    private cardAgent;
+    private openRunSession;
+    /**
+     * Re-attach the session a refinement continues.
+     *
+     * The session was archived when its own run settled, and the harness refuses a model step
+     * to an archived session or to a subagent descendant of one — so the run restores it,
+     * runs there, and archives it again when it settles. A live agent is used as it is; one
+     * that is gone is resumed from persistence, because `create` refuses an id that already
+     * exists durably and a fresh session would be a different conversation.
+     *
+     * A session that is not archived is left that way: it is on screen because someone is in
+     * it, and hiding a conversation the user has open is not this run's decision.
+     * @param sessionId - the session recorded on the result being refined.
+     * @returns the resolved session, or why it could not be restored.
+     */
+    private attachRunSession;
+    /**
+     * Wrap one agent as the run's session, owning the archive and the release together.
+     *
+     * One wrapper for both cases because the promise is the same either way: whatever the run
+     * did, its session ends where it started — archived for a session this feature published,
+     * archived again for one it restored — and the agent is released. Settling never throws,
+     * because a captured result must not become a failure because teardown did; each step
+     * warns instead.
+     * @param agent - the run's live agent.
+     * @param handle - the disposer that releases it, when this run is the one that acquired
+     * it. Absent for an agent that was already live, which this run does not own.
+     * @param archive - whether this session is archived when the run settles.
+     * @returns the run's session.
+     */
+    private ownedSession;
+    /**
+     * Publish one fresh session for a run.
+     *
+     * The id is the card and the run's start, which is readable in a session list and needs
+     * no random tag: a card runs once at a time, so the start is unique. A session id cannot
+     * be published twice, though — a durable store still holds the session an earlier app run
+     * created under the same millisecond — so a refused publication is retried once under the
+     * next stamp instead of failing a run the user started.
+     * @param cardId - the card whose run is starting.
+     * @param cwd - the card's workspace directory, which roots the session.
+     * @param startedAt - the run's start, used to name the session.
+     * @returns the created agent and its handle.
+     */
+    private publishRunSession;
+    /**
+     * Name one run's session.
+     *
+     * The stamp never goes backwards for a card, so two runs that start within the same
+     * millisecond — which a fixed clock in a spec produces — cannot ask for the same id.
+     * @param cardId - the card whose run is starting.
+     * @param startedAt - the run's start in milliseconds since the epoch.
+     * @returns the session id.
+     */
+    private nextSessionId;
+    /**
+     * Release one agent, warning instead of throwing.
+     * @param handle - the agent to release.
+     * @returns resolution once the release was attempted.
+     */
+    private releaseAgent;
     /**
      * Run one card's skill to a terminal state.
      * @param run - the run record to settle.
@@ -313,20 +364,6 @@ export declare class WorkbenchSkillCardRunner {
      */
     private finish;
     /**
-     * Retire the agent one finished run hung from: archive its session, then release it.
-     *
-     * Creating a published agent also creates a session, and the sidebar lists sessions —
-     * so each finished run's session is archived to keep it out of the default list. The
-     * agent is released in the same step because an archived session cannot host a model
-     * step: the harness rejects a subagent descendant of one before its first step and
-     * reports that as `refusal`. The next run therefore builds a fresh agent — and a fresh
-     * session — instead of reusing this one.
-     * @param cardId - the card whose finished agent should be retired.
-     * @returns resolution once the session is archived and the agent released; neither
-     *   step may turn a captured result into a failure, so both only warn.
-     */
-    private retireCardAgent;
-    /**
      * Resolve the agent's effective working directory.
      *
      * The service is preferred when the deployment has it; otherwise the session
@@ -343,3 +380,4 @@ export declare class WorkbenchSkillCardRunner {
      */
     private stateOf;
 }
+export {};

@@ -115,8 +115,6 @@ export interface WorkbenchPendingAction {
   readonly skill: string
   /** That row's raw fields, unchanged. */
   readonly payload: Record<string, unknown>
-  /** Session the run belongs to. */
-  readonly sessionId: string
 }
 
 /**
@@ -389,11 +387,13 @@ export interface WorkbenchSkillCardOptions {
    */
   readonly runId?: string
   /**
-   * Read the session a run hangs off.
+   * Read the session this page reads the installed skills through.
    *
-   * A callback rather than a value, because the click path has to know whether a
-   * session is live *when the click happens*: opening a session after the page rendered
-   * must make the next click resolvable rather than refusing it.
+   * Not the session a run executes in — a run is given one of its own — but the scope that
+   * makes the catalog readable at all, and the fallback for the model field. A callback
+   * rather than a value, because the click path has to know whether a session is live
+   * *when the click happens*: opening a session after the page rendered must make the next
+   * catalog read answer with the installed skills rather than the global layer alone.
    * @returns the session id, or undefined when none is available.
    */
   readonly session: () => string | undefined
@@ -401,12 +401,13 @@ export interface WorkbenchSkillCardOptions {
    * Read the session the application's own model picker is attached to.
    *
    * The model field offers that session's catalog — the one a user choosing a model is
-   * looking at. A run session is resolved separately and is not necessarily that session:
-   * the workbench panel replaces the main column, so while a card page is open the panel's
-   * own session lookup falls back to recency and can name a different chat or an agent
-   * session. That directory is a different projection, and not the choice the user is making.
+   * looking at. The page's own session is resolved separately and is not necessarily that
+   * one: the workbench panel replaces the main column, so while a card page is open the
+   * panel's own session lookup falls back to recency and can name a different chat or an
+   * agent session. That directory is a different projection, and not the choice the user is
+   * making.
    *
-   * Omitted means "the run session is the only session this page can name", which is what a
+   * Omitted means "this page's own session is the only one it can name", which is what a
    * page composed without a session list can answer.
    * @returns the session id, or undefined while none is held.
    */
@@ -493,8 +494,8 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // The render-time answer, for what the card shows. Every click asks again, because
   // the session may have been opened since this render.
   const sessionId = session()
-  // The model field's own session: the one the app's picker reads. It is not the run session
-  // whenever the two differ — see {@link WorkbenchSkillCardOptions.pickerSession}.
+  // The model field's own session: the one the app's picker reads. It is not this page's
+  // session whenever the two differ — see {@link WorkbenchSkillCardOptions.pickerSession}.
   const modelSessionId = pickerSession === undefined ? sessionId : pickerSession()
   const [config, setConfig] = useState<ConfigState>({ kind: 'loading' })
   const [run, setRun] = useState<WorkbenchRunState | undefined>(undefined)
@@ -779,13 +780,6 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     setResultOverride(undefined)
     setPreviousResult(undefined)
     setRefineProblem(undefined)
-    // A refused start says why. Returning silently here is what made pressing Run
-    // look like nothing happened at all.
-    const live = session()
-    if (live === undefined) {
-      setProblem({ code: 'session-not-live', detail: '' })
-      return
-    }
     // Refuse rather than fall back to the session's directory. A run that happened somewhere
     // the user did not choose would be a result about a different folder.
     const refused = workspaceRefusal(workspaceField)
@@ -808,8 +802,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setProblem({ code: 'template-invalid', detail: first.location })
       return
     }
-    // The one card-run path, shared with a run started from another card's button.
-    void startCardRun(api, cardId, live).then((outcome) => {
+    // The one card-run path, shared with a run started from another card's button. No
+    // session is named: the Host gives the run a session of its own.
+    void startCardRun(api, cardId).then((outcome) => {
       if (outcome.status === 'ok') {
         setRun(outcome.state)
         setProblem(undefined)
@@ -822,7 +817,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         ? { code: asErrorCode(outcome.code), detail: outcome.message }
         : { code: 'unavailable', detail: outcome.reason })
     })
-  }, [api, cardId, refresh, session, card?.skill, card?.template, workspaceField])
+  }, [api, cardId, refresh, card?.skill, card?.template, workspaceField])
 
   const cancel = useCallback(() => { void api.cancel(cardId) }, [api, cardId])
 
@@ -832,9 +827,13 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // because this is the boundary that actually spends a model call.
     if (text === '') return
     if (run?.phase === 'running') return
-    const live = session()
-    if (live === undefined) {
-      setProblem({ code: 'session-not-live', detail: '' })
+    // A refinement continues the session the revised result was produced in, so that is the
+    // one session the Host needs named. A record stored before the workbench kept one per
+    // run carries none, and refusing here is the honest answer: neither the session the user
+    // is in now nor a new one is the conversation that wrote this document.
+    const refineSession = result?.sessionId
+    if (refineSession === undefined) {
+      setRefineProblem({ code: 'session-not-live', detail: '' })
       return
     }
     // A refinement is a card run with a narrower ask, so it happens in the same directory
@@ -869,7 +868,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // state the page would fall back to "not run" with the very result being revised gone.
     setResultOverride(result)
     refinement.current = { instruction: text, prior: result, priorHtml }
-    void startCardRefine(api, cardId, live, text, priorHtml).then((outcome) => {
+    void startCardRefine(api, cardId, refineSession, text, priorHtml).then((outcome) => {
       if (outcome.status !== 'ok') {
         // A refused start never became a run, so nothing was replaced: the refusal is
         // reported under the composer and the result stays as it was.
@@ -882,7 +881,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       settleRefinement(outcome.state)
       setRun(outcome.state)
     })
-  }, [api, card?.skill, card?.template, cardId, result, run?.phase, session, settleRefinement, workspaceField])
+  }, [api, card?.skill, card?.template, cardId, result, run?.phase, settleRefinement, workspaceField])
 
   const undoRefine = useCallback(() => {
     const kept = previousResult
@@ -1101,8 +1100,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     payload: Record<string, unknown>,
   ): Promise<void> => {
     setActionProblem(undefined)
-    // Whether a session is live decides a skill target, and the answer is read now
-    // rather than taken from the render that produced the button.
+    // The session the catalog is read through, taken now rather than from the render that
+    // produced the button. It is not what the run joins: the Host gives a run its own
+    // session, so a card target needs no session to be confirmed.
     const live = session()
     // Both halves of the lookup are re-read now rather than taken from the mount-time
     // snapshot: a card may have been deleted or a skill uninstalled since.
@@ -1138,7 +1138,6 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       skills: catalogRead.status === 'ok'
         ? catalogRead.entries.filter(entry => entry.userInvocable).map(entry => entry.name)
         : [],
-      live: live !== undefined,
     }
     const resolution = resolveAction(declarations, lookup, key, payload)
     if (resolution.kind === 'failed') {
@@ -1153,7 +1152,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     const skill = resolution.target.kind === 'card'
       ? snapshot.cards.find(entry => entry.cardId === resolution.reference)?.skill
       : resolution.target.name
-    if (live === undefined || skill === undefined) {
+    if (skill === undefined) {
       setPendingAction(undefined)
       setActionProblem({ code: 'target-unavailable', candidates: [] })
       return
@@ -1184,7 +1183,6 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       reference: resolution.reference,
       skill,
       payload: resolution.payload,
-      sessionId: live,
     })
   }, [api, cardId, cardTitle, runningTargets, session])
 
@@ -1215,7 +1213,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       // The target card's directory was resolved when the panel opened. A run that still
       // arrives without one is refused by the route, which reads that card's own record —
       // this page holds no stat for another card to re-check at confirm time.
-      void startCardRun(api, pending.reference, pending.sessionId, pending.payload).then((outcome) => {
+      void startCardRun(api, pending.reference, pending.payload).then((outcome) => {
         if (outcome.status !== 'ok') {
           setActionProblem(startProblem(outcome))
           return
@@ -1236,7 +1234,6 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     }
     void api.start({
       cardId,
-      sessionId: pending.sessionId,
       mode: { kind: 'bare', skill: pending.skill },
       // Same rule for a skill target: the row it was triggered from is its input.
       payload: pending.payload,
@@ -1333,9 +1330,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // the picker loaded: a known route keeps a card runnable with no catalog at all. A
     // harness without either run seam is the one answer that closes this off for every
     // card, and the view states it beside the disabled control. The directory is the same
-    // kind of answer: a card only runs where the user put it.
+    // kind of answer: a card only runs where the user put it. The live session is not one
+    // of these answers: a run gets a session of its own, so a card is runnable with none
+    // open.
     runnable: runUnavailable === undefined
-      && sessionId !== undefined
       && card?.skill !== undefined
       && card.template !== undefined
       && modelField.kind !== 'unavailable'
@@ -1358,7 +1356,6 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     config,
     run,
     problem,
-    sessionId,
     card?.name,
     card?.skill,
     card?.template,

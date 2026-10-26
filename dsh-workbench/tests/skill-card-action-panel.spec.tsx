@@ -296,7 +296,7 @@ describe('the title a card target must be declared with', () => {
 })
 
 describe('action confirmation panel', () => {
-  it('opens on a click and states the four facts, in order', async () => {
+  it('opens on a click and states the three facts, in order', async () => {
     const { recorded, renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
@@ -304,13 +304,12 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(panel()).toBeTruthy() })
 
     const fields = panelFields()
-    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'payload', 'session'])
+    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'payload'])
     // The target as the user reads it, not as the template spells it.
     expect(fields[0]?.text).toBe('Card: 启动任务')
     expect(fields[1]?.text).toBe('task-finish')
     // The parameters whole, exactly as the button carried them.
     expect(fields[2]?.text).toBe(JSON.stringify(ROW, null, 2))
-    expect(fields[3]?.text).toBe('session-1')
     // Nothing has run yet: the panel is a question.
     expect(recorded.starts).toEqual([])
   })
@@ -379,17 +378,18 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(panelFields()[0]?.text).toBe('Card: 启动任务') })
   })
 
-  it('reads the session when the click happens, not when the page rendered', async () => {
-    // A session opened after this page appeared must make the next click resolvable:
-    // the panel has to state the session the run will actually join.
-    let live: string | undefined
-    const { renderPage } = fixture({ runSessionId: () => live })
+  it('opens with no live session at all, because the run no longer joins one', async () => {
+    // The panel used to state the session the run would join, and could not open without
+    // one. A run gets a session of its own now, so a click is resolvable with none open
+    // and the panel states only what the user is confirming.
+    const { recorded, renderPage } = fixture({ runSessionId: () => undefined })
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
-    live = 'session-7'
     await clickAction('finish')
-    await waitFor(() => { expect(panelFields()).toHaveLength(4) })
-    expect(panelFields()[3]?.text).toBe('session-7')
+    await waitFor(() => { expect(panelFields()).toHaveLength(3) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]?.sessionId).toBeUndefined()
   })
 
   it('refuses a payload it cannot read, before any panel', async () => {
@@ -548,12 +548,14 @@ describe('a confirmed card target', () => {
     await waitFor(() => { expect(recorded.steps).toEqual(['start:target-card', 'open:target-card']) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'target-card',
-      sessionId: 'session-1',
       mode: { kind: 'card' },
       // The row the user confirmed travels with the run.
       payload: ROW,
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     })
+    // No session: the target card's run gets one of its own rather than joining the
+    // session the clicked card happens to be in.
+    expect(recorded.starts[0]).not.toHaveProperty('sessionId')
     expect(document.querySelector('[data-action-panel]')).toBeNull()
   })
 
@@ -635,8 +637,9 @@ describe('a confirmed card target', () => {
 })
 
 describe('a confirmed skill target', () => {
-  it('asks for a bare run of that skill in this session', async () => {
-    // Criterion 27: no document, no contract — the request says so explicitly.
+  it('asks for a bare run of that skill, in a session of its own', async () => {
+    // Criterion 27: no document, no contract — the request says so explicitly. And no
+    // session: a bare run gets one of its own, exactly as a card run does.
     const { recorded, renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
@@ -646,10 +649,10 @@ describe('a confirmed skill target', () => {
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'clicker',
-      sessionId: 'session-1',
       mode: { kind: 'bare', skill: 'task-finish' },
       payload: ROW,
     })
+    expect(recorded.starts[0]).not.toHaveProperty('sessionId')
     expect(recorded.starts[0]).not.toHaveProperty('outputSchema')
     // Nothing is stored for a bare run, and nothing navigates.
     expect(recorded.writes).toEqual([])

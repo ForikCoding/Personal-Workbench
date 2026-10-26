@@ -485,6 +485,15 @@ export interface WorkbenchTemplateRecord {
  */
 export interface WorkbenchResultRecord {
     /**
+     * Session this run executed in.
+     *
+     * Recorded because a refinement has to continue the conversation that produced the
+     * document it revises: 重新生成 runs in this session, not in the user's current one and
+     * not in a new one. Absent means the record was written before the workbench kept a
+     * session per run, and a refinement of it is refused rather than guessing where to run.
+     */
+    readonly sessionId?: string;
+    /**
      * Identity of the run that produced this record, unique within the card.
      *
      * The card stores every completed run, addressed by this id. It is distinct from
@@ -739,12 +748,17 @@ export interface WorkbenchRunRequest {
     /** Card the run is reported under; also how its state is polled. */
     readonly cardId: string;
     /**
-     * Session whose live agent supplies the skill scope.
+     * Session this run executes in.
      *
-     * The model is not here: it is the card's own stored selection, read by the Host, so a
+     * Required for a refine run, which continues the session recorded on the result it
+     * revises ({@link WorkbenchResultRecord.sessionId}). Absent means "the Host creates a
+     * fresh session for this run": every card run and every bare run gets a session of its
+     * own, rooted at the card's workspace and archived once the run settles, so a card never
+     * runs in — and never leaves its traffic in — the conversation the user is having. The
+     * model is not here: it is the card's own stored selection, read by the Host, so a
      * client cannot start a run on a route the card does not name.
      */
-    readonly sessionId: string;
+    readonly sessionId?: string;
     /** What this run is asked to do. */
     readonly mode: WorkbenchRunMode;
     /**

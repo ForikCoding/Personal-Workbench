@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { createWorkbenchSkillCardApi } from '../src/client/skill-card/api.ts'
+import { createWorkbenchSkillCardApi, parseRunResponse, parseSnapshot } from '../src/client/skill-card/api.ts'
 import type { FetchLike } from '../src/client/skill-card/api.ts'
 import { WORKBENCH_SKILL_CARD_RESULT_PATH } from '../src/skill-card-contract.ts'
 
@@ -126,10 +126,75 @@ describe('createWorkbenchSkillCardApi.saveResult', () => {
     }
   })
 
+  it('keeps the session the edited result was produced in', async () => {
+    // The edit is not a run, so nothing about the run's facts changes — the session
+    // included. 重新生成 reads it from the record this returns.
+    const fetcher = vi.fn<FetchLike>(async () => json(200, {
+      ...OK_BODY,
+      result: { ...STORED, sessionId: 'workbench-skill-card-7' },
+    }))
+    const api = createWorkbenchSkillCardApi({ fetcher })
+    const outcome = await api.saveResult('skill-card', RUN, '<b>新</b>')
+    expect(outcome.status === 'ok' && outcome.result.sessionId).toBe('workbench-skill-card-7')
+  })
+
+  it('refuses a record whose session id is not a usable id', async () => {
+    // The value travels back as the session a refinement runs in, so a record carrying
+    // something that is not an id is refused whole rather than sent back as one.
+    for (const sessionId of ['', 7, { id: 'session-1' }]) {
+      const fetcher = vi.fn<FetchLike>(async () => json(200, { ...OK_BODY, result: { ...STORED, sessionId } }))
+      const api = createWorkbenchSkillCardApi({ fetcher })
+      const outcome = await api.saveResult('skill-card', RUN, 'x')
+      expect(outcome.status, JSON.stringify(sessionId)).toBe('unavailable')
+    }
+  })
+
   it('reports a transport failure as unavailable', async () => {
     const fetcher = vi.fn<FetchLike>(async () => { throw new Error('offline') })
     const api = createWorkbenchSkillCardApi({ fetcher })
     const outcome = await api.saveResult('skill-card', RUN, 'x')
     expect(outcome.status === 'unavailable' && outcome.reason).toContain('offline')
+  })
+})
+
+describe('parseSnapshot', () => {
+  /** A snapshot body holding one card and one result. */
+  const SNAPSHOT = {
+    apiVersion: 1,
+    revision: '1:0',
+    cards: [{ cardId: 'skill-card', templateSkills: [] }],
+    results: [STORED],
+  }
+
+  it('accepts a result that carries the session it ran in, and one that does not', () => {
+    // The Host sends both: a record written before the workbench kept a session per run has
+    // none, and refusing it would blank the whole board over one old entry.
+    expect(parseSnapshot(SNAPSHOT)?.results[0]).not.toHaveProperty('sessionId')
+    const withSession = { ...SNAPSHOT, results: [{ ...STORED, sessionId: 'workbench-skill-card-7' }] }
+    expect(parseSnapshot(withSession)?.results[0]?.sessionId).toBe('workbench-skill-card-7')
+  })
+
+  it('refuses a snapshot whose result carries an unusable session id', () => {
+    // 重新生成 sends this value back as the session to run in, so a malformed one is
+    // refused here rather than offered as a destination.
+    for (const sessionId of ['', 7, null]) {
+      const body = { ...SNAPSHOT, results: [{ ...STORED, sessionId }] }
+      expect(parseSnapshot(body), JSON.stringify(sessionId)).toBeUndefined()
+    }
+  })
+
+  it('reads a settled run state whose result names its session', () => {
+    // The live run state carries the record a run produced, so the page can refine a result
+    // that was never re-read from storage — and that record names the session too.
+    const state = {
+      apiVersion: 1,
+      state: {
+        cardId: 'skill-card',
+        phase: 'settled',
+        retried: false,
+        result: { ...STORED, sessionId: 'workbench-skill-card-7' },
+      },
+    }
+    expect(parseRunResponse(state)?.result?.sessionId).toBe('workbench-skill-card-7')
   })
 })

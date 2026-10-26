@@ -38,15 +38,17 @@ export interface WorkbenchPageInjected {
   readonly skillCards: {
     readonly api: WorkbenchSkillCardApi
     /**
-     * Resolve the session a run hangs off.
+     * Resolve the session the card reads the installed skills through.
+     *
+     * Not the session a run executes in: a run is given one of its own.
      * @returns the session id, or undefined when none is available.
      */
     readonly runSessionId: () => string | undefined
     /**
      * Resolve the session the application's own model picker is attached to.
      *
-     * Omitted is read as "the run session is the only session this host can name", which
-     * is what a host without a session list can answer.
+     * Omitted is read as "this page's own session is the only one this host can name",
+     * which is what a host without a session list can answer.
      * @returns the session id, or undefined while none is held.
      */
     readonly pickerSessionId?: () => string | undefined

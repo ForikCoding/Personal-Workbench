@@ -34,8 +34,6 @@ export interface WorkbenchActionLookup {
   readonly cards: readonly WorkbenchActionCard[]
   /** Skills that may be invoked by a human, by name. */
   readonly skills: readonly string[]
-  /** Whether a live session exists to run in. */
-  readonly live: boolean
 }
 
 /** The outcome of resolving one click. */
@@ -63,7 +61,7 @@ export type WorkbenchActionResolution =
  * The order is the contract, because the user sees only the first failure: an unknown
  * key is reported before a missing target, and a missing target before a busy one.
  * @param declarations - the targets the template declares.
- * @param lookup - cards, skills, and liveness as of this click.
+ * @param lookup - cards and skills as of this click.
  * @param key - the action key the button carried.
  * @param payload - that row's raw fields.
  * @returns the resolved target, or why it cannot run.
@@ -144,11 +142,6 @@ function resolveSkill(
 ): WorkbenchActionResolution {
   if (!lookup.skills.includes(target.name)) {
     return { kind: 'failed', key, code: 'target-skill-missing', candidates: lookup.skills }
-  }
-  // A skill with nowhere to run is not a missing skill, and saying so would send the
-  // user looking for an uninstalled package that is installed.
-  if (!lookup.live) {
-    return { kind: 'failed', key, code: 'target-unavailable', candidates: [target.name] }
   }
   return {
     kind: 'resolved',

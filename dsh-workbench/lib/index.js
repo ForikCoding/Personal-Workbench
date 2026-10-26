@@ -709,9 +709,14 @@ const workbenchActivityEntrySchema = z.discriminatedUnion("kind", [
 * it would show the stream while the run is live and then lose every line of it on the
 * next load — a trace that vanishes is worse than no trace, because the card looks like a
 * run that used no tools.
+*
+* `sessionId` is the sixth, and the only one another control reads: 重新生成 sends it back
+* to have the revision run in the session the result came from. Dropping it on load would
+* leave every past result unrefinable, with nothing on screen to say why.
 */
 const workbenchResultSchema = z.object({
 	runId: z.string().optional(),
+	sessionId: z.string().optional(),
 	skill: z.string(),
 	executedAt: z.number().finite().nonnegative(),
 	stopReason: z.string(),
@@ -1360,6 +1365,23 @@ function escapeText(value) {
 */
 const SUBAGENT_SEAM_DETAIL = "this harness provides neither subagents.startActivation (0.2.1-alpha.2, the beta channel) nor the one-shot subagents.start (0.2.0-rc.2, the stable channel), so a card run cannot start";
 /**
+* Why a refinement with no session cannot start.
+*
+* A refinement continues the session that produced the document it revises. A result
+* stored before the workbench kept a session per run carries none, and neither the
+* current session nor a new one is the conversation that wrote it, so the run is refused
+* rather than started somewhere the result did not come from.
+*/
+const REFINE_SESSION_MISSING_DETAIL = "the run being refined recorded no session, so there is no session to revise it in";
+/**
+* The error name a durable session store uses for an identity that is already taken.
+*
+* Matched by name because the class lives in the persistence package this plugin does not
+* depend on. It is the one failure a fresh session id may legitimately meet, and the only
+* one the runner retries.
+*/
+const SESSION_ALREADY_EXISTS = "SessionAlreadyExistsError";
+/**
 * Project one stored card onto the selection a run reads.
 *
 * One function rather than an inline object built at composition, because every field a run
@@ -1400,23 +1422,14 @@ var WorkbenchSkillCardRunner = class {
 		this.now = options.now ?? (() => Date.now());
 	}
 	/**
-	* One rooted agent per card, created on the card's first run and reused after that.
+	* Highest session stamp published for each card, in this process.
 	*
-	* Reuse is not an optimisation: the directory and the permission mode are fixed when the
-	* agent is created, so a second run of the same card can only keep both by keeping the
-	* agent. The path and the mode are stored beside the handle so a change to either is
-	* detected and rebuilt — a mode is a session event, and this runner never mutates a live
-	* agent's mode.
+	* A session id cannot be published twice, and the id is the run's start — so two runs of
+	* one card that start within the same millisecond, which is what a fixed clock in a spec
+	* produces, would ask for the same id. Keeping the last stamp makes the second run's id
+	* one greater than the first, so ids stay readable and unique without a random tag.
 	*/
-	cardAgents = /* @__PURE__ */ new Map();
-	/** Distinguishes successive card agents; a session id cannot be published twice. */
-	cardAgentSeq = 0;
-	/**
-	* Per-process tag beside the counter: the counter restarts at zero every boot, while a
-	* session published by a previous boot still exists durably, so an id made of the card
-	* and the counter alone would collide with it on the first run after a restart.
-	*/
-	cardAgentBoot = Math.random().toString(36).slice(2, 8).padEnd(6, "0");
+	sessionStamps = /* @__PURE__ */ new Map();
 	/**
 	* Read the skill catalog a card can choose from.
 	*
@@ -1468,7 +1481,8 @@ var WorkbenchSkillCardRunner = class {
 	*
 	* Every precondition is answered before anything is started, so a rejected
 	* start never leaves a child behind and never costs a model call.
-	* @param request - card, session, what the run is asked to do, and the client's contract.
+	* @param request - card, what the run is asked to do, the session a refinement continues,
+	* and the client's contract.
 	* @returns the started run's state, or why it was refused.
 	*/
 	async start(request) {
@@ -1480,13 +1494,45 @@ var WorkbenchSkillCardRunner = class {
 		const selection = this.options.selection(request.cardId);
 		const skill = mode.kind === "bare" ? mode.skill : selection.skill;
 		if (skill === void 0) return reject("not-configured", "no skill is configured for this card");
-		const agent = this.options.host.agents.get(request.sessionId);
-		if (agent === void 0) return reject("session-not-live", `session "${request.sessionId}" has no live agent`);
+		const refineSessionId = mode.kind === "refine" ? request.sessionId : void 0;
+		if (mode.kind === "refine" && refineSessionId === void 0) return reject("session-not-live", REFINE_SESSION_MISSING_DETAIL);
+		const model = selection.model;
+		const pinned = model === void 0 ? {} : { model };
+		let inputOf;
+		if (mode.kind === "bare") inputOf = (agent) => ({
+			kind: "bare",
+			agent,
+			skill,
+			...pinned,
+			...request.payload === void 0 ? {} : { payload: request.payload }
+		});
+		else {
+			const template = selection.template;
+			if (template === void 0) return reject("template-missing", `no template is stored for skill "${skill}"`);
+			inputOf = mode.kind === "refine" ? (agent) => ({
+				kind: "refine",
+				agent,
+				skill,
+				template,
+				...pinned,
+				previous: mode.previous,
+				instruction: mode.instruction,
+				...request.payload === void 0 ? {} : { payload: request.payload },
+				outputSchema: request.outputSchema
+			}) : (agent) => ({
+				kind: "card",
+				agent,
+				skill,
+				template,
+				...pinned,
+				...request.payload === void 0 ? {} : { payload: request.payload },
+				outputSchema: request.outputSchema
+			});
+		}
 		const providerName = this.options.subagentProvider;
 		const provider = this.options.host.subagents.getProvider(providerName);
 		if (provider === void 0) return reject("provider-unavailable", `subagent provider "${providerName}" is not registered`);
 		if (request.outputSchema !== void 0 && !provider.capabilities.outputSchema) return reject("provider-unavailable", `subagent provider "${providerName}" cannot return structured output`);
-		const model = selection.model;
 		if (model !== void 0) {
 			const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model);
 			if (refusal !== void 0) return refusal;
@@ -1496,54 +1542,27 @@ var WorkbenchSkillCardRunner = class {
 		const found = await this.options.statDirectory(workspace.path);
 		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspace.path}" does not exist or is not a directory`);
 		if (this.congested(request.cardId)) return reject("run-in-progress", "another run is already in flight");
-		let parent;
+		const startedAt = this.now();
+		let session;
 		try {
-			parent = await this.cardAgent(request.cardId, agent);
+			const resolved = refineSessionId === void 0 ? await this.openRunSession(request.cardId, workspace.path, startedAt) : await this.attachRunSession(refineSessionId);
+			if (resolved.status === "rejected") return resolved;
+			session = resolved.session;
 		} catch (error) {
 			if (error instanceof WorkbenchSandboxModeError) return reject("permission-unavailable", `card "${request.cardId}" cannot apply its permission mode: ${error.message}`);
 			throw error;
 		}
-		if (this.congested(request.cardId)) return reject("run-in-progress", "another run is already in flight");
-		const pinned = model === void 0 ? {} : { model };
-		let input;
-		if (mode.kind === "bare") input = {
-			kind: "bare",
-			agent,
-			parent,
-			skill,
-			...pinned,
-			...request.payload === void 0 ? {} : { payload: request.payload }
-		};
-		else {
-			const template = selection.template;
-			if (template === void 0) return reject("template-missing", `no template is stored for skill "${skill}"`);
-			input = mode.kind === "refine" ? {
-				kind: "refine",
-				agent,
-				parent,
-				skill,
-				template,
-				...pinned,
-				previous: mode.previous,
-				instruction: mode.instruction,
-				...request.payload === void 0 ? {} : { payload: request.payload },
-				outputSchema: request.outputSchema
-			} : {
-				kind: "card",
-				agent,
-				parent,
-				skill,
-				template,
-				...pinned,
-				...request.payload === void 0 ? {} : { payload: request.payload },
-				outputSchema: request.outputSchema
-			};
+		if (this.congested(request.cardId)) {
+			await session.settle();
+			return reject("run-in-progress", "another run is already in flight");
 		}
+		const agent = session.agent;
 		const run = {
 			cardId: request.cardId,
-			startedAt: this.now(),
+			startedAt,
 			controller: new AbortController(),
 			bare: mode.kind === "bare",
+			session,
 			phase: "running",
 			retried: false,
 			timedOut: false,
@@ -1555,7 +1574,7 @@ var WorkbenchSkillCardRunner = class {
 		}, this.options.runTimeoutMs);
 		this.runs.set(request.cardId, run);
 		this.active += 1;
-		const execution = this.execute(run, input, activate);
+		const execution = this.execute(run, inputOf(agent), activate);
 		this.inflight.add(execution);
 		execution.catch((error) => {
 			this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`);
@@ -1570,9 +1589,9 @@ var WorkbenchSkillCardRunner = class {
 	/**
 	* Whether one more start would exceed the card's or the deployment's limit.
 	*
-	* Asked twice per start: once before the card's agent is resolved, so a refused start
-	* cannot rebuild an agent a run still hangs from, and once immediately before the run is
-	* recorded, so the reservation itself stays synchronous.
+	* Asked twice per start: once before the run's session is resolved, so a refused start
+	* publishes no session and restores none underneath a child still running in it, and once
+	* immediately before the run is recorded, so the reservation itself stays synchronous.
 	* @param cardId - the card the run belongs to.
 	* @returns whether another run is already in flight or the limit is reached.
 	*/
@@ -1701,68 +1720,159 @@ var WorkbenchSkillCardRunner = class {
 		for (const run of this.runs.values()) if (run.phase === "running") run.controller.abort();
 		await Promise.allSettled([...this.inflight]);
 		this.runs.clear();
-		const agents = [...this.cardAgents.values()];
-		this.cardAgents.clear();
-		await Promise.allSettled(agents.map(async (entry) => await entry.handle.dispose()));
 	}
 	/**
-	* The agent a card's run should hang from, with the card's permission mode applied.
+	* Publish the session one card run executes in, with the card's permission mode applied.
 	*
-	* A card that names a workspace gets an agent rooted at that directory; a card that
-	* does not falls back to the session's agent, which is what every run used before
-	* workspaces existed. The sandbox derives its writable root from the session header,
-	* and a child inherits its parent's header, so this is the whole mechanism that fences
-	* a run — no `cwd` is passed and the seam stays untouched.
-	*
-	* An agent lives for exactly one run: the runner retires it when the run settles
-	* (archiving its session and releasing it), because an archived session cannot host a
-	* subagent descendant. Within one run the cache still matters: a workspace change
-	* rebuilds, and the same path and mode reuse the agent the current run started from.
+	* A card's run gets a session of its own rather than joining the conversation the user is
+	* having: the run is the card's work, and every card sharing one session would mix every
+	* card's traffic into one conversation. The session is rooted at the card's directory, and
+	* a child inherits its parent's session header — which is where the sandbox derives its
+	* writable root from — so this agent is the whole mechanism that fences the run; no `cwd`
+	* is passed and the seam stays untouched. See docs/workbench-workspace-fence-plan.md.
 	*
 	* The mode is applied once, here, at creation. A child inherits its parent's explicit
-	* override, so recording it on this agent is what makes the card's permission govern
-	* every run started from it, refinements and template-button runs included.
-	* @param cardId - the card whose agent is wanted.
-	* @param fallback - the session's agent, used when the card names no directory.
-	* @returns the agent to start the run from.
-	* @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the new agent is
-	* disposed first, so a refused start leaves nothing running under no mode.
+	* override, so recording it on this agent is what makes the card's permission govern the
+	* run started from it.
+	* @param cardId - the card whose run is starting.
+	* @param cwd - the card's workspace directory, which roots the session.
+	* @param startedAt - the run's start, used to name the session.
+	* @returns the resolved session, or why it could not be published.
+	* @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the agent is
+	* released first, so a refused start leaves nothing running under no mode.
 	*/
-	async cardAgent(cardId, fallback) {
-		const selection = this.options.selection(cardId);
-		const path = selection.workspace?.path;
-		if (path === void 0) return fallback;
-		const mode = effectiveWorkbenchSandboxMode(selection.permission);
-		const existing = this.cardAgents.get(cardId);
-		if (existing !== void 0 && existing.path === path && existing.mode === mode) return existing.handle.agent;
-		if (existing !== void 0) {
-			this.cardAgents.delete(cardId);
-			try {
-				await existing.handle.dispose();
-			} catch (error) {
-				this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`);
-			}
-		}
-		const handle = await this.options.host.agents.create({
-			sessionId: `workbench-card-${cardId}-${this.cardAgentBoot}-${this.cardAgentSeq++}`,
-			meta: { cwd: path }
-		});
+	async openRunSession(cardId, cwd, startedAt) {
+		const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission);
+		const handle = await this.publishRunSession(cardId, cwd, startedAt);
 		try {
 			this.options.host.sandbox.setMode(handle.agent.id, mode);
 		} catch (error) {
-			try {
-				await handle.dispose();
-			} catch (teardown) {
-				this.options.warn(`workbench card agent teardown failed: ${messageOf(teardown)}`);
-			}
+			await this.releaseAgent(handle);
 			throw error;
 		}
-		this.cardAgents.set(cardId, {
-			path,
-			mode,
-			handle
-		});
-		return handle.agent;
+		return {
+			status: "resolved",
+			session: this.ownedSession(handle.agent, handle)
+		};
+	}
+	/**
+	* Re-attach the session a refinement continues.
+	*
+	* The session was archived when its own run settled, and the harness refuses a model step
+	* to an archived session or to a subagent descendant of one — so the run restores it,
+	* runs there, and archives it again when it settles. A live agent is used as it is; one
+	* that is gone is resumed from persistence, because `create` refuses an id that already
+	* exists durably and a fresh session would be a different conversation.
+	*
+	* A session that is not archived is left that way: it is on screen because someone is in
+	* it, and hiding a conversation the user has open is not this run's decision.
+	* @param sessionId - the session recorded on the result being refined.
+	* @returns the resolved session, or why it could not be restored.
+	*/
+	async attachRunSession(sessionId) {
+		let owned;
+		let agent = this.options.host.agents.get(sessionId);
+		if (agent === void 0) {
+			try {
+				owned = await this.options.host.agents.resume({ resumeSessionId: sessionId });
+			} catch (error) {
+				return reject("session-not-live", `session "${sessionId}" cannot be re-attached: ${messageOf(error)}`);
+			}
+			agent = owned.agent;
+		}
+		const archived = this.options.host.workspaceRegistry.archivedSessionIds.includes(sessionId);
+		if (archived) try {
+			await this.options.host.workspaceRegistry.unarchiveSession(sessionId);
+		} catch (error) {
+			if (owned !== void 0) await this.releaseAgent(owned);
+			return reject("session-not-live", `session "${sessionId}" could not be restored for the run: ${messageOf(error)}`);
+		}
+		return {
+			status: "resolved",
+			session: this.ownedSession(agent, owned, archived)
+		};
+	}
+	/**
+	* Wrap one agent as the run's session, owning the archive and the release together.
+	*
+	* One wrapper for both cases because the promise is the same either way: whatever the run
+	* did, its session ends where it started — archived for a session this feature published,
+	* archived again for one it restored — and the agent is released. Settling never throws,
+	* because a captured result must not become a failure because teardown did; each step
+	* warns instead.
+	* @param agent - the run's live agent.
+	* @param handle - the disposer that releases it, when this run is the one that acquired
+	* it. Absent for an agent that was already live, which this run does not own.
+	* @param archive - whether this session is archived when the run settles.
+	* @returns the run's session.
+	*/
+	ownedSession(agent, handle, archive = true) {
+		return {
+			id: agent.id,
+			agent,
+			settle: async () => {
+				if (archive) try {
+					await this.options.host.workspaceRegistry.archiveSession(agent.id);
+				} catch (error) {
+					this.options.warn(`workbench card session archive failed: ${messageOf(error)}`);
+				}
+				if (handle !== void 0) await this.releaseAgent(handle);
+			}
+		};
+	}
+	/**
+	* Publish one fresh session for a run.
+	*
+	* The id is the card and the run's start, which is readable in a session list and needs
+	* no random tag: a card runs once at a time, so the start is unique. A session id cannot
+	* be published twice, though — a durable store still holds the session an earlier app run
+	* created under the same millisecond — so a refused publication is retried once under the
+	* next stamp instead of failing a run the user started.
+	* @param cardId - the card whose run is starting.
+	* @param cwd - the card's workspace directory, which roots the session.
+	* @param startedAt - the run's start, used to name the session.
+	* @returns the created agent and its handle.
+	*/
+	async publishRunSession(cardId, cwd, startedAt) {
+		const sessionId = this.nextSessionId(cardId, startedAt);
+		try {
+			return await this.options.host.agents.create({
+				sessionId,
+				meta: { cwd }
+			});
+		} catch (error) {
+			if (errorNameOf(error) !== SESSION_ALREADY_EXISTS) throw error;
+			return await this.options.host.agents.create({
+				sessionId: this.nextSessionId(cardId, startedAt),
+				meta: { cwd }
+			});
+		}
+	}
+	/**
+	* Name one run's session.
+	*
+	* The stamp never goes backwards for a card, so two runs that start within the same
+	* millisecond — which a fixed clock in a spec produces — cannot ask for the same id.
+	* @param cardId - the card whose run is starting.
+	* @param startedAt - the run's start in milliseconds since the epoch.
+	* @returns the session id.
+	*/
+	nextSessionId(cardId, startedAt) {
+		const stamp = Math.max(startedAt, (this.sessionStamps.get(cardId) ?? 0) + 1);
+		this.sessionStamps.set(cardId, stamp);
+		return `workbench-${cardId}-${String(stamp)}`;
+	}
+	/**
+	* Release one agent, warning instead of throwing.
+	* @param handle - the agent to release.
+	* @returns resolution once the release was attempted.
+	*/
+	async releaseAgent(handle) {
+		try {
+			await handle.dispose();
+		} catch (error) {
+			this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`);
+		}
 	}
 	/**
 	* Run one card's skill to a terminal state.
@@ -1804,7 +1914,7 @@ var WorkbenchSkillCardRunner = class {
 		} finally {
 			if (run.timer !== void 0) clearTimeout(run.timer);
 			this.active -= 1;
-			await this.retireCardAgent(run.cardId);
+			await run.session.settle();
 		}
 	}
 	/**
@@ -1818,7 +1928,7 @@ var WorkbenchSkillCardRunner = class {
 	*/
 	async attempt(run, input, cwd, skill, activate) {
 		const signal = run.controller.signal;
-		const parent = input.parent;
+		const parent = input.agent;
 		const resolvedCwd = parent.session?.header?.cwd ?? cwd;
 		const activation = await activate({
 			provider: this.options.subagentProvider,
@@ -1841,7 +1951,8 @@ var WorkbenchSkillCardRunner = class {
 		try {
 			const result = await activation.result;
 			const runId = String(run.startedAt);
-			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId) : toResultRecord(input.skill, result, this.now(), input.model, runId);
+			const sessionId = run.session.id;
+			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
 				...stored,
 				diagnostic: run.childError
@@ -1925,34 +2036,6 @@ var WorkbenchSkillCardRunner = class {
 		}
 	}
 	/**
-	* Retire the agent one finished run hung from: archive its session, then release it.
-	*
-	* Creating a published agent also creates a session, and the sidebar lists sessions —
-	* so each finished run's session is archived to keep it out of the default list. The
-	* agent is released in the same step because an archived session cannot host a model
-	* step: the harness rejects a subagent descendant of one before its first step and
-	* reports that as `refusal`. The next run therefore builds a fresh agent — and a fresh
-	* session — instead of reusing this one.
-	* @param cardId - the card whose finished agent should be retired.
-	* @returns resolution once the session is archived and the agent released; neither
-	*   step may turn a captured result into a failure, so both only warn.
-	*/
-	async retireCardAgent(cardId) {
-		const entry = this.cardAgents.get(cardId);
-		if (entry === void 0) return;
-		this.cardAgents.delete(cardId);
-		try {
-			await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id);
-		} catch (error) {
-			this.options.warn(`workbench card session archive failed: ${messageOf(error)}`);
-		}
-		try {
-			await entry.handle.dispose();
-		} catch (error) {
-			this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`);
-		}
-	}
-	/**
 	* Resolve the agent's effective working directory.
 	*
 	* The service is preferred when the deployment has it; otherwise the session
@@ -2031,12 +2114,14 @@ function toCatalogEntry(skill) {
 * @param executedAt - completion time.
 * @param model - the route the run was pinned to, when the card named one.
 * @param runId - the run identity, unique within the card.
+* @param sessionId - the session the run executed in.
 * @returns the stored record.
 */
-function toResultRecord(skill, result, executedAt, model, runId) {
+function toResultRecord(skill, result, executedAt, model, runId, sessionId) {
 	const text = textOf(result.output);
 	return {
 		runId,
+		sessionId,
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
@@ -2052,17 +2137,20 @@ function toResultRecord(skill, result, executedAt, model, runId) {
 * Deliberately narrower than {@link toResultRecord}: a bare run answers only whether
 * it worked, so neither a structured value nor the output text is kept. Keeping them
 * would put a model's prose one field away from a surface that must show only the
-* verdict. The route is kept, because it is provenance rather than content.
+* verdict. The route and the session are kept, because they are provenance rather than
+* content.
 * @param skill - the skill that ran.
 * @param result - the child's terminal result.
 * @param executedAt - completion time.
 * @param model - the route the run was pinned to, when the card named one.
 * @param runId - the run identity, unique within the card.
+* @param sessionId - the session the run executed in.
 * @returns the in-memory record.
 */
-function toBareRecord(skill, result, executedAt, model, runId) {
+function toBareRecord(skill, result, executedAt, model, runId, sessionId) {
 	return {
 		runId,
+		sessionId,
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
@@ -2140,6 +2228,18 @@ function looksLikeContract(value) {
 */
 function messageOf(error) {
 	return error instanceof Error ? error.message : String(error);
+}
+/**
+* Read one error's constructor name.
+*
+* Used instead of `instanceof` because the class that answers it lives in the session
+* persistence package this plugin does not depend on; the name is what that class sets on
+* itself, and it is the only stable signal available across that boundary.
+* @param error - the failure.
+* @returns the name, or an empty string for a value that is not an error.
+*/
+function errorNameOf(error) {
+	return error instanceof Error ? error.name : "";
 }
 //#endregion
 //#region src/skill-card-route.ts
@@ -2614,7 +2714,8 @@ function parseRunRequest(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new SkillCardRequestError(400, "invalid-request", "body must be an object");
 	const body = value;
 	if (typeof body.cardId !== "string" || !isWorkbenchCardId(body.cardId)) throw new SkillCardRequestError(400, "invalid-request", "cardId must be a namespaced card id");
-	if (typeof body.sessionId !== "string" || body.sessionId.length === 0) throw new SkillCardRequestError(400, "invalid-request", "sessionId must be a non-empty string");
+	const sessionId = body.sessionId;
+	if (sessionId !== void 0 && (typeof sessionId !== "string" || sessionId.length === 0)) throw new SkillCardRequestError(400, "invalid-request", "sessionId must be a non-empty string when present");
 	let payload;
 	if (body.payload !== void 0) {
 		if (typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload)) throw new SkillCardRequestError(400, "invalid-request", "payload must be an object");
@@ -2622,7 +2723,7 @@ function parseRunRequest(value) {
 	}
 	return {
 		cardId: body.cardId,
-		sessionId: body.sessionId,
+		...sessionId === void 0 ? {} : { sessionId },
 		mode: parseRunMode(body.mode),
 		...payload === void 0 ? {} : { payload },
 		...body.outputSchema === void 0 ? {} : { outputSchema: body.outputSchema }
@@ -3075,7 +3176,8 @@ function trimResult(record, maxBytes) {
 		skill: record.skill,
 		executedAt: record.executedAt,
 		stopReason: record.stopReason,
-		...record.model === void 0 ? {} : { model: record.model }
+		...record.model === void 0 ? {} : { model: record.model },
+		...record.sessionId === void 0 ? {} : { sessionId: record.sessionId }
 	};
 	const withStructured = record.structured === void 0 ? base : {
 		...base,

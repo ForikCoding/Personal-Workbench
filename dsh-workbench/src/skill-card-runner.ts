@@ -50,15 +50,70 @@ import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbench
 const SUBAGENT_SEAM_DETAIL =
   'this harness provides neither subagents.startActivation (0.2.1-alpha.2, the beta channel) nor the one-shot subagents.start (0.2.0-rc.2, the stable channel), so a card run cannot start'
 
+/**
+ * Why a refinement with no session cannot start.
+ *
+ * A refinement continues the session that produced the document it revises. A result
+ * stored before the workbench kept a session per run carries none, and neither the
+ * current session nor a new one is the conversation that wrote it, so the run is refused
+ * rather than started somewhere the result did not come from.
+ */
+const REFINE_SESSION_MISSING_DETAIL =
+  'the run being refined recorded no session, so there is no session to revise it in'
+
+/**
+ * The error name a durable session store uses for an identity that is already taken.
+ *
+ * Matched by name because the class lives in the persistence package this plugin does not
+ * depend on. It is the one failure a fresh session id may legitimately meet, and the only
+ * one the runner retries.
+ */
+const SESSION_ALREADY_EXISTS = 'SessionAlreadyExistsError'
+
 /** Outcome of reading one session's skill catalog. */
 export type WorkbenchCatalogOutcome =
   | { readonly status: 'ok'; readonly entries: readonly WorkbenchSkillCatalogEntry[] }
   | { readonly status: 'failed'; readonly code: WorkbenchSkillCardErrorCode; readonly detail: string }
 
+/** One refused start, shared by the two things a start resolves before it records a run. */
+interface RejectedStart {
+  readonly status: 'rejected'
+  readonly code: WorkbenchSkillCardErrorCode
+  readonly detail: string
+}
+
 /** Outcome of asking one card's run to start. */
 export type WorkbenchRunStartOutcome =
   | { readonly status: 'started'; readonly state: WorkbenchRunState }
-  | { readonly status: 'rejected'; readonly code: WorkbenchSkillCardErrorCode; readonly detail: string }
+  | RejectedStart
+
+/**
+ * The session one run executes in, and what the runner owes it when the run settles.
+ *
+ * Resolved before a run is recorded, because the session is part of what the run is: its
+ * id is stamped on the stored result, and its agent is both the scope the skill is read
+ * through and the parent the child hangs from. Settling it belongs to the runner rather
+ * than the caller, so a run that fails, is cancelled, or times out ends in the same place:
+ * its session is archived out of the session list and its agent released.
+ */
+interface RunSession {
+  /** Session identity the run executes in, recorded on the run's result. */
+  readonly id: string
+  /** Live agent of that session. */
+  readonly agent: WorkbenchAgent
+  /**
+   * Leave the session as this feature keeps it, and release the agent this run acquired.
+   *
+   * Never throws: a captured result must not become a failure because teardown did.
+   * @returns resolution once the archive is recorded and any owned agent is released.
+   */
+  settle(): Promise<void>
+}
+
+/** One run's session, or why it could not be resolved. */
+type RunSessionOutcome =
+  | { readonly status: 'resolved'; readonly session: RunSession }
+  | RejectedStart
 
 /** What one card is configured to run. */
 export interface WorkbenchCardSelection {
@@ -161,6 +216,13 @@ interface RunRecord {
   readonly startedAt: number
   readonly controller: AbortController
   /**
+   * The session this run executes in, resolved before the run was recorded.
+   *
+   * Owned by the run: whatever terminal phase it reaches, this is settled once, which is
+   * what keeps a card's sessions archived and its agents released.
+   */
+  readonly session: RunSession
+  /**
    * Whether this run fills a template.
    *
    * A bare run executes a skill and keeps nothing: no template, no contract, and no
@@ -208,14 +270,15 @@ interface RunRecord {
 type RunInput =
   | {
     readonly kind: 'card'
-    readonly agent: WorkbenchAgent
     /**
-     * The agent the child hangs from: the card's own agent when it names a workspace.
+     * The run's session agent.
      *
-     * Resolved before the run is recorded, because its permission mode is applied there:
-     * a mode that cannot be applied refuses the start instead of letting the run proceed.
+     * It is the scope the skill is read through and the parent the child hangs from: a
+     * child inherits its parent's session header, and the sandbox derives its writable root
+     * from that header, so rooting this agent at the card's directory is the whole
+     * mechanism that fences the run. See docs/workbench-workspace-fence-plan.md.
      */
-    readonly parent: WorkbenchAgent
+    readonly agent: WorkbenchAgent
     readonly skill: string
     /** The card's HTML for this skill, carried into the prompt as the output template. */
     readonly template: string
@@ -227,9 +290,8 @@ type RunInput =
   }
   | {
     readonly kind: 'refine'
+    /** The run's session agent; see the card variant. */
     readonly agent: WorkbenchAgent
-    /** The agent the child hangs from; see the card variant. */
-    readonly parent: WorkbenchAgent
     readonly skill: string
     /** The card's HTML for this skill, the same document a card run fills. */
     readonly template: string
@@ -245,9 +307,8 @@ type RunInput =
   }
   | {
     readonly kind: 'bare'
+    /** The run's session agent; see the card variant. */
     readonly agent: WorkbenchAgent
-    /** The agent the child hangs from; see the card variant. */
-    readonly parent: WorkbenchAgent
     readonly skill: string
     /** Route this run is pinned to; absent inherits the session's. */
     readonly model?: WorkbenchCardModel
@@ -288,28 +349,14 @@ export class WorkbenchSkillCardRunner {
   }
 
   /**
-   * One rooted agent per card, created on the card's first run and reused after that.
+   * Highest session stamp published for each card, in this process.
    *
-   * Reuse is not an optimisation: the directory and the permission mode are fixed when the
-   * agent is created, so a second run of the same card can only keep both by keeping the
-   * agent. The path and the mode are stored beside the handle so a change to either is
-   * detected and rebuilt — a mode is a session event, and this runner never mutates a live
-   * agent's mode.
+   * A session id cannot be published twice, and the id is the run's start — so two runs of
+   * one card that start within the same millisecond, which is what a fixed clock in a spec
+   * produces, would ask for the same id. Keeping the last stamp makes the second run's id
+   * one greater than the first, so ids stay readable and unique without a random tag.
    */
-  private readonly cardAgents = new Map<
-    string,
-    { readonly path: string; readonly mode: WorkbenchSandboxMode; readonly handle: WorkbenchAgentHandle }
-  >()
-
-  /** Distinguishes successive card agents; a session id cannot be published twice. */
-  private cardAgentSeq = 0
-
-  /**
-   * Per-process tag beside the counter: the counter restarts at zero every boot, while a
-   * session published by a previous boot still exists durably, so an id made of the card
-   * and the counter alone would collide with it on the first run after a restart.
-   */
-  private readonly cardAgentBoot = Math.random().toString(36).slice(2, 8).padEnd(6, '0')
+  private readonly sessionStamps = new Map<string, number>()
 
   /**
    * Read the skill catalog a card can choose from.
@@ -362,7 +409,8 @@ export class WorkbenchSkillCardRunner {
    *
    * Every precondition is answered before anything is started, so a rejected
    * start never leaves a child behind and never costs a model call.
-   * @param request - card, session, what the run is asked to do, and the client's contract.
+   * @param request - card, what the run is asked to do, the session a refinement continues,
+   * and the client's contract.
    * @returns the started run's state, or why it was refused.
    */
   async start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome> {
@@ -391,9 +439,55 @@ export class WorkbenchSkillCardRunner {
     if (skill === undefined) {
       return reject('not-configured', 'no skill is configured for this card')
     }
-    const agent = this.options.host.agents.get(request.sessionId)
-    if (agent === undefined) {
-      return reject('session-not-live', `session "${request.sessionId}" has no live agent`)
+    // A refinement continues the session the revised document came from, so that is the one
+    // session a request can name. A record stored before the workbench kept one per run has
+    // none, and neither the running session nor a new one is where the document came from.
+    const refineSessionId = mode.kind === 'refine' ? request.sessionId : undefined
+    if (mode.kind === 'refine' && refineSessionId === undefined) {
+      return reject('session-not-live', REFINE_SESSION_MISSING_DETAIL)
+    }
+    // A document is what every mode but a bare run fills, so the template is answered here,
+    // before a session is published: a card that lost its template is refused without
+    // creating one. What the prompt says depends on the run's own agent, which does not
+    // exist yet, so the run's input is built by the function below once the session is
+    // resolved.
+    const model = selection.model
+    const pinned = model === undefined ? {} : { model }
+    let inputOf: (agent: WorkbenchAgent) => RunInput
+    if (mode.kind === 'bare') {
+      inputOf = agent => ({
+        kind: 'bare',
+        agent,
+        skill,
+        ...pinned,
+        ...request.payload === undefined ? {} : { payload: request.payload },
+      })
+    } else {
+      const template = selection.template
+      if (template === undefined) {
+        return reject('template-missing', `no template is stored for skill "${skill}"`)
+      }
+      inputOf = mode.kind === 'refine'
+        ? agent => ({
+            kind: 'refine',
+            agent,
+            skill,
+            template,
+            ...pinned,
+            previous: mode.previous,
+            instruction: mode.instruction,
+            ...request.payload === undefined ? {} : { payload: request.payload },
+            outputSchema: request.outputSchema,
+          })
+        : agent => ({
+            kind: 'card',
+            agent,
+            skill,
+            template,
+            ...pinned,
+            ...request.payload === undefined ? {} : { payload: request.payload },
+            outputSchema: request.outputSchema,
+          })
     }
     const providerName = this.options.subagentProvider
     const provider = this.options.host.subagents.getProvider(providerName)
@@ -405,7 +499,6 @@ export class WorkbenchSkillCardRunner {
     if (request.outputSchema !== undefined && !provider.capabilities.outputSchema) {
       return reject('provider-unavailable', `subagent provider "${providerName}" cannot return structured output`)
     }
-    const model = selection.model
     // Refuse rather than fall back. A card that names a model the deployment cannot route
     // must not quietly run on the session's model: the card says one thing, the run would
     // do another, and the result would name a route it never used.
@@ -433,21 +526,26 @@ export class WorkbenchSkillCardRunner {
         `the workspace directory "${workspace.path}" does not exist or is not a directory`,
       )
     }
-    // Checked here as well as below, and the earlier check is load-bearing: resolving the
-    // card's agent can dispose the one a run in flight still hangs from, whenever the stored
-    // directory or permission changed since that run started. A start that will be refused
-    // must not tear down a session underneath a running child.
+    // Checked here as well as below, and the earlier check is load-bearing: resolving a
+    // run's session creates one, and a start that will be refused must not publish a
+    // session — or restore one a running child still hangs from — on its way to a refusal.
     if (this.congested(request.cardId)) {
       return reject('run-in-progress', 'another run is already in flight')
     }
-    // The agent a card's run hangs from is resolved here, before anything starts, because
-    // its permission mode is applied while it is created: a mode this deployment cannot
-    // apply has to refuse the start rather than let the run proceed under whatever the
-    // session happens to be set to. Applying it inside the run would leave the user with a
-    // failed run and a setting that still looks enforced.
-    let parent: WorkbenchAgent
+    // The session a run executes in, resolved before anything starts. A card run gets a
+    // fresh one of its own, rooted at the card's directory and carrying its permission
+    // mode: the mode is applied at creation, so a deployment that cannot apply it refuses
+    // the start rather than letting the run proceed under whatever the session happens to
+    // be set to. A refinement instead re-attaches the session recorded on the result it
+    // revises, because revising a document means continuing the conversation that wrote it.
+    const startedAt = this.now()
+    let session: RunSession
     try {
-      parent = await this.cardAgent(request.cardId, agent)
+      const resolved = refineSessionId === undefined
+        ? await this.openRunSession(request.cardId, workspace.path, startedAt)
+        : await this.attachRunSession(refineSessionId)
+      if (resolved.status === 'rejected') return resolved
+      session = resolved.session
     } catch (error) {
       if (error instanceof WorkbenchSandboxModeError) {
         return reject(
@@ -459,58 +557,21 @@ export class WorkbenchSkillCardRunner {
       // travels as itself rather than being reported as one.
       throw error
     }
-    // Checked again, immediately before the reservation: the agent resolution above awaits,
-    // and two starts that both awaited it must not both win.
+    // Checked again, immediately before the reservation: resolving the session above
+    // awaits, and two starts that both awaited it must not both win. The session this start
+    // published is settled first, so a refused start leaves nothing archived behind.
     if (this.congested(request.cardId)) {
+      await session.settle()
       return reject('run-in-progress', 'another run is already in flight')
     }
-
-    const pinned = model === undefined ? {} : { model }
-    let input: RunInput
-    if (mode.kind === 'bare') {
-      input = {
-        kind: 'bare',
-        agent,
-        parent,
-        skill,
-        ...pinned,
-        ...request.payload === undefined ? {} : { payload: request.payload },
-      }
-    } else {
-      const template = selection.template
-      if (template === undefined) {
-        return reject('template-missing', `no template is stored for skill "${skill}"`)
-      }
-      input = mode.kind === 'refine'
-        ? {
-            kind: 'refine',
-            agent,
-            parent,
-            skill,
-            template,
-            ...pinned,
-            previous: mode.previous,
-            instruction: mode.instruction,
-            ...request.payload === undefined ? {} : { payload: request.payload },
-            outputSchema: request.outputSchema,
-          }
-        : {
-            kind: 'card',
-            agent,
-            parent,
-            skill,
-            template,
-            ...pinned,
-            ...request.payload === undefined ? {} : { payload: request.payload },
-            outputSchema: request.outputSchema,
-          }
-    }
+    const agent = session.agent
 
     const run: RunRecord = {
       cardId: request.cardId,
-      startedAt: this.now(),
+      startedAt,
       controller: new AbortController(),
       bare: mode.kind === 'bare',
+      session,
       phase: 'running',
       retried: false,
       timedOut: false,
@@ -528,7 +589,7 @@ export class WorkbenchSkillCardRunner {
     // Bound to the service it came from, and to the seam this harness offers: the
     // attempt path calls it from a different method, and the real ones read their
     // own receiver.
-    const execution = this.execute(run, input, activate)
+    const execution = this.execute(run, inputOf(agent), activate)
     this.inflight.add(execution)
     void execution
       .catch((error: unknown) => { this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`) })
@@ -540,9 +601,9 @@ export class WorkbenchSkillCardRunner {
   /**
    * Whether one more start would exceed the card's or the deployment's limit.
    *
-   * Asked twice per start: once before the card's agent is resolved, so a refused start
-   * cannot rebuild an agent a run still hangs from, and once immediately before the run is
-   * recorded, so the reservation itself stays synchronous.
+   * Asked twice per start: once before the run's session is resolved, so a refused start
+   * publishes no session and restores none underneath a child still running in it, and once
+   * immediately before the run is recorded, so the reservation itself stays synchronous.
    * @param cardId - the card the run belongs to.
    * @returns whether another run is already in flight or the limit is reached.
    */
@@ -691,81 +752,164 @@ export class WorkbenchSkillCardRunner {
     }
     await Promise.allSettled([...this.inflight])
     this.runs.clear()
-    // Runs retire their own card agent when they settle; this releases whatever is still
-    // cached — the agent of a run that never started, or one being rebuilt right now.
-    const agents = [...this.cardAgents.values()]
-    this.cardAgents.clear()
-    await Promise.allSettled(agents.map(async (entry) => await entry.handle.dispose()))
   }
 
   /**
-   * The agent a card's run should hang from, with the card's permission mode applied.
+   * Publish the session one card run executes in, with the card's permission mode applied.
    *
-   * A card that names a workspace gets an agent rooted at that directory; a card that
-   * does not falls back to the session's agent, which is what every run used before
-   * workspaces existed. The sandbox derives its writable root from the session header,
-   * and a child inherits its parent's header, so this is the whole mechanism that fences
-   * a run — no `cwd` is passed and the seam stays untouched.
-   *
-   * An agent lives for exactly one run: the runner retires it when the run settles
-   * (archiving its session and releasing it), because an archived session cannot host a
-   * subagent descendant. Within one run the cache still matters: a workspace change
-   * rebuilds, and the same path and mode reuse the agent the current run started from.
+   * A card's run gets a session of its own rather than joining the conversation the user is
+   * having: the run is the card's work, and every card sharing one session would mix every
+   * card's traffic into one conversation. The session is rooted at the card's directory, and
+   * a child inherits its parent's session header — which is where the sandbox derives its
+   * writable root from — so this agent is the whole mechanism that fences the run; no `cwd`
+   * is passed and the seam stays untouched. See docs/workbench-workspace-fence-plan.md.
    *
    * The mode is applied once, here, at creation. A child inherits its parent's explicit
-   * override, so recording it on this agent is what makes the card's permission govern
-   * every run started from it, refinements and template-button runs included.
-   * @param cardId - the card whose agent is wanted.
-   * @param fallback - the session's agent, used when the card names no directory.
-   * @returns the agent to start the run from.
-   * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the new agent is
-   * disposed first, so a refused start leaves nothing running under no mode.
+   * override, so recording it on this agent is what makes the card's permission govern the
+   * run started from it.
+   * @param cardId - the card whose run is starting.
+   * @param cwd - the card's workspace directory, which roots the session.
+   * @param startedAt - the run's start, used to name the session.
+   * @returns the resolved session, or why it could not be published.
+   * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the agent is
+   * released first, so a refused start leaves nothing running under no mode.
    */
-  private async cardAgent(cardId: string, fallback: WorkbenchAgent): Promise<WorkbenchAgent> {
-    const selection = this.options.selection(cardId)
-    const path = selection.workspace?.path
-    // The route refuses a run without a valid workspace, so this is a guard for a state
-    // the user cannot reach rather than a policy.
-    if (path === undefined) return fallback
-    const mode = effectiveWorkbenchSandboxMode(selection.permission)
-    const existing = this.cardAgents.get(cardId)
-    if (existing !== undefined && existing.path === path && existing.mode === mode) return existing.handle.agent
-    if (existing !== undefined) {
-      // The root is fixed at creation, so a changed directory cannot be applied to the
-      // agent already holding it: keeping it would fence the run somewhere the user did
-      // not choose. A changed mode is rebuilt for its own reason: the mode is a session
-      // event with no setter this runner may call on a live agent, so the old session is
-      // released and the new mode starts on a new one.
-      this.cardAgents.delete(cardId)
-      try {
-        await existing.handle.dispose()
-      } catch (error) {
-        this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`)
-      }
-    }
-    const handle = await this.options.host.agents.create({
-      // Unique per creation, across restarts too: the same session id cannot be published
-      // twice, the counter restarts at zero every boot, and a card's workspace may change
-      // more than once — hence the per-process tag between the card and the counter.
-      sessionId: `workbench-card-${cardId}-${this.cardAgentBoot}-${this.cardAgentSeq++}`,
-      meta: { cwd: path },
-    })
+  private async openRunSession(cardId: string, cwd: string, startedAt: number): Promise<RunSessionOutcome> {
+    const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission)
+    const handle = await this.publishRunSession(cardId, cwd, startedAt)
     try {
       this.options.host.sandbox.setMode(handle.agent.id, mode)
     } catch (error) {
-      // The mode could not be recorded, so this agent must run nothing: it is disposed
-      // rather than cached, and the caller refuses the start. Falling back to the default
-      // mode here is the one thing this feature must not do — the card would execute with
-      // a permission the user did not choose and the page would still show the old one.
-      try {
-        await handle.dispose()
-      } catch (teardown) {
-        this.options.warn(`workbench card agent teardown failed: ${messageOf(teardown)}`)
-      }
+      // The mode could not be recorded, so this agent must run nothing. Falling back to the
+      // default mode here is the one thing this feature must not do — the card would execute
+      // with a permission the user did not choose and the page would still show the old one.
+      await this.releaseAgent(handle)
       throw error
     }
-    this.cardAgents.set(cardId, { path, mode, handle })
-    return handle.agent
+    return { status: 'resolved', session: this.ownedSession(handle.agent, handle) }
+  }
+
+  /**
+   * Re-attach the session a refinement continues.
+   *
+   * The session was archived when its own run settled, and the harness refuses a model step
+   * to an archived session or to a subagent descendant of one — so the run restores it,
+   * runs there, and archives it again when it settles. A live agent is used as it is; one
+   * that is gone is resumed from persistence, because `create` refuses an id that already
+   * exists durably and a fresh session would be a different conversation.
+   *
+   * A session that is not archived is left that way: it is on screen because someone is in
+   * it, and hiding a conversation the user has open is not this run's decision.
+   * @param sessionId - the session recorded on the result being refined.
+   * @returns the resolved session, or why it could not be restored.
+   */
+  private async attachRunSession(sessionId: string): Promise<RunSessionOutcome> {
+    let owned: WorkbenchAgentHandle | undefined
+    let agent = this.options.host.agents.get(sessionId)
+    if (agent === undefined) {
+      try {
+        owned = await this.options.host.agents.resume({ resumeSessionId: sessionId })
+      } catch (error) {
+        return reject('session-not-live', `session "${sessionId}" cannot be re-attached: ${messageOf(error)}`)
+      }
+      agent = owned.agent
+    }
+    const archived = this.options.host.workspaceRegistry.archivedSessionIds.includes(sessionId)
+    if (archived) {
+      try {
+        await this.options.host.workspaceRegistry.unarchiveSession(sessionId)
+      } catch (error) {
+        // Restoring is what lifts the archive gate, so a session that stays archived cannot
+        // host the revision: the start is refused rather than left to fail as a blocked child.
+        if (owned !== undefined) await this.releaseAgent(owned)
+        return reject('session-not-live', `session "${sessionId}" could not be restored for the run: ${messageOf(error)}`)
+      }
+    }
+    return { status: 'resolved', session: this.ownedSession(agent, owned, archived) }
+  }
+
+  /**
+   * Wrap one agent as the run's session, owning the archive and the release together.
+   *
+   * One wrapper for both cases because the promise is the same either way: whatever the run
+   * did, its session ends where it started — archived for a session this feature published,
+   * archived again for one it restored — and the agent is released. Settling never throws,
+   * because a captured result must not become a failure because teardown did; each step
+   * warns instead.
+   * @param agent - the run's live agent.
+   * @param handle - the disposer that releases it, when this run is the one that acquired
+   * it. Absent for an agent that was already live, which this run does not own.
+   * @param archive - whether this session is archived when the run settles.
+   * @returns the run's session.
+   */
+  private ownedSession(agent: WorkbenchAgent, handle: WorkbenchAgentHandle | undefined, archive = true): RunSession {
+    return {
+      id: agent.id,
+      agent,
+      settle: async () => {
+        if (archive) {
+          try {
+            await this.options.host.workspaceRegistry.archiveSession(agent.id)
+          } catch (error) {
+            this.options.warn(`workbench card session archive failed: ${messageOf(error)}`)
+          }
+        }
+        if (handle !== undefined) await this.releaseAgent(handle)
+      },
+    }
+  }
+
+  /**
+   * Publish one fresh session for a run.
+   *
+   * The id is the card and the run's start, which is readable in a session list and needs
+   * no random tag: a card runs once at a time, so the start is unique. A session id cannot
+   * be published twice, though — a durable store still holds the session an earlier app run
+   * created under the same millisecond — so a refused publication is retried once under the
+   * next stamp instead of failing a run the user started.
+   * @param cardId - the card whose run is starting.
+   * @param cwd - the card's workspace directory, which roots the session.
+   * @param startedAt - the run's start, used to name the session.
+   * @returns the created agent and its handle.
+   */
+  private async publishRunSession(cardId: string, cwd: string, startedAt: number): Promise<WorkbenchAgentHandle> {
+    const sessionId = this.nextSessionId(cardId, startedAt)
+    try {
+      return await this.options.host.agents.create({ sessionId, meta: { cwd } })
+    } catch (error) {
+      if (errorNameOf(error) !== SESSION_ALREADY_EXISTS) throw error
+      return await this.options.host.agents.create({ sessionId: this.nextSessionId(cardId, startedAt), meta: { cwd } })
+    }
+  }
+
+  /**
+   * Name one run's session.
+   *
+   * The stamp never goes backwards for a card, so two runs that start within the same
+   * millisecond — which a fixed clock in a spec produces — cannot ask for the same id.
+   * @param cardId - the card whose run is starting.
+   * @param startedAt - the run's start in milliseconds since the epoch.
+   * @returns the session id.
+   */
+  private nextSessionId(cardId: string, startedAt: number): string {
+    const stamp = Math.max(startedAt, (this.sessionStamps.get(cardId) ?? 0) + 1)
+    this.sessionStamps.set(cardId, stamp)
+    return `workbench-${cardId}-${String(stamp)}`
+  }
+
+  /**
+   * Release one agent, warning instead of throwing.
+   * @param handle - the agent to release.
+   * @returns resolution once the release was attempted.
+   */
+  private async releaseAgent(handle: WorkbenchAgentHandle): Promise<void> {
+    try {
+      await handle.dispose()
+    } catch (error) {
+      // Teardown failure must not replace a captured result, and a leaked agent is the
+      // lesser fault: the next run gets its own session either way.
+      this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`)
+    }
   }
 
   /**
@@ -815,10 +959,12 @@ await this.finish(run, outcome)
     } finally {
       if (run.timer !== undefined) clearTimeout(run.timer)
       this.active -= 1
-      // Retire the card's agent with the run: an archived session cannot host a child,
-      // so keeping a finished run's agent for reuse would make the next run start under
-      // the archive gate. A later run gets a fresh agent (and a fresh session) instead.
-      await this.retireCardAgent(run.cardId)
+      // The run's session is settled with the run, whatever phase it reached: archived, so
+      // it stays out of the session list, and its agent released. Archiving it here rather
+      // than keeping the agent alive is what keeps one card's run from holding a live
+      // session open forever; a refinement re-attaches through the archive, restoring the
+      // session for the length of the run and archiving it again.
+      await run.session.settle()
     }
   }
 
@@ -839,13 +985,13 @@ await this.finish(run, outcome)
     activate: WorkbenchActivationSeam,
   ): Promise<AttemptOutcome> {
     const signal = run.controller.signal
-    // The agent this run hangs from, already created with its permission mode applied. Its
-    // session header carries the card's directory, so the sandbox root follows it.
-    const parent = input.parent
+    // The agent of the session this run executes in, created with its permission mode
+    // applied: its session header carries the directory the card runs in, so the sandbox
+    // root follows it.
+    const parent = input.agent
     // The effective working directory must be the sandbox root, or relative paths resolve
-    // where the fence forbids writing. The card's agent carries that directory in its
-    // session header, so the parent decides and the request follows it; a card with no
-    // agent falls back to the session directory exactly as before.
+    // where the fence forbids writing. The session's agent carries that directory in its
+    // header, so the parent decides and the request follows it.
     const resolvedCwd = parent.session?.header?.cwd ?? cwd
     // Omitting `toolFilter` is how this run inherits the session's full tool permissions.
     // Naming a route is the card's own choice: with no model configured nothing is passed
@@ -856,10 +1002,10 @@ await this.finish(run, outcome)
       signal,
       delivery: 'caller',
       request: {
-        // The card's own agent when the card names a workspace, otherwise the session's.
-        // A child's session header is copied from its parent, and the sandbox derives its
-        // writable root from that header — so rooting the parent at the card's directory
-        // is what fences the run there. See docs/workbench-workspace-fence-plan.md.
+        // The session's own agent. A child's session header is copied from its parent, and
+        // the sandbox derives its writable root from that header — so rooting the parent at
+        // the card's directory is what fences the run there.
+        // See docs/workbench-workspace-fence-plan.md.
         parent,
         prompt: [{
           type: 'text',
@@ -885,11 +1031,13 @@ await this.finish(run, outcome)
       // A refine run settles exactly like a card run: it captured `{ html }`, so the
       // record is the same shape and the store, retry and failure paths are reused.
       // The run's own start is its identity: unique within the card, stable for its
-      // whole life, and already carried by the record the page polls.
+      // whole life, and already carried by the record the page polls. The session is the
+      // run's too, and it is what a later refinement continues.
       const runId = String(run.startedAt)
+      const sessionId = run.session.id
       const stored = input.kind === 'bare'
-        ? toBareRecord(input.skill, result, this.now(), input.model, runId)
-        : toResultRecord(input.skill, result, this.now(), input.model, runId)
+        ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId)
+        : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId)
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
       const record = result.stopReason === 'error'
@@ -979,34 +1127,6 @@ await this.finish(run, outcome)
   }
 
   /**
-   * Retire the agent one finished run hung from: archive its session, then release it.
-   *
-   * Creating a published agent also creates a session, and the sidebar lists sessions —
-   * so each finished run's session is archived to keep it out of the default list. The
-   * agent is released in the same step because an archived session cannot host a model
-   * step: the harness rejects a subagent descendant of one before its first step and
-   * reports that as `refusal`. The next run therefore builds a fresh agent — and a fresh
-   * session — instead of reusing this one.
-   * @param cardId - the card whose finished agent should be retired.
-   * @returns resolution once the session is archived and the agent released; neither
-   *   step may turn a captured result into a failure, so both only warn.
-   */
-  private async retireCardAgent(cardId: string): Promise<void> {
-    const entry = this.cardAgents.get(cardId)
-    if (entry === undefined) return
-    this.cardAgents.delete(cardId)
-    try {
-      await this.options.host.workspaceRegistry.archiveSession(entry.handle.agent.id)
-    } catch (error) {
-      this.options.warn(`workbench card session archive failed: ${messageOf(error)}`)
-    }
-    try {
-      await entry.handle.dispose()
-    } catch (error) {
-      this.options.warn(`workbench card agent teardown failed: ${messageOf(error)}`)
-    }
-  }
-  /**
    * Resolve the agent's effective working directory.
    *
    * The service is preferred when the deployment has it; otherwise the session
@@ -1065,7 +1185,7 @@ function lookupFor(
  * @param detail - readable reason.
  * @returns the rejected outcome.
  */
-function reject(code: WorkbenchSkillCardErrorCode, detail: string): WorkbenchRunStartOutcome {
+function reject(code: WorkbenchSkillCardErrorCode, detail: string): RejectedStart {
   return { status: 'rejected', code, detail }
 }
 
@@ -1095,6 +1215,7 @@ function toCatalogEntry(skill: {
  * @param executedAt - completion time.
  * @param model - the route the run was pinned to, when the card named one.
  * @param runId - the run identity, unique within the card.
+ * @param sessionId - the session the run executed in.
  * @returns the stored record.
  */
 function toResultRecord(
@@ -1103,10 +1224,12 @@ function toResultRecord(
   executedAt: number,
   model: WorkbenchCardModel | undefined,
   runId: string,
+  sessionId: string,
 ): WorkbenchResultRecord {
   const text = textOf(result.output)
   return {
     runId,
+    sessionId,
     skill,
     executedAt,
     stopReason: result.stopReason,
@@ -1123,12 +1246,14 @@ function toResultRecord(
  * Deliberately narrower than {@link toResultRecord}: a bare run answers only whether
  * it worked, so neither a structured value nor the output text is kept. Keeping them
  * would put a model's prose one field away from a surface that must show only the
- * verdict. The route is kept, because it is provenance rather than content.
+ * verdict. The route and the session are kept, because they are provenance rather than
+ * content.
  * @param skill - the skill that ran.
  * @param result - the child's terminal result.
  * @param executedAt - completion time.
  * @param model - the route the run was pinned to, when the card named one.
  * @param runId - the run identity, unique within the card.
+ * @param sessionId - the session the run executed in.
  * @returns the in-memory record.
  */
 function toBareRecord(
@@ -1137,9 +1262,11 @@ function toBareRecord(
   executedAt: number,
   model: WorkbenchCardModel | undefined,
   runId: string,
+  sessionId: string,
 ): WorkbenchResultRecord {
   return {
     runId,
+    sessionId,
     skill,
     executedAt,
     stopReason: result.stopReason,
@@ -1233,4 +1360,17 @@ function looksLikeContract(value: unknown): boolean {
  */
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Read one error's constructor name.
+ *
+ * Used instead of `instanceof` because the class that answers it lives in the session
+ * persistence package this plugin does not depend on; the name is what that class sets on
+ * itself, and it is the only stable signal available across that boundary.
+ * @param error - the failure.
+ * @returns the name, or an empty string for a value that is not an error.
+ */
+function errorNameOf(error: unknown): string {
+  return error instanceof Error ? error.name : ''
 }

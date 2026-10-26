@@ -35,11 +35,12 @@ export interface SkillCardFace {
     /** Transport. */
     readonly api: WorkbenchSkillCardApi;
     /**
-     * Read the session a run should hang off.
+     * Read the session the card reads the installed skills through.
      *
-     * A callback rather than a value: the read happens when the card asks, which is
-     * the freshest point and finds a session opened after the card rendered. The
-     * `useSessions` hook belongs to `ui-session`'s standard props, which this
+     * Not the session a run executes in: a run is given one of its own. This one supplies the
+     * agent scope a catalog read needs. A callback rather than a value: the read happens when
+     * the card asks, which is the freshest point and finds a session opened after the card
+     * rendered. The `useSessions` hook belongs to `ui-session`'s standard props, which this
      * package cannot type without depending on that plugin's client entry.
      * @returns the session id, or undefined when none qualifies.
      */

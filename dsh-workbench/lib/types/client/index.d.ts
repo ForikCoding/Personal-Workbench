@@ -38,7 +38,10 @@ export interface WorkbenchPanelFace {
         /** Configuration and run transport. */
         readonly api: WorkbenchSkillCardApi;
         /**
-         * Resolve the session a run hangs off.
+         * Resolve the session the card reads the installed skills through.
+         *
+         * Not the session a run executes in: a run is given one of its own. This one supplies
+         * the agent scope a catalog read needs, and the fallback model catalog.
          * @returns the session id, or undefined when none is available.
          */
         readonly runSessionId: () => string | undefined;
@@ -46,8 +49,8 @@ export interface WorkbenchPanelFace {
          * Resolve the session the application's own model picker is attached to.
          *
          * The card's model field reads this one, so the card offers the catalog the user is
-         * choosing from. A run session is resolved separately: it is the session the run hangs
-         * off, which is not always the session on screen.
+         * choosing from. The page's own session is resolved separately, and is not always the
+         * session on screen.
          * @returns the session id, or undefined while none is held.
          */
         readonly pickerSessionId: () => string | undefined;
