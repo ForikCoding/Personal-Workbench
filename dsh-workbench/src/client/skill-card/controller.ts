@@ -756,7 +756,13 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   )
   // The override wins over a settled run: the only ways it is set are an undo and a
   // refinement that failed, and both mean "show the result that run was replacing".
-  const result = resultOverride ?? run?.result ?? stored
+  //
+  // A named run that storage holds wins over the run in flight: the page was opened from
+  // one row of the history, and the live record belongs to a different row. Letting a
+  // running card's own result displace the record would show a run the user did not
+  // open — the reason the rows used to be locked while a run held the card.
+  const named = options.runId !== undefined && stored !== undefined
+  const result = resultOverride ?? (named ? stored : run?.result ?? stored)
   // The step back is stated as the pair the page reads, derived from the record it
   // restores, so what the control says and what it puts back cannot drift apart.
   const previous = useMemo<WorkbenchPreviousResult | undefined>(() => {

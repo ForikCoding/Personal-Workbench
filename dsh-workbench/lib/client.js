@@ -2710,7 +2710,8 @@ window.__ModuleLoader__.load({
 			const workspaceField = (0, react.useMemo)(() => resolveWorkspaceField(card?.workspace, workspaceStat), [card?.workspace, workspaceStat]);
 			const canChooseWorkspace = !pickerRefused && workspacePicker !== void 0 && workspacePicker.available();
 			const runUnavailable = (0, react.useMemo)(() => config.kind === "ready" && config.snapshot.capabilities?.startActivation === false && config.snapshot.capabilities.start === false ? { code: "run-unavailable" } : void 0, [config]);
-			const result = resultOverride ?? run?.result ?? stored;
+			const named = options.runId !== void 0 && stored !== void 0;
+			const result = resultOverride ?? (named ? stored : run?.result ?? stored);
 			const previous = (0, react.useMemo)(() => {
 				if (previousResult === void 0) return void 0;
 				const html = resultHtml(previousResult.structured);
@@ -6245,7 +6246,6 @@ window.__ModuleLoader__.load({
 			});
 			const running = view.run?.phase === "running";
 			const bareRunning = view.bareRun?.phase === "running";
-			const busy = running || bareRunning;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 				className: skill_card_module_default.pageView,
 				children: [
@@ -6319,7 +6319,6 @@ window.__ModuleLoader__.load({
 						"data-run-history-list": "",
 						children: view.runs.map((run) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunHistoryRow, {
 							run,
-							busy,
 							t,
 							onOpen: () => {
 								openCard(cardId, "result", run.runId);
@@ -6335,10 +6334,14 @@ window.__ModuleLoader__.load({
 		* The row is a button because the whole row is the way in; the summary is the first
 		* visible line of the run's region, so a row that failed and produced no text still
 		* reads as its outcome word. An edited run carries the marker after its time.
-		* @param props - the run, whether the card is busy, the translator, and the open action.
+		*
+		* Never disabled: a stored run is read-only, and the row of a run in flight opens that
+		* run's live view. The only row without a stored record is the in-flight one, and its
+		* live result page is exactly what a click should show.
+		* @param props - the run, the translator, and the open action.
 		* @returns the row.
 		*/
-		function RunHistoryRow({ run, busy, t, onOpen }) {
+		function RunHistoryRow({ run, t, onOpen }) {
 			const summary = resultSummary(resultHtml(run.structured) ?? "");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
 				className: skill_card_module_default.runHistoryItem,
@@ -6346,7 +6349,6 @@ window.__ModuleLoader__.load({
 					type: "button",
 					className: skill_card_module_default.runHistoryRow,
 					onClick: onOpen,
-					disabled: busy,
 					"data-run-history-row": "",
 					"data-run-outcome": run.stopReason,
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {

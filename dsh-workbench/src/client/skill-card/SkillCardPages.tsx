@@ -451,10 +451,9 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
   })
   const running = view.run?.phase === 'running'
   const bareRunning = view.bareRun?.phase === 'running'
-  // The list is this view's subject, so a run holds it the same way it holds the result
-  // page: the run control turns into its cancel, and the rows dim so the run in flight
-  // is the only thing the user is looking at. Opening a row is deferred until it settles.
-  const busy = running || bareRunning
+  // These two drive the header's Run/Cancel control only. The history rows stay open
+  // either way: a stored run is a read-only record, and the row of the run in flight is
+  // the way to watch it — refusing the click left the list looking like dead rows.
   return (
     <section className={css.pageView}>
       <header className={css.pageViewHead}>
@@ -523,7 +522,6 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
               <RunHistoryRow
                 key={run.runId}
                 run={run}
-                busy={busy}
                 t={t}
                 onOpen={() => { openCard(cardId, 'result', run.runId) }}
               />
@@ -540,17 +538,19 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
  * The row is a button because the whole row is the way in; the summary is the first
  * visible line of the run's region, so a row that failed and produced no text still
  * reads as its outcome word. An edited run carries the marker after its time.
- * @param props - the run, whether the card is busy, the translator, and the open action.
+ *
+ * Never disabled: a stored run is read-only, and the row of a run in flight opens that
+ * run's live view. The only row without a stored record is the in-flight one, and its
+ * live result page is exactly what a click should show.
+ * @param props - the run, the translator, and the open action.
  * @returns the row.
  */
 function RunHistoryRow({
   run,
-  busy,
   t,
   onOpen,
 }: {
   readonly run: WorkbenchResultRecord
-  readonly busy: boolean
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onOpen: () => void
 }): ReactNode {
@@ -561,7 +561,6 @@ function RunHistoryRow({
         type="button"
         className={css.runHistoryRow}
         onClick={onOpen}
-        disabled={busy}
         data-run-history-row=""
         data-run-outcome={run.stopReason}
       >

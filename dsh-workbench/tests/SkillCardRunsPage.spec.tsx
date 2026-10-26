@@ -288,8 +288,9 @@ describe('the run-history page', () => {
       expect(container.querySelector('[data-run-history-time]')?.textContent).toBe('2024-01-02 14:28')
       expect(container.querySelector('[data-run-history-outcome]')?.textContent).toBe(zh.runHistoryRunning)
       expect(container.querySelector('[data-run-history-summary]')).toBeNull()
-      // The run has no result to open yet, so its row is not a way in.
-      expect(container.querySelector<HTMLButtonElement>('[data-run-history-row]')?.disabled).toBe(true)
+      // The row is the way in to the run in flight: its live result page is what the
+      // click shows, so it is a live control from the first moment.
+      expect(container.querySelector<HTMLButtonElement>('[data-run-history-row]')?.disabled).toBe(false)
       expect(container.querySelector('[data-run-history-count]')?.textContent).toBe(t('runHistoryCount', { count: 1 }))
     })
   })
@@ -372,30 +373,31 @@ describe('the run-history page', () => {
     }, { timeout: 3_000 })
   })
 
-  it('keeps the rows while a run holds the card', async () => {
-    // A run in flight turns the run control into its cancel; the rows stay listed but
-    // dim, because opening the run a row names while another run is running has no
-    // meaning — the page's own content would be overwritten by the poll.
+  it('keeps every row open while a run holds the card', async () => {
+    // A run in flight turns the run control into its cancel, but the history stays a way
+    // in: a stored run is a read-only record, and the row of the run in flight opens that
+    // run's live view. Locking the rows left the list looking like dead text.
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
       startedAt: STARTED_AT,
       retried: false,
     }
+    const opened: { cardId: string; view: string; runId: string | undefined }[] = []
     const { container } = render(
       <SkillCardRunsPage
         {...props({
           api: pageApi({
-            results: [result()],
+            results: [result({ runId: 'run-old' })],
             start: async () => ({ status: 'ok', state: running }),
           }),
+          openCard: (cardId, view, runId) => { opened.push({ cardId, view, runId }) },
         })}
       />,
     )
     await loaded(container)
     expect([...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')][0]?.disabled).toBe(false)
-    // Start a run from the page's own control; it stays in flight, so nothing else on
-    // the card is reachable until it settles.
+    // Start a run from the page's own control; it stays in flight.
     await act(async () => {
       const run = [...container.querySelectorAll('button')]
         .find(button => button.textContent === zh.skillCardRun)
@@ -403,11 +405,24 @@ describe('the run-history page', () => {
       run.click()
     })
     await waitFor(() => {
-      const rows = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')]
-      expect(rows[0]?.disabled).toBe(true)
-    })
-    await waitFor(() => {
       expect([...container.querySelectorAll('button')].some(button => button.textContent === zh.skillCardCancel)).toBe(true)
     })
+    // The stored row is still a way in while the new run is in flight.
+    const rows = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')]
+    expect(rows.every(row => row.disabled === false)).toBe(true)
+    await act(async () => {
+      const stored = rows.find(row => row.getAttribute('data-run-outcome') === 'completed')
+      if (stored === undefined) throw new Error('the stored row did not render')
+      stored.click()
+    })
+    expect(opened).toEqual([{ cardId: 'skill-card', view: 'result', runId: 'run-old' }])
+    // And the row of the run in flight opens that run, which is the live view.
+    await act(async () => {
+      const live = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')]
+        .find(row => row.getAttribute('data-run-outcome') === 'running')
+      if (live === undefined) throw new Error('the running row did not render')
+      live.click()
+    })
+    expect(opened[1]).toEqual({ cardId: 'skill-card', view: 'result', runId: String(STARTED_AT) })
   })
 })
