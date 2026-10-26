@@ -109,4 +109,52 @@ describe('skill card body', () => {
     const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: RESULT })} t={t} />)
     expect(container.textContent).not.toContain('skillCardRunsWithPermission')
   })
+
+  it('keeps a record a history row opened as the subject while another run is in flight', () => {
+    // The card is busy with its own run, but the view names a settled record from the
+    // history: the record is what the page shows, and the run above is not it. Showing the
+    // run here is the exact defect "I opened a completed run but saw the running one".
+    const running = {
+      cardId: 'skill-card',
+      phase: 'running',
+      startedAt: 2,
+      retried: false,
+    } as const
+    const { container } = render(
+      <SkillCardBody
+        view={view({
+          template: TEMPLATE,
+          result: RESULT,
+          run: running,
+          runId: 'run-1',
+        })}
+        t={t}
+      />,
+    )
+    expect(shadowText(container)).toBe('Tasksv')
+    expect(container.querySelector('[data-run-stream]')).toBeNull()
+  })
+
+  it('still shows the run in flight when the row opened is that run', () => {
+    // Opening the running row by its own id is the way to watch it: no stored record exists
+    // yet, so the run is the subject and the notice is the view.
+    const startedAt = 2
+    const running = {
+      cardId: 'skill-card',
+      phase: 'running',
+      startedAt,
+      retried: false,
+    } as const
+    const { container } = render(
+      <SkillCardBody
+        view={view({
+          template: TEMPLATE,
+          run: running,
+          runId: String(startedAt),
+        })}
+        t={t}
+      />,
+    )
+    expect(container.querySelector('[data-run-stream]')).not.toBeNull()
+  })
 })

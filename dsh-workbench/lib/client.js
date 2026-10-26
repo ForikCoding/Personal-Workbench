@@ -3311,6 +3311,7 @@ window.__ModuleLoader__.load({
 					...card?.skill === void 0 ? {} : { skill: card.skill },
 					...card?.template === void 0 ? {} : { template: card.template },
 					...result === void 0 ? {} : { result },
+					...options.runId === void 0 ? {} : { runId: options.runId },
 					runs,
 					...run === void 0 ? {} : { run },
 					...run?.phase === "running" && refinement.current !== void 0 ? { refining: true } : {},
@@ -3344,6 +3345,7 @@ window.__ModuleLoader__.load({
 					canChooseWorkspace,
 					result,
 					runs,
+					options.runId,
 					catalog,
 					catalogStatus,
 					catalogFailure,
@@ -3992,7 +3994,8 @@ window.__ModuleLoader__.load({
 				title: t("skillCardNoTemplateTitle"),
 				body: t("skillCardNoTemplateBody")
 			});
-			if (view.run?.phase === "running" && view.refining !== true) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunningNotice, {
+			const subjectIsTheRun = view.run?.startedAt === void 0 || view.runId === void 0 || view.result === void 0 || view.result?.runId === String(view.run.startedAt);
+			if (view.run?.phase === "running" && view.refining !== true && subjectIsTheRun) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunningNotice, {
 				run: view.run,
 				t
 			});
@@ -6392,9 +6395,10 @@ window.__ModuleLoader__.load({
 				watchRun: true,
 				cardTitle
 			});
-			const running = view.run?.phase === "running";
+			const cardRunning = view.run?.phase === "running";
+			const running = cardRunning && (view.run?.startedAt === void 0 || view.runId === void 0 || view.result === void 0 || view.result?.runId === String(view.run.startedAt));
 			const bareRunning = view.bareRun?.phase === "running";
-			const busy = running || bareRunning;
+			const busy = cardRunning || bareRunning;
 			const refining = view.refining === true;
 			const refinable = resultHtml(view.result?.structured) !== void 0;
 			const [editing, setEditing] = (0, react.useState)(false);
@@ -6431,9 +6435,9 @@ window.__ModuleLoader__.load({
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 								variant: "primary",
 								size: "sm",
-								disabled: bareRunning || editing || !running && !view.runnable,
-								onClick: running ? actions.cancel : actions.run,
-								children: running ? t("skillCardCancel") : t("skillCardRun")
+								disabled: bareRunning || editing || !cardRunning && !view.runnable,
+								onClick: cardRunning ? actions.cancel : actions.run,
+								children: cardRunning ? t("skillCardCancel") : t("skillCardRun")
 							})
 						]
 					}),
@@ -6505,7 +6509,7 @@ window.__ModuleLoader__.load({
 						onConfirm: actions.confirmAction,
 						onCancel: actions.cancelAction
 					}),
-					busy ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunTrace, {
+					running ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunTrace, {
 						view,
 						t
 					}),

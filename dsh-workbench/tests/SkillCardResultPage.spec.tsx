@@ -88,6 +88,8 @@ function pageApi(options: {
   workspace?: { readonly path: string }
   /** What the directory check answers; defaults to "a directory is there". */
   directory?: WorkbenchDirectoryStat
+  /** A run in flight on this card, which the page's poll adopts. */
+  running?: WorkbenchRunState
 } = {}): WorkbenchSkillCardApi {
   const workspace = options.workspace === undefined ? undefined : options.workspace
   return {
@@ -109,8 +111,11 @@ function pageApi(options: {
     }),
     write: async () => ({ status: 'failed', reason: 'no write is issued here' }),
     catalog: async () => ({ status: 'ok', entries: [] }),
-    // The mount-time adoption read: nothing is in flight for another card's button.
-    poll: async () => ({ status: 'missing' }),
+    // The mount-time adoption read: nothing is in flight for another card's button,
+    // unless the case scripts a run in flight, which the page adopts and keeps polling.
+    poll: options.running === undefined
+      ? async () => ({ status: 'missing' })
+      : async () => ({ status: 'ok', state: options.running as WorkbenchRunState }),
     // Nothing here starts a run: this page is under test for what it shows of a result
     // that already exists.
     start: async () => ({ status: 'unavailable', reason: 'no run is started here' }),
@@ -152,6 +157,18 @@ async function loaded(container: HTMLElement): Promise<void> {
   await waitFor(() => { expect(container.textContent).toContain('git-repo') })
 }
 
+/**
+ * Read what one body rendered into a shadow root.
+ * @param container - the render container.
+ * @returns the shadow root's text, or undefined when no shadow host rendered.
+ */
+function shadowText(container: HTMLElement): string | undefined {
+  for (const element of container.querySelectorAll('div')) {
+    if (element.shadowRoot !== null) return element.shadowRoot.textContent ?? ''
+  }
+  return undefined
+}
+
 describe('the result page', () => {
   it('shows the run’s trace beneath the result, with the model’s words and the calls', async () => {
     // The card's output after a run is what the run did: the trace, visible rather than
@@ -182,6 +199,39 @@ describe('the result page', () => {
     expect([...container.querySelectorAll('[data-run-trace] [data-activity-kind]')]
       .map(row => row.getAttribute('data-activity-tool')))
       .toEqual([null, 'pwsh', 'read'])
+  })
+
+  it('shows the record a history row opened while another run is in flight', async () => {
+    // The card runs its own run; the page was opened onto a settled row. The record is the
+    // page's subject — its body and its settled trace, not the live stream the card is busy
+    // with. This pins the defect "I opened a completed run but saw the running one".
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({
+            result: result({
+              activity: [{ kind: 'tool', tool: 'pwsh', argument: 'Probe' }],
+            }),
+            running: {
+              cardId: 'skill-card',
+              phase: 'running',
+              startedAt: STARTED_AT + 1000,
+              retried: false,
+            },
+          }),
+          runId: 'run-1',
+        })}
+      />,
+    )
+    await loaded(container)
+    // The body is the record the row opened, not the run in flight.
+    expect(container.querySelector('[data-run-stream]')).toBeNull()
+    expect(shadowText(container)).toContain('要点')
+    // The record keeps its own settled trace while the card is busy with a different run.
+    expect(container.querySelector('[data-run-trace]')).not.toBeNull()
+    expect(container.querySelector('[data-run-trace]')?.textContent).toContain(zh.runActivityCompleted)
+    // The page is not busy with the run it does not show.
+    expect(container.querySelector('[data-result-busy]')?.getAttribute('data-result-busy')).toBe('false')
   })
 
   it('draws no trace section for a run that recorded none', async () => {

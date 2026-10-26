@@ -610,12 +610,25 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
     watchRun: true,
     cardTitle,
   })
-  const running = view.run?.phase === 'running'
+  // Any of this card's runs in flight. The header's run control keys on it — pressing the
+  // button while one is running must cancel that run, whatever record the page shows.
+  const cardRunning = view.run?.phase === 'running'
+  // The run in flight is the page's subject only when the page was not opened for a record
+  // that names a different run: the card above can be running its own run while a history
+  // row the user opened shows that row's settled record. The record is the page then, and
+  // the run the card is busy with is not it — this is the same rule {@link cardContent}
+  // draws, so the busy states and the body cannot disagree.
+  const running = cardRunning
+    && (view.run?.startedAt === undefined
+      || view.runId === undefined
+      || view.result === undefined
+      || view.result?.runId === String(view.run.startedAt))
   const bareRunning = view.bareRun?.phase === 'running'
-  // Any run holding the card: a fresh run, a refinement of the result, or a bare run.
-  // While one does, the page belongs to that run — the settled record of the previous one
-  // is not its subject.
-  const busy = running || bareRunning
+  // Any run holding the card: the composer and the hand-edit stay off while one is,
+  // because a revision or edit would race the run the user is watching. A settled record
+  // opened from the history alongside the run is a read-only view of its own, which is
+  // what the subject-aware `running` above separates from this.
+  const busy = cardRunning || bareRunning
   // A refinement is a run that revises what is on screen. Its composer stays: it is the row
   // the instruction was just sent from, and it carries that run's stop control.
   const refining = view.refining === true
@@ -659,10 +672,10 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         <Button
           variant="primary"
           size="sm"
-          disabled={bareRunning || editing || (!running && !view.runnable)}
-          onClick={running ? actions.cancel : actions.run}
+          disabled={bareRunning || editing || (!cardRunning && !view.runnable)}
+          onClick={cardRunning ? actions.cancel : actions.run}
         >
-          {running ? t('skillCardCancel') : t('skillCardRun')}
+          {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
         </Button>
       </header>
       {/* A disabled run control with no sentence beside it is the same defect the catalog
@@ -770,10 +783,12 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             onCancel={actions.cancelAction}
           />
         )}
-      {/* The settled trace of the previous run belongs to that run. While a run holds the
-          card the live stream above is the subject, and a 「已完成」 header under it would
-          label a record nobody is reading. */}
-      {busy ? null : <RunTrace view={view} t={t} />}
+      {/* The settled trace belongs to the record the page shows. While the run in flight
+          is the page's subject the live stream above is it, and a 「已完成」 header under it
+          would label a record nobody is reading; a record a history row opened has its own
+          trace, and hiding it because the card is busy with a different run would repeat
+          the defect this page just fixed for the body. */}
+      {running ? null : <RunTrace view={view} t={t} />}
       {/* What this card's runs may write, stated beneath everything because it is not the
           content and still has to be readable before pressing Run. The skill it executes is
           disk content, so the mode is the sentence that says how far that can reach — and a

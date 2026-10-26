@@ -187,10 +187,20 @@ function cardContent(
   // that result with a progress notice hides the very thing being revised. The surface
   // stays, marked busy, and is swapped when the new version arrives.
   //
+  // So is a page opened from the history onto a record that is not the run in flight:
+  // the card above is busy with its own run, but the record a row opened is what that
+  // page shows. The notice is the run in flight, and the run in flight is the subject
+  // only when no record was named — or when the row named is the running row itself,
+  // which has no stored record yet, so the live run is all there is until it settles.
+  //
   // The notice carries the run's own activity stream — the tool calls the child has made
   // so far — and falls back to this card's previous sentence when there is nothing to list
   // yet. See {@link RunningNotice}.
-  if (view.run?.phase === 'running' && view.refining !== true) {
+  const subjectIsTheRun = view.run?.startedAt === undefined
+    || view.runId === undefined
+    || view.result === undefined
+    || view.result?.runId === String(view.run.startedAt)
+  if (view.run?.phase === 'running' && view.refining !== true && subjectIsTheRun) {
     return <RunningNotice run={view.run} t={t} />
   }
   if (view.result === undefined) {

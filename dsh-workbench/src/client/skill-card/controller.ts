@@ -188,6 +188,15 @@ export interface WorkbenchCardView {
   /** Most recent result: the live run's, or the stored one. */
   readonly result?: WorkbenchResultRecord
   /**
+   * The run this view was opened for, when the result page came from the history.
+   *
+   * Absent for the latest-result view and for the grid, where the run in flight is always
+   * the subject. Present it names {@link result} directly, so a run running on the card in
+   * parallel is a different run — the card stays busy on its own control, but the record
+   * a row opened is what the page shows.
+   */
+  readonly runId?: string
+  /**
    * Every completed run this card has, newest first.
    *
    * The run-history page lists these; a row opens the run detail by its
@@ -1311,6 +1320,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     ...card?.skill === undefined ? {} : { skill: card.skill },
     ...card?.template === undefined ? {} : { template: card.template },
     ...result === undefined ? {} : { result },
+    // The run a history row opened, when it did. The result page reads this to tell "a
+    // record is the subject" from "the run in flight is the subject" — the case where the
+    // card is busy but the page must still show the record.
+    ...options.runId === undefined ? {} : { runId: options.runId },
     // The history is always present, so a card that never ran still lists zero runs.
     runs,
     ...run === undefined ? {} : { run },
@@ -1365,6 +1378,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     canChooseWorkspace,
     result,
     runs,
+    options.runId,
     catalog,
     catalogStatus,
     catalogFailure,
