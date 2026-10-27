@@ -389,7 +389,8 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(panelFields()).toHaveLength(3) })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
-    expect(recorded.starts[0]?.sessionId).toBeUndefined()
+    expect(recorded.starts[0]?.scopeSessionId).toBeUndefined()
+    expect(recorded.starts[0]).not.toHaveProperty('sessionId')
   })
 
   it('refuses a payload it cannot read, before any panel', async () => {
@@ -546,7 +547,7 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'clicker',
-      sessionId: 'session-1',
+      scopeSessionId: 'session-1',
       mode: { kind: 'card' },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     })
@@ -566,7 +567,7 @@ describe('a confirmed card target', () => {
     await waitFor(() => { expect(recorded.steps).toEqual(['start:target-card', 'open:target-card']) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'target-card',
-      sessionId: 'session-1',
+      scopeSessionId: 'session-1',
       mode: { kind: 'card' },
       // The row the user confirmed travels with the run.
       payload: ROW,

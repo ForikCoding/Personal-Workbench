@@ -62,7 +62,7 @@ describe('starting a card run', () => {
       mode: { kind: 'card' },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     }])
-    expect(recording.requests[0]).not.toHaveProperty('sessionId')
+    expect(recording.requests[0]).not.toHaveProperty('scopeSessionId')
     expect(outcome.status).toBe('ok')
   })
 
@@ -76,7 +76,7 @@ describe('starting a card run', () => {
     const outcome = await startCardRun(transport, 'other-card', 'session-1')
     expect(recording.requests).toEqual([{
       cardId: 'other-card',
-      sessionId: 'session-1',
+      scopeSessionId: 'session-1',
       mode: { kind: 'card' },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     }])
@@ -125,10 +125,11 @@ describe('starting a refine run', () => {
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    const outcome = await startCardRefine(transport, 'skill-card', 'session-run-7', '按时间倒序', '<b>旧</b>')
+    const outcome = await startCardRefine(transport, 'skill-card', 'session-run-7', 'session-1', '按时间倒序', '<b>旧</b>')
     expect(recording.requests).toEqual([{
       cardId: 'skill-card',
       sessionId: 'session-run-7',
+      scopeSessionId: 'session-1',
       mode: { kind: 'refine', instruction: '按时间倒序', previous: '<b>旧</b>' },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     }])
@@ -142,8 +143,9 @@ describe('starting a refine run', () => {
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    await startCardRefine(transport, 'skill-card', undefined, 'i', 'p')
+    await startCardRefine(transport, 'skill-card', undefined, undefined, 'i', 'p')
     expect(recording.requests[0]).not.toHaveProperty('sessionId')
+    expect(recording.requests[0]).not.toHaveProperty('scopeSessionId')
   })
 
   it('passes a refusal through as it stands', async () => {
@@ -152,7 +154,7 @@ describe('starting a refine run', () => {
       code: 'run-in-progress',
       message: 'another run is already in flight',
     }))
-    await expect(startCardRefine(transport, 'skill-card', 'session-run-7', 'i', 'p')).resolves.toEqual({
+    await expect(startCardRefine(transport, 'skill-card', 'session-run-7', 'session-1', 'i', 'p')).resolves.toEqual({
       status: 'rejected',
       code: 'run-in-progress',
       message: 'another run is already in flight',

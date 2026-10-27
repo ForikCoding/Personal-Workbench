@@ -589,17 +589,16 @@ export class WorkbenchSkillCardRunner {
     }
     const agent = session.agent
     // The agent whose scope resolves the skill definition, resolved now that the run's
-    // own session exists. The run executes in its own fresh session — that agent stays
-    // the child's parent — but a custom skill was registered in the session the card was
-    // configured against, and only that session's scope chain resolves it, so a card or
-    // bare run that names that session looks the skill up through its agent. A refinement
-    // executes in the session it continues, whose agent carries the skill, so no separate
-    // scope is needed and the run's own agent answers. Only a live agent can be a scope:
-    // a name with no live agent — or no name at all — resolves through the run's own
-    // agent, whose chain carries only the global and project layers.
-    const scope = refineSessionId !== undefined
+    // own session exists. The run executes elsewhere — in its own fresh session, or in
+    // the session a refinement continues — and neither answers for the skill: a custom
+    // skill was registered in the session the card was configured against, and only that
+    // session's scope chain resolves it. The client names that live session, and only a
+    // live agent can be a scope: a name with no live agent — or no name at all —
+    // resolves through the run's own agent, whose chain carries only the global and
+    // project layers.
+    const scope = request.scopeSessionId === undefined
       ? undefined
-      : request.sessionId === undefined ? undefined : this.options.host.agents.get(request.sessionId)
+      : this.options.host.agents.get(request.scopeSessionId)
 
     const run: RunRecord = {
       cardId: request.cardId,

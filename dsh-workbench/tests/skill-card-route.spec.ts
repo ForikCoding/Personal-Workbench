@@ -460,9 +460,9 @@ function at(path: string, method = 'GET', body?: unknown): FakeRequest {
 /**
  * A run body that passes every precondition.
  *
- * No `sessionId` by default: a refinement names the session it continues, and a card or
- * bare run may name one whose scope resolves its skill definition — both kinds stay
- * optional, and the cases that need one add it.
+ * No `sessionId` by default: a refinement names the session it continues, and a run of
+ * any kind may name `scopeSessionId` for the session whose scope resolves its skill
+ * definition. Both stay optional, and the cases that need one add it.
  * @param overrides - fields the case varies.
  * @returns the body.
  */
@@ -567,7 +567,7 @@ describe('workbench skill card run route', () => {
     // scope the skill definition is resolved through, which is what makes a custom
     // skill registered in that session available to the fresh run.
     const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
-    const response = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: AGENT.id })))
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({ scopeSessionId: AGENT.id })))
     expect(response.statusCode).toBe(202)
     expect(fake.lookups[0]?.scope).toBe(AGENT)
     expect(fake.createdAgents).toHaveLength(1)
@@ -686,6 +686,12 @@ describe('workbench skill card run route', () => {
 
     const wrongType = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: 7 })))
     expect(JSON.parse(wrongType.body).error.message).toBe('sessionId must be a non-empty string when present')
+
+    const emptyScope = await run(handle, at(RUN_PATH, 'POST', runBody({ scopeSessionId: '' })))
+    expect(JSON.parse(emptyScope.body).error.message).toBe('scopeSessionId must be a non-empty string when present')
+
+    const wrongScopeType = await run(handle, at(RUN_PATH, 'POST', runBody({ scopeSessionId: 7 })))
+    expect(JSON.parse(wrongScopeType.body).error.message).toBe('scopeSessionId must be a non-empty string when present')
 
     const empty = await run(handle, at(RUN_PATH, 'POST'))
     expect(empty.statusCode).toBe(400)

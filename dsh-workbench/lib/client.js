@@ -2396,23 +2396,23 @@ window.__ModuleLoader__.load({
 		* checks whether the card is free — the Host refuses a concurrent run and its refusal
 		* is reported as it stands, which is the documented way this race is handled.
 		*
-		* The session, when the caller has one, is named only so the Host resolves the skill
-		* definition through the right scope: a custom skill was registered against the session
-		* the card was configured in, and a fresh run session does not carry it. The run itself
-		* still executes in a fresh session the Host creates, so it never joins — or leaves its
-		* traffic in — the conversation the user is having.
+		* The session, when the caller has one, is named only as the skill definition's scope: a
+		* custom skill was registered against the session the card was configured in, and a fresh
+		* run session does not carry it. The run itself still executes in a fresh session the Host
+		* creates, so it never joins — or leaves its traffic in — the conversation the user is
+		* having.
 		* @param api - transport. Taken here rather than bound to a controller, so this works
 		* for a card that is nowhere on screen.
 		* @param cardId - the card to run.
-		* @param sessionId - the session whose scope resolves the skill definition; undefined
+		* @param scopeSessionId - the session whose scope resolves the skill definition; undefined
 		* resolves through the run's own fresh agent (the global and project layers).
 		* @param payload - the clicked row's raw fields; omitted for a run no row triggered.
 		* @returns the accepted run state, or the Host's own refusal.
 		*/
-		async function startCardRun(api, cardId, sessionId, payload) {
+		async function startCardRun(api, cardId, scopeSessionId, payload) {
 			return await api.start({
 				cardId,
-				...sessionId === void 0 ? {} : { sessionId },
+				...scopeSessionId === void 0 ? {} : { scopeSessionId },
 				mode: { kind: "card" },
 				...payload === void 0 ? {} : { payload },
 				outputSchema: WORKBENCH_OUTPUT_SCHEMA
@@ -2423,24 +2423,27 @@ window.__ModuleLoader__.load({
 		*
 		* The same shape as {@link startCardRun} with the refine mode in place of the card
 		* mode, plus the one session the Host does need named: the session the revised result was
-		* produced in. Unlike a plain card run — whose named session is only the skill
-		* definition's scope — a refinement both executes in and resolves its skill through that
-		* session, so it is neither the session the user is in now nor a new one. The template and
-		* the contract are not the client's to state, and the previous HTML travels verbatim so
-		* the child revises the pixels the user is looking at. Both request shapes live here so
-		* the mode union is constructed in one module.
+		* produced in, which the run executes in and continues. Unlike execution, the skill
+		* definition is not resolved there — a custom skill was registered against the user's
+		* live session, so that session is named separately as {@link scopeSessionId}, exactly as
+		* a card run names it. The template and the contract are not the client's to state, and
+		* the previous HTML travels verbatim so the child revises the pixels the user is looking
+		* at. Both request shapes live here so the mode union is constructed in one module.
 		* @param api - transport.
 		* @param cardId - the card whose result is being revised.
 		* @param sessionId - the session recorded on the result being revised; undefined when the
 		* record carries none, which the Host refuses rather than running somewhere else.
+		* @param scopeSessionId - the session whose scope resolves the skill definition; absent
+		* resolves through the run's own agent.
 		* @param instruction - what to change, as the user wrote it.
 		* @param previous - the region HTML the revision starts from.
 		* @returns the accepted run state, or the Host's own refusal.
 		*/
-		async function startCardRefine(api, cardId, sessionId, instruction, previous) {
+		async function startCardRefine(api, cardId, sessionId, scopeSessionId, instruction, previous) {
 			return await api.start({
 				cardId,
 				...sessionId === void 0 ? {} : { sessionId },
+				...scopeSessionId === void 0 ? {} : { scopeSessionId },
 				mode: {
 					kind: "refine",
 					instruction,
@@ -2845,7 +2848,7 @@ window.__ModuleLoader__.load({
 					prior: result,
 					priorHtml
 				};
-				startCardRefine(api, cardId, refineSession, text, priorHtml).then((outcome) => {
+				startCardRefine(api, cardId, refineSession, session(), text, priorHtml).then((outcome) => {
 					if (outcome.status !== "ok") {
 						refinement.current = void 0;
 						setRefineProblem(refineStartProblem(outcome));
@@ -2861,6 +2864,7 @@ window.__ModuleLoader__.load({
 				cardId,
 				result,
 				run?.phase,
+				session,
 				settleRefinement,
 				workspaceField
 			]);

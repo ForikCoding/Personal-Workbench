@@ -72,7 +72,9 @@ function setup(options: FakeHostOptions & {
  * A refine run request.
  *
  * The session is the one the revised result was produced in: a refinement continues that
- * conversation, so it is the only mode that names a session at all.
+ * conversation, so it is the only mode that names an execution session. The skill
+ * definition is not resolved there — a custom skill lives in the user's live session — so
+ * a scope is named separately, exactly as a card run does.
  * @param overrides - fields the case varies.
  * @returns the request.
  */
@@ -186,9 +188,19 @@ describe('a refine run', () => {
     // The child hangs from the refined run's session, which is what puts it in that
     // conversation and keeps the sandbox rooted where that run happened.
     expect(fake.activations[0]?.request.parent?.id).toBe(REFINED_SESSION)
-    // The skill definition resolves through that same session: a refinement both
-    // executes in and reads its skill through the session it continues.
-    expect(fake.lookups[0]?.scope?.id).toBe(REFINED_SESSION)
+  })
+
+  it('resolves the refined document’s skill through the named live scope, not the session it continues', async () => {
+    // The bug this pins: a refine executed in the session the result was produced in —
+    // since 2.0.46 that is a Host-created fresh run session, which never carried the
+    // custom skill — so its skill lookup fell back to that agent and refused the run as
+    // "not available to this session". Execution still continues the recorded session,
+    // but the definition resolves through the user's live session, exactly as a card run.
+    const { runner, fake } = setup()
+    expect(await runner.start(refine({ scopeSessionId: AGENT.id }))).toMatchObject({ status: 'started' })
+    await settle(runner)
+    expect(fake.activations[0]?.request.parent?.id).toBe(REFINED_SESSION)
+    expect(fake.lookups[0]?.scope?.id).toBe(AGENT.id)
   })
 
   it('uses a session that is still live instead of re-attaching it, and leaves it on screen', async () => {
@@ -196,7 +208,7 @@ describe('a refine run', () => {
     // second write ownership of the same log, which the store refuses. And because it is on
     // screen rather than archived, the run neither restores nor hides it.
     const { runner, fake } = setup()
-    expect(await runner.start(refine({ sessionId: AGENT.id }))).toMatchObject({ status: 'started' })
+    expect(await runner.start(refine({ sessionId: AGENT.id, scopeSessionId: AGENT.id }))).toMatchObject({ status: 'started' })
     await settle(runner)
     expect(fake.resumedSessions).toEqual([])
     expect(fake.createdAgents).toEqual([])

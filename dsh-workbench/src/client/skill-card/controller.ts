@@ -839,9 +839,11 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     if (text === '') return
     if (run?.phase === 'running') return
     // A refinement continues the session the revised result was produced in, so that is the
-    // one session the Host needs named. A record stored before the workbench kept one per
-    // run carries none, and refusing here is the honest answer: neither the session the user
-    // is in now nor a new one is the conversation that wrote this document.
+    // session the run executes in. A record stored before the workbench kept one per run
+    // carries none, and refusing here is the honest answer: neither the session the user is
+    // in now nor a new one is the conversation that wrote this document. The skill
+    // definition is not resolved there, though: a custom skill lives in the user's live
+    // session, so that session is named separately as the scope, exactly as a card run does.
     const refineSession = result?.sessionId
     if (refineSession === undefined) {
       setRefineProblem({ code: 'session-not-live', detail: '' })
@@ -879,7 +881,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // state the page would fall back to "not run" with the very result being revised gone.
     setResultOverride(result)
     refinement.current = { instruction: text, prior: result, priorHtml }
-    void startCardRefine(api, cardId, refineSession, text, priorHtml).then((outcome) => {
+    void startCardRefine(api, cardId, refineSession, session(), text, priorHtml).then((outcome) => {
       if (outcome.status !== 'ok') {
         // A refused start never became a run, so nothing was replaced: the refusal is
         // reported under the composer and the result stays as it was.
@@ -892,7 +894,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       settleRefinement(outcome.state)
       setRun(outcome.state)
     })
-  }, [api, card?.skill, card?.template, cardId, result, run?.phase, settleRefinement, workspaceField])
+  }, [api, card?.skill, card?.template, cardId, result, run?.phase, session, settleRefinement, workspaceField])
 
   const undoRefine = useCallback(() => {
     const kept = previousResult

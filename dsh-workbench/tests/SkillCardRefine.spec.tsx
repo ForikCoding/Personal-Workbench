@@ -240,6 +240,10 @@ describe('refining a result', () => {
       // The session recorded on the result being refined: a revision continues that
       // conversation, not the one the user happens to be in.
       sessionId: REFINE_SESSION,
+      // The skill definition resolves through the user's live session, not the session
+      // being continued — the latter is a Host-created run session that never carried the
+      // custom skill.
+      scopeSessionId: 'session-1',
       // The template comes from the card's stored selection, so it is not in the request;
       // the previous HTML travels verbatim, and so does the instruction.
       mode: { kind: 'refine', instruction: '按时间倒序', previous: FIRST_HTML },

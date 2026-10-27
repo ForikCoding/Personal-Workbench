@@ -784,6 +784,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   const body = value as {
     cardId?: unknown
     sessionId?: unknown
+    scopeSessionId?: unknown
     mode?: unknown
     payload?: unknown
     outputSchema?: unknown
@@ -798,6 +799,13 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   const sessionId = body.sessionId
   if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length === 0)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'sessionId must be a non-empty string when present')
+  }
+  // The session whose scope resolves the skill definition, named by the client when it has
+  // one. Optional and non-empty, exactly like `sessionId`: what changes is only what the
+  // runner does with it, never the shape.
+  const scopeSessionId = body.scopeSessionId
+  if (scopeSessionId !== undefined && (typeof scopeSessionId !== 'string' || scopeSessionId.length === 0)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'scopeSessionId must be a non-empty string when present')
   }
   // The row is only checked for shape. Its byte budget belongs to the button attribute
   // that produced it: this value is re-serialized on the way here, so counting bytes
@@ -815,6 +823,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   return {
     cardId: body.cardId,
     ...sessionId === undefined ? {} : { sessionId },
+    ...scopeSessionId === undefined ? {} : { scopeSessionId },
     mode: parseRunMode(body.mode),
     ...payload === undefined ? {} : { payload },
     ...body.outputSchema === undefined ? {} : { outputSchema: body.outputSchema },

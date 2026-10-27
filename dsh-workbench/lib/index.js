@@ -1560,7 +1560,7 @@ var WorkbenchSkillCardRunner = class {
 			return reject("run-in-progress", "another run is already in flight");
 		}
 		const agent = session.agent;
-		const scope = refineSessionId !== void 0 ? void 0 : request.sessionId === void 0 ? void 0 : this.options.host.agents.get(request.sessionId);
+		const scope = request.scopeSessionId === void 0 ? void 0 : this.options.host.agents.get(request.scopeSessionId);
 		const run = {
 			cardId: request.cardId,
 			startedAt,
@@ -2721,6 +2721,8 @@ function parseRunRequest(value) {
 	if (typeof body.cardId !== "string" || !isWorkbenchCardId(body.cardId)) throw new SkillCardRequestError(400, "invalid-request", "cardId must be a namespaced card id");
 	const sessionId = body.sessionId;
 	if (sessionId !== void 0 && (typeof sessionId !== "string" || sessionId.length === 0)) throw new SkillCardRequestError(400, "invalid-request", "sessionId must be a non-empty string when present");
+	const scopeSessionId = body.scopeSessionId;
+	if (scopeSessionId !== void 0 && (typeof scopeSessionId !== "string" || scopeSessionId.length === 0)) throw new SkillCardRequestError(400, "invalid-request", "scopeSessionId must be a non-empty string when present");
 	let payload;
 	if (body.payload !== void 0) {
 		if (typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload)) throw new SkillCardRequestError(400, "invalid-request", "payload must be an object");
@@ -2729,6 +2731,7 @@ function parseRunRequest(value) {
 	return {
 		cardId: body.cardId,
 		...sessionId === void 0 ? {} : { sessionId },
+		...scopeSessionId === void 0 ? {} : { scopeSessionId },
 		mode: parseRunMode(body.mode),
 		...payload === void 0 ? {} : { payload },
 		...body.outputSchema === void 0 ? {} : { outputSchema: body.outputSchema }

@@ -46,8 +46,8 @@ function setup(options: FakeHostOptions & {
 /**
  * A run request that passes every precondition.
  *
- * No session by default: a card run names one only when the caller has a session whose
- * scope resolves the skill definition, and a refinement carries the session it continues.
+ * No session by default: a run names the live session's scope only when the caller has
+ * one, and a refinement additionally carries the session it continues.
  * @param overrides - fields the case varies.
  * @returns the request.
  */
@@ -273,12 +273,12 @@ describe('workbench skill card runner', () => {
       expect(fake.activations).toEqual([])
     })
 
-    it('gives a card run a session of its own even when the request names one', async () => {
+    it('gives a card run a session of its own even when the request names the scope', async () => {
       // The whole point of the change: 运行 must not run in the conversation the user is
-      // having. A request that still names that session is answered with a fresh one rather
-      // than joined, so a client one version behind cannot bring the old behaviour back.
+      // having. The client names the live session only as the skill's scope, and that
+      // naming is answered with a fresh execution session rather than a join.
       const { runner, fake, saved } = setup()
-      const outcome = await runner.start(request({ sessionId: AGENT.id }))
+      const outcome = await runner.start(request({ scopeSessionId: AGENT.id }))
       expect(outcome.status).toBe('started')
       await settle(runner)
       expect(fake.createdAgents).toHaveLength(1)
@@ -294,7 +294,7 @@ describe('workbench skill card runner', () => {
       // executes must therefore be resolved through the named session's scope while the
       // run itself still executes — and still archives — under its own fresh session.
       const { runner, fake } = setup()
-      await runner.start(request({ sessionId: AGENT.id }))
+      await runner.start(request({ scopeSessionId: AGENT.id }))
       await settle(runner)
       expect(fake.lookups[0]?.scope).toBe(AGENT)
       expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
