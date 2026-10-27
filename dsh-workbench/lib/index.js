@@ -1365,15 +1365,6 @@ function escapeText(value) {
 */
 const SUBAGENT_SEAM_DETAIL = "this harness provides neither subagents.startActivation (0.2.1-alpha.2, the beta channel) nor the one-shot subagents.start (0.2.0-rc.2, the stable channel), so a card run cannot start";
 /**
-* Why a refinement with no session cannot start.
-*
-* A refinement continues the session that produced the document it revises. A result
-* stored before the workbench kept a session per run carries none, and neither the
-* current session nor a new one is the conversation that wrote it, so the run is refused
-* rather than started somewhere the result did not come from.
-*/
-const REFINE_SESSION_MISSING_DETAIL = "the run being refined recorded no session, so there is no session to revise it in";
-/**
 * The error name a durable session store uses for an identity that is already taken.
 *
 * Matched by name because the class lives in the persistence package this plugin does not
@@ -1495,7 +1486,6 @@ var WorkbenchSkillCardRunner = class {
 		const skill = mode.kind === "bare" ? mode.skill : selection.skill;
 		if (skill === void 0) return reject("not-configured", "no skill is configured for this card");
 		const refineSessionId = mode.kind === "refine" ? request.sessionId : void 0;
-		if (mode.kind === "refine" && refineSessionId === void 0) return reject("session-not-live", REFINE_SESSION_MISSING_DETAIL);
 		const model = selection.model;
 		const pinned = model === void 0 ? {} : { model };
 		let inputOf;

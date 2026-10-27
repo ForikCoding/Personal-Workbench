@@ -487,10 +487,11 @@ export interface WorkbenchResultRecord {
     /**
      * Session this run executed in.
      *
-     * Recorded because a refinement has to continue the conversation that produced the
-     * document it revises: 重新生成 runs in this session, not in the user's current one and
-     * not in a new one. Absent means the record was written before the workbench kept a
-     * session per run, and a refinement of it is refused rather than guessing where to run.
+     * Recorded because a refinement continues the conversation that produced the document
+     * it revises: 重新生成 runs in this session, not in the user's current one. Absent means
+     * the record was written before the workbench kept a session per run, and a refinement
+     * of it falls back to a fresh session of the run's own rather than guessing where to
+     * run — but the run itself is still an archive-only session.
      */
     readonly sessionId?: string;
     /**
@@ -750,10 +751,12 @@ export interface WorkbenchRunRequest {
     /**
      * What the field names is the mode's answer.
      *
-     * For a refine run it is the session the run continues: the revised result was produced
-     * there, so the run executes in it ({@link WorkbenchResultRecord.sessionId}). For a card
-     * run or a bare run it is absent: the Host creates a fresh session for the run, rooted
-     * at the card's workspace and archived once the run settles.
+     * For a refine run it is normally the session the run continues: the revised result was
+     * produced there, so the run executes in it ({@link WorkbenchResultRecord.sessionId}).
+     * A refine of a record that carries none — written before the workbench kept a session
+     * per run — omits it, and the Host opens a fresh session for the run, exactly as for a
+     * card run or a bare run: rooted at the card's workspace and archived once the run
+     * settles. For card and bare runs it is simply absent.
      */
     readonly sessionId?: string;
     /**

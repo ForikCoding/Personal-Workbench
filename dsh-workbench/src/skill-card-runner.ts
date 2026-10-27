@@ -51,17 +51,6 @@ const SUBAGENT_SEAM_DETAIL =
   'this harness provides neither subagents.startActivation (0.2.1-alpha.2, the beta channel) nor the one-shot subagents.start (0.2.0-rc.2, the stable channel), so a card run cannot start'
 
 /**
- * Why a refinement with no session cannot start.
- *
- * A refinement continues the session that produced the document it revises. A result
- * stored before the workbench kept a session per run carries none, and neither the
- * current session nor a new one is the conversation that wrote it, so the run is refused
- * rather than started somewhere the result did not come from.
- */
-const REFINE_SESSION_MISSING_DETAIL =
-  'the run being refined recorded no session, so there is no session to revise it in'
-
-/**
  * The error name a durable session store uses for an identity that is already taken.
  *
  * Matched by name because the class lives in the persistence package this plugin does not
@@ -456,13 +445,12 @@ export class WorkbenchSkillCardRunner {
     if (skill === undefined) {
       return reject('not-configured', 'no skill is configured for this card')
     }
-    // A refinement continues the session the revised document came from, so that is the one
-    // session a request can name. A record stored before the workbench kept one per run has
-    // none, and neither the running session nor a new one is where the document came from.
+    // A refinement continues the session the revised document came from, so a request names
+    // that one when the record carries it. A record stored before the workbench kept one
+    // per run has none, and where no session is named the run falls back to a fresh one of
+    // its own, exactly as a card run does — there is no earlier conversation to continue,
+    // and refusing would shut off 重新生成 on every old result.
     const refineSessionId = mode.kind === 'refine' ? request.sessionId : undefined
-    if (mode.kind === 'refine' && refineSessionId === undefined) {
-      return reject('session-not-live', REFINE_SESSION_MISSING_DETAIL)
-    }
     // A document is what every mode but a bare run fills, so the template is answered here,
     // before a session is published: a card that lost its template is refused without
     // creating one. What the prompt says depends on the run's own agent, which does not

@@ -2806,13 +2806,6 @@ window.__ModuleLoader__.load({
 				if (text === "") return;
 				if (run?.phase === "running") return;
 				const refineSession = result?.sessionId;
-				if (refineSession === void 0) {
-					setRefineProblem({
-						code: "session-not-live",
-						detail: ""
-					});
-					return;
-				}
 				const refused = workspaceRefusal(workspaceField);
 				if (refused !== void 0) {
 					setRefineProblem(refused);

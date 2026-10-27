@@ -251,19 +251,27 @@ describe('refining a result', () => {
     })
   })
 
-  it('refuses to refine a result that recorded no session, before spending a call', async () => {
-    // A result stored before the workbench kept a session per run. The Host refuses such a
-    // refinement too; saying so here is what keeps the composer from looking broken when
-    // the ask comes back refused.
+  it('refines a result that recorded no session by naming none, so the Host opens a fresh one', async () => {
+    // A result stored before the workbench kept a session per run carries none, so there is
+    // no conversation to continue. The request names no session and the Host falls back to
+    // a fresh one of the run's own, rather than refusing every old result.
     const { api, requests } = pageApi({
       result: legacyResult(),
       start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),
     })
     await show(api)
     ask('按时间倒序')
-    const alert = await screen.findByRole('alert')
-    expect(alert.getAttribute('data-refine-problem')).toBe('session-not-live')
-    expect(requests).toEqual([])
+    await waitFor(() => { expect(requests).toHaveLength(1) })
+    expect(requests[0]).not.toHaveProperty('sessionId')
+    expect(requests[0]).toEqual({
+      cardId: 'skill-card',
+      // The skill definition still resolves through the user's live session.
+      scopeSessionId: 'session-1',
+      mode: { kind: 'refine', instruction: '按时间倒序', previous: FIRST_HTML },
+      outputSchema: expect.anything(),
+    })
+    // And the revision still lands on screen.
+    await waitFor(() => { expect(shadowText(document.body)).toContain('新') }, { timeout: 4_000 })
   })
 
   it('replaces the result, appends a log entry and allows one step back', async () => {

@@ -838,17 +838,15 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // because this is the boundary that actually spends a model call.
     if (text === '') return
     if (run?.phase === 'running') return
-    // A refinement continues the session the revised result was produced in, so that is the
-    // session the run executes in. A record stored before the workbench kept one per run
-    // carries none, and refusing here is the honest answer: neither the session the user is
-    // in now nor a new one is the conversation that wrote this document. The skill
-    // definition is not resolved there, though: a custom skill lives in the user's live
-    // session, so that session is named separately as the scope, exactly as a card run does.
+    // A refinement executes in the session the revised result was produced in, when the
+    // record carries one: revising a document means continuing the conversation that wrote
+    // it. A record stored before the workbench kept one per run carries none, and the
+    // fallback is a fresh session of the run's own — there is no earlier conversation to
+    // continue, and refusing would shut off 重新生成 on every old result. The skill
+    // definition is never resolved in the run's session, though: a custom skill lives in
+    // the user's live session, so that session is named separately as the scope, exactly as
+    // a card run does.
     const refineSession = result?.sessionId
-    if (refineSession === undefined) {
-      setRefineProblem({ code: 'session-not-live', detail: '' })
-      return
-    }
     // A refinement is a card run with a narrower ask, so it happens in the same directory
     // and is refused for the same reason: nowhere chosen means nowhere to revise.
     const refused = workspaceRefusal(workspaceField)

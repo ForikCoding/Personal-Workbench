@@ -254,23 +254,24 @@ describe('workbench skill card runner', () => {
       expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('session-nobody-keeps')
     })
 
-    it('refuses a refinement that names no session at all', async () => {
-      // A result stored before the workbench kept a session per run carries none. Neither
-      // the current session nor a new one is the conversation that wrote it, so the run is
-      // refused rather than started somewhere the document did not come from.
+    it('refines in a fresh session when the request names no session at all', async () => {
+      // A result stored before the workbench kept a session per run carries none, so the
+      // request names none either. There is no earlier conversation to continue, and the
+      // fallback is a fresh session of the run's own — refusing would shut off 重新生成 on
+      // every old result.
       const { runner, fake } = setup()
       const outcome = await runner.start({
         cardId: 'skill-card',
         mode: { kind: 'refine', instruction: 'i', previous: 'p' },
         outputSchema: { type: 'object', properties: {} },
       })
-      expect(outcome).toEqual({
-        status: 'rejected',
-        code: 'session-not-live',
-        detail: 'the run being refined recorded no session, so there is no session to revise it in',
-      })
-      expect(fake.createdAgents).toEqual([])
-      expect(fake.activations).toEqual([])
+      expect(outcome).toMatchObject({ status: 'started' })
+      const state = await settle(runner)
+      expect(state?.phase).toBe('settled')
+      // A fresh session was published for the run, then archived as its own.
+      expect(fake.createdAgents).toHaveLength(1)
+      expect(state?.result?.sessionId).toBe(fake.createdAgents[0]?.id)
+      expect(fake.activations).toHaveLength(1)
     })
 
     it('gives a card run a session of its own even when the request names the scope', async () => {

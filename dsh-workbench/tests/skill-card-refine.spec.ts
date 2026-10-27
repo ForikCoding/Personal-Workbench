@@ -71,10 +71,12 @@ function setup(options: FakeHostOptions & {
 /**
  * A refine run request.
  *
- * The session is the one the revised result was produced in: a refinement continues that
- * conversation, so it is the only mode that names an execution session. The skill
- * definition is not resolved there — a custom skill lives in the user's live session — so
- * a scope is named separately, exactly as a card run does.
+ * The session is the one the revised result was produced in, when the record carries one:
+ * a refinement continues that conversation. A record stored before the workbench kept a
+ * session per run has none, and the request then names no session so the run falls back
+ * to a fresh one. The skill definition is not resolved in the run's session — a custom
+ * skill lives in the user's live session — so a scope is named separately, exactly as a
+ * card run does.
  * @param overrides - fields the case varies.
  * @returns the request.
  */
@@ -227,6 +229,22 @@ describe('a refine run', () => {
     expect(fake.activations).toEqual([])
     // The agent the refusal re-attached was released rather than left holding the log.
     expect(fake.disposedAgents).toEqual([REFINED_SESSION])
+  })
+
+  it('refines a legacy result with no recorded session in a fresh one of its own', async () => {
+    // A result stored before the workbench kept a session per run carries none. There is
+    // no earlier conversation to continue, so the run opens a fresh session like a card
+    // run does — refusing would shut off 重新生成 on every old result.
+    const { runner, fake } = setup()
+    const { sessionId: _sessionId, ...legacy } = refine()
+    expect(await runner.start(legacy)).toMatchObject({ status: 'started' })
+    await settle(runner)
+    expect(fake.resumedSessions).toEqual([])
+    // A fresh session was published for the run, then archived as its own — on top of the
+    // seeded archived session the fixture restored nothing for (it was never resumed).
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.archivedSessions).toEqual([REFINED_SESSION, fake.createdAgents[0]?.id])
+    expect(fake.activations[0]?.request.parent?.id).toBe(fake.createdAgents[0]?.id)
   })
 
   it('refuses a refine run with no template stored', async () => {
