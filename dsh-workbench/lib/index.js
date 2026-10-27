@@ -1499,9 +1499,10 @@ var WorkbenchSkillCardRunner = class {
 		const model = selection.model;
 		const pinned = model === void 0 ? {} : { model };
 		let inputOf;
-		if (mode.kind === "bare") inputOf = (agent) => ({
+		if (mode.kind === "bare") inputOf = (agent, scope) => ({
 			kind: "bare",
 			agent,
+			...scope === void 0 ? {} : { scope },
 			skill,
 			...pinned,
 			...request.payload === void 0 ? {} : { payload: request.payload }
@@ -1509,9 +1510,10 @@ var WorkbenchSkillCardRunner = class {
 		else {
 			const template = selection.template;
 			if (template === void 0) return reject("template-missing", `no template is stored for skill "${skill}"`);
-			inputOf = mode.kind === "refine" ? (agent) => ({
+			inputOf = mode.kind === "refine" ? (agent, scope) => ({
 				kind: "refine",
 				agent,
+				...scope === void 0 ? {} : { scope },
 				skill,
 				template,
 				...pinned,
@@ -1519,9 +1521,10 @@ var WorkbenchSkillCardRunner = class {
 				instruction: mode.instruction,
 				...request.payload === void 0 ? {} : { payload: request.payload },
 				outputSchema: request.outputSchema
-			}) : (agent) => ({
+			}) : (agent, scope) => ({
 				kind: "card",
 				agent,
+				...scope === void 0 ? {} : { scope },
 				skill,
 				template,
 				...pinned,
@@ -1557,6 +1560,7 @@ var WorkbenchSkillCardRunner = class {
 			return reject("run-in-progress", "another run is already in flight");
 		}
 		const agent = session.agent;
+		const scope = refineSessionId !== void 0 ? void 0 : request.sessionId === void 0 ? void 0 : this.options.host.agents.get(request.sessionId);
 		const run = {
 			cardId: request.cardId,
 			startedAt,
@@ -1574,7 +1578,7 @@ var WorkbenchSkillCardRunner = class {
 		}, this.options.runTimeoutMs);
 		this.runs.set(request.cardId, run);
 		this.active += 1;
-		const execution = this.execute(run, inputOf(agent), activate);
+		const execution = this.execute(run, inputOf(agent, scope), activate);
 		this.inflight.add(execution);
 		execution.catch((error) => {
 			this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`);
@@ -1877,7 +1881,8 @@ var WorkbenchSkillCardRunner = class {
 	/**
 	* Run one card's skill to a terminal state.
 	* @param run - the run record to settle.
-	* @param input - resolved agent, skill name, and output contract.
+	* @param input - the run's agent, the agent whose scope resolves the skill definition,
+	* the skill name, and the output contract.
 	* @param activate - the run seam, already known to exist and bound to its service.
 	* @returns resolution after the run reaches a terminal phase.
 	*/
@@ -1885,7 +1890,7 @@ var WorkbenchSkillCardRunner = class {
 		const signal = run.controller.signal;
 		try {
 			const cwd = await this.cwdFor(input.agent, signal);
-			const skill = await this.options.host.skills.get(input.skill, lookupFor(input.agent, cwd, signal));
+			const skill = await this.options.host.skills.get(input.skill, lookupFor(input.scope ?? input.agent, cwd, signal));
 			if (skill === void 0) {
 				await this.finish(run, {
 					kind: "failed",

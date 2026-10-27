@@ -811,9 +811,11 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setProblem({ code: 'template-invalid', detail: first.location })
       return
     }
-    // The one card-run path, shared with a run started from another card's button. No
-    // session is named: the Host gives the run a session of its own.
-    void startCardRun(api, cardId).then((outcome) => {
+    // The one card-run path, shared with a run started from another card's button. The
+    // live session is named only as the skill definition's scope: the Host gives the run
+    // a fresh session of its own, so a card never runs in the conversation the user is
+    // having.
+    void startCardRun(api, cardId, session()).then((outcome) => {
       if (outcome.status === 'ok') {
         setRun(outcome.state)
         setProblem(undefined)
@@ -826,7 +828,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         ? { code: asErrorCode(outcome.code), detail: outcome.message }
         : { code: 'unavailable', detail: outcome.reason })
     })
-  }, [api, cardId, refresh, card?.skill, card?.template, workspaceField])
+  }, [api, cardId, refresh, card?.skill, card?.template, workspaceField, session])
 
   const cancel = useCallback(() => { void api.cancel(cardId) }, [api, cardId])
 
@@ -1217,12 +1219,13 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       // Started before the jump: a refusal then lands on the card the user is looking
       // at, instead of moving them first and reporting the failure afterwards.
       // The confirmed row travels with the run, so the target card executes the row the
-      // user saw rather than a run with no idea which row it was for.
+      // user saw rather than a run with no idea which row it was for. The live session is
+      // named as the skill definition's scope — the run still executes in a fresh session.
       //
       // The target card's directory was resolved when the panel opened. A run that still
       // arrives without one is refused by the route, which reads that card's own record —
       // this page holds no stat for another card to re-check at confirm time.
-      void startCardRun(api, pending.reference, pending.payload).then((outcome) => {
+      void startCardRun(api, pending.reference, session(), pending.payload).then((outcome) => {
         if (outcome.status !== 'ok') {
           setActionProblem(startProblem(outcome))
           return
@@ -1257,7 +1260,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         startedAt: outcome.state.startedAt ?? Date.now(),
       })
     })
-  }, [api, cardId, openCard, pendingAction, workspaceField])
+  }, [api, cardId, openCard, pendingAction, workspaceField, session])
 
   const cancelAction = useCallback(() => {
     // Deliberately nothing else: no run, no write, no navigation. Cancelling is only

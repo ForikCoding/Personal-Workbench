@@ -137,6 +137,15 @@ export interface WorkbenchCardView {
     /** Most recent result: the live run's, or the stored one. */
     readonly result?: WorkbenchResultRecord;
     /**
+     * The run this view was opened for, when the result page came from the history.
+     *
+     * Absent for the latest-result view and for the grid, where the run in flight is always
+     * the subject. Present it names {@link result} directly, so a run running on the card in
+     * parallel is a different run — the card stays busy on its own control, but the record
+     * a row opened is what the page shows.
+     */
+    readonly runId?: string;
+    /**
      * Every completed run this card has, newest first.
      *
      * The run-history page lists these; a row opens the run detail by its

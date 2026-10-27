@@ -21,7 +21,7 @@ import { WorkbenchSkillCardStore } from '../src/skill-card-store.ts'
 import { FakeRequest, run } from './support/fake-http.ts'
 import { fakeSkillCardTables } from './support/fake-skill-card-tables.ts'
 import type { FakeSkillCardSeed, FakeSkillCardTables } from './support/fake-skill-card-tables.ts'
-import { WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
+import { AGENT, WORKSPACE_PATH, fakeHost } from './support/fake-skill-card-host.ts'
 import type { FakeHostOptions } from './support/fake-skill-card-host.ts'
 
 /** The run a seeded result belongs to. */
@@ -460,8 +460,9 @@ function at(path: string, method = 'GET', body?: unknown): FakeRequest {
 /**
  * A run body that passes every precondition.
  *
- * No `sessionId`: a card run names none, because the Host gives every run a session of its
- * own. Only a refinement carries one, and those cases add it.
+ * No `sessionId` by default: a refinement names the session it continues, and a card or
+ * bare run may name one whose scope resolves its skill definition — both kinds stay
+ * optional, and the cases that need one add it.
  * @param overrides - fields the case varies.
  * @returns the body.
  */
@@ -558,6 +559,20 @@ describe('workbench skill card run route', () => {
       apiVersion: 1,
       state: { cardId: 'skill-card', phase: 'running', startedAt: 42, retried: false },
     })
+    runner.cancel('skill-card')
+  })
+
+  it('accepts a card run naming the session its skill scope comes from', async () => {
+    // The run still executes in a fresh session; the named session only supplies the
+    // scope the skill definition is resolved through, which is what makes a custom
+    // skill registered in that session available to the fresh run.
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({ sessionId: AGENT.id })))
+    expect(response.statusCode).toBe(202)
+    expect(fake.lookups[0]?.scope).toBe(AGENT)
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents[0]?.id).not.toBe(AGENT.id)
+    expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
     runner.cancel('skill-card')
   })
 

@@ -46,8 +46,8 @@ function setup(options: FakeHostOptions & {
 /**
  * A run request that passes every precondition.
  *
- * No session: a card run names none, because the Host gives every run a session of its own.
- * A refinement is the mode that carries one, and it has its own cases.
+ * No session by default: a card run names one only when the caller has a session whose
+ * scope resolves the skill definition, and a refinement carries the session it continues.
  * @param overrides - fields the case varies.
  * @returns the request.
  */
@@ -285,6 +285,31 @@ describe('workbench skill card runner', () => {
       expect(fake.createdAgents[0]?.id).not.toBe(AGENT.id)
       expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
       expect(saved[0]?.record.sessionId).toBe(fake.createdAgents[0]?.id)
+    })
+
+    it('resolves the skill definition through the named live session, not the run’s own', async () => {
+      // 2.0.46 executes every run in a fresh session, and a fresh agent carries no
+      // session-scoped skill registrations — a custom skill registered in the session the
+      // card was configured against would be refused as not available. The skill the run
+      // executes must therefore be resolved through the named session's scope while the
+      // run itself still executes — and still archives — under its own fresh session.
+      const { runner, fake } = setup()
+      await runner.start(request({ sessionId: AGENT.id }))
+      await settle(runner)
+      expect(fake.lookups[0]?.scope).toBe(AGENT)
+      expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
+      expect(fake.archivedSessions).toEqual([fake.createdAgents[0]?.id])
+    })
+
+    it('resolves the skill definition through the run’s own fresh agent when none is named', async () => {
+      // The global and project layers are the scope of a run the client gave no session:
+      // the fresh agent's own chain is all there is, and that is what a run without a
+      // configured session must read through.
+      const { runner, fake } = setup()
+      await runner.start(request())
+      await settle(runner)
+      expect(fake.lookups[0]?.scope).toBe(fake.createdAgents[0])
+      expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
     })
 
     it('refuses an unregistered or incapable backend', async () => {

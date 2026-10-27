@@ -533,6 +533,24 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(screen.getByText(en.skillCardRunningBody)).toBeTruthy() })
     expect(cardDocument()).toBeUndefined()
   })
+
+  it('names the live session as the skill scope when its own run starts', async () => {
+    // The run executes in a fresh session the Host creates; the named session only
+    // resolves the skill definition, which is what keeps a custom skill the card was
+    // configured against available to that fresh run.
+    const { recorded, renderPage } = fixture()
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    const run = screen.getByRole('button', { name: en.skillCardRun })
+    await act(async () => { fireEvent.click(run) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]).toEqual({
+      cardId: 'clicker',
+      sessionId: 'session-1',
+      mode: { kind: 'card' },
+      outputSchema: WORKBENCH_OUTPUT_SCHEMA,
+    })
+  })
 })
 
 describe('a confirmed card target', () => {
@@ -548,14 +566,14 @@ describe('a confirmed card target', () => {
     await waitFor(() => { expect(recorded.steps).toEqual(['start:target-card', 'open:target-card']) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'target-card',
+      sessionId: 'session-1',
       mode: { kind: 'card' },
       // The row the user confirmed travels with the run.
       payload: ROW,
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     })
-    // No session: the target card's run gets one of its own rather than joining the
-    // session the clicked card happens to be in.
-    expect(recorded.starts[0]).not.toHaveProperty('sessionId')
+    // The session travels as the skill definition's scope, not as the run's home: the
+    // target card's run still executes in a fresh session of its own.
     expect(document.querySelector('[data-action-panel]')).toBeNull()
   })
 
@@ -639,7 +657,8 @@ describe('a confirmed card target', () => {
 describe('a confirmed skill target', () => {
   it('asks for a bare run of that skill, in a session of its own', async () => {
     // Criterion 27: no document, no contract — the request says so explicitly. And no
-    // session: a bare run gets one of its own, exactly as a card run does.
+    // session: the bare request carries none, so the Host resolves the skill through
+    // the fresh session's own agent, whose chain carries the global and project layers.
     const { recorded, renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })

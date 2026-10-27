@@ -2396,17 +2396,23 @@ window.__ModuleLoader__.load({
 		* checks whether the card is free — the Host refuses a concurrent run and its refusal
 		* is reported as it stands, which is the documented way this race is handled.
 		*
-		* No session travels with the request: the Host gives every run a session of its own, so
-		* a card run never joins — or leaves its traffic in — the conversation the user is having.
+		* The session, when the caller has one, is named only so the Host resolves the skill
+		* definition through the right scope: a custom skill was registered against the session
+		* the card was configured in, and a fresh run session does not carry it. The run itself
+		* still executes in a fresh session the Host creates, so it never joins — or leaves its
+		* traffic in — the conversation the user is having.
 		* @param api - transport. Taken here rather than bound to a controller, so this works
 		* for a card that is nowhere on screen.
 		* @param cardId - the card to run.
+		* @param sessionId - the session whose scope resolves the skill definition; undefined
+		* resolves through the run's own fresh agent (the global and project layers).
 		* @param payload - the clicked row's raw fields; omitted for a run no row triggered.
 		* @returns the accepted run state, or the Host's own refusal.
 		*/
-		async function startCardRun(api, cardId, payload) {
+		async function startCardRun(api, cardId, sessionId, payload) {
 			return await api.start({
 				cardId,
+				...sessionId === void 0 ? {} : { sessionId },
 				mode: { kind: "card" },
 				...payload === void 0 ? {} : { payload },
 				outputSchema: WORKBENCH_OUTPUT_SCHEMA
@@ -2417,10 +2423,12 @@ window.__ModuleLoader__.load({
 		*
 		* The same shape as {@link startCardRun} with the refine mode in place of the card
 		* mode, plus the one session the Host does need named: the session the revised result was
-		* produced in. A refinement continues that conversation, so it is neither the session the
-		* user is in now nor a new one. The template and the contract are not the client's to
-		* state, and the previous HTML travels verbatim so the child revises the pixels the user is
-		* looking at. Both request shapes live here so the mode union is constructed in one module.
+		* produced in. Unlike a plain card run — whose named session is only the skill
+		* definition's scope — a refinement both executes in and resolves its skill through that
+		* session, so it is neither the session the user is in now nor a new one. The template and
+		* the contract are not the client's to state, and the previous HTML travels verbatim so
+		* the child revises the pixels the user is looking at. Both request shapes live here so
+		* the mode union is constructed in one module.
 		* @param api - transport.
 		* @param cardId - the card whose result is being revised.
 		* @param sessionId - the session recorded on the result being revised; undefined when the
@@ -2763,7 +2771,7 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
-				startCardRun(api, cardId).then((outcome) => {
+				startCardRun(api, cardId, session()).then((outcome) => {
 					if (outcome.status === "ok") {
 						setRun(outcome.state);
 						setProblem(void 0);
@@ -2784,7 +2792,8 @@ window.__ModuleLoader__.load({
 				refresh,
 				card?.skill,
 				card?.template,
-				workspaceField
+				workspaceField,
+				session
 			]);
 			const cancel = (0, react.useCallback)(() => {
 				api.cancel(cardId);
@@ -3215,7 +3224,7 @@ window.__ModuleLoader__.load({
 				setPendingAction(void 0);
 				setActionProblem(void 0);
 				if (pending.target.kind === "card") {
-					startCardRun(api, pending.reference, pending.payload).then((outcome) => {
+					startCardRun(api, pending.reference, session(), pending.payload).then((outcome) => {
 						if (outcome.status !== "ok") {
 							setActionProblem(startProblem(outcome));
 							return;
@@ -3256,7 +3265,8 @@ window.__ModuleLoader__.load({
 				cardId,
 				openCard,
 				pendingAction,
-				workspaceField
+				workspaceField,
+				session
 			]);
 			const cancelAction = (0, react.useCallback)(() => {
 				setPendingAction(void 0);

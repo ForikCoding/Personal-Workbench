@@ -748,13 +748,17 @@ export interface WorkbenchRunRequest {
     /** Card the run is reported under; also how its state is polled. */
     readonly cardId: string;
     /**
-     * Session this run executes in.
+     * What the field names is the mode's answer.
      *
-     * Required for a refine run, which continues the session recorded on the result it
-     * revises ({@link WorkbenchResultRecord.sessionId}). Absent means "the Host creates a
-     * fresh session for this run": every card run and every bare run gets a session of its
-     * own, rooted at the card's workspace and archived once the run settles, so a card never
-     * runs in — and never leaves its traffic in — the conversation the user is having. The
+     * For a refine run it is the session the run continues: the revised result was produced
+     * there, so the run executes in it and resolves its skill definition through it
+     * ({@link WorkbenchResultRecord.sessionId}).
+     *
+     * For a card run or a bare run, when present, it names the session whose scope
+     * resolves the skill definition — the run itself still executes in a fresh session the
+     * Host creates, rooted at the card's workspace and archived once the run settles.
+     * Absent means "the Host creates a fresh session and resolves the skill through the
+     * run's own agent", whose scope chain carries only the global and project layers. The
      * model is not here: it is the card's own stored selection, read by the Host, so a
      * client cannot start a run on a route the card does not name.
      */

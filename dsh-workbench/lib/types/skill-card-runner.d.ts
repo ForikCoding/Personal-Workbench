@@ -337,7 +337,8 @@ export declare class WorkbenchSkillCardRunner {
     /**
      * Run one card's skill to a terminal state.
      * @param run - the run record to settle.
-     * @param input - resolved agent, skill name, and output contract.
+     * @param input - the run's agent, the agent whose scope resolves the skill definition,
+     * the skill name, and the output contract.
      * @param activate - the run seam, already known to exist and bound to its service.
      * @returns resolution after the run reaches a terminal phase.
      */

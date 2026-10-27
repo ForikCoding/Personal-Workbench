@@ -48,15 +48,15 @@ function api(start: (request: WorkbenchRunRequest) => Promise<WorkbenchRunStart>
 }
 
 describe('starting a card run', () => {
-  it('asks for one card run with the fixed contract, for any card id, and names no session', async () => {
+  it('asks for one card run with the fixed contract, for any card id, and names no session when the caller has none', async () => {
     const { api: transport, recording } = api(async request => ({
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    const outcome = await startCardRun(transport, 'other-card')
+    const outcome = await startCardRun(transport, 'other-card', undefined)
     // No controller, no mount, and no read of that card's configuration: the request is
-    // the whole interaction. And no session: the Host gives every run one of its own, so
-    // a card never runs in the conversation the user is having.
+    // the whole interaction. And no session: the caller named none, so the skill resolves
+    // through the fresh agent the Host creates for the run.
     expect(recording.requests).toEqual([{
       cardId: 'other-card',
       mode: { kind: 'card' },
@@ -66,12 +66,29 @@ describe('starting a card run', () => {
     expect(outcome.status).toBe('ok')
   })
 
+  it('names the session whose scope resolves the skill definition when one is given', async () => {
+    // The session travels as the skill's scope, not as the run's home: the Host still
+    // executes the run in a fresh session of its own.
+    const { api: transport, recording } = api(async request => ({
+      status: 'ok',
+      state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
+    }))
+    const outcome = await startCardRun(transport, 'other-card', 'session-1')
+    expect(recording.requests).toEqual([{
+      cardId: 'other-card',
+      sessionId: 'session-1',
+      mode: { kind: 'card' },
+      outputSchema: WORKBENCH_OUTPUT_SCHEMA,
+    }])
+    expect(outcome.status).toBe('ok')
+  })
+
   it('carries the clicked row with the run', async () => {
     const { api: transport, recording } = api(async request => ({
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    await startCardRun(transport, 'other-card', { task_number: 'CP-1' })
+    await startCardRun(transport, 'other-card', undefined, { task_number: 'CP-1' })
     expect(recording.requests[0]?.payload).toEqual({ task_number: 'CP-1' })
   })
 
@@ -83,7 +100,7 @@ describe('starting a card run', () => {
       code: 'run-in-progress',
       message: 'another run is already in flight',
     }))
-    await expect(startCardRun(transport, 'other-card')).resolves.toEqual({
+    await expect(startCardRun(transport, 'other-card', undefined)).resolves.toEqual({
       status: 'rejected',
       code: 'run-in-progress',
       message: 'another run is already in flight',
@@ -92,7 +109,7 @@ describe('starting a card run', () => {
 
   it('passes an unreachable Host through as it stands', async () => {
     const { api: transport } = api(async () => ({ status: 'unavailable', reason: 'route answered 500' }))
-    await expect(startCardRun(transport, 'other-card')).resolves.toEqual({
+    await expect(startCardRun(transport, 'other-card', undefined)).resolves.toEqual({
       status: 'unavailable',
       reason: 'route answered 500',
     })

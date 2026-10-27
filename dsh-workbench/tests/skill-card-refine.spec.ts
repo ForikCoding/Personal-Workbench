@@ -186,6 +186,9 @@ describe('a refine run', () => {
     // The child hangs from the refined run's session, which is what puts it in that
     // conversation and keeps the sandbox rooted where that run happened.
     expect(fake.activations[0]?.request.parent?.id).toBe(REFINED_SESSION)
+    // The skill definition resolves through that same session: a refinement both
+    // executes in and reads its skill through the session it continues.
+    expect(fake.lookups[0]?.scope?.id).toBe(REFINED_SESSION)
   })
 
   it('uses a session that is still live instead of re-attaching it, and leaves it on screen', async () => {

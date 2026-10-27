@@ -91,10 +91,12 @@ export type WorkbenchRunStartOutcome =
  * The session one run executes in, and what the runner owes it when the run settles.
  *
  * Resolved before a run is recorded, because the session is part of what the run is: its
- * id is stamped on the stored result, and its agent is both the scope the skill is read
- * through and the parent the child hangs from. Settling it belongs to the runner rather
- * than the caller, so a run that fails, is cancelled, or times out ends in the same place:
- * its session is archived out of the session list and its agent released.
+ * id is stamped on the stored result, and its agent is the parent the child hangs from.
+ * The agent whose scope resolves the skill definition is a separate choice — a card or
+ * bare run may name the session the card was configured against, while a refinement
+ * resolves through the session it continues. Settling the session belongs to the runner
+ * rather than the caller, so a run that fails, is cancelled, or times out ends in the same
+ * place: its session is archived out of the session list and its agent released.
  */
 interface RunSession {
   /** Session identity the run executes in, recorded on the run's result. */
@@ -273,12 +275,17 @@ type RunInput =
     /**
      * The run's session agent.
      *
-     * It is the scope the skill is read through and the parent the child hangs from: a
-     * child inherits its parent's session header, and the sandbox derives its writable root
-     * from that header, so rooting this agent at the card's directory is the whole
-     * mechanism that fences the run. See docs/workbench-workspace-fence-plan.md.
+     * It is the parent the child hangs from: a child inherits its parent's session header,
+     * and the sandbox derives its writable root from that header, so rooting this agent at
+     * the card's directory is the whole mechanism that fences the run. See
+     * docs/workbench-workspace-fence-plan.md.
      */
     readonly agent: WorkbenchAgent
+    /**
+     * The agent whose scope resolves the skill definition; absent resolves through the
+     * run's own agent (the global and project layers).
+     */
+    readonly scope?: WorkbenchAgent
     readonly skill: string
     /** The card's HTML for this skill, carried into the prompt as the output template. */
     readonly template: string
@@ -292,6 +299,11 @@ type RunInput =
     readonly kind: 'refine'
     /** The run's session agent; see the card variant. */
     readonly agent: WorkbenchAgent
+    /**
+     * The agent whose scope resolves the skill definition; absent resolves through the
+     * run's own agent (the global and project layers).
+     */
+    readonly scope?: WorkbenchAgent
     readonly skill: string
     /** The card's HTML for this skill, the same document a card run fills. */
     readonly template: string
@@ -309,6 +321,11 @@ type RunInput =
     readonly kind: 'bare'
     /** The run's session agent; see the card variant. */
     readonly agent: WorkbenchAgent
+    /**
+     * The agent whose scope resolves the skill definition; absent resolves through the
+     * run's own agent (the global and project layers).
+     */
+    readonly scope?: WorkbenchAgent
     readonly skill: string
     /** Route this run is pinned to; absent inherits the session's. */
     readonly model?: WorkbenchCardModel
@@ -453,11 +470,15 @@ export class WorkbenchSkillCardRunner {
     // resolved.
     const model = selection.model
     const pinned = model === undefined ? {} : { model }
-    let inputOf: (agent: WorkbenchAgent) => RunInput
+    // The agent whose scope resolves the skill definition is separate from the run's own
+    // session and is not known until that session is resolved, so the closures take it as a
+    // parameter rather than reading it here.
+    let inputOf: (agent: WorkbenchAgent, scope: WorkbenchAgent | undefined) => RunInput
     if (mode.kind === 'bare') {
-      inputOf = agent => ({
+      inputOf = (agent, scope) => ({
         kind: 'bare',
         agent,
+        ...scope === undefined ? {} : { scope },
         skill,
         ...pinned,
         ...request.payload === undefined ? {} : { payload: request.payload },
@@ -468,9 +489,10 @@ export class WorkbenchSkillCardRunner {
         return reject('template-missing', `no template is stored for skill "${skill}"`)
       }
       inputOf = mode.kind === 'refine'
-        ? agent => ({
+        ? (agent, scope) => ({
             kind: 'refine',
             agent,
+            ...scope === undefined ? {} : { scope },
             skill,
             template,
             ...pinned,
@@ -479,9 +501,10 @@ export class WorkbenchSkillCardRunner {
             ...request.payload === undefined ? {} : { payload: request.payload },
             outputSchema: request.outputSchema,
           })
-        : agent => ({
+        : (agent, scope) => ({
             kind: 'card',
             agent,
+            ...scope === undefined ? {} : { scope },
             skill,
             template,
             ...pinned,
@@ -565,6 +588,18 @@ export class WorkbenchSkillCardRunner {
       return reject('run-in-progress', 'another run is already in flight')
     }
     const agent = session.agent
+    // The agent whose scope resolves the skill definition, resolved now that the run's
+    // own session exists. The run executes in its own fresh session — that agent stays
+    // the child's parent — but a custom skill was registered in the session the card was
+    // configured against, and only that session's scope chain resolves it, so a card or
+    // bare run that names that session looks the skill up through its agent. A refinement
+    // executes in the session it continues, whose agent carries the skill, so no separate
+    // scope is needed and the run's own agent answers. Only a live agent can be a scope:
+    // a name with no live agent — or no name at all — resolves through the run's own
+    // agent, whose chain carries only the global and project layers.
+    const scope = refineSessionId !== undefined
+      ? undefined
+      : request.sessionId === undefined ? undefined : this.options.host.agents.get(request.sessionId)
 
     const run: RunRecord = {
       cardId: request.cardId,
@@ -589,7 +624,7 @@ export class WorkbenchSkillCardRunner {
     // Bound to the service it came from, and to the seam this harness offers: the
     // attempt path calls it from a different method, and the real ones read their
     // own receiver.
-    const execution = this.execute(run, inputOf(agent), activate)
+    const execution = this.execute(run, inputOf(agent, scope), activate)
     this.inflight.add(execution)
     void execution
       .catch((error: unknown) => { this.options.warn(`workbench skill card runner faulted: ${messageOf(error)}`) })
@@ -915,7 +950,8 @@ export class WorkbenchSkillCardRunner {
   /**
    * Run one card's skill to a terminal state.
    * @param run - the run record to settle.
-   * @param input - resolved agent, skill name, and output contract.
+   * @param input - the run's agent, the agent whose scope resolves the skill definition,
+   * the skill name, and the output contract.
    * @param activate - the run seam, already known to exist and bound to its service.
    * @returns resolution after the run reaches a terminal phase.
    */
@@ -927,7 +963,13 @@ export class WorkbenchSkillCardRunner {
     const signal = run.controller.signal
     try {
       const cwd = await this.cwdFor(input.agent, signal)
-      const skill = await this.options.host.skills.get(input.skill, lookupFor(input.agent, cwd, signal))
+      // Where the run executes is not where its skill lives: the run runs in a fresh
+      // session of its own, but a custom skill was registered in the session the card was
+      // configured against, and only that session's scope chain resolves it. The scope is
+      // therefore the named session's agent when the request carried one, and the run's
+      // own agent otherwise; the cwd stays the run's own, because the workspace is where
+      // the run happens, not where the skill was registered.
+      const skill = await this.options.host.skills.get(input.skill, lookupFor(input.scope ?? input.agent, cwd, signal))
       if (skill === undefined) {
         await this.finish(run, {
           kind: 'failed',
