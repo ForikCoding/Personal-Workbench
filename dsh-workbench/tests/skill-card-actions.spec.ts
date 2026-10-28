@@ -54,11 +54,12 @@ describe('workbench skill card actions', () => {
       expect(event.kind === 'action' ? event.payload.task_status : undefined).toBe(1)
     })
 
-    it('refuses a button that carries no payload', () => {
-      // The row's fields are what the run receives, so a missing payload is not an
-      // empty one.
+    it('names a button that carries no payload as missing, not broken', () => {
+      // A missing payload is a legal click now: the controller answers it by sending the
+      // card's own document as the row data. What is still refused is a payload that is
+      // present but unreadable.
       const button = element('<button data-dsh-action="finish">go</button>')
-      expect(readActionEvent(button)).toEqual({ kind: 'invalid', reason: 'malformed-payload' })
+      expect(readActionEvent(button)).toEqual({ kind: 'invalid', reason: 'missing-payload', key: 'finish' })
     })
 
     it('refuses a payload that is not JSON', () => {

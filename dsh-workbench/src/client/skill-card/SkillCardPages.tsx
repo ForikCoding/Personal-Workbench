@@ -871,6 +871,9 @@ function actionProblemKey(code: WorkbenchActionProblemCode): WorkbenchLocaleKey 
  */
 const ACTION_PROBLEM_KEYS: Record<WorkbenchActionProblemCode, WorkbenchLocaleKey> = {
   'missing-action': 'actionProblemMissingAction',
+  // Never reported by the controller — a button without a row gets the card's own
+  // document instead — but the union includes it so the table stays exhaustive.
+  'missing-payload': 'actionProblemMissingPayload',
   'malformed-payload': 'actionProblemMalformedPayload',
   'oversized-payload': 'actionProblemOversizedPayload',
   'unknown-action': 'actionProblemUnknownAction',

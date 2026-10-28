@@ -30,6 +30,7 @@ import type { WorkbenchSkillCardPatch } from '../src/skill-card-contract.ts'
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
 const { SkillCardResultPage } = await import('../src/client/skill-card/SkillCardPages.tsx')
+const { filledTemplate } = await import('../src/client/skill-card/render.ts')
 const { cardFaceTitle } = await import('../src/client/skill-card/SkillCard.tsx')
 type PageProps = import('../src/client/skill-card/SkillCardPages.tsx').SkillCardPageProps
 const { en } = await import('../src/client/locales.ts')
@@ -378,6 +379,32 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(panelFields()[0]?.text).toBe('Card: 启动任务') })
   })
 
+  it('opens for a button that carried no row, with the card’s own document as the payload', async () => {
+    // A template's own 下一步 button carries no row: the document on screen is what the
+    // target should run against, so the whole rendered document travels as the payload.
+    const raw = '<button type="button" data-dsh-action="start">start</button>'
+    const { renderPage } = fixture({
+      results: [{
+        cardId: 'clicker',
+        runId: 'run-1',
+        skill: CLICKER_SKILL,
+        executedAt: 1,
+        stopReason: 'completed',
+        structured: { html: raw },
+      }],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(panel()).toBeTruthy() })
+    const fields = panelFields()
+    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'payload'])
+    expect(fields[0]?.text).toBe('Card: 启动任务')
+    expect(fields[1]?.text).toBe('task-finish')
+    // The region is spliced into the template: the payload is the document the user saw.
+    expect(fields[2]?.text).toBe(JSON.stringify({ template: filledTemplate(CLICKER_TEMPLATE, raw) }, null, 2))
+  })
+
   it('opens with no live session at all, because the run no longer joins one', async () => {
     // The panel used to state the session the run would join, and could not open without
     // one. A run gets a session of its own now, so a click is resolvable with none open
@@ -590,6 +617,35 @@ describe('a confirmed card target', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
     expect(JSON.stringify(recorded.starts[0]?.payload, null, 2)).toBe(shown)
+  })
+
+  it('starts the target with the card’s document when the button carried no row', async () => {
+    // The 下一步 button a template ships without a row still triggers the target: the
+    // document the user was looking at is the run's input, not an empty ask.
+    const raw = '<button type="button" data-dsh-action="start">start</button>'
+    const { recorded, renderPage } = fixture({
+      results: [{
+        cardId: 'clicker',
+        runId: 'run-1',
+        skill: CLICKER_SKILL,
+        executedAt: 1,
+        stopReason: 'completed',
+        structured: { html: raw },
+      }],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(panel()).toBeTruthy() })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]).toEqual({
+      cardId: 'target-card',
+      scopeSessionId: 'session-1',
+      mode: { kind: 'card' },
+      payload: { template: filledTemplate(CLICKER_TEMPLATE, raw) },
+      outputSchema: WORKBENCH_OUTPUT_SCHEMA,
+    })
   })
 
   it('reports a refused start on the card the user is looking at', async () => {

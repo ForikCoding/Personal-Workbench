@@ -29,7 +29,7 @@ import type {
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
 } from '../../skill-card-contract.ts'
-import { effectiveWorkbenchSandboxMode } from '../../skill-card-contract.ts'
+import { effectiveWorkbenchSandboxMode, WORKBENCH_ACTION_KEY_PATTERN } from '../../skill-card-contract.ts'
 import type {
   WorkbenchCardSnapshot,
   WorkbenchConfigWrite,
@@ -41,7 +41,7 @@ import { resolveAction } from './actions.ts'
 import type { WorkbenchModelDirectoryView, WorkbenchModelField, WorkbenchModelSeat } from './model.ts'
 import { NO_MODEL_DIRECTORY, resolveModelField } from './model.ts'
 import type { WorkbenchActionEvent } from './render.ts'
-import { resultHtml } from './render.ts'
+import { filledTemplate, resultHtml } from './render.ts'
 import { startCardRefine, startCardRun } from './run-start.ts'
 import { analyzeTemplate } from './template.ts'
 import type { WorkbenchWorkspaceField } from './workspace.ts'
@@ -70,9 +70,11 @@ export interface WorkbenchCardProblem {
 /**
  * Every reason a clicked action cannot run.
  *
- * The three payload reasons come from reading the button, the rest from resolving what
- * it points at. Both sets are reported the same way, on the card the user is looking
- * at.
+ * The payload reasons come from reading the button, the rest from resolving what it
+ * points at. Both sets are reported the same way, on the card the user is looking at.
+ * `missing-payload` is part of the union only so the locale table stays exhaustive: a
+ * button that carries no row is answered by sending the card's own document, so the
+ * controller never reports it as a problem.
  */
 export type WorkbenchActionProblemCode =
   | WorkbenchActionErrorCode
@@ -1108,7 +1110,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
 
   const resolveClick = useCallback(async (
     key: string,
-    payload: Record<string, unknown>,
+    payload: Record<string, unknown> | undefined,
   ): Promise<void> => {
     setActionProblem(undefined)
     // The session the catalog is read through, taken now rather than from the render that
@@ -1139,6 +1141,20 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setActionProblem({ code: 'target-unavailable', candidates: [], detail: catalogRead.message })
       return
     }
+    // The row a clicked button carried, or the card's own document when the button
+    // carried none. A region-less template passes itself: there is nothing to fill, so
+    // "the document" is the template verbatim. The latest result is spliced in when
+    // there is one, because the document the user is looking at is the template with
+    // that region rendered — a summary of it would be a second, lossy source of truth.
+    const effectivePayload = payload ?? {
+      template: (() => {
+        const latest = [...snapshot.results]
+          .filter(entry => entry.cardId === cardId)
+          .sort((left, right) => right.executedAt - left.executedAt)[0]
+        const region = latest === undefined ? undefined : resultHtml(latest.structured)
+        return region === undefined ? template : filledTemplate(template, region)
+      })(),
+    }
     const busy = await runningTargets(declaration, snapshot.cards)
     const lookup: WorkbenchActionLookup = {
       cards: snapshot.cards.map(entry => ({
@@ -1150,7 +1166,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         ? catalogRead.entries.filter(entry => entry.userInvocable).map(entry => entry.name)
         : [],
     }
-    const resolution = resolveAction(declarations, lookup, key, payload)
+    const resolution = resolveAction(declarations, lookup, key, effectivePayload)
     if (resolution.kind === 'failed') {
       setPendingAction(undefined)
       setActionProblem({ code: resolution.code, candidates: resolution.candidates })
@@ -1200,6 +1216,18 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   const click = useCallback((event: WorkbenchActionEvent): void => {
     setPendingAction(undefined)
     if (event.kind === 'invalid') {
+      if (event.reason === 'missing-payload') {
+        // A button that carries no row still means what its key names: the card's own
+        // document travels as the payload, so the target runs against the material the
+        // user is looking at rather than against nothing. A key that would not be a
+        // legal action is refused exactly as it would be with a row present.
+        if (!WORKBENCH_ACTION_KEY_PATTERN.test(event.key)) {
+          setActionProblem({ code: 'missing-action', candidates: [] })
+          return
+        }
+        void resolveClick(event.key, undefined)
+        return
+      }
       // A payload that cannot be read whole never reaches the panel: a shortened
       // parameter list would make the confirmed and the executed data two things.
       setActionProblem({ code: event.reason, candidates: [] })

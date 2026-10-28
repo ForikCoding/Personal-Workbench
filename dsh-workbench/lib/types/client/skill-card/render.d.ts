@@ -13,13 +13,20 @@
  * What one click on a child-authored button turned into.
  *
  * `invalid` is a first-class outcome, not an exception: a payload that cannot be read
- * whole must stop the click, never fall back to whatever could be read.
+ * whole must stop the click, never fall back to whatever could be read. A missing
+ * payload is its own reason, and it keeps the key: the controller answers one by
+ * carrying the card's own document to the target instead of refusing the whole ask.
  */
 export type WorkbenchActionEvent = {
     readonly kind: 'action';
     readonly key: string;
     /** That row's raw fields, exactly as the child reported them. */
     readonly payload: Record<string, unknown>;
+} | {
+    readonly kind: 'invalid';
+    readonly reason: 'missing-payload';
+    /** The action the button still means; needed to carry the document on. */
+    readonly key: string;
 } | {
     readonly kind: 'invalid';
     readonly reason: 'missing-action' | 'malformed-payload' | 'oversized-payload';

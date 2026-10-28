@@ -370,6 +370,7 @@ window.__ModuleLoader__.load({
 			actionCancel: "取消",
 			actionCandidates: "可选：{names}",
 			actionProblemMissingAction: "按钮没有带动作键，已拒绝执行",
+			actionProblemMissingPayload: "这一行没有携带数据，将把当前卡片的内容传给目标",
 			actionProblemMalformedPayload: "这一行的数据读不出来，已拒绝执行",
 			actionProblemOversizedPayload: "这一行的数据超出体积上限，已拒绝执行",
 			actionProblemUnknownAction: "模板没有声明这个动作键，已拒绝执行",
@@ -533,6 +534,7 @@ window.__ModuleLoader__.load({
 			actionCancel: "Cancel",
 			actionCandidates: "Choices: {names}",
 			actionProblemMissingAction: "The button carried no action key, so nothing ran",
+			actionProblemMissingPayload: "This row carried no data; the current card’s content goes to the target instead",
 			actionProblemMalformedPayload: "This row’s data could not be read whole, so nothing ran",
 			actionProblemOversizedPayload: "This row’s data is over the size limit, so nothing ran",
 			actionProblemUnknownAction: "The template does not declare this action key, so nothing ran",
@@ -2123,7 +2125,8 @@ window.__ModuleLoader__.load({
 			const raw = element.getAttribute(WORKBENCH_PAYLOAD_ATTRIBUTE);
 			if (raw === null) return {
 				kind: "invalid",
-				reason: "malformed-payload"
+				reason: "missing-payload",
+				key: (element.getAttribute("data-dsh-action") ?? "").trim()
 			};
 			if (new TextEncoder().encode(raw).length > 8192) return {
 				kind: "invalid",
@@ -3148,6 +3151,11 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
+				const effectivePayload = payload ?? { template: (() => {
+					const latest = [...snapshot.results].filter((entry) => entry.cardId === cardId).sort((left, right) => right.executedAt - left.executedAt)[0];
+					const region = latest === void 0 ? void 0 : resultHtml(latest.structured);
+					return region === void 0 ? template : filledTemplate(template, region);
+				})() };
 				const busy = await runningTargets(declaration, snapshot.cards);
 				const resolution = resolveAction(declarations, {
 					cards: snapshot.cards.map((entry) => ({
@@ -3156,7 +3164,7 @@ window.__ModuleLoader__.load({
 						running: busy.has(entry.cardId)
 					})),
 					skills: catalogRead.status === "ok" ? catalogRead.entries.filter((entry) => entry.userInvocable).map((entry) => entry.name) : []
-				}, key, payload);
+				}, key, effectivePayload);
 				if (resolution.kind === "failed") {
 					setPendingAction(void 0);
 					setActionProblem({
@@ -3207,6 +3215,17 @@ window.__ModuleLoader__.load({
 			const click = (0, react.useCallback)((event) => {
 				setPendingAction(void 0);
 				if (event.kind === "invalid") {
+					if (event.reason === "missing-payload") {
+						if (!WORKBENCH_ACTION_KEY_PATTERN.test(event.key)) {
+							setActionProblem({
+								code: "missing-action",
+								candidates: []
+							});
+							return;
+						}
+						resolveClick(event.key, void 0);
+						return;
+					}
 					setActionProblem({
 						code: event.reason,
 						candidates: []
@@ -6596,6 +6615,7 @@ window.__ModuleLoader__.load({
 		*/
 		var ACTION_PROBLEM_KEYS = {
 			"missing-action": "actionProblemMissingAction",
+			"missing-payload": "actionProblemMissingPayload",
 			"malformed-payload": "actionProblemMalformedPayload",
 			"oversized-payload": "actionProblemOversizedPayload",
 			"unknown-action": "actionProblemUnknownAction",

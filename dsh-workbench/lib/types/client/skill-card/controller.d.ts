@@ -38,9 +38,11 @@ export interface WorkbenchCardProblem {
 /**
  * Every reason a clicked action cannot run.
  *
- * The three payload reasons come from reading the button, the rest from resolving what
- * it points at. Both sets are reported the same way, on the card the user is looking
- * at.
+ * The payload reasons come from reading the button, the rest from resolving what it
+ * points at. Both sets are reported the same way, on the card the user is looking at.
+ * `missing-payload` is part of the union only so the locale table stays exhaustive: a
+ * button that carries no row is answered by sending the card's own document, so the
+ * controller never reports it as a problem.
  */
 export type WorkbenchActionProblemCode = WorkbenchActionErrorCode
 /** A click whose own key or payload could not be read; see {@link WorkbenchActionEvent}. */

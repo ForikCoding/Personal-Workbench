@@ -82,8 +82,9 @@ function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResu
 /**
  * The same record as it was stored before the workbench kept a session per run.
  *
- * Absence, not an empty value: such a record names no session, and the page must refuse to
- * refine it rather than pick one.
+ * Absence, not an empty value: such a record names no session, so the refine request
+ * leaves the session unnamed and the Host opens a fresh one for the run — there is no
+ * earlier conversation to continue.
  * @returns the record with no session.
  */
 function legacyResult(): WorkbenchCardResult {

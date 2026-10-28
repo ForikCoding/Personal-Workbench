@@ -155,6 +155,7 @@ export declare const zh: {
     actionCancel: string;
     actionCandidates: string;
     actionProblemMissingAction: string;
+    actionProblemMissingPayload: string;
     actionProblemMalformedPayload: string;
     actionProblemOversizedPayload: string;
     actionProblemUnknownAction: string;
