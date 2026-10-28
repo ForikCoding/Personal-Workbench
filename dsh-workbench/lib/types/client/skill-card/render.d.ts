@@ -49,13 +49,13 @@ export declare function readActionEvent(element: Element): WorkbenchActionEvent;
  */
 export declare function resultHtml(value: unknown): string | undefined;
 /**
- * Longest visible summary one run-history row shows, in code points.
+ * Longest visible headline one run-history row shows, in code points.
  *
- * A row is one line in a list the user scans, so the summary is a preview, not the
+ * A row is one line in a list the user scans, so the headline is a preview, not the
  * document: 120 characters names the run's content without turning the list into the
  * result page.
  */
-export declare const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120;
+export declare const WORKBENCH_RESULT_HEADLINE_MAX_LENGTH = 120;
 /**
  * The visible text of one document, block boundaries as line breaks.
  *
@@ -68,7 +68,19 @@ export declare const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120;
  * @returns the visible text, or an empty string when the browser refuses the markup.
  */
 export declare function documentText(html: string): string;
-export declare function resultSummary(html: string): string | undefined;
+/**
+ * The one line a run-history row shows as that run's content.
+ *
+ * The first visible line is not always the content: a generated document frequently opens
+ * with its subject's identifier, so seven runs of one task each preview "T202610223746"
+ * and the list reads as seven copies of one row. A marked summary — an element carrying
+ * `data-dsh-summary` — wins, then the first heading, then the first line that is not an
+ * identifier alone, and only then an identifier, because a row with something to say
+ * always says it before falling back to a number.
+ * @param html - the region HTML a stored result carries.
+ * @returns the headline, truncated, or undefined when the fragment is all markup.
+ */
+export declare function resultHeadline(html: string): string | undefined;
 /**
  * Splice one result's HTML into its template's region.
  * @param template - the template as stored.

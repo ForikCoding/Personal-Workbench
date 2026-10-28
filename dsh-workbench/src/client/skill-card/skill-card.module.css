@@ -1007,7 +1007,38 @@
   }
 }
 
-/* The run-history page: the count line, the empty state, and the list of runs. */
+/* The run-history page: its heading, the count line, the empty state, and the runs.
+
+   The list is read as days: one heading per day, rows under it, a hairline between rows.
+   A row is two lines of its own — what the run produced, then the facts that tell it
+   apart from its neighbours — with the outcome opposite, so a reader scanning for a run
+   lands on content rather than on seven identical completion words. */
+
+.runsHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.runsHeadTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+}
+
+.runsHeadMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
 .runHistoryCount {
   margin: 0;
   color: var(--dsw-alias-label-secondary);
@@ -1017,7 +1048,7 @@
 
 .runHistoryEmpty {
   margin: 0;
-  padding: 24px 12px;
+  padding: 32px 12px;
   border: 1px dashed var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-secondary);
@@ -1029,28 +1060,54 @@
 .runHistoryList {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 20px;
+  min-width: 0;
+}
+
+.runHistoryGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The day a group of rows completed on. It is a caption, not a title: the rows below it
+   are what the page is about, and a heavier heading would make the list read as days. */
+.runHistoryDay {
+  margin: 0;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+}
+
+.runHistoryItems {
   margin: 0;
   padding: 0;
   list-style: none;
+  min-width: 0;
 }
 
 .runHistoryItem {
   min-width: 0;
 }
 
-/* One row is a button whose whole face opens the run. The meta line carries the three
-   facts that identify the run — its moment, an edit marker, and its outcome — and the
-   summary line below previews the content. */
+/* Rows separate by a hairline rather than by their own borders: seven outlined boxes
+   read as seven unrelated cards, while one column of rows reads as one day's work. */
+.runHistoryItem + .runHistoryItem {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
 .runHistoryRow {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  padding: 9px 8px;
+  border: 0;
   border-radius: var(--dsw-radius-sm);
   background: none;
   color: inherit;
@@ -1060,7 +1117,6 @@
 }
 
 .runHistoryRow:hover:not(:disabled) {
-  border-color: var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-fill-hover);
 }
 
@@ -1069,47 +1125,119 @@
   opacity: 0.7;
 }
 
+.runHistoryBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The run's content is the row's title: the only line at reading weight, and the only
+   one allowed to be the first thing the eye lands on. */
+.runHistoryTitle {
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 21px;
+  /* One line: a two-line clamp let one long title stand taller than its neighbours and
+     made the rhythm of the list ragged. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .runHistoryMeta {
   display: flex;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .runHistoryTime {
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  line-height: 18px;
   white-space: nowrap;
 }
 
+.runHistoryModel {
+  max-width: 18ch;
+  color: var(--dsw-alias-label-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runHistoryOrdinal,
 .runHistoryEdited {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 18px;
-}
-
-.runHistoryOutcome {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 18px;
-  text-align: right;
   white-space: nowrap;
 }
 
-.runHistorySummary {
-  min-width: 0;
-  color: var(--dsw-alias-label-primary);
+.runHistorySide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* The outcome is a quiet dot and a word. Only a run that did not complete earns a
+   hearing: a wall of neutral "已完成" would compete with the titles it sits beside. */
+.runHistoryOutcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.runHistoryDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.runHistoryRow[data-run-outcome='aborted'] .runHistoryOutcome {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.runHistoryRow[data-run-outcome='error'] .runHistoryOutcome,
+.runHistoryRow[data-run-outcome='failed'] .runHistoryOutcome {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.runHistoryRow[data-run-outcome='running'] .runHistoryOutcome {
+  color: var(--dsw-alias-link);
+}
+
+.runHistoryRow[data-run-outcome='running'] .runHistoryDot {
+  animation: runHistoryPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes runHistoryPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runHistoryRow[data-run-outcome='running'] .runHistoryDot {
+    animation: none;
+  }
+}
+
+.runHistoryChevron {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
   font-size: 13px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
-  /* The preview is one line; the row grows no taller while reading the list. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  line-height: 1;
 }

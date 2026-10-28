@@ -9,12 +9,12 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  WORKBENCH_RESULT_SUMMARY_MAX_LENGTH,
+  WORKBENCH_RESULT_HEADLINE_MAX_LENGTH,
   documentText,
   filledTemplate,
   renderTemplate,
+  resultHeadline,
   resultHtml,
-  resultSummary,
 } from '../src/client/skill-card/render.ts'
 
 /**
@@ -56,25 +56,48 @@ describe('workbench skill card render', () => {
     })
   })
 
-  describe('summarizing a result', () => {
+  describe('naming a run by its headline', () => {
     it('takes the first paragraph as the first line, not the run whole', () => {
-      expect(resultSummary('<p>第一句。</p><p>第二句。</p>')).toBe('第一句。')
+      expect(resultHeadline('<p>第一句。</p><p>第二句。</p>')).toBe('第一句。')
     })
 
     it('treats an explicit newline as a line break too', () => {
-      expect(resultSummary('第一行。\n第二行。')).toBe('第一行。')
+      expect(resultHeadline('第一行。\n第二行。')).toBe('第一行。')
+    })
+
+    it('skips an identifier that opens the document', () => {
+      // The case the list was failing: five runs of one task all previewed their task
+      // number, so the history read as five copies of one row.
+      expect(resultHeadline('<p>T202610223746</p><p>登录改造任务分析</p>'))
+        .toBe('登录改造任务分析')
+    })
+
+    it('prefers a marked summary over any line and over the first heading', () => {
+      const html = '<h1>开发任务分析</h1>'
+        + '<p>T202610223746</p>'
+        + '<p data-dsh-summary="">集中度校验口径调整</p>'
+      expect(resultHeadline(html)).toBe('集中度校验口径调整')
+    })
+
+    it('prefers the first heading when no summary is marked', () => {
+      expect(resultHeadline('<p>T202610223746</p><h2>质押回购委托</h2>')).toBe('质押回购委托')
+    })
+
+    it('still says something for a document that is only an identifier', () => {
+      // Nothing better exists, and the row needs a line: the number is the run's content.
+      expect(resultHeadline('<p>T202610223746</p>')).toBe('T202610223746')
     })
 
     it('truncates one long line at the budget with an ellipsis', () => {
-      const long = '字'.repeat(WORKBENCH_RESULT_SUMMARY_MAX_LENGTH + 10)
-      const summary = resultSummary(`<p>${long}</p>`)
-      expect(summary?.length).toBe(WORKBENCH_RESULT_SUMMARY_MAX_LENGTH + 1)
-      expect(summary?.endsWith('…')).toBe(true)
+      const long = '字'.repeat(WORKBENCH_RESULT_HEADLINE_MAX_LENGTH + 10)
+      const headline = resultHeadline(`<p>${long}</p>`)
+      expect(headline?.length).toBe(WORKBENCH_RESULT_HEADLINE_MAX_LENGTH + 1)
+      expect(headline?.endsWith('…')).toBe(true)
     })
 
-    it('has no summary for a fragment with no visible text', () => {
+    it('has no headline for a fragment with no visible text', () => {
       for (const html of ['<b></b>', '<br>', '   ', '']) {
-        expect(resultSummary(html)).toBeUndefined()
+        expect(resultHeadline(html)).toBeUndefined()
       }
     })
   })

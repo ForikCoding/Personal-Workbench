@@ -33,7 +33,7 @@ import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
-import { resultHtml, resultSummary } from './render.ts'
+import { resultHeadline, resultHtml } from './render.ts'
 import css from './skill-card.module.css'
 
 /**
@@ -52,19 +52,94 @@ function clockText(at: number): string {
     .join(':')
 }
 
+/** One day's worth of runs: the day and the rows that completed on it. */
+interface RunHistoryGroup {
+  /** The day as `YYYY-MM-DD`, which is what the list groups by. */
+  readonly key: string
+  /** Any moment on that day; the group heading reads its date. */
+  readonly at: number
+  /** The day's rows, newest first. */
+  readonly runs: WorkbenchResultRecord[]
+}
+
 /**
- * Format one run's completion moment for the history list.
- *
- * Runs span days, so the row shows the date and the time the run completed, written by
- * hand for the same reason as {@link clockText}: the list is scanned, and a locale's own
- * clock or date shape would change how the rows line up.
+ * The day one moment falls on, as a key the list groups by.
  * @param at - milliseconds since the epoch.
- * @returns `YYYY-MM-DD HH:MM` in the browser's own time zone.
+ * @returns `YYYY-MM-DD` in the browser's own time zone.
  */
-function runTimeText(at: number): string {
+function dayKey(at: number): string {
   const date = new Date(at)
   const pad = (part: number): string => String(part).padStart(2, '0')
-  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/**
+ * The clock reading one history row shows.
+ *
+ * The date belongs to the group's heading, so a row carries only the minute its run
+ * completed. Written by hand for the same reason as {@link clockText}: the list is
+ * scanned, and a locale's own clock shape would change how the rows line up.
+ * @param at - milliseconds since the epoch.
+ * @returns `HH:MM` in the browser's own time zone.
+ */
+function runClockText(at: number): string {
+  const date = new Date(at)
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/**
+ * The moment the heading names as the card's latest run.
+ *
+ * Today's runs need only their clock — the heading already reads "today" in the list —
+ * while any earlier run carries its day, because "最近 22:47" about a run from last week
+ * would be a lie of omission.
+ * @param at - the newest run's completion moment.
+ * @returns `HH:MM` for today, `YYYY-MM-DD HH:MM` otherwise.
+ */
+function latestRunText(at: number): string {
+  return dayKey(at) === dayKey(Date.now())
+    ? runClockText(at)
+    : `${dayKey(at)} ${runClockText(at)}`
+}
+
+/**
+ * The heading one day's runs sit under.
+ *
+ * The two days a user is most likely to be reading get words; every other day is its own
+ * date, because a list that says "10-25" for a run from last year says nothing.
+ * @param at - any moment on that day.
+ * @param t - translator.
+ * @returns 今天, 昨天, or `YYYY-MM-DD`.
+ */
+function runDayLabel(
+  at: number,
+  t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string,
+): string {
+  const key = dayKey(at)
+  const now = Date.now()
+  if (key === dayKey(now)) return t('runHistoryDayToday')
+  if (key === dayKey(now - 86_400_000)) return t('runHistoryDayYesterday')
+  return key
+}
+
+/**
+ * Split the newest-first run list into the days its rows completed on.
+ * @param runs - the card's stored runs, newest first.
+ * @returns one group per day, newest day first; a day with no run is absent.
+ */
+function groupRunsByDay(runs: readonly WorkbenchResultRecord[]): RunHistoryGroup[] {
+  const groups: RunHistoryGroup[] = []
+  for (const run of runs) {
+    const key = dayKey(run.executedAt)
+    const last = groups[groups.length - 1]
+    if (last === undefined || last.key !== key) {
+      groups.push({ key, at: run.executedAt, runs: [run] })
+      continue
+    }
+    last.runs.push(run)
+  }
+  return groups
 }
 
 /**
@@ -455,12 +530,33 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
   // These two drive the header's Run/Cancel control only. The history rows stay open
   // either way: a stored run is a read-only record, and the row of the run in flight is
   // the way to watch it — refusing the click left the list looking like dead rows.
+  // The newest stored run, if the card has one: the heading states when the card last
+  // produced something, which is the one fact a history page's visitor wants before
+  // reading seven rows.
+  const newest = view.runs[0]
+  // Ordinals count from the card's first run, so "第 3 次" keeps meaning the same run as
+  // more runs arrive; the list itself is newest first.
+  const ordinalOf = new Map(view.runs.map((run, index) => [run.runId, view.runs.length - index]))
   return (
     <section className={css.pageView}>
       <header className={css.pageViewHead}>
         <Button variant="ghost" size="sm" onClick={onBack}>{t('skillCardBack')}</Button>
-        <h2 className={css.pageViewTitle}>{view.name ?? fallbackTitle}</h2>
-        {view.skill !== undefined && <span className={css.pageViewSubtitle}>{view.skill}</span>}
+        <div className={css.runsHeadText}>
+          <h2 className={css.runsHeadTitle}>{view.name ?? fallbackTitle}</h2>
+          <p className={css.runsHeadMeta}>
+            {view.skill === undefined ? null : <span className={css.pageViewSubtitle}>{view.skill}</span>}
+            <span className={css.runHistoryCount} data-run-history-count="">
+              {t('runHistoryCount', { count: view.runs.length })}
+            </span>
+            {newest === undefined
+              ? null
+              : (
+                <span className={css.runHistoryCount}>
+                  {t('runHistoryLatest', { time: latestRunText(newest.executedAt) })}
+                </span>
+              )}
+          </p>
+        </div>
         <Button
           variant="primary"
           size="sm"
@@ -508,9 +604,6 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
           {bareRunText(view.bareRun, t)}
         </p>
       )}
-      <p className={css.runHistoryCount} data-run-history-count="">
-        {t('runHistoryCount', { count: view.runs.length })}
-      </p>
       {view.runs.length === 0
         ? (
           <p className={css.runHistoryEmpty} data-run-history-empty="">
@@ -518,44 +611,56 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
           </p>
         )
         : (
-          <ol className={css.runHistoryList} data-run-history-list="">
-            {view.runs.map(run => (
-              <RunHistoryRow
-                key={run.runId}
-                run={run}
-                t={t}
-                onOpen={() => { openCard(cardId, 'result', run.runId) }}
-              />
+          <div className={css.runHistoryList} data-run-history-list="">
+            {groupRunsByDay(view.runs).map(group => (
+              <section className={css.runHistoryGroup} key={group.key}>
+                <p className={css.runHistoryDay} data-run-history-day="">{runDayLabel(group.at, t)}</p>
+                <ol className={css.runHistoryItems}>
+                  {group.runs.map(run => (
+                    <RunHistoryRow
+                      key={run.runId}
+                      run={run}
+                      ordinal={ordinalOf.get(run.runId) ?? 1}
+                      t={t}
+                      onOpen={() => { openCard(cardId, 'result', run.runId) }}
+                    />
+                  ))}
+                </ol>
+              </section>
             ))}
-          </ol>
+          </div>
         )}
     </section>
   )
 }
 
 /**
- * One row of the run history: when the run completed, what it became, and a summary.
+ * One row of the run history: what the run produced, then the facts that tell it apart
+ * from the runs around it, and its outcome on the right.
  *
- * The row is a button because the whole row is the way in; the summary is the first
- * visible line of the run's region, so a row that failed and produced no text still
- * reads as its outcome word. An edited run carries the marker after its time.
+ * The content comes first because that is what a reader scans for; the moment, the route,
+ * and the run's place in the card's history are the second line, because they separate
+ * two runs of one task from each other and nothing more. The outcome sits opposite as a
+ * quiet dot and word — the list's rows are mostly the same outcome, so an equal-weight
+ * word on every row would be seven copies of "已完成" competing with the seven titles.
  *
- * Never disabled: a stored run is read-only, and the row of a run in flight opens that
- * run's live view. The only row without a stored record is the in-flight one, and its
- * live result page is exactly what a click should show.
- * @param props - the run, the translator, and the open action.
+ * The row is a button because the whole row is the way in. Never disabled: a stored run
+ * is read-only, and the row of a run in flight opens that run's live view.
+ * @param props - the run, its ordinal, the translator, and the open action.
  * @returns the row.
  */
 function RunHistoryRow({
   run,
+  ordinal,
   t,
   onOpen,
 }: {
   readonly run: WorkbenchResultRecord
+  readonly ordinal: number
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onOpen: () => void
 }): ReactNode {
-  const summary = resultSummary(resultHtml(run.structured) ?? '')
+  const headline = resultHeadline(resultHtml(run.structured) ?? '')
   return (
     <li className={css.runHistoryItem}>
       <button
@@ -565,20 +670,32 @@ function RunHistoryRow({
         data-run-history-row=""
         data-run-outcome={run.stopReason}
       >
-        <span className={css.runHistoryMeta}>
-          <span className={css.runHistoryTime} data-run-history-time="">
-            {runTimeText(run.executedAt)}
-          </span>
-          {run.editedAt === undefined
+        <span className={css.runHistoryBody}>
+          {headline === undefined
             ? null
-            : <span className={css.runHistoryEdited} data-run-history-edited="">{t('runHistoryEdited')}</span>}
-          <span className={css.runHistoryOutcome} data-run-history-outcome="">
-            {runOutcomeText(run.stopReason, t)}
+            : <span className={css.runHistoryTitle} data-run-history-summary="">{headline}</span>}
+          <span className={css.runHistoryMeta}>
+            <span className={css.runHistoryTime} data-run-history-time="">
+              {runClockText(run.executedAt)}
+            </span>
+            {run.model === undefined
+              ? null
+              : <span className={css.runHistoryModel}>{run.model.model}</span>}
+            {ordinal <= 1
+              ? null
+              : <span className={css.runHistoryOrdinal}>{t('runHistoryOrdinal', { n: ordinal })}</span>}
+            {run.editedAt === undefined
+              ? null
+              : <span className={css.runHistoryEdited} data-run-history-edited="">{t('runHistoryEdited')}</span>}
           </span>
         </span>
-        {summary === undefined
-          ? null
-          : <span className={css.runHistorySummary} data-run-history-summary="">{summary}</span>}
+        <span className={css.runHistorySide}>
+          <span className={css.runHistoryOutcome} data-run-history-outcome="">
+            <span className={css.runHistoryDot} aria-hidden="true" />
+            {runOutcomeText(run.stopReason, t)}
+          </span>
+          <span className={css.runHistoryChevron} aria-hidden="true">›</span>
+        </span>
       </button>
     </li>
   )

@@ -137,6 +137,10 @@ export declare const zh: {
     runHistoryCount: string;
     runHistoryEmpty: string;
     runHistoryEdited: string;
+    runHistoryDayToday: string;
+    runHistoryDayYesterday: string;
+    runHistoryOrdinal: string;
+    runHistoryLatest: string;
     runHistoryRunning: string;
     skillCardRunningBody: string;
     refinePlaceholder: string;

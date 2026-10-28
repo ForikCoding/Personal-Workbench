@@ -170,6 +170,13 @@ export const zh = {
   runHistoryCount: '共 {count} 次运行',
   runHistoryEmpty: '这张卡还没有运行过，点右上角运行一次吧。',
   runHistoryEdited: '已编辑',
+  // The list is grouped by the day a run completed on, so the day is stated once per
+  // group and the rows below it carry only the clock: two runs six days apart are not
+  // distinguishable by two identical clock readings.
+  runHistoryDayToday: '今天',
+  runHistoryDayYesterday: '昨天',
+  runHistoryOrdinal: '第 {n} 次',
+  runHistoryLatest: '最近 {time}',
   // The row of the run in flight: a record the controller builds while the host has not
   // stored anything yet, so it is named here rather than pretending a run stored it.
   runHistoryRunning: '运行中',
@@ -374,6 +381,10 @@ export const en: Record<keyof typeof zh, string> = {
   runHistoryCount: '{count} runs',
   runHistoryEmpty: 'This card has not run yet. Use the run control above to run it.',
   runHistoryEdited: 'Edited',
+  runHistoryDayToday: 'Today',
+  runHistoryDayYesterday: 'Yesterday',
+  runHistoryOrdinal: 'Run {n}',
+  runHistoryLatest: 'latest {time}',
   runHistoryRunning: 'Running',
   skillCardRunningBody: 'The skill is executing. Its result appears here when it finishes.',
   // The composer that revises the result. Both the log and the kept version live in

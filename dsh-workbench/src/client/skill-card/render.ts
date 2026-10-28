@@ -96,25 +96,17 @@ export function resultHtml(value: unknown): string | undefined {
 }
 
 /**
- * Longest visible summary one run-history row shows, in code points.
+ * Longest visible headline one run-history row shows, in code points.
  *
- * A row is one line in a list the user scans, so the summary is a preview, not the
+ * A row is one line in a list the user scans, so the headline is a preview, not the
  * document: 120 characters names the run's content without turning the list into the
  * result page.
  */
-export const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120
+export const WORKBENCH_RESULT_HEADLINE_MAX_LENGTH = 120
 
-/**
- * Read the first line of visible text out of one region fragment.
- *
- * Block-level elements each start their own line (a heading and its paragraph are two
- * lines, not one run-on), and an explicit newline does too; the very first line of the
- * fragment is the summary. Scripts never run: the fragment is not attached, and the
- * cleaning pass that a rendered document gets is not applied to a list preview. A
- * fragment with no visible text has no summary.
- * @param html - the region HTML a stored result carries.
- * @returns the first line, truncated, or undefined when the fragment is all markup.
- */
+/** A line that is only an identifier — a task number, a defect key, a bare number. */
+const IDENTIFIER_LINE = /^(?:[A-Za-z]{1,4}[-_]?)?\d{5,}$/
+
 const BLOCK_BOUNDARY = /<\/(p|h[1-6]|div|li|tr|blockquote|pre|ul|ol|table|section|article|header|footer)>/gi
 
 /**
@@ -151,24 +143,56 @@ export function documentText(html: string): string {
   }
 }
 
-export function resultSummary(html: string): string | undefined {
-  let text = ''
+/**
+ * The one line a run-history row shows as that run's content.
+ *
+ * The first visible line is not always the content: a generated document frequently opens
+ * with its subject's identifier, so seven runs of one task each preview "T202610223746"
+ * and the list reads as seven copies of one row. A marked summary — an element carrying
+ * `data-dsh-summary` — wins, then the first heading, then the first line that is not an
+ * identifier alone, and only then an identifier, because a row with something to say
+ * always says it before falling back to a number.
+ * @param html - the region HTML a stored result carries.
+ * @returns the headline, truncated, or undefined when the fragment is all markup.
+ */
+export function resultHeadline(html: string): string | undefined {
+  const candidates: string[] = []
   try {
     const host = document.createElement('div')
-    // A closing block tag is a line break even though the browser's textContent flattens
-    // it: "first line" is the first paragraph, not the whole first run of paragraphs.
-    host.innerHTML = html.replace(BLOCK_BOUNDARY, '$&\n')
-    text = host.textContent ?? ''
+    host.innerHTML = html
+    const marked = host.querySelector('[data-dsh-summary]')
+    const markedText = singleLine(marked?.textContent ?? '')
+    if (markedText !== '') {
+      candidates.push(markedText)
+    } else {
+      const heading = host.querySelector('h1, h2, h3, h4')
+      const headingText = singleLine(heading?.textContent ?? '')
+      if (headingText !== '') candidates.push(headingText)
+    }
   } catch {
     // A fragment the browser refuses is not one the card could render either.
     return undefined
   }
-  const line = text.split('\n').map(part => part.trim()).find(part => part !== '')
+  for (const line of documentText(html).split('\n')) {
+    const part = singleLine(line)
+    if (part !== '') candidates.push(part)
+  }
+  const line = candidates.find(part => !IDENTIFIER_LINE.test(part.replace(/[\s:：]/g, '')))
+    ?? candidates[0]
   if (line === undefined) return undefined
   const points = Array.from(line)
-  return points.length <= WORKBENCH_RESULT_SUMMARY_MAX_LENGTH
+  return points.length <= WORKBENCH_RESULT_HEADLINE_MAX_LENGTH
     ? line
-    : `${points.slice(0, WORKBENCH_RESULT_SUMMARY_MAX_LENGTH).join('')}…`
+    : `${points.slice(0, WORKBENCH_RESULT_HEADLINE_MAX_LENGTH).join('')}…`
+}
+
+/**
+ * Fold one run of text onto a single line.
+ * @param text - text that may carry newlines or runs of spaces.
+ * @returns the collapsed line.
+ */
+function singleLine(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
 }
 
 /**

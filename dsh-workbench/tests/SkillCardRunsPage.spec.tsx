@@ -158,12 +158,59 @@ describe('the run-history page', () => {
     await loaded(container)
     const rows = [...container.querySelectorAll('[data-run-history-row]')]
     expect(rows.map(row => row.getAttribute('data-run-outcome'))).toEqual(['completed', 'completed', 'completed'])
+    // The day is the group heading's, so each row carries only its own clock reading.
     expect([...container.querySelectorAll('[data-run-history-time]')]
-      .map(row => row?.textContent)).toEqual([
-        '2024-01-02 14:30',
-        '2024-01-02 14:29',
-        '2024-01-02 14:28',
-      ])
+      .map(row => row?.textContent)).toEqual(['14:30', '14:29', '14:28'])
+    expect([...container.querySelectorAll('[data-run-history-day]')]
+      .map(day => day?.textContent)).toEqual(['2024-01-02'])
+  })
+
+  it('groups the runs by the day they completed on', async () => {
+    // A row carries only its clock reading, so the day has to be stated somewhere: runs
+    // from two days read as two groups, newest day first, and a day appears once.
+    const day = 86_400_000
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            results: [
+              result({ runId: 'run-today', executedAt: STARTED_AT + day * 2 }),
+              result({ runId: 'run-yesterday', executedAt: STARTED_AT + day }),
+              result({ runId: 'run-yesterday-b', executedAt: STARTED_AT + day + 60_000 }),
+              result({ runId: 'run-old', executedAt: STARTED_AT }),
+            ],
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    const days = [...container.querySelectorAll('[data-run-history-day]')].map(node => node.textContent)
+    expect(days).toEqual(['2024-01-04', '2024-01-03', '2024-01-02'])
+    // Three runs under the newest two days, and the fourth alone: the grouping follows
+    // the order of the list rather than re-sorting it.
+    expect([...container.querySelectorAll('[data-run-history-row]')]).toHaveLength(4)
+    expect([...container.querySelectorAll('[data-run-history-time]')].map(node => node.textContent))
+      .toEqual(['14:28', '14:29', '14:28', '14:28'])
+  })
+
+  it('numbers each run within the card’s history', async () => {
+    // Two runs of one task look alike once their content is the same document; the
+    // ordinal is what tells a reader which came first.
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            results: [result({ runId: 'run-new', executedAt: STARTED_AT + 60_000 }), result({ runId: 'run-old' })],
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    const rows = [...container.querySelectorAll('[data-run-history-row]')]
+    expect(rows[0]?.textContent).toContain('第 2 次')
+    // The card's first run is the history's floor, so it carries no ordinal: "第 1 次"
+    // on every card's oldest row would be a fact with nothing to compare against.
+    expect(rows[1]?.textContent).not.toContain('第 1 次')
   })
 
   it('states how many runs the card keeps', async () => {
@@ -285,7 +332,7 @@ describe('the run-history page', () => {
       expect(rows).toHaveLength(1)
       // The row is the run: its start moment, its running word, no summary yet.
       expect(rows[0]?.getAttribute('data-run-outcome')).toBe('running')
-      expect(container.querySelector('[data-run-history-time]')?.textContent).toBe('2024-01-02 14:28')
+      expect(container.querySelector('[data-run-history-time]')?.textContent).toBe('14:28')
       expect(container.querySelector('[data-run-history-outcome]')?.textContent).toBe(zh.runHistoryRunning)
       expect(container.querySelector('[data-run-history-summary]')).toBeNull()
       // The row is the way in to the run in flight: its live result page is what the
