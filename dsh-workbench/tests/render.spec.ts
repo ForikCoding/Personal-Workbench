@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   WORKBENCH_RESULT_SUMMARY_MAX_LENGTH,
+  documentText,
   filledTemplate,
   renderTemplate,
   resultHtml,
@@ -75,6 +76,33 @@ describe('workbench skill card render', () => {
       for (const html of ['<b></b>', '<br>', '   ', '']) {
         expect(resultSummary(html)).toBeUndefined()
       }
+    })
+  })
+
+  describe('reducing a document to text', () => {
+    it('keeps every paragraph, one block per line', () => {
+      const text = documentText('<h1>任务分析</h1><p>业务背景：改登录。</p><p>影响：登录页。</p>')
+      expect(text).toBe(['任务分析', '业务背景：改登录。', '影响：登录页。'].join('\n'))
+    })
+
+    it('drops markup, styles, and comments, keeping only visible prose', () => {
+      const text = documentText(
+        '<style>.x{color:red}</style><!-- dsh-actions start: card "详细设计" -->'
+          + '<button data-dsh-action="start">下一步</button><p>正文。</p>',
+      )
+      // The button is inline, so its label runs into the paragraph; what is gone is the
+      // stylesheet text and the action comment.
+      expect(text).toBe('下一步正文。')
+    })
+
+    it('folds consecutive blank lines and strips line indent', () => {
+      const text = documentText('<div>a</div>\n\n\n<div>b</div>')
+      expect(text).toBe('a\n\nb')
+    })
+
+    it('returns an empty string when there is no visible text', () => {
+      expect(documentText('<style>.x{color:red}</style>')).toBe('')
+      expect(documentText('')).toBe('')
     })
   })
 

@@ -41,7 +41,7 @@ import { resolveAction } from './actions.ts'
 import type { WorkbenchModelDirectoryView, WorkbenchModelField, WorkbenchModelSeat } from './model.ts'
 import { NO_MODEL_DIRECTORY, resolveModelField } from './model.ts'
 import type { WorkbenchActionEvent } from './render.ts'
-import { filledTemplate, resultHtml } from './render.ts'
+import { documentText, filledTemplate, resultHtml } from './render.ts'
 import { startCardRefine, startCardRun } from './run-start.ts'
 import { analyzeTemplate } from './template.ts'
 import type { WorkbenchWorkspaceField } from './workspace.ts'
@@ -1142,17 +1142,17 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       return
     }
     // The row a clicked button carried, or the card's own document when the button
-    // carried none. A region-less template passes itself: there is nothing to fill, so
-    // "the document" is the template verbatim. The latest result is spliced in when
-    // there is one, because the document the user is looking at is the template with
-    // that region rendered — a summary of it would be a second, lossy source of truth.
+    // carried none. The document is the template with the latest result spliced in —
+    // what the user is looking at — reduced to its visible text: the target reads the
+    // source card's content, and handing it the markup would bury that content in tags.
+    // A region-less template passes its own text; an empty one passes nothing.
     const effectivePayload = payload ?? {
-      template: (() => {
+      content: (() => {
         const latest = [...snapshot.results]
           .filter(entry => entry.cardId === cardId)
           .sort((left, right) => right.executedAt - left.executedAt)[0]
         const region = latest === undefined ? undefined : resultHtml(latest.structured)
-        return region === undefined ? template : filledTemplate(template, region)
+        return documentText(region === undefined ? template : filledTemplate(template, region))
       })(),
     }
     const busy = await runningTargets(declaration, snapshot.cards)

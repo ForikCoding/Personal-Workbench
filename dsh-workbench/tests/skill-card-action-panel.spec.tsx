@@ -30,7 +30,7 @@ import type { WorkbenchSkillCardPatch } from '../src/skill-card-contract.ts'
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
 const { SkillCardResultPage } = await import('../src/client/skill-card/SkillCardPages.tsx')
-const { filledTemplate } = await import('../src/client/skill-card/render.ts')
+const { documentText, filledTemplate } = await import('../src/client/skill-card/render.ts')
 const { cardFaceTitle } = await import('../src/client/skill-card/SkillCard.tsx')
 type PageProps = import('../src/client/skill-card/SkillCardPages.tsx').SkillCardPageProps
 const { en } = await import('../src/client/locales.ts')
@@ -401,8 +401,11 @@ describe('action confirmation panel', () => {
     expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'payload'])
     expect(fields[0]?.text).toBe('Card: 启动任务')
     expect(fields[1]?.text).toBe('task-finish')
-    // The region is spliced into the template: the payload is the document the user saw.
-    expect(fields[2]?.text).toBe(JSON.stringify({ template: filledTemplate(CLICKER_TEMPLATE, raw) }, null, 2))
+    // The region is spliced into the template and the assembled document reduced to its
+    // text: the payload is the content the user read, not the markup behind it.
+    expect(fields[2]?.text).toBe(JSON.stringify({
+      content: documentText(filledTemplate(CLICKER_TEMPLATE, raw)),
+    }, null, 2))
   })
 
   it('opens with no live session at all, because the run no longer joins one', async () => {
@@ -643,7 +646,7 @@ describe('a confirmed card target', () => {
       cardId: 'target-card',
       scopeSessionId: 'session-1',
       mode: { kind: 'card' },
-      payload: { template: filledTemplate(CLICKER_TEMPLATE, raw) },
+      payload: { content: documentText(filledTemplate(CLICKER_TEMPLATE, raw)) },
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     })
   })

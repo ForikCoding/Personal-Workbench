@@ -117,6 +117,40 @@ export const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120
  */
 const BLOCK_BOUNDARY = /<\/(p|h[1-6]|div|li|tr|blockquote|pre|ul|ol|table|section|article|header|footer)>/gi
 
+/**
+ * The visible text of one document, block boundaries as line breaks.
+ *
+ * The payload a button carries to another card when it has no row of its own: the target
+ * reads the source card's content, not its markup — a child that received the HTML
+ * would have to pick prose out of tags. The whole document is what the user is looking
+ * at, so nothing is truncated; consecutive blank lines fold to one, and each line's
+ * leading whitespace is dropped.
+ * @param html - a complete document, or a region fragment; either cleans the same way.
+ * @returns the visible text, or an empty string when the browser refuses the markup.
+ */
+export function documentText(html: string): string {
+  try {
+    const host = document.createElement('div')
+    host.innerHTML = html.replace(BLOCK_BOUNDARY, '$&\n')
+    // A style or script element's own text is markup, not prose: a `<style>` rule would
+    // read as a paragraph of content to whatever receives the text.
+    for (const stray of [...host.querySelectorAll('style, script')]) stray.remove()
+    const cleaned: string[] = []
+    let previousBlank = false
+    for (const line of (host.textContent ?? '').split('\n')) {
+      const part = line.replace(/\s+/g, ' ').trim()
+      const blank = part === ''
+      if (blank && previousBlank) continue
+      cleaned.push(part)
+      previousBlank = blank
+    }
+    return cleaned.join('\n').trim()
+  } catch {
+    // A document the browser refuses is not one a card could render either.
+    return ''
+  }
+}
+
 export function resultSummary(html: string): string | undefined {
   let text = ''
   try {

@@ -56,6 +56,18 @@ export declare function resultHtml(value: unknown): string | undefined;
  * result page.
  */
 export declare const WORKBENCH_RESULT_SUMMARY_MAX_LENGTH = 120;
+/**
+ * The visible text of one document, block boundaries as line breaks.
+ *
+ * The payload a button carries to another card when it has no row of its own: the target
+ * reads the source card's content, not its markup — a child that received the HTML
+ * would have to pick prose out of tags. The whole document is what the user is looking
+ * at, so nothing is truncated; consecutive blank lines fold to one, and each line's
+ * leading whitespace is dropped.
+ * @param html - a complete document, or a region fragment; either cleans the same way.
+ * @returns the visible text, or an empty string when the browser refuses the markup.
+ */
+export declare function documentText(html: string): string;
 export declare function resultSummary(html: string): string | undefined;
 /**
  * Splice one result's HTML into its template's region.

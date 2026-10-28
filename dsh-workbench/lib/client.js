@@ -2179,6 +2179,36 @@ window.__ModuleLoader__.load({
 		* @returns the first line, truncated, or undefined when the fragment is all markup.
 		*/
 		var BLOCK_BOUNDARY = /<\/(p|h[1-6]|div|li|tr|blockquote|pre|ul|ol|table|section|article|header|footer)>/gi;
+		/**
+		* The visible text of one document, block boundaries as line breaks.
+		*
+		* The payload a button carries to another card when it has no row of its own: the target
+		* reads the source card's content, not its markup — a child that received the HTML
+		* would have to pick prose out of tags. The whole document is what the user is looking
+		* at, so nothing is truncated; consecutive blank lines fold to one, and each line's
+		* leading whitespace is dropped.
+		* @param html - a complete document, or a region fragment; either cleans the same way.
+		* @returns the visible text, or an empty string when the browser refuses the markup.
+		*/
+		function documentText(html) {
+			try {
+				const host = document.createElement("div");
+				host.innerHTML = html.replace(BLOCK_BOUNDARY, "$&\n");
+				for (const stray of [...host.querySelectorAll("style, script")]) stray.remove();
+				const cleaned = [];
+				let previousBlank = false;
+				for (const line of (host.textContent ?? "").split("\n")) {
+					const part = line.replace(/\s+/g, " ").trim();
+					const blank = part === "";
+					if (blank && previousBlank) continue;
+					cleaned.push(part);
+					previousBlank = blank;
+				}
+				return cleaned.join("\n").trim();
+			} catch {
+				return "";
+			}
+		}
 		function resultSummary(html) {
 			let text = "";
 			try {
@@ -3151,10 +3181,10 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
-				const effectivePayload = payload ?? { template: (() => {
+				const effectivePayload = payload ?? { content: (() => {
 					const latest = [...snapshot.results].filter((entry) => entry.cardId === cardId).sort((left, right) => right.executedAt - left.executedAt)[0];
 					const region = latest === void 0 ? void 0 : resultHtml(latest.structured);
-					return region === void 0 ? template : filledTemplate(template, region);
+					return documentText(region === void 0 ? template : filledTemplate(template, region));
 				})() };
 				const busy = await runningTargets(declaration, snapshot.cards);
 				const resolution = resolveAction(declarations, {
