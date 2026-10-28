@@ -286,6 +286,8 @@ export declare class WorkbenchSkillCardRunner {
      * A session that is not archived is left that way: it is on screen because someone is in
      * it, and hiding a conversation the user has open is not this run's decision.
      * @param sessionId - the session recorded on the result being refined.
+     * @param route - the route to install on a resumed agent that was persisted without
+     * one; see {@link publishRunSession} for the warrant.
      * @returns the resolved session, or why it could not be restored.
      */
     private attachRunSession;
@@ -315,6 +317,11 @@ export declare class WorkbenchSkillCardRunner {
      * @param cardId - the card whose run is starting.
      * @param cwd - the card's workspace directory, which roots the session.
      * @param startedAt - the run's start, used to name the session.
+     * @param route - the provider/model the session runs on, when one is named. A run
+     * session is created blank and assembles the deployment persona from its own options,
+     * whose `{{model}}` placeholder would have no value otherwise; the card's route or
+     * the naming session's route is what gives both the session and the subagent it
+     * parents a model to assemble against.
      * @returns the created agent and its handle.
      */
     private publishRunSession;

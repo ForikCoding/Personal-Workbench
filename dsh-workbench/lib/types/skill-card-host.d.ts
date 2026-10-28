@@ -39,6 +39,18 @@ export interface WorkbenchAgent {
             readonly cwd?: string;
         };
     };
+    /**
+     * The route the agent runs on, when one is named.
+     *
+     * A fresh session this feature creates has no route of its own unless the card names
+     * one, so the run inherits the naming session's route here. That is what makes every
+     * run — the session and the subagent it starts — able to assemble the deployment
+     * persona, whose `{{model}}` template variable is read off the agent's own options.
+     */
+    readonly options?: {
+        readonly provider?: string;
+        readonly model?: string;
+    };
 }
 /** Base a loaded skill resolves the relative paths it mentions against. */
 export type WorkbenchSkillResourceBase = {
@@ -327,6 +339,18 @@ export interface WorkbenchSkillCardHost {
                 readonly cwd: string;
             };
             readonly parentAgent?: WorkbenchAgent;
+            /**
+             * The route the session runs on, when one is named.
+             *
+             * A run session is created blank; the deployment personae assemble `{{model}}` off
+             * the agent's own options, so a session without a route cannot assemble them, and
+             * nor can the subagent it parents. The runner names the card's route or the naming
+             * session's, so assembling is never the first failure a run meets.
+             */
+            readonly agentOptions?: {
+                readonly provider?: string;
+                readonly model?: string;
+            };
         }): Promise<WorkbenchAgentHandle>;
         /**
          * Load one persisted session and run an agent on it again.
@@ -337,11 +361,20 @@ export interface WorkbenchSkillCardHost {
          * the session's own header — the directory the card ran in at the time, and the
          * permission mode its log recorded — which is what keeps a refinement in the
          * conversation it revises.
+         *
+         * `agentOptions` re-names the route for a session that predates the workbench naming
+         * one: an older run session was persisted without it, and the resumed agent inherits
+         * that blankness unless the route is stated here.
          * @param options - the persisted session to load.
          * @returns the re-attached agent and the handle that tears it down.
          */
         resume(options: {
             readonly resumeSessionId: string;
+            /** Route to install on the resumed agent; see {@link create} for the warrant. */
+            readonly agentOptions?: {
+                readonly provider?: string;
+                readonly model?: string;
+            };
         }): Promise<WorkbenchAgentHandle>;
     };
     /**

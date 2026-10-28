@@ -543,6 +543,26 @@ export class WorkbenchSkillCardRunner {
     if (this.congested(request.cardId)) {
       return reject('run-in-progress', 'another run is already in flight')
     }
+    // The route the run's own session runs on: the card's named route, or the naming
+    // session's when the card names none. A run session is created blank, and the
+    // deployment persona assembles `{{model}}` off an agent's own options — so a session
+    // without a route cannot assemble the persona, and neither can the subagent it
+    // parents, which inherits the session's route. Falling back to the naming session's
+    // route is what a blank card always did before it got a session of its own: its runs
+    // executed on the session the user was in.
+    const scopeAgent = request.scopeSessionId === undefined
+      ? undefined
+      : this.options.host.agents.get(request.scopeSessionId)
+    // The naming session's options are only a usable route when both fields are named —
+    // a route needs a provider and a model, not just one of them.
+    const scopeRoute = scopeAgent === undefined
+      ? undefined
+      : scopeAgent.options !== undefined
+        && scopeAgent.options.provider !== undefined
+        && scopeAgent.options.model !== undefined
+        ? { provider: scopeAgent.options.provider, model: scopeAgent.options.model }
+        : undefined
+    const runRoute = selection.model ?? scopeRoute
     // The session a run executes in, resolved before anything starts. A card run gets a
     // fresh one of its own, rooted at the card's directory and carrying its permission
     // mode: the mode is applied at creation, so a deployment that cannot apply it refuses
@@ -553,8 +573,8 @@ export class WorkbenchSkillCardRunner {
     let session: RunSession
     try {
       const resolved = refineSessionId === undefined
-        ? await this.openRunSession(request.cardId, workspace.path, startedAt)
-        : await this.attachRunSession(refineSessionId)
+        ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute)
+        : await this.attachRunSession(refineSessionId, runRoute)
       if (resolved.status === 'rejected') return resolved
       session = resolved.session
     } catch (error) {
@@ -584,9 +604,7 @@ export class WorkbenchSkillCardRunner {
     // live agent can be a scope: a name with no live agent — or no name at all —
     // resolves through the run's own agent, whose chain carries only the global and
     // project layers.
-    const scope = request.scopeSessionId === undefined
-      ? undefined
-      : this.options.host.agents.get(request.scopeSessionId)
+    const scope = scopeAgent
 
     const run: RunRecord = {
       cardId: request.cardId,
@@ -796,9 +814,14 @@ export class WorkbenchSkillCardRunner {
    * @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the agent is
    * released first, so a refused start leaves nothing running under no mode.
    */
-  private async openRunSession(cardId: string, cwd: string, startedAt: number): Promise<RunSessionOutcome> {
+  private async openRunSession(
+    cardId: string,
+    cwd: string,
+    startedAt: number,
+    route: WorkbenchCardModel | undefined,
+  ): Promise<RunSessionOutcome> {
     const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission)
-    const handle = await this.publishRunSession(cardId, cwd, startedAt)
+    const handle = await this.publishRunSession(cardId, cwd, startedAt, route)
     try {
       this.options.host.sandbox.setMode(handle.agent.id, mode)
     } catch (error) {
@@ -823,14 +846,22 @@ export class WorkbenchSkillCardRunner {
    * A session that is not archived is left that way: it is on screen because someone is in
    * it, and hiding a conversation the user has open is not this run's decision.
    * @param sessionId - the session recorded on the result being refined.
+   * @param route - the route to install on a resumed agent that was persisted without
+   * one; see {@link publishRunSession} for the warrant.
    * @returns the resolved session, or why it could not be restored.
    */
-  private async attachRunSession(sessionId: string): Promise<RunSessionOutcome> {
+  private async attachRunSession(
+    sessionId: string,
+    route: WorkbenchCardModel | undefined,
+  ): Promise<RunSessionOutcome> {
     let owned: WorkbenchAgentHandle | undefined
     let agent = this.options.host.agents.get(sessionId)
     if (agent === undefined) {
       try {
-        owned = await this.options.host.agents.resume({ resumeSessionId: sessionId })
+        owned = await this.options.host.agents.resume({
+          resumeSessionId: sessionId,
+          ...route === undefined ? {} : { agentOptions: route },
+        })
       } catch (error) {
         return reject('session-not-live', `session "${sessionId}" cannot be re-attached: ${messageOf(error)}`)
       }
@@ -892,15 +923,30 @@ export class WorkbenchSkillCardRunner {
    * @param cardId - the card whose run is starting.
    * @param cwd - the card's workspace directory, which roots the session.
    * @param startedAt - the run's start, used to name the session.
+   * @param route - the provider/model the session runs on, when one is named. A run
+   * session is created blank and assembles the deployment persona from its own options,
+   * whose `{{model}}` placeholder would have no value otherwise; the card's route or
+   * the naming session's route is what gives both the session and the subagent it
+   * parents a model to assemble against.
    * @returns the created agent and its handle.
    */
-  private async publishRunSession(cardId: string, cwd: string, startedAt: number): Promise<WorkbenchAgentHandle> {
+  private async publishRunSession(
+    cardId: string,
+    cwd: string,
+    startedAt: number,
+    route: WorkbenchCardModel | undefined,
+  ): Promise<WorkbenchAgentHandle> {
     const sessionId = this.nextSessionId(cardId, startedAt)
+    const agentOptions = route === undefined ? {} : { agentOptions: route }
     try {
-      return await this.options.host.agents.create({ sessionId, meta: { cwd } })
+      return await this.options.host.agents.create({ sessionId, meta: { cwd }, ...agentOptions })
     } catch (error) {
       if (errorNameOf(error) !== SESSION_ALREADY_EXISTS) throw error
-      return await this.options.host.agents.create({ sessionId: this.nextSessionId(cardId, startedAt), meta: { cwd } })
+      return await this.options.host.agents.create({
+        sessionId: this.nextSessionId(cardId, startedAt),
+        meta: { cwd },
+        ...agentOptions,
+      })
     }
   }
 

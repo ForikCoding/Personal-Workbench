@@ -374,6 +374,37 @@ describe('workbench skill card runner', () => {
       expect(saved[0]?.record).not.toHaveProperty('model')
     })
 
+    it('roots a route-less run session in the naming session’s route', async () => {
+      // A card that names no model still has to run on something, and the deployment
+      // persona assembles `{{model}}` off the agent's own options. The run's fresh session
+      // is created blank, so the runner installs the naming session's route on it — the
+      // route the run would have inherited before it gained a session of its own. The
+      // child still receives no explicit `agentOptions`: it inherits the session's route.
+      const { runner, fake, saved } = setup({ agentOptions: { provider: 'deepseek', model: 'deepseek-chat' } })
+      expect((await runner.start(request({ scopeSessionId: AGENT.id }))).status).toBe('started')
+      await settle(runner)
+      expect(fake.createdAgents[0]?.options).toEqual({ provider: 'deepseek', model: 'deepseek-chat' })
+      expect(fake.activations[0]?.request).not.toHaveProperty('agentOptions')
+      expect(saved[0]?.record).not.toHaveProperty('model')
+    })
+
+    it('names the card route over the naming session’s route', async () => {
+      // The card's own choice wins when both are present: a card that names a model says
+      // the route the deployment must route, and the session's route is only the fallback
+      // for a card that says nothing. The same route lands on the run session and on the
+      // child.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, model: MODEL },
+        agentOptions: { provider: 'deepseek', model: 'session-model' },
+      })
+      expect((
+        await runner.start(request({ scopeSessionId: AGENT.id }))
+      ).status).toBe('started')
+      await settle(runner)
+      expect(fake.createdAgents[0]?.options).toEqual(MODEL)
+      expect(fake.activations[0]?.request.agentOptions).toEqual(MODEL)
+    })
+
     it('refuses a provider that does not advertise the capability, naming the route', async () => {
       // Criterion 77. A backend that cannot take a route must refuse rather than run on
       // the session's model: the card says one thing and the run would do another.

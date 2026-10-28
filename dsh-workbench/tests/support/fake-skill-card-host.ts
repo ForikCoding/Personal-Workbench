@@ -71,6 +71,14 @@ export type ScriptedResult = WorkbenchSubagentResult | 'hang' | 'manual'
 /** Options the fake host varies on. */
 export interface FakeHostOptions {
   readonly live?: boolean
+  /**
+   * The route the live session agent carries.
+   *
+   * The double omits it by default so a case that cares about "the card names no model"
+   * sees the blankness it is testing; a case that wants the session to name a route —
+   * which the real user session always does — states it here.
+   */
+  readonly agentOptions?: { readonly provider?: string; readonly model?: string }
   readonly cwd?: string
   readonly skills?: readonly WorkbenchSkillSummary[]
   readonly definitions?: Readonly<Record<string, WorkbenchSkillDefinition>>
@@ -267,10 +275,16 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
     return Promise.resolve(scripted)
   }
 
+  // The route the live session carries; the AGENT constant stays the scope identity the
+  // existing cases assert on, so the variant is only built (and only returned) for a case
+  // that injects a route.
+  const liveAgent: WorkbenchAgent = options.agentOptions === undefined
+    ? AGENT
+    : { ...AGENT, options: options.agentOptions }
   const host: WorkbenchSkillCardHost = {
     agents: {
-      get: (sessionId) => (options.live === false || sessionId !== AGENT.id ? undefined : AGENT),
-      list: () => (options.live === false ? [] : [AGENT]),
+      get: (sessionId) => (options.live === false || sessionId !== AGENT.id ? undefined : liveAgent),
+      list: () => (options.live === false ? [] : [liveAgent]),
       // A card agent is only ever interesting for the cwd it roots its session at, so the
       // fake keeps that and nothing else. `disposeCount` lets a case prove the plugin
       // actually tears one down when the workspace changes. Publication is exclusive:
@@ -287,6 +301,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
         const created: WorkbenchAgent = {
           id: createOptions.sessionId,
           session: { header: { cwd: createOptions.meta.cwd } },
+          ...createOptions.agentOptions === undefined ? {} : { options: createOptions.agentOptions },
         }
         createdAgents.push(created)
         return {
@@ -304,6 +319,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
         const resumed: WorkbenchAgent = {
           id: resumeOptions.resumeSessionId,
           session: { header: { cwd: options.cwd ?? '/repo' } },
+          ...resumeOptions.agentOptions === undefined ? {} : { options: resumeOptions.agentOptions },
         }
         return {
           agent: resumed,
