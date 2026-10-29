@@ -1231,6 +1231,8 @@ window.__ModuleLoader__.load({
 				if (workspace !== void 0 && !isWorkbenchCardWorkspace(workspace)) return void 0;
 				const permission = entry.permission;
 				if (permission !== void 0 && !isWorkbenchSandboxMode(permission)) return void 0;
+				const instructionMode = entry.instructionMode;
+				if (instructionMode !== void 0 && !isWorkbenchInstructionMode(instructionMode)) return void 0;
 				if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some((name) => typeof name !== "string")) return;
 				if (entry.template !== void 0 && typeof entry.template !== "string") return void 0;
 				cards.push({
@@ -1240,6 +1242,7 @@ window.__ModuleLoader__.load({
 					...model === void 0 ? {} : { model },
 					...workspace === void 0 ? {} : { workspace: { path: workspace.path } },
 					...permission === void 0 ? {} : { permission },
+					...instructionMode === void 0 ? {} : { instructionMode },
 					templateSkills: entry.templateSkills,
 					...entry.template === void 0 ? {} : { template: entry.template }
 				});

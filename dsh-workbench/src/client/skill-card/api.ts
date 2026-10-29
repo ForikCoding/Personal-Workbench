@@ -29,6 +29,7 @@ import {
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
+  isWorkbenchInstructionMode,
   isWorkbenchSandboxMode,
   isWorkbenchSkillName,
 } from '../../skill-card-contract.ts'
@@ -508,6 +509,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       model?: unknown
       workspace?: unknown
       permission?: unknown
+      instructionMode?: unknown
       templateSkills?: unknown
       template?: unknown
     }
@@ -531,6 +533,11 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
     // sandbox had agreed to it.
     const permission = entry.permission
     if (permission !== undefined && !isWorkbenchSandboxMode(permission)) return undefined
+    // And for the instruction mode, which decides whether the page draws a field at all: the
+    // run control is drawn from this value, so dropping it left every card reading as "no
+    // instruction needed" while the Host still refused the run it could not see an ask for.
+    const instructionMode = entry.instructionMode
+    if (instructionMode !== undefined && !isWorkbenchInstructionMode(instructionMode)) return undefined
     if (!Array.isArray(entry.templateSkills) || entry.templateSkills.some(name => typeof name !== 'string')) {
       return undefined
     }
@@ -542,6 +549,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       ...model === undefined ? {} : { model },
       ...workspace === undefined ? {} : { workspace: { path: (workspace as { path: string }).path } },
       ...permission === undefined ? {} : { permission },
+      ...instructionMode === undefined ? {} : { instructionMode },
       templateSkills: entry.templateSkills as readonly string[],
       ...entry.template === undefined ? {} : { template: entry.template },
     })

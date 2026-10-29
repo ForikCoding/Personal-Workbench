@@ -174,6 +174,36 @@ describe('parseSnapshot', () => {
     expect(parseSnapshot(withSession)?.results[0]?.sessionId).toBe('workbench-skill-card-7')
   })
 
+  it('keeps the instruction mode a card stores, and reads none as none', () => {
+    // The page draws its run control from this value. Dropping it here is not a display
+    // detail: the card then reads as "no instruction needed", the header's Run is drawn with
+    // no field beside it, and the Host refuses the run the user had no way to fill in.
+    const body = {
+      ...SNAPSHOT,
+      cards: [{ cardId: 'skill-card', instructionMode: 'required', templateSkills: [] }],
+    }
+    expect(parseSnapshot(body)?.cards[0]?.instructionMode).toBe('required')
+    expect(parseSnapshot(SNAPSHOT)?.cards[0]).not.toHaveProperty('instructionMode')
+    expect(parseSnapshot({
+      ...SNAPSHOT,
+      cards: [{ cardId: 'skill-card', instructionMode: 'optional', templateSkills: [] }],
+    })?.cards[0]?.instructionMode).toBe('optional')
+  })
+
+  it('refuses a card whose instruction mode is outside the contract', () => {
+    for (const instructionMode of ['always', '', 1, {}]) {
+      const body = { ...SNAPSHOT, cards: [{ cardId: 'skill-card', instructionMode, templateSkills: [] }] }
+      expect(parseSnapshot(body), JSON.stringify(instructionMode)).toBeUndefined()
+    }
+  })
+
+  it('keeps the instruction a stored result carried', () => {
+    // A history row states the ask it answered, so the value has to survive the boundary
+    // read as well as the write.
+    const body = { ...SNAPSHOT, results: [{ ...STORED, instruction: '分析 T202601010001' }] }
+    expect(parseSnapshot(body)?.results[0]?.instruction).toBe('分析 T202601010001')
+  })
+
   it('refuses a snapshot whose result carries an unusable session id', () => {
     // 重新生成 sends this value back as the session to run in, so a malformed one is
     // refused here rather than offered as a destination.
