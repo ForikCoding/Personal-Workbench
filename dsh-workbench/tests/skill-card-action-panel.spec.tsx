@@ -536,8 +536,9 @@ describe('action confirmation panel', () => {
     expect(problem()?.text).not.toContain('system-only')
   })
 
-  it('reports a target card that is already running', async () => {
-    // Criterion 23: refused at once, not queued and not waited for.
+  it('offers a second run of a target card that is already running', async () => {
+    // A card may run several of its own runs at once, so a busy target is no longer a
+    // refusal: the click opens the confirmation like any other, and the Host decides.
     const { recorded, renderPage } = fixture({
       poll: async (cardId) => (cardId === 'target-card'
         ? { status: 'ok', state: { cardId, phase: 'running', startedAt: 1, retried: false } }
@@ -546,9 +547,10 @@ describe('action confirmation panel', () => {
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
     await clickAction('start')
-    await waitFor(() => { expect(problem()?.code).toBe('target-busy') })
-    expect(document.querySelector('[data-action-panel]')).toBeNull()
-    expect(recorded.starts).toEqual([])
+    await waitFor(() => { expect(panel()).toBeTruthy() })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]?.cardId).toBe('target-card')
   })
 
   it('offers no buttons while this card’s own run is in flight', async () => {

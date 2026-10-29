@@ -119,16 +119,31 @@ export declare function cardSelection(card: WorkbenchCardConfigView | undefined)
 /**
  * Run one card's skill and own the outcome.
  *
- * One run at a time per card, bounded globally by the deployment's concurrency
- * limit. A run that produces no usable structured value is retried exactly once;
+ * A card may run several at once, bounded by the deployment's concurrency limit — each
+ * run in a session of its own, which is what keeps two runs of one card from sharing a
+ * conversation. A run that produces no usable structured value is retried exactly once;
  * a cancelled run never is.
  */
 export declare class WorkbenchSkillCardRunner {
     private readonly options;
+    /**
+     * Every card's runs, in start order.
+     *
+     * A list rather than one record because one card may have several in flight: the last
+     * entry is the newest, and each carries the id its settled record will use.
+     */
     private readonly runs;
     private readonly inflight;
     private readonly now;
     private active;
+    /**
+     * The run ids handed out per card, in this process.
+     *
+     * A run's id is its start, so two runs of one card started within the same millisecond —
+     * which is what a fixed clock in a spec produces — would be one id. The suffix keeps them
+     * apart while the first keeps the readable form.
+     */
+    private readonly runStamps;
     /**
      * @param options - host services, budgets, and the two storage seams.
      */
@@ -175,15 +190,29 @@ export declare class WorkbenchSkillCardRunner {
      */
     start(request: WorkbenchRunRequest): Promise<WorkbenchRunStartOutcome>;
     /**
-     * Whether one more start would exceed the card's or the deployment's limit.
+     * Whether one more start would exceed the deployment's limit.
      *
      * Asked twice per start: once before the run's session is resolved, so a refused start
      * publishes no session and restores none underneath a child still running in it, and once
      * immediately before the run is recorded, so the reservation itself stays synchronous.
-     * @param cardId - the card the run belongs to.
-     * @returns whether another run is already in flight or the limit is reached.
+     *
+     * Only the deployment's limit is asked about: a card may have several runs in flight, and
+     * refusing the second was what made a card a one-at-a-time thing. The limit counts every
+     * run, so it bounds one card's concurrency as well as the whole workbench's.
+     * @returns whether the limit is reached.
      */
     private congested;
+    /**
+     * Whether a run is already executing in one session.
+     *
+     * A refinement continues the conversation its document came from, and two agents on one
+     * session would interleave two conversations into one log — so a refinement of a session
+     * another run is inside is refused rather than merged. Plain runs are unaffected: each
+     * gets a session of its own.
+     * @param sessionId - the session the new run would execute in.
+     * @returns the run already in that session, if there is one.
+     */
+    private sessionBusy;
     /**
      * Resolve the run seam this harness offers, bound to its service.
      *
@@ -237,22 +266,71 @@ export declare class WorkbenchSkillCardRunner {
      */
     observeChildEvent(sessionId: string, event: WorkbenchActivityEvent): void;
     /**
-     * Read one card's run state.
+     * Every run this runner keeps, across all cards.
+     * @returns the runs, in no particular order.
+     */
+    private everyRun;
+    /**
+     * The runs this runner keeps for one card, oldest first.
+     * @param cardId - the card.
+     * @returns the runs; empty when none has been started.
+     */
+    private runsOf;
+    /**
+     * Read one card's newest run state.
      * @param cardId - the card.
      * @returns the state, or undefined when no run has been started for it.
      */
     state(cardId: string): WorkbenchRunState | undefined;
     /**
-     * Cancel one card's in-flight run.
+     * Read every run state one card still keeps, newest first.
+     *
+     * A card may run several at once, so a client needs the list: the newest state alone
+     * would hide a second run in flight. Newest first is the order the history reads in, and
+     * the order the list settles into once the runs are stored.
      * @param cardId - the card.
-     * @returns whether a running run was signalled.
+     * @returns the states; empty when no run has been started.
      */
-    cancel(cardId: string): boolean;
+    states(cardId: string): WorkbenchRunState[];
+    /**
+     * Cancel one of a card's in-flight runs, or all of them.
+     *
+     * Naming a run stops that one: a card with two runs in flight has two stopping stories,
+     * and a reader who wants one of them stopped should not have to stop the other. Naming
+     * none stops whatever is in flight for the card, which is the control the card's own
+     * header offers.
+     * @param cardId - the card.
+     * @param runId - the run to stop; absent stops every run in flight for the card.
+     * @returns whether any running run was signalled.
+     */
+    cancel(cardId: string, runId?: string): boolean;
     /**
      * Cancel every in-flight run and wait for them to settle.
      * @returns resolution once no run is still executing.
      */
     dispose(): Promise<void>;
+    /**
+     * Mint one run's identity within its card.
+     *
+     * The start time is the id, so a record's identity reads as the moment the run began and
+     * the live row can be matched to the stored record it becomes. Two runs of one card that
+     * start in the same millisecond — a fixed clock, or a fast double click — take a counter
+     * suffix, so the second keeps a distinct id instead of overwriting the first's row.
+     * @param cardId - the card the run belongs to.
+     * @param startedAt - the run's start in milliseconds since the epoch.
+     * @returns the id.
+     */
+    private nextRunId;
+    /**
+     * File one run into its card's table, keeping the table bounded.
+     *
+     * A run is kept while it is in flight and after it settles, because the row a reader is
+     * watching is the run itself — a cancelled run in particular stores nothing, so this
+     * table is the only place its row exists. The bound drops the oldest settled runs once
+     * the table is full; a run in flight is never dropped.
+     * @param run - the run just started.
+     */
+    private retain;
     /**
      * Publish the session one card run executes in, with the card's permission mode applied.
      *

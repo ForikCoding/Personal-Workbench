@@ -248,8 +248,18 @@ export interface WorkbenchCardView {
 export interface WorkbenchCardActions {
     /** Start a run. */
     run(): void;
-    /** Cancel the in-flight run. */
+    /**
+     * Cancel what the page is about.
+     *
+     * A page opened on one run stops that run; any other page stops every run the card has
+     * in flight, which is what its row list is showing.
+     */
     cancel(): void;
+    /**
+     * Stop one named run.
+     * @param runId - the run to stop, as its history row names it.
+     */
+    cancelRun(runId: string): void;
     /**
      * Ask for the current result to be revised.
      *
@@ -430,3 +440,13 @@ export declare function useSkillCard(options: WorkbenchSkillCardOptions): {
     readonly view: WorkbenchCardView;
     readonly actions: WorkbenchCardActions;
 };
+/**
+ * Read the identity of one run state.
+ *
+ * The state carries its own id, and a Host that predates concurrent runs sends none — its
+ * first run of a card was named by its start time, which is the fallback here. That is the
+ * same rule the live row and the stored record agree on, so a row and its record meet.
+ * @param state - the run state as read from the Host.
+ * @returns the id, or undefined when the state names no start at all.
+ */
+export declare function runIdOf(state: WorkbenchRunState): string | undefined;

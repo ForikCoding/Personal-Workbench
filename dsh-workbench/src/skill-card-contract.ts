@@ -932,6 +932,15 @@ export type WorkbenchRunPhase = 'idle' | 'running' | 'settled' | 'cancelled'
 export interface WorkbenchRunState {
   /** Card the run belongs to. */
   readonly cardId: string
+  /**
+   * Identity of this run within the card.
+   *
+   * The id the settled record will carry, so the live row a poll reports and the stored
+   * record that replaces it are the same run rather than two. Optional on the wire because
+   * a Host that predates concurrent runs sends only `startedAt`; a client then reads the
+   * id off that field, which is what the id always was for the first run of a card.
+   */
+  readonly runId?: string
   /** Current phase. */
   readonly phase: WorkbenchRunPhase
   /** Start time in milliseconds since the epoch. */
@@ -959,8 +968,21 @@ export interface WorkbenchRunState {
 export interface WorkbenchRunResponse {
   /** Contract version this Host speaks. */
   readonly apiVersion: number
-  /** The card's run state. */
+  /**
+   * The card's newest run state.
+   *
+   * Kept for a client that reads one run: it is what a start and a cancel answer with, and
+   * it is the same state the list's first entry holds.
+   */
   readonly state: WorkbenchRunState
+  /**
+   * Every run this Host still keeps for the card, newest first.
+   *
+   * One card may run several at once, so the list is what a client needs to draw them all:
+   * the newest state alone would hide a second run that is in flight. Optional on the
+   * wire, and absent from a Host that predates concurrent runs.
+   */
+  readonly states?: readonly WorkbenchRunState[]
 }
 
 /** Skill catalog response body. */

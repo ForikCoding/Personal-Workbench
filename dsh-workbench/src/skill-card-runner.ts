@@ -201,9 +201,17 @@ export function cardSelection(card: WorkbenchCardConfigView | undefined): Workbe
   readonly now?: () => number
 }
 
-/** One card's run, kept until the next run replaces it. */
+/** One card's run, kept in the card's run table until it ages out. */
 interface RunRecord {
   readonly cardId: string
+  /**
+   * Identity of this run within the card.
+   *
+   * Minted at the start rather than derived from the clock at the end: a card may run
+   * several at once, and two starts in one millisecond would otherwise be one id. The
+   * settled record carries the same id, so the live row and the stored record are one run.
+   */
+  readonly runId: string
   readonly startedAt: number
   readonly controller: AbortController
   /**
@@ -335,17 +343,41 @@ type AttemptOutcome =
   | { readonly kind: 'failed'; readonly code: WorkbenchSkillCardErrorCode; readonly failure: string }
 
 /**
+ * How many settled runs one card's table keeps besides the ones in flight.
+ *
+ * The stored results are the card's history; this table exists for the runs a reader is
+ * watching or has just watched — a run in flight, and the cancelled run that stored
+ * nothing. A bound keeps a long-lived process from holding every run it ever started.
+ */
+const RUN_TABLE_LIMIT = 24
+
+/**
  * Run one card's skill and own the outcome.
  *
- * One run at a time per card, bounded globally by the deployment's concurrency
- * limit. A run that produces no usable structured value is retried exactly once;
+ * A card may run several at once, bounded by the deployment's concurrency limit — each
+ * run in a session of its own, which is what keeps two runs of one card from sharing a
+ * conversation. A run that produces no usable structured value is retried exactly once;
  * a cancelled run never is.
  */
 export class WorkbenchSkillCardRunner {
-  private readonly runs = new Map<string, RunRecord>()
+  /**
+   * Every card's runs, in start order.
+   *
+   * A list rather than one record because one card may have several in flight: the last
+   * entry is the newest, and each carries the id its settled record will use.
+   */
+  private readonly runs = new Map<string, RunRecord[]>()
   private readonly inflight = new Set<Promise<void>>()
   private readonly now: () => number
   private active = 0
+  /**
+   * The run ids handed out per card, in this process.
+   *
+   * A run's id is its start, so two runs of one card started within the same millisecond —
+   * which is what a fixed clock in a spec produces — would be one id. The suffix keeps them
+   * apart while the first keeps the readable form.
+   */
+  private readonly runStamps = new Map<string, number>()
 
   /**
    * @param options - host services, budgets, and the two storage seams.
@@ -540,8 +572,17 @@ export class WorkbenchSkillCardRunner {
     // Checked here as well as below, and the earlier check is load-bearing: resolving a
     // run's session creates one, and a start that will be refused must not publish a
     // session — or restore one a running child still hangs from — on its way to a refusal.
-    if (this.congested(request.cardId)) {
-      return reject('run-in-progress', 'another run is already in flight')
+    if (this.congested()) {
+      return reject('run-in-progress', 'the concurrency limit is reached')
+    }
+    // A refinement continues one session; a plain run opens its own. Refusing a second
+    // refinement of a session already being run is what keeps one conversation one
+    // conversation — the earlier check is here so the refusal costs no session.
+    if (refineSessionId !== undefined) {
+      const busy = this.sessionBusy(refineSessionId)
+      if (busy !== undefined) {
+        return reject('run-in-progress', `session "${refineSessionId}" is already running`)
+      }
     }
     // The route the run's own session runs on: the card's named route, or the naming
     // session's when the card names none. A run session is created blank, and the
@@ -589,11 +630,12 @@ export class WorkbenchSkillCardRunner {
       throw error
     }
     // Checked again, immediately before the reservation: resolving the session above
-    // awaits, and two starts that both awaited it must not both win. The session this start
-    // published is settled first, so a refused start leaves nothing archived behind.
-    if (this.congested(request.cardId)) {
+    // awaits, and two starts that both awaited it must not both exceed the limit. The
+    // session this start published is settled first, so a refused start leaves nothing
+    // archived behind.
+    if (this.congested()) {
       await session.settle()
-      return reject('run-in-progress', 'another run is already in flight')
+      return reject('run-in-progress', 'the concurrency limit is reached')
     }
     const agent = session.agent
     // The agent whose scope resolves the skill definition, resolved now that the run's
@@ -608,6 +650,7 @@ export class WorkbenchSkillCardRunner {
 
     const run: RunRecord = {
       cardId: request.cardId,
+      runId: this.nextRunId(request.cardId, startedAt),
       startedAt,
       controller: new AbortController(),
       bare: mode.kind === 'bare',
@@ -623,7 +666,7 @@ export class WorkbenchSkillCardRunner {
       run.timedOut = true
       run.controller.abort()
     }, this.options.runTimeoutMs)
-    this.runs.set(request.cardId, run)
+    this.retain(run)
     this.active += 1
 
     // Bound to the service it came from, and to the seam this harness offers: the
@@ -639,16 +682,38 @@ export class WorkbenchSkillCardRunner {
   }
 
   /**
-   * Whether one more start would exceed the card's or the deployment's limit.
+   * Whether one more start would exceed the deployment's limit.
    *
    * Asked twice per start: once before the run's session is resolved, so a refused start
    * publishes no session and restores none underneath a child still running in it, and once
    * immediately before the run is recorded, so the reservation itself stays synchronous.
-   * @param cardId - the card the run belongs to.
-   * @returns whether another run is already in flight or the limit is reached.
+   *
+   * Only the deployment's limit is asked about: a card may have several runs in flight, and
+   * refusing the second was what made a card a one-at-a-time thing. The limit counts every
+   * run, so it bounds one card's concurrency as well as the whole workbench's.
+   * @returns whether the limit is reached.
    */
-  private congested(cardId: string): boolean {
-    return this.runs.get(cardId)?.phase === 'running' || this.active >= this.options.maxConcurrentRuns
+  private congested(): boolean {
+    return this.active >= this.options.maxConcurrentRuns
+  }
+
+  /**
+   * Whether a run is already executing in one session.
+   *
+   * A refinement continues the conversation its document came from, and two agents on one
+   * session would interleave two conversations into one log — so a refinement of a session
+   * another run is inside is refused rather than merged. Plain runs are unaffected: each
+   * gets a session of its own.
+   * @param sessionId - the session the new run would execute in.
+   * @returns the run already in that session, if there is one.
+   */
+  private sessionBusy(sessionId: string): RunRecord | undefined {
+    for (const list of this.runs.values()) {
+      for (const run of list) {
+        if (run.phase === 'running' && run.session.id === sessionId) return run
+      }
+    }
+    return undefined
   }
 
   /**
@@ -734,7 +799,7 @@ export class WorkbenchSkillCardRunner {
    * @param error - the failure the agent reported.
    */
   observeAgentError(agentId: string, error: unknown): void {
-    for (const run of this.runs.values()) {
+    for (const run of this.everyRun()) {
       if (run.childId !== agentId || run.phase !== 'running') continue
       run.childError = messageOf(error)
     }
@@ -754,32 +819,70 @@ export class WorkbenchSkillCardRunner {
   observeChildEvent(sessionId: string, event: WorkbenchActivityEvent): void {
     const entries = activityEntriesFor(event)
     if (entries.length === 0) return
-    for (const run of this.runs.values()) {
+    for (const run of this.everyRun()) {
       if (run.childId !== sessionId || run.phase !== 'running') continue
       run.activity = withActivityEntries(run.activity, entries)
     }
   }
 
   /**
-   * Read one card's run state.
+   * Every run this runner keeps, across all cards.
+   * @returns the runs, in no particular order.
+   */
+  private everyRun(): RunRecord[] {
+    return [...this.runs.values()].flat()
+  }
+
+  /**
+   * The runs this runner keeps for one card, oldest first.
+   * @param cardId - the card.
+   * @returns the runs; empty when none has been started.
+   */
+  private runsOf(cardId: string): readonly RunRecord[] {
+    return this.runs.get(cardId) ?? []
+  }
+
+  /**
+   * Read one card's newest run state.
    * @param cardId - the card.
    * @returns the state, or undefined when no run has been started for it.
    */
   state(cardId: string): WorkbenchRunState | undefined {
-    const run = this.runs.get(cardId)
+    const list = this.runsOf(cardId)
+    const run = list[list.length - 1]
     return run === undefined ? undefined : this.stateOf(run)
   }
 
   /**
-   * Cancel one card's in-flight run.
+   * Read every run state one card still keeps, newest first.
+   *
+   * A card may run several at once, so a client needs the list: the newest state alone
+   * would hide a second run in flight. Newest first is the order the history reads in, and
+   * the order the list settles into once the runs are stored.
    * @param cardId - the card.
-   * @returns whether a running run was signalled.
+   * @returns the states; empty when no run has been started.
    */
-  cancel(cardId: string): boolean {
-    const run = this.runs.get(cardId)
-    if (run === undefined || run.phase !== 'running') return false
-    run.controller.abort()
-    return true
+  states(cardId: string): WorkbenchRunState[] {
+    return [...this.runsOf(cardId)].reverse().map(run => this.stateOf(run))
+  }
+
+  /**
+   * Cancel one of a card's in-flight runs, or all of them.
+   *
+   * Naming a run stops that one: a card with two runs in flight has two stopping stories,
+   * and a reader who wants one of them stopped should not have to stop the other. Naming
+   * none stops whatever is in flight for the card, which is the control the card's own
+   * header offers.
+   * @param cardId - the card.
+   * @param runId - the run to stop; absent stops every run in flight for the card.
+   * @returns whether any running run was signalled.
+   */
+  cancel(cardId: string, runId?: string): boolean {
+    const running = this.runsOf(cardId)
+      .filter(run => run.phase === 'running')
+      .filter(run => runId === undefined || run.runId === runId)
+    for (const run of running) run.controller.abort()
+    return running.length > 0
   }
 
   /**
@@ -787,11 +890,49 @@ export class WorkbenchSkillCardRunner {
    * @returns resolution once no run is still executing.
    */
   async dispose(): Promise<void> {
-    for (const run of this.runs.values()) {
+    for (const run of this.everyRun()) {
       if (run.phase === 'running') run.controller.abort()
     }
     await Promise.allSettled([...this.inflight])
     this.runs.clear()
+  }
+
+  /**
+   * Mint one run's identity within its card.
+   *
+   * The start time is the id, so a record's identity reads as the moment the run began and
+   * the live row can be matched to the stored record it becomes. Two runs of one card that
+   * start in the same millisecond — a fixed clock, or a fast double click — take a counter
+   * suffix, so the second keeps a distinct id instead of overwriting the first's row.
+   * @param cardId - the card the run belongs to.
+   * @param startedAt - the run's start in milliseconds since the epoch.
+   * @returns the id.
+   */
+  private nextRunId(cardId: string, startedAt: number): string {
+    const previous = this.runStamps.get(cardId)
+    const stamp = previous === undefined ? startedAt : Math.max(startedAt, previous + 1)
+    this.runStamps.set(cardId, stamp)
+    return String(stamp)
+  }
+
+  /**
+   * File one run into its card's table, keeping the table bounded.
+   *
+   * A run is kept while it is in flight and after it settles, because the row a reader is
+   * watching is the run itself — a cancelled run in particular stores nothing, so this
+   * table is the only place its row exists. The bound drops the oldest settled runs once
+   * the table is full; a run in flight is never dropped.
+   * @param run - the run just started.
+   */
+  private retain(run: RunRecord): void {
+    const list = [...this.runsOf(run.cardId), run]
+    const settled = list.filter(entry => entry.phase !== 'running')
+    const excess = settled.length - RUN_TABLE_LIMIT
+    const dropped = excess <= 0 ? new Set<RunRecord>() : new Set(settled.slice(0, excess))
+    this.runs.set(
+      run.cardId,
+      dropped.size === 0 ? list : list.filter(entry => !dropped.has(entry)),
+    )
   }
 
   /**
@@ -1108,7 +1249,7 @@ await this.finish(run, outcome)
       // The run's own start is its identity: unique within the card, stable for its
       // whole life, and already carried by the record the page polls. The session is the
       // run's too, and it is what a later refinement continues.
-      const runId = String(run.startedAt)
+      const runId = run.runId
       const sessionId = run.session.id
       const stored = input.kind === 'bare'
         ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId)
@@ -1224,6 +1365,7 @@ await this.finish(run, outcome)
   private stateOf(run: RunRecord): WorkbenchRunState {
     return {
       cardId: run.cardId,
+      runId: run.runId,
       phase: run.phase,
       startedAt: run.startedAt,
       retried: run.retried,

@@ -17,9 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
-  WorkbenchActionDeclaration,
   WorkbenchActionTarget,
-  WorkbenchCardConfigView,
   WorkbenchCardModel,
   WorkbenchCardResult,
   WorkbenchDirectoryStat,
@@ -175,6 +173,14 @@ interface RefinementIntent {
   readonly prior: WorkbenchResultRecord | undefined
   /** Its region HTML, which is the revision's starting point. */
   readonly priorHtml: string
+  /**
+   * The run the ask became, once the Host accepted it.
+   *
+   * A card may have other runs in flight, so the intent is settled by its own run and not
+   * by whichever run happens to finish first. Absent for the moment between the click and
+   * the accepted start.
+   */
+  readonly runId?: string
 }
 
 /** What one card renders. */
@@ -300,8 +306,18 @@ export interface WorkbenchCardView {
 export interface WorkbenchCardActions {
   /** Start a run. */
   run(): void
-  /** Cancel the in-flight run. */
+  /**
+   * Cancel what the page is about.
+   *
+   * A page opened on one run stops that run; any other page stops every run the card has
+   * in flight, which is what its row list is showing.
+   */
   cancel(): void
+  /**
+   * Stop one named run.
+   * @param runId - the run to stop, as its history row names it.
+   */
+  cancelRun(runId: string): void
   /**
    * Ask for the current result to be revised.
    *
@@ -509,7 +525,14 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // session whenever the two differ — see {@link WorkbenchSkillCardOptions.pickerSession}.
   const modelSessionId = pickerSession === undefined ? sessionId : pickerSession()
   const [config, setConfig] = useState<ConfigState>({ kind: 'loading' })
-  const [run, setRun] = useState<WorkbenchRunState | undefined>(undefined)
+  /**
+   * The runs this page knows about, newest first.
+   *
+   * A list rather than one state because a card may have several runs in flight: the
+   * history draws a row per run, and the page's own subject is picked out of the list
+   * below. The newest entry is what a single-run reader would have called "the run".
+   */
+  const [liveRuns, setLiveRuns] = useState<readonly WorkbenchRunState[]>([])
   const [problem, setProblem] = useState<WorkbenchCardProblem | undefined>(undefined)
   const [pendingAction, setPendingAction] = useState<WorkbenchPendingAction | undefined>(undefined)
   const [actionProblem, setActionProblem] = useState<WorkbenchActionProblem | undefined>(undefined)
@@ -535,6 +558,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     const intent = refinement.current
     if (intent === undefined) return
     if (state.phase !== 'settled' && state.phase !== 'cancelled') return
+    // Only the refinement's own run settles it: another run of the same card finishing
+    // while the revision is still in flight is not an answer to the ask.
+    const id = runIdOf(state)
+    if (intent.runId !== undefined && id !== undefined && intent.runId !== id) return
     refinement.current = undefined
     // A cancelled refinement produced no result, so it is reported like a failure at the
     // place the ask was made: the composer, not the run's status line.
@@ -612,32 +639,37 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   useEffect(() => {
     if (!watchRun) return
     void api.poll(cardId).then((result) => {
-      if (result.status !== 'ok' || result.state.phase !== 'running') return
-      setRun(result.state)
+      if (result.status !== 'ok') return
+      const states = result.states ?? [result.state]
+      if (!states.some(state => state.phase === 'running')) return
+      setLiveRuns(states)
     })
   }, [api, cardId, watchRun])
 
-  // Poll only while a run is in flight; a settled run needs no further traffic.
-  const running = run?.phase === 'running'
+  // Poll only while a run is in flight; a settled run needs no further traffic. The list
+  // is kept whole, because a card may have several runs in flight and every one of them
+  // has a row to draw.
+  const anyRunning = liveRuns.some(state => state.phase === 'running')
   useEffect(() => {
-    if (!running) return
+    if (!anyRunning) return
     let stopped = false
     const timer = setInterval(() => {
       void api.poll(cardId).then((result) => {
         if (stopped) return
         if (result.status === 'ok') {
+          const states = result.states ?? [result.state]
           // The moment a refinement becomes news: its own page is the only reader, so
           // the log and the step back are recorded here rather than in an effect that
           // would see the transition a frame late.
-          settleRefinement(result.state)
-          setRun(result.state)
+          for (const state of states) settleRefinement(state)
+          setLiveRuns(states)
           // A terminal run has been stored by the host by now, so the snapshot is read
           // again here: the history list is derived from it, and the run that just
           // finished belongs on top of it without a page remount.
-          if (result.state.phase === 'settled' || result.state.phase === 'cancelled') refresh()
+          if (states.some(state => state.phase === 'settled' || state.phase === 'cancelled')) refresh()
           return
         }
-        if (result.status === 'missing') setRun(undefined)
+        if (result.status === 'missing') setLiveRuns([])
         // An unavailable poll keeps the last known state and tries again next tick.
       })
     }, POLL_INTERVAL_MS)
@@ -645,7 +677,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       stopped = true
       clearInterval(timer)
     }
-  }, [api, cardId, running, refresh, settleRefinement])
+  }, [api, cardId, anyRunning, refresh, settleRefinement])
 
   // A bare run reports only its verdict, so the loop stops at the first terminal
   // phase and nothing beyond the diagnostic is read off the state.
@@ -686,33 +718,44 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       ? config.snapshot.results.find(entry => entry.cardId === cardId)
       : config.snapshot.results.find(entry => entry.cardId === cardId && entry.runId === options.runId)
     : undefined
+  // The run this page is about: the one a history row opened, or whichever run the card
+  // reported last. A card may have several in flight, so the list below is what holds them
+  // and this is the single one the page's own control acts on.
+  const run = options.runId === undefined
+    ? liveRuns[0]
+    : liveRuns.find(state => runIdOf(state) === options.runId)
+  // Every run of this card in flight, newest first.
+  const running = liveRuns.filter(state => state.phase === 'running')
   // A run this session started is on the history the moment it is in flight, before the
-  // host has stored anything: the running row is the run itself. Its id is the start
-  // time — the same id the settled record will carry — so once the run settles and the
-  // snapshot is re-read, that stored record replaces the in-flight row in place instead
-  // of the run appearing twice.
-  const liveRunRecord = run?.startedAt === undefined
-    ? undefined
-    : run.result ?? {
-      runId: String(run.startedAt),
+  // host has stored anything: the running row is the run itself. Its id is the id the
+  // settled record will carry, so once the run settles and the snapshot is re-read, that
+  // stored record replaces the in-flight row in place instead of the run appearing twice.
+  const liveRunRecords = liveRuns.flatMap((state): WorkbenchResultRecord[] => {
+    const runId = runIdOf(state)
+    if (runId === undefined || state.startedAt === undefined) return []
+    if (state.result !== undefined) return [state.result]
+    return [{
+      runId,
       skill: card?.skill ?? '',
-      executedAt: run.startedAt,
+      executedAt: state.startedAt,
       // Not a stored stop reason: it names what the history row shows while the run is
       // neither complete nor stored. A cancelled run stores nothing, so its row keeps
       // the aborted verdict for this session only.
-      stopReason: run.phase === 'cancelled' ? 'aborted' : 'running',
-    } satisfies WorkbenchResultRecord
+      stopReason: state.phase === 'cancelled' ? 'aborted' : 'running',
+    }]
+  })
   // The whole history this card can show, newest first, as the run-list page reads it.
-  // Derived in the controller so the page and the result view agree on ordering.
-  const runs = config.kind === 'ready'
+  // Derived in the controller so the page and the result view agree on ordering, and
+  // merged by run id so a settled run is one row whether the host has stored it yet or not.
+  const runs: readonly WorkbenchResultRecord[] = config.kind === 'ready'
     ? (() => {
       const stored = config.snapshot.results
         .filter(entry => entry.cardId === cardId)
         .sort((left, right) => right.executedAt - left.executedAt)
-      if (liveRunRecord === undefined || stored.some(entry => entry.runId === liveRunRecord.runId)) return stored
-      return [liveRunRecord, ...stored]
+      const live = liveRunRecords.filter(record => !stored.some(entry => entry.runId === record.runId))
+      return [...live, ...stored].sort((left, right) => right.executedAt - left.executedAt)
     })()
-    : []
+    : liveRunRecords
   // A card's own route wins and the session's selection is only the default it shows. The
   // field answers both questions at once: what the picker offers, and whether a run can
   // name the model it would use.
@@ -819,7 +862,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // having.
     void startCardRun(api, cardId, session()).then((outcome) => {
       if (outcome.status === 'ok') {
-        setRun(outcome.state)
+        publishRun(outcome.state)
         setProblem(undefined)
         // A run that finished before its first poll still has to land on the history
         // list, so the snapshot is re-read when the start response is already terminal.
@@ -832,14 +875,44 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     })
   }, [api, cardId, refresh, card?.skill, card?.template, workspaceField, session])
 
-  const cancel = useCallback(() => { void api.cancel(cardId) }, [api, cardId])
+  /**
+   * Add one run to the page's list, replacing the entry with the same id.
+   *
+   * A start answer and a poll answer are the same run, and a card may have several: the
+   * entry is replaced in place so the newest run's row does not appear twice.
+   * @param state - the run the host just reported.
+   */
+  const publishRun = useCallback((state: WorkbenchRunState): void => {
+    setLiveRuns(list => [state, ...list.filter(entry => runIdOf(entry) !== runIdOf(state))])
+  }, [])
+
+  /**
+   * Stop what the page is about.
+   *
+   * A page opened on one run stops that run alone, which is the answer the row that opened
+   * it implies. The latest-result page names no run, so its control stops every run the
+   * card has in flight — that page's row list is the card's whole activity.
+   */
+  const cancel = useCallback(() => {
+    void api.cancel(cardId, options.runId)
+  }, [api, cardId, options.runId])
+
+  /**
+   * Stop one named run.
+   * @param runId - the run to stop, as its history row names it.
+   */
+  const cancelRun = useCallback((runId: string) => {
+    void api.cancel(cardId, runId)
+  }, [api, cardId])
 
   const refine = useCallback((instruction: string) => {
     const text = instruction.trim()
     // The composer disables its button on empty input; the same rule is enforced here,
     // because this is the boundary that actually spends a model call.
     if (text === '') return
-    if (run?.phase === 'running') return
+    // Refining a run that is still in flight has nothing to revise, so that is refused
+    // here as the composer refuses it. Another run of the card in flight is no obstacle:
+    // a revision continues the session its own record came from.
     // A refinement executes in the session the revised result was produced in, when the
     // record carries one: revising a document means continuing the conversation that wrote
     // it. A record stored before the workbench kept one per run carries none, and the
@@ -889,12 +962,16 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         setRefineProblem(refineStartProblem(outcome))
         return
       }
+      // The ask is now a run, and it is only that run that can settle it.
+      const runId = runIdOf(outcome.state)
+      const intent = refinement.current
+      if (intent !== undefined && runId !== undefined) refinement.current = { ...intent, runId }
+      setLiveRuns(list => [outcome.state, ...list.filter(entry => runIdOf(entry) !== runId)])
       // Recorded from the start response too, so a run that settled before the first
       // poll still lands in the log.
       settleRefinement(outcome.state)
-      setRun(outcome.state)
     })
-  }, [api, card?.skill, card?.template, cardId, result, run?.phase, session, settleRefinement, workspaceField])
+  }, [api, card?.skill, card?.template, cardId, result, session, settleRefinement, workspaceField])
 
   const undoRefine = useCallback(() => {
     const kept = previousResult
@@ -907,14 +984,11 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   }, [previousResult])
 
   const saveResultEdit = useCallback(async (html: string): Promise<boolean> => {
-    // Two guards the editor already enforces, restated here because this is the boundary
-    // that spends a stored write: an empty region renders as a broken card, and a run in
-    // flight is about to replace whatever this would store.
+    // The guard the editor already enforces, restated here because this is the boundary
+    // that spends a stored write: an empty region renders as a broken card. A run in
+    // flight is no longer an obstacle — every run stores a record of its own, so an edit
+    // and a run write different rows.
     if (html.trim() === '') return false
-    if (run?.phase === 'running') {
-      setProblem({ code: 'run-in-progress', detail: '' })
-      return false
-    }
     // The edit replaces the record the page is showing, which is the one the user is
     // revising; its run id is what names it in the card's history.
     const targetRunId = result?.runId
@@ -949,7 +1023,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     setRefineProblem(undefined)
     setProblem(undefined)
     return true
-  }, [api, cardId, result, run?.phase])
+  }, [api, cardId, result])
 
   const revision = config.kind === 'ready' ? config.snapshot.revision : undefined
 
@@ -1087,27 +1161,6 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     applyWrite(await api.write({ baseRevision: revision, cardId, remove: true }))
   }, [api, applyWrite, cardId, revision])
 
-  /**
-   * Ask which of the cards a declaration could mean are already running.
-   *
-   * The stored snapshot carries what a card *is*, never what it is doing, so the run
-   * route is asked — and only about the cards the clicked key actually names.
-   */
-  const runningTargets = useCallback(async (
-    declaration: WorkbenchActionDeclaration | undefined,
-    cards: readonly WorkbenchCardConfigView[],
-  ): Promise<ReadonlySet<string>> => {
-    const busy = new Set<string>()
-    if (declaration?.target.kind !== 'card') return busy
-    const name = declaration.target.name
-    const named = cards.filter(entry => cardTitle(entry.cardId, entry.name) === name)
-    await Promise.all(named.map(async (entry) => {
-      const state = await api.poll(entry.cardId)
-      if (state.status === 'ok' && state.state.phase === 'running') busy.add(entry.cardId)
-    }))
-    return busy
-  }, [api, cardTitle])
-
   const resolveClick = useCallback(async (
     key: string,
     payload: Record<string, unknown> | undefined,
@@ -1155,12 +1208,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         return documentText(region === undefined ? template : filledTemplate(template, region))
       })(),
     }
-    const busy = await runningTargets(declaration, snapshot.cards)
     const lookup: WorkbenchActionLookup = {
       cards: snapshot.cards.map(entry => ({
         cardId: entry.cardId,
         name: cardTitle(entry.cardId, entry.name),
-        running: busy.has(entry.cardId),
       })),
       skills: catalogRead.status === 'ok'
         ? catalogRead.entries.filter(entry => entry.userInvocable).map(entry => entry.name)
@@ -1211,7 +1262,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       skill,
       payload: resolution.payload,
     })
-  }, [api, cardId, cardTitle, runningTargets, session])
+  }, [api, cardId, cardTitle, session])
 
   const click = useCallback((event: WorkbenchActionEvent): void => {
     setPendingAction(undefined)
@@ -1300,6 +1351,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     () => ({
       run: start,
       cancel,
+      cancelRun,
       refine,
       undoRefine,
       saveResultEdit,
@@ -1318,6 +1370,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     [
       start,
       cancel,
+      cancelRun,
       refine,
       undoRefine,
       saveResultEdit,
@@ -1361,7 +1414,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // A refinement revises what is on screen, so the screen keeps showing it until the
     // new version arrives. Replacing the result with a progress notice threw away the
     // very thing being reviewed.
-    ...run?.phase === 'running' && refinement.current !== undefined ? { refining: true } : {},
+    ...refinement.current !== undefined
+      && running.some(state => runIdOf(state) === refinement.current?.runId)
+      ? { refining: true }
+      : {},
     ...effective === undefined ? {} : { problem: effective },
     ...runUnavailable === undefined ? {} : { runUnavailable },
     ...pendingAction === undefined ? {} : { pendingAction },
@@ -1437,6 +1493,19 @@ function defaultCardTitle(cardId: string, name: string | undefined): string {
 }
 
 /**
+ * Read the identity of one run state.
+ *
+ * The state carries its own id, and a Host that predates concurrent runs sends none — its
+ * first run of a card was named by its start time, which is the fallback here. That is the
+ * same rule the live row and the stored record agree on, so a row and its record meet.
+ * @param state - the run state as read from the Host.
+ * @returns the id, or undefined when the state names no start at all.
+ */
+export function runIdOf(state: WorkbenchRunState): string | undefined {
+  return state.runId ?? (state.startedAt === undefined ? undefined : String(state.startedAt))
+}
+
+/**
  * Put one written result into a snapshot's result list.
  *
  * The edit targets one run, so the matching record is the card/run pair the Host just
@@ -1481,9 +1550,9 @@ function workspaceRefusal(field: WorkbenchWorkspaceField): WorkbenchCardProblem 
 /**
  * Read one refused start as an action problem.
  *
- * A concurrent run is the one refusal with a name of its own: the click already
- * checked, so only the window between checking and starting can produce it — and the
- * Host refuses rather than queueing, which is exactly what is reported.
+ * A run at the concurrency limit is the one refusal with a name of its own: it is the
+ * Host's own answer about how much the deployment will run at once, and it refuses
+ * rather than queueing, which is exactly what is reported.
  * @param outcome - the refusal, which is never an accepted run.
  * @returns the problem to report on the card the user is looking at.
  */

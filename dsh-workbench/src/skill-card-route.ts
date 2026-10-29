@@ -704,6 +704,7 @@ async function handleStart(
     const started: WorkbenchRunResponse = {
       apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
       state: outcome.state,
+      states: options.runner.states(outcome.state.cardId),
     }
     sendJson(response, 202, started)
   } catch (error) {
@@ -738,12 +739,22 @@ function handleState(
     sendError(response, 404, 'not-found', 'no run has been started for this card')
     return
   }
-  const body: WorkbenchRunResponse = { apiVersion: WORKBENCH_SKILL_CARD_API_VERSION, state }
+  // One card may have several runs in flight, so the answer is the whole table: the newest
+  // state is what a single-run reader wants, and the list is what a page draws its rows
+  // from. Sending both keeps one poll serving both readers.
+  const body: WorkbenchRunResponse = {
+    apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
+    state,
+    states: options.runner.states(cardId),
+  }
   sendJson(response, 200, body)
 }
 
 /**
- * Cancel one card's in-flight run.
+ * Cancel one of a card's in-flight runs, or all of them.
+ *
+ * A `runId` stops that run alone; without one the card's every in-flight run is stopped,
+ * which is what the card's own header control means by 取消.
  * @param options - route dependencies.
  * @param request - the DELETE request.
  * @param response - the response to own.
@@ -758,16 +769,32 @@ function handleCancel(
     sendError(response, 400, 'invalid-request', 'cardId must be a namespaced card id')
     return
   }
-  if (!options.runner.cancel(cardId)) {
-    sendError(response, 404, 'not-found', 'no run is in flight for this card')
+  const runId = queryParam(request, 'runId')
+  if (runId !== undefined && runId.length === 0) {
+    sendError(response, 400, 'invalid-request', 'runId must not be empty when given')
     return
   }
-  const state = options.runner.state(cardId)
+  if (!options.runner.cancel(cardId, runId)) {
+    sendError(
+      response,
+      404,
+      'not-found',
+      runId === undefined ? 'no run is in flight for this card' : `run "${runId}" is not in flight`,
+    )
+    return
+  }
+  const state = runId === undefined
+    ? options.runner.state(cardId)
+    : options.runner.states(cardId).find(entry => entry.runId === runId)
   if (state === undefined) {
     sendError(response, 404, 'not-found', 'no run has been started for this card')
     return
   }
-  const body: WorkbenchRunResponse = { apiVersion: WORKBENCH_SKILL_CARD_API_VERSION, state }
+  const body: WorkbenchRunResponse = {
+    apiVersion: WORKBENCH_SKILL_CARD_API_VERSION,
+    state,
+    states: options.runner.states(cardId),
+  }
   sendJson(response, 200, body)
 }
 

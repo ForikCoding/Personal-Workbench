@@ -26,7 +26,7 @@ export interface Config {
     maxResultsPerCard: number;
     /** Milliseconds one skill card run may take before it is cancelled. */
     runTimeoutMs: number;
-    /** Runs allowed to be in flight across all cards. */
+    /** Runs allowed to be in flight at once, across all cards and within one. */
     maxConcurrentRuns: number;
     /** Age after which a stored result is shown as expired; it is never re-run automatically. */
     resultStaleAfterMs: number;

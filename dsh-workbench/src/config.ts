@@ -34,7 +34,7 @@ export interface Config {
   maxResultsPerCard: number
   /** Milliseconds one skill card run may take before it is cancelled. */
   runTimeoutMs: number
-  /** Runs allowed to be in flight across all cards. */
+  /** Runs allowed to be in flight at once, across all cards and within one. */
   maxConcurrentRuns: number
   /** Age after which a stored result is shown as expired; it is never re-run automatically. */
   resultStaleAfterMs: number
@@ -63,6 +63,11 @@ export const Config: z<Config> = z.object({
   // without letting a hung run hold the card indefinitely, and a deployment can still
   // tighten it here.
   runTimeoutMs: z.number().step(1).min(1000).max(3_600_000).default(300_000),
-  maxConcurrentRuns: z.number().step(1).min(1).max(8).default(1),
+  // One card may run several of its own runs at once — each in a session of its own — so
+  // the limit is the deployment's appetite rather than a card's exclusivity. Four covers a
+  // workbench in use (a couple of cards running, one of them twice) without letting a
+  // scripted fan-out open eight model conversations at once; a deployment sets 1 to keep
+  // the old one-run-at-a-time behaviour.
+  maxConcurrentRuns: z.number().step(1).min(1).max(8).default(4),
   resultStaleAfterMs: z.number().step(1).min(60_000).default(86_400_000),
 })

@@ -10,13 +10,17 @@
 import type { WorkbenchActionDeclaration, WorkbenchActionTarget } from '../../skill-card-contract.ts';
 /** Why one click cannot be carried out. */
 export type WorkbenchActionErrorCode = 'unknown-action' | 'target-card-missing' | 'target-card-ambiguous' | 'target-skill-missing' | 'target-busy' | 'target-unavailable';
-/** One card as the resolver needs to see it. */
+/**
+ * One card as the resolver needs to see it.
+ *
+ * Nothing here says whether the card is busy: a card may run several of its own runs at
+ * once, so "already running" stopped being a reason to refuse a click. The Host answers
+ * that question by refusing a start, and its refusal is what the user sees.
+ */
 export interface WorkbenchActionCard {
     readonly cardId: string;
     /** The name the template refers to; user-editable, so it can drift. */
     readonly name: string;
-    /** Whether this card is already running. */
-    readonly running: boolean;
 }
 /** Everything the resolver reads, taken at the moment of the click. */
 export interface WorkbenchActionLookup {

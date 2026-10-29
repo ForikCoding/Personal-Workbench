@@ -1099,16 +1099,32 @@
   border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
+/* The row is a container rather than the button itself: a run in flight carries a stop
+   control of its own, and a button inside a button is not a thing a browser can draw. */
 .runHistoryRow {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   margin: 0;
   padding: 9px 8px;
-  border: 0;
   border-radius: var(--dsw-radius-sm);
+}
+
+.runHistoryRow:hover {
+  background: var(--dsw-alias-bg-fill-hover);
+}
+
+.runHistoryOpen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   background: none;
   color: inherit;
   font: inherit;
@@ -1116,13 +1132,25 @@
   cursor: pointer;
 }
 
-.runHistoryRow:hover:not(:disabled) {
-  background: var(--dsw-alias-bg-fill-hover);
+/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and
+   only the row of a run in flight has one. */
+.runHistoryStop {
+  flex: none;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--dsw-alias-border-secondary);
+  border-radius: var(--dsw-radius-sm);
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
 }
 
-.runHistoryRow:disabled {
-  cursor: default;
-  opacity: 0.7;
+.runHistoryStop:hover {
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-primary);
 }
 
 .runHistoryBody {
@@ -1207,20 +1235,20 @@
   background: currentColor;
 }
 
-.runHistoryRow[data-run-outcome='aborted'] .runHistoryOutcome {
+.runHistoryRow [data-run-outcome='aborted'] .runHistoryOutcome {
   color: var(--dsw-alias-state-warn-label);
 }
 
-.runHistoryRow[data-run-outcome='error'] .runHistoryOutcome,
-.runHistoryRow[data-run-outcome='failed'] .runHistoryOutcome {
+.runHistoryRow [data-run-outcome='error'] .runHistoryOutcome,
+.runHistoryRow [data-run-outcome='failed'] .runHistoryOutcome {
   color: var(--dsw-alias-state-error-primary);
 }
 
-.runHistoryRow[data-run-outcome='running'] .runHistoryOutcome {
+.runHistoryRow [data-run-outcome='running'] .runHistoryOutcome {
   color: var(--dsw-alias-link);
 }
 
-.runHistoryRow[data-run-outcome='running'] .runHistoryDot {
+.runHistoryRow [data-run-outcome='running'] .runHistoryDot {
   animation: runHistoryPulse 1.4s ease-in-out infinite;
 }
 

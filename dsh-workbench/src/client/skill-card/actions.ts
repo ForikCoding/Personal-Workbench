@@ -19,13 +19,17 @@ export type WorkbenchActionErrorCode =
   | 'target-busy'
   | 'target-unavailable'
 
-/** One card as the resolver needs to see it. */
+/**
+ * One card as the resolver needs to see it.
+ *
+ * Nothing here says whether the card is busy: a card may run several of its own runs at
+ * once, so "already running" stopped being a reason to refuse a click. The Host answers
+ * that question by refusing a start, and its refusal is what the user sees.
+ */
 export interface WorkbenchActionCard {
   readonly cardId: string
   /** The name the template refers to; user-editable, so it can drift. */
   readonly name: string
-  /** Whether this card is already running. */
-  readonly running: boolean
 }
 
 /** Everything the resolver reads, taken at the moment of the click. */
@@ -116,7 +120,6 @@ function resolveCard(
   }
   const card = named[0]
   if (card === undefined) return { kind: 'failed', key, code: 'target-card-missing', candidates: [] }
-  if (card.running) return { kind: 'failed', key, code: 'target-busy', candidates: [card.name] }
   return {
     kind: 'resolved',
     key,

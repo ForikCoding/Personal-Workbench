@@ -31,7 +31,9 @@ function setup(options: FakeHostOptions & {
     statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: options.runTimeoutMs ?? 5_000,
-    maxConcurrentRuns: options.maxConcurrentRuns ?? 1,
+    // The production default: one card may run several of its own runs at once, so a case
+    // that wants the old one-at-a-time refusal says `maxConcurrentRuns: 1` itself.
+    maxConcurrentRuns: options.maxConcurrentRuns ?? 4,
     // A card that is ready to run in every other respect: a directory is part of what
     // "configured" means now, so the default has one and the workspace cases vary it.
     selection: () => options.selection
@@ -321,20 +323,46 @@ describe('workbench skill card runner', () => {
       expect(await incapable.runner.start(request())).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })
     })
 
-    it('refuses a second run for the same card', async () => {
-      const { runner } = setup({ outcomes: ['hang'] })
-      expect((await runner.start(request())).status).toBe('started')
-      expect(await runner.start(request())).toEqual({
-        status: 'rejected',
-        code: 'run-in-progress',
-        detail: 'another run is already in flight',
-      })
+    it('runs two of one card’s runs at once, each in a session of its own', async () => {
+      // The point of the feature: a second start is not refused. What keeps the two runs
+      // apart is the session, so each gets one of its own and neither can read the other's
+      // conversation; the run ids stay distinct even though the clock does not move.
+      const { runner, fake } = setup({ outcomes: ['hang', 'hang'] })
+      const first = await runner.start(request())
+      const second = await runner.start(request())
+      expect(first.status).toBe('started')
+      expect(second.status).toBe('started')
+      expect(fake.createdAgents).toHaveLength(2)
+      expect(fake.createdAgents[0]?.id).not.toBe(fake.createdAgents[1]?.id)
+      const states = runner.states('skill-card')
+      expect(states.map(state => state.phase)).toEqual(['running', 'running'])
+      expect(states[0]?.runId).not.toBe(states[1]?.runId)
+      // The newest state is the second start, which is what a single-run reader polls.
+      expect(runner.state('skill-card')?.runId).toBe(states[0]?.runId)
       runner.cancel('skill-card')
-      await settle(runner)
+      await vi.waitFor(() => {
+        expect(runner.states('skill-card').every(state => state.phase === 'cancelled')).toBe(true)
+      })
     })
 
-    it('refuses a run once the global concurrency limit is reached', async () => {
-      const { runner } = setup({ outcomes: ['hang'] })
+    it('stops one run of a card without stopping the other', async () => {
+      const { runner } = setup({ outcomes: ['hang', 'hang'] })
+      await runner.start(request())
+      await runner.start(request())
+      const [newer] = runner.states('skill-card')
+      if (newer?.runId === undefined) throw new Error('the runs were not recorded')
+      expect(runner.cancel('skill-card', newer.runId)).toBe(true)
+      await vi.waitFor(() => {
+        expect(runner.states('skill-card').map(state => state.phase)).toEqual(['cancelled', 'running'])
+      })
+      runner.cancel('skill-card')
+      await vi.waitFor(() => {
+        expect(runner.states('skill-card').every(state => state.phase === 'cancelled')).toBe(true)
+      })
+    })
+
+    it('refuses a run once the concurrency limit is reached', async () => {
+      const { runner } = setup({ outcomes: ['hang'], maxConcurrentRuns: 1 })
       expect((await runner.start(request())).status).toBe('started')
       expect(await runner.start(request({ cardId: 'other-card' }))).toMatchObject({
         status: 'rejected',
@@ -453,7 +481,7 @@ describe('workbench skill card runner', () => {
       const started = await runner.start(request())
       expect(started).toEqual({
         status: 'started',
-        state: { cardId: 'skill-card', phase: 'running', startedAt: 42, retried: false },
+        state: { cardId: 'skill-card', runId: '42', phase: 'running', startedAt: 42, retried: false },
       })
 
       const state = await settle(runner)
@@ -462,6 +490,7 @@ describe('workbench skill card runner', () => {
       const sessionId = fake.createdAgents[0]?.id
       expect(state).toEqual({
         cardId: 'skill-card',
+        runId: '42',
         phase: 'settled',
         startedAt: 42,
         retried: false,
@@ -1120,23 +1149,27 @@ describe('the permission mode a card runs under', () => {
     expect(runner.state('skill-card')).toBeUndefined()
   })
 
-  it('does not rebuild an agent a run in flight still hangs from', async () => {
-    // Applying a changed mode disposes the card's agent, so the overlap check has to run
-    // before the mode is applied: rebuilding on a start that is refused would tear down the
-    // session the running child hangs from.
+  it('leaves the agent one run hangs from alone when a second run starts', async () => {
+    // A run's session is its own, so a second start never rebuilds the first run's agent:
+    // the card's mode is applied once, at the creation of each session. Tearing the first
+    // session down under a running child is the failure this pins.
     const selection: MutableSelection = {
       skill: 'git-repo',
       template: '<b>{{a}}</b>',
       workspace: { path: WORKSPACE_PATH },
       permission: 'read-only',
     }
-    const { runner, fake } = setup({ outcomes: ['hang'], selection })
+    const { runner, fake } = setup({ outcomes: ['hang', 'hang'], selection })
     await runner.start(request())
     selection.permission = 'danger-full-access'
     const outcome = await runner.start(request())
-    expect(outcome).toMatchObject({ status: 'rejected', code: 'run-in-progress' })
+    expect(outcome).toMatchObject({ status: 'started' })
     expect(fake.disposedAgents).toEqual([])
-    expect(fake.createdAgents).toHaveLength(1)
+    expect(fake.createdAgents).toHaveLength(2)
+    expect(fake.sandboxModes).toEqual([
+      { sessionId: fake.createdAgents[0]?.id, mode: 'read-only' },
+      { sessionId: fake.createdAgents[1]?.id, mode: 'danger-full-access' },
+    ])
     await runner.dispose()
   })
 

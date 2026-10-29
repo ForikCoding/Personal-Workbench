@@ -18,7 +18,7 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import type { WorkbenchResultRecord } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
-import { useSkillCard } from './controller.ts'
+import { runIdOf, useSkillCard } from './controller.ts'
 import type {
   WorkbenchActionProblem,
   WorkbenchActionProblemCode,
@@ -525,11 +525,13 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
     watchRun: true,
     cardTitle,
   })
-  const running = view.run?.phase === 'running'
   const bareRunning = view.bareRun?.phase === 'running'
-  // These two drive the header's Run/Cancel control only. The history rows stay open
-  // either way: a stored run is a read-only record, and the row of the run in flight is
-  // the way to watch it — refusing the click left the list looking like dead rows.
+  // The header always starts a run, even while others are in flight: a card may run
+  // several at once, so the control that used to toggle to 取消 would now have to choose
+  // which of them to stop. Stopping is per row, where the run is named.
+  // The history rows stay open either way: a stored run is a read-only record, and the
+  // row of the run in flight is the way to watch it — refusing the click left the list
+  // looking like dead rows.
   // The newest stored run, if the card has one: the heading states when the card last
   // produced something, which is the one fact a history page's visitor wants before
   // reading seven rows.
@@ -560,10 +562,10 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
         <Button
           variant="primary"
           size="sm"
-          disabled={bareRunning || (!running && !view.runnable)}
-          onClick={running ? actions.cancel : actions.run}
+          disabled={bareRunning || !view.runnable}
+          onClick={actions.run}
         >
-          {running ? t('skillCardCancel') : t('skillCardRun')}
+          {t('skillCardRun')}
         </Button>
       </header>
       {/* The same sentences the result page states, so a run this list's button cannot
@@ -623,6 +625,11 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
                       ordinal={ordinalOf.get(run.runId) ?? 1}
                       t={t}
                       onOpen={() => { openCard(cardId, 'result', run.runId) }}
+                      // Only a run that is still going can be stopped; its row is the one
+                      // place that names it, so it is the one place that can stop just it.
+                      {...run.stopReason === 'running'
+                        ? { onStop: () => { actions.cancelRun(run.runId) } }
+                        : {}}
                     />
                   ))}
                 </ol>
@@ -654,49 +661,66 @@ function RunHistoryRow({
   ordinal,
   t,
   onOpen,
+  onStop,
 }: {
   readonly run: WorkbenchResultRecord
   readonly ordinal: number
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onOpen: () => void
+  /** Present for a run in flight: stopping one run is stopping that row. */
+  readonly onStop?: () => void
 }): ReactNode {
   const headline = resultHeadline(resultHtml(run.structured) ?? '')
   return (
     <li className={css.runHistoryItem}>
-      <button
-        type="button"
-        className={css.runHistoryRow}
-        onClick={onOpen}
-        data-run-history-row=""
-        data-run-outcome={run.stopReason}
-      >
-        <span className={css.runHistoryBody}>
-          {headline === undefined
-            ? null
-            : <span className={css.runHistoryTitle} data-run-history-summary="">{headline}</span>}
-          <span className={css.runHistoryMeta}>
-            <span className={css.runHistoryTime} data-run-history-time="">
-              {runClockText(run.executedAt)}
+      <div className={css.runHistoryRow}>
+        <button
+          type="button"
+          className={css.runHistoryOpen}
+          onClick={onOpen}
+          data-run-history-row=""
+          data-run-outcome={run.stopReason}
+        >
+          <span className={css.runHistoryBody}>
+            {headline === undefined
+              ? null
+              : <span className={css.runHistoryTitle} data-run-history-summary="">{headline}</span>}
+            <span className={css.runHistoryMeta}>
+              <span className={css.runHistoryTime} data-run-history-time="">
+                {runClockText(run.executedAt)}
+              </span>
+              {run.model === undefined
+                ? null
+                : <span className={css.runHistoryModel}>{run.model.model}</span>}
+              {ordinal <= 1
+                ? null
+                : <span className={css.runHistoryOrdinal}>{t('runHistoryOrdinal', { n: ordinal })}</span>}
+              {run.editedAt === undefined
+                ? null
+                : <span className={css.runHistoryEdited} data-run-history-edited="">{t('runHistoryEdited')}</span>}
             </span>
-            {run.model === undefined
-              ? null
-              : <span className={css.runHistoryModel}>{run.model.model}</span>}
-            {ordinal <= 1
-              ? null
-              : <span className={css.runHistoryOrdinal}>{t('runHistoryOrdinal', { n: ordinal })}</span>}
-            {run.editedAt === undefined
-              ? null
-              : <span className={css.runHistoryEdited} data-run-history-edited="">{t('runHistoryEdited')}</span>}
           </span>
-        </span>
-        <span className={css.runHistorySide}>
-          <span className={css.runHistoryOutcome} data-run-history-outcome="">
-            <span className={css.runHistoryDot} aria-hidden="true" />
-            {runOutcomeText(run.stopReason, t)}
+          <span className={css.runHistorySide}>
+            <span className={css.runHistoryOutcome} data-run-history-outcome="">
+              <span className={css.runHistoryDot} aria-hidden="true" />
+              {runOutcomeText(run.stopReason, t)}
+            </span>
+            <span className={css.runHistoryChevron} aria-hidden="true">›</span>
           </span>
-          <span className={css.runHistoryChevron} aria-hidden="true">›</span>
-        </span>
-      </button>
+        </button>
+        {onStop === undefined
+          ? null
+          : (
+            <button
+              type="button"
+              className={css.runHistoryStop}
+              onClick={onStop}
+              data-run-history-stop=""
+            >
+              {t('refineStop')}
+            </button>
+          )}
+      </div>
     </li>
   )
 }
@@ -736,10 +760,10 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // the run the card is busy with is not it — this is the same rule {@link cardContent}
   // draws, so the busy states and the body cannot disagree.
   const running = cardRunning
-    && (view.run?.startedAt === undefined
+    && (view.run === undefined
       || view.runId === undefined
       || view.result === undefined
-      || view.result?.runId === String(view.run.startedAt))
+      || view.result?.runId === runIdOf(view.run))
   const bareRunning = view.bareRun?.phase === 'running'
   // Any run holding the card: the composer and the hand-edit stay off while one is,
   // because a revision or edit would race the run the user is watching. A settled record

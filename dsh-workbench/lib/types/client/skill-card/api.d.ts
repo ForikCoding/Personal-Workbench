@@ -35,7 +35,16 @@ export type WorkbenchConfigRead = {
 /** Outcome of one run-state read. */
 export type WorkbenchRunRead = {
     readonly status: 'ok';
+    /** The card's newest run, which is what a single-run reader wants. */
     readonly state: WorkbenchRunState;
+    /**
+     * Every run the Host keeps for the card, newest first.
+     *
+     * One card may have several runs in flight, so a page that draws rows needs them all.
+     * Optional like the field on the wire: a Host that predates concurrent runs sends only
+     * `state`, and a reader then reads that one state as the list.
+     */
+    readonly states?: readonly WorkbenchRunState[];
 } | {
     readonly status: 'missing';
 } | {
@@ -138,11 +147,12 @@ export interface WorkbenchSkillCardApi {
      */
     start(request: WorkbenchRunRequest): Promise<WorkbenchRunStart>;
     /**
-     * Cancel one card's in-flight run.
+     * Cancel one of a card's in-flight runs, or all of them.
      * @param cardId - the card.
+     * @param runId - the run to stop; absent stops every run the card has in flight.
      * @returns resolution after the Host answers.
      */
-    cancel(cardId: string): Promise<void>;
+    cancel(cardId: string, runId?: string): Promise<void>;
     /**
      * Store one hand-edited region fragment as that card's result.
      *

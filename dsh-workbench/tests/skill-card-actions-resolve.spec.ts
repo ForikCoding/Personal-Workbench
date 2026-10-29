@@ -25,8 +25,8 @@ const DECLARATIONS: readonly WorkbenchActionDeclaration[] = [
 function lookup(overrides: Partial<WorkbenchActionLookup> = {}): WorkbenchActionLookup {
   return {
     cards: [
-      { cardId: 'skill-card', name: '每日任务', running: false },
-      { cardId: 'skill-card-2', name: '启动任务', running: false },
+      { cardId: 'skill-card', name: '每日任务' },
+      { cardId: 'skill-card-2', name: '启动任务' },
     ],
     skills: ['git-repo', 'task-finish'],
     ...overrides,
@@ -88,8 +88,8 @@ describe('workbench action resolution', () => {
     // Picking the first would run the wrong card and look like success.
     const twice = lookup({
       cards: [
-        { cardId: 'skill-card-2', name: '启动任务', running: false },
-        { cardId: 'skill-card-7', name: '启动任务', running: false },
+        { cardId: 'skill-card-2', name: '启动任务' },
+        { cardId: 'skill-card-7', name: '启动任务' },
       ],
     })
     expect(resolveAction(DECLARATIONS, twice, 'start', PAYLOAD)).toEqual({
@@ -100,15 +100,19 @@ describe('workbench action resolution', () => {
     })
   })
 
-  it('refuses a target card that is already running', () => {
-    const busy = lookup({
-      cards: [{ cardId: 'skill-card-2', name: '启动任务', running: true }],
+  it('resolves a target card whether or not it is busy', () => {
+    // A card may run several of its own runs at once, so "already running" is no longer a
+    // reason to refuse a click: the resolver answers what the click names, and the Host
+    // answers whether it may run now.
+    const found = lookup({
+      cards: [{ cardId: 'skill-card-2', name: '启动任务' }],
     })
-    expect(resolveAction(DECLARATIONS, busy, 'start', PAYLOAD)).toEqual({
-      kind: 'failed',
+    expect(resolveAction(DECLARATIONS, found, 'start', PAYLOAD)).toEqual({
+      kind: 'resolved',
       key: 'start',
-      code: 'target-busy',
-      candidates: ['启动任务'],
+      target: { kind: 'card', name: '启动任务' },
+      reference: 'skill-card-2',
+      payload: PAYLOAD,
     })
   })
 
@@ -127,10 +131,10 @@ describe('workbench action resolution', () => {
     expect(resolveAction([], lookup(), 'start', PAYLOAD)).toMatchObject({ code: 'unknown-action' })
   })
 
-  it('checks the target card before reporting a busy state', () => {
-    // A running card that does not match the name must not be reported as busy.
+  it('reports a missing target card rather than the cards it does hold', () => {
+    // Another card holding the workbench does not make this declaration resolvable.
     const other = lookup({
-      cards: [{ cardId: 'skill-card-9', name: '别的卡', running: true }],
+      cards: [{ cardId: 'skill-card-9', name: '别的卡' }],
     })
     expect(resolveAction(DECLARATIONS, other, 'start', PAYLOAD)).toMatchObject({
       code: 'target-card-missing',

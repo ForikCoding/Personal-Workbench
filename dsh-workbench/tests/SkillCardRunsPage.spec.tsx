@@ -77,9 +77,18 @@ function pageApi(options: {
   results?: readonly WorkbenchCardResult[]
   capabilities?: WorkbenchRunCapabilities
   /** What the adoption poll answers; defaults to "nothing in flight". */
-  poll?: () => Promise<{ readonly status: 'missing' } | { readonly status: 'ok'; readonly state: WorkbenchRunState }>
+  poll?: () => Promise<
+    | { readonly status: 'missing' }
+    | {
+      readonly status: 'ok'
+      readonly state: WorkbenchRunState
+      readonly states?: readonly WorkbenchRunState[]
+    }
+  >
   /** What starting a run answers; the busy case uses a run that stays in flight. */
   start?: WorkbenchSkillCardApi['start']
+  /** What a cancel asks the Host to stop, when the case presses one. */
+  cancel?: WorkbenchSkillCardApi['cancel']
 } = {}): WorkbenchSkillCardApi {
   return {
     read: async () => ({
@@ -103,7 +112,7 @@ function pageApi(options: {
     // A start that stays running is the one case that needs one; everything else is
     // under test for the list it draws, and starting is left out.
     start: options.start ?? (async () => ({ status: 'unavailable', reason: 'no run is started here' })),
-    cancel: async () => {},
+    cancel: options.cancel ?? (async () => {}),
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
     statDirectory: async () => ({ status: 'ok', stat: PRESENT_DIRECTORY }),
   }
@@ -307,12 +316,19 @@ describe('the run-history page', () => {
       startedAt: STARTED_AT,
       retried: false,
     }
+    // Nothing is in flight when the page opens, so the adoption read finds no run; after
+    // the start the Host's own route keeps answering with the run it was asked to start.
+    let started = false
     const { container } = render(
       <SkillCardRunsPage
         {...props({
           api: pageApi({
             results: [],
-            start: async () => ({ status: 'ok', state: running }),
+            start: async () => {
+              started = true
+              return { status: 'ok', state: running }
+            },
+            poll: async () => (started ? { status: 'ok', state: running } : { status: 'missing' }),
           }),
         })}
       />,
@@ -340,6 +356,57 @@ describe('the run-history page', () => {
       expect(container.querySelector<HTMLButtonElement>('[data-run-history-row]')?.disabled).toBe(false)
       expect(container.querySelector('[data-run-history-count]')?.textContent).toBe(t('runHistoryCount', { count: 1 }))
     })
+  })
+
+  it('lists every run of the card that is in flight, one row each', async () => {
+    // One card may run several of its own runs at once, so the list is not "the run" plus
+    // history: each run in flight is a row of its own, newest first, and each row stops
+    // and opens its own run rather than the card's newest.
+    const first: WorkbenchRunState = {
+      cardId: 'skill-card',
+      runId: 'run-newer',
+      phase: 'running',
+      startedAt: STARTED_AT + 60_000,
+      retried: false,
+    }
+    const second: WorkbenchRunState = {
+      cardId: 'skill-card',
+      runId: 'run-older',
+      phase: 'running',
+      startedAt: STARTED_AT,
+      retried: false,
+    }
+    const cancelled: { cardId: string; runId: string | undefined }[] = []
+    const opened: { cardId: string; view: string; runId: string | undefined }[] = []
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            results: [result({ runId: 'run-stored', executedAt: STARTED_AT - 60_000 })],
+            poll: async () => ({ status: 'ok', state: first, states: [first, second] }),
+            cancel: async (cardId, runId) => { cancelled.push({ cardId, runId }) },
+          }),
+          openCard: (cardId, view, runId) => { opened.push({ cardId, view, runId }) },
+        })}
+      />,
+    )
+    await loaded(container)
+    await waitFor(() => {
+      expect([...container.querySelectorAll('[data-run-history-row]')]).toHaveLength(3)
+    })
+    const rows = () => [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')]
+    // Newest first: the two runs in flight, then the stored record.
+    expect(rows().map(row => row.getAttribute('data-run-outcome'))).toEqual(['running', 'running', 'completed'])
+    expect(container.querySelector('[data-run-history-count]')?.textContent)
+      .toBe(t('runHistoryCount', { count: 3 }))
+    // One stop control per run in flight, and it names its own run.
+    const stops = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-stop]')]
+    expect(stops).toHaveLength(2)
+    await act(async () => { stops[1]?.click() })
+    expect(cancelled).toEqual([{ cardId: 'skill-card', runId: 'run-older' }])
+    // A row opens the run it names, so two rows in flight are two different views.
+    await act(async () => { rows()[0]?.click() })
+    expect(opened).toEqual([{ cardId: 'skill-card', view: 'result', runId: 'run-newer' }])
   })
 
   it('turns the running row into the stored record when the run settles', async () => {
@@ -379,8 +446,7 @@ describe('the run-history page', () => {
             start: async () => ({ status: 'ok', state: running }),
             poll: async () => {
               polls += 1
-              if (polls === 1) return { status: 'missing' }
-              if (polls === 2) return { status: 'ok', state: running }
+              if (polls === 1) return { status: 'ok', state: running }
               stored.push({
                 cardId: 'skill-card',
                 runId: String(STARTED_AT),
@@ -420,10 +486,10 @@ describe('the run-history page', () => {
     }, { timeout: 3_000 })
   })
 
-  it('keeps every row open while a run holds the card', async () => {
-    // A run in flight turns the run control into its cancel, but the history stays a way
-    // in: a stored run is a read-only record, and the row of the run in flight opens that
-    // run's live view. Locking the rows left the list looking like dead text.
+  it('keeps the header starting runs while a run holds the card, and stops it from its own row', async () => {
+    // A card may run several at once, so the header no longer becomes 取消 — it would have
+    // to choose which of them to stop. The row names one run, so the row is where that run
+    // is stopped; every row stays a way in while another run is in flight.
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
@@ -431,12 +497,15 @@ describe('the run-history page', () => {
       retried: false,
     }
     const opened: { cardId: string; view: string; runId: string | undefined }[] = []
+    const cancelled: { cardId: string; runId: string | undefined }[] = []
     const { container } = render(
       <SkillCardRunsPage
         {...props({
           api: pageApi({
             results: [result({ runId: 'run-old' })],
             start: async () => ({ status: 'ok', state: running }),
+            poll: async () => ({ status: 'ok', state: running }),
+            cancel: async (cardId, runId) => { cancelled.push({ cardId, runId }) },
           }),
           openCard: (cardId, view, runId) => { opened.push({ cardId, view, runId }) },
         })}
@@ -452,8 +521,13 @@ describe('the run-history page', () => {
       run.click()
     })
     await waitFor(() => {
-      expect([...container.querySelectorAll('button')].some(button => button.textContent === zh.skillCardCancel)).toBe(true)
+      expect([...container.querySelectorAll('[data-run-history-row]')]
+        .some(row => row.getAttribute('data-run-outcome') === 'running')).toBe(true)
     })
+    // The header still starts runs: a second run of this card is a click away.
+    const header = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === zh.skillCardRun)
+    expect(header?.disabled).toBe(false)
     // The stored row is still a way in while the new run is in flight.
     const rows = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')]
     expect(rows.every(row => row.disabled === false)).toBe(true)
@@ -471,5 +545,10 @@ describe('the run-history page', () => {
       live.click()
     })
     expect(opened[1]).toEqual({ cardId: 'skill-card', view: 'result', runId: String(STARTED_AT) })
+    // Only the row of a run in flight carries the stop control, and it names that run.
+    const stops = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-stop]')]
+    expect(stops).toHaveLength(1)
+    await act(async () => { stops[0]?.click() })
+    expect(cancelled).toEqual([{ cardId: 'skill-card', runId: String(STARTED_AT) }])
   })
 })

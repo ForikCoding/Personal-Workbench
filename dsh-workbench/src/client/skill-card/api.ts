@@ -59,7 +59,19 @@ export type WorkbenchConfigRead =
 
 /** Outcome of one run-state read. */
 export type WorkbenchRunRead =
-  | { readonly status: 'ok'; readonly state: WorkbenchRunState }
+  | {
+    readonly status: 'ok'
+    /** The card's newest run, which is what a single-run reader wants. */
+    readonly state: WorkbenchRunState
+    /**
+     * Every run the Host keeps for the card, newest first.
+     *
+     * One card may have several runs in flight, so a page that draws rows needs them all.
+     * Optional like the field on the wire: a Host that predates concurrent runs sends only
+     * `state`, and a reader then reads that one state as the list.
+     */
+    readonly states?: readonly WorkbenchRunState[]
+  }
   | { readonly status: 'missing' }
   | { readonly status: 'unavailable'; readonly reason: string }
 
@@ -138,11 +150,12 @@ export interface WorkbenchSkillCardApi {
    */
   start(request: WorkbenchRunRequest): Promise<WorkbenchRunStart>
   /**
-   * Cancel one card's in-flight run.
+   * Cancel one of a card's in-flight runs, or all of them.
    * @param cardId - the card.
+   * @param runId - the run to stop; absent stops every run the card has in flight.
    * @returns resolution after the Host answers.
    */
-  cancel(cardId: string): Promise<void>
+  cancel(cardId: string, runId?: string): Promise<void>
   /**
    * Store one hand-edited region fragment as that card's result.
    *
@@ -301,10 +314,12 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
       }
       if (response.status === 404) return { status: 'missing' }
       if (!response.ok) return { status: 'unavailable', reason: await readError(response) }
-      const state = parseRunResponse(await readJson(response))
-      return state === undefined
-        ? { status: 'unavailable', reason: 'run response did not match the contract' }
-        : { status: 'ok', state }
+      const body = await readJson(response)
+      const state = parseRunResponse(body)
+      if (state === undefined) {
+        return { status: 'unavailable', reason: 'run response did not match the contract' }
+      }
+      return { status: 'ok', state, states: parseRunStates(body, state) }
     },
 
     async start(request) {
@@ -334,9 +349,12 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
         : { status: 'rejected', code: error.code, message: error.message }
     },
 
-    async cancel(cardId) {
+    async cancel(cardId, runId) {
+      const query = runId === undefined
+        ? `?cardId=${encodeURIComponent(cardId)}`
+        : `?cardId=${encodeURIComponent(cardId)}&runId=${encodeURIComponent(runId)}`
       try {
-        await fetcher(`${WORKBENCH_SKILL_CARD_RUN_PATH}?cardId=${encodeURIComponent(cardId)}`, {
+        await fetcher(`${WORKBENCH_SKILL_CARD_RUN_PATH}${query}`, {
           method: 'DELETE',
           credentials: 'same-origin',
           redirect: 'error',
@@ -682,12 +700,43 @@ export function parseRunResponse(value: unknown): WorkbenchRunState | undefined 
   if (typeof value !== 'object' || value === null) return undefined
   const body = value as { apiVersion?: unknown; state?: unknown }
   if (body.apiVersion !== WORKBENCH_SKILL_CARD_API_VERSION) return undefined
-  if (typeof body.state !== 'object' || body.state === null) return undefined
-  const state = body.state as { cardId?: unknown; phase?: unknown; retried?: unknown }
+  return parseRunState(body.state)
+}
+
+/**
+ * Validate one run state.
+ * @param value - the decoded state, with no envelope around it.
+ * @returns the state, or undefined when a field is outside the contract.
+ */
+function parseRunState(value: unknown): WorkbenchRunState | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const state = value as { cardId?: unknown; phase?: unknown; retried?: unknown; runId?: unknown }
   if (typeof state.cardId !== 'string' || !isWorkbenchCardId(state.cardId)) return undefined
   if (!RUN_PHASES.includes(state.phase as WorkbenchRunPhase)) return undefined
   if (typeof state.retried !== 'boolean') return undefined
-  return body.state as WorkbenchRunState
+  if (state.runId !== undefined && typeof state.runId !== 'string') return undefined
+  return value as WorkbenchRunState
+}
+
+/**
+ * Read the run list a state response carries.
+ *
+ * The list is optional on the wire, and a Host that predates concurrent runs sends none —
+ * so an absent or unusable list is read as the one state the response always carried
+ * rather than as a malformed answer. A state the contract refuses is dropped from the
+ * list, for the same reason: one bad entry must not cost the page the runs it can read.
+ * @param value - the decoded response body.
+ * @param state - the newest state, already validated.
+ * @returns the list, never empty.
+ */
+function parseRunStates(value: unknown, state: WorkbenchRunState): readonly WorkbenchRunState[] {
+  if (typeof value !== 'object' || value === null) return [state]
+  const listed = (value as { states?: unknown }).states
+  if (!Array.isArray(listed)) return [state]
+  const states = listed
+    .map(entry => parseRunState(entry))
+    .filter((entry): entry is WorkbenchRunState => entry !== undefined)
+  return states.length === 0 ? [state] : states
 }
 
 /**

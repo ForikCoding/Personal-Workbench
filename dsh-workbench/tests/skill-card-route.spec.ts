@@ -404,6 +404,8 @@ describe('workbench skill card route', () => {
 interface RuntimeOptions extends FakeHostOptions {
   readonly rejection?: 401 | 403
   readonly selection?: WorkbenchCardSelection
+  /** Runs allowed in flight at once; the cases about the limit say 1. */
+  readonly maxConcurrentRuns?: number
 }
 
 /**
@@ -426,7 +428,7 @@ function runtime(options: RuntimeOptions = {}): {
     statDirectory: fake.statDirectory,
     subagentProvider: 'spawn',
     runTimeoutMs: 5_000,
-    maxConcurrentRuns: 1,
+    maxConcurrentRuns: options.maxConcurrentRuns ?? 4,
     // A card that is ready to run: the workspace is part of "configured" now, and the
     // refusals below say what they want instead.
     selection: () => options.selection
@@ -557,7 +559,8 @@ describe('workbench skill card run route', () => {
     expect(response.statusCode).toBe(202)
     expect(JSON.parse(response.body)).toEqual({
       apiVersion: 1,
-      state: { cardId: 'skill-card', phase: 'running', startedAt: 42, retried: false },
+      state: { cardId: 'skill-card', runId: '42', phase: 'running', startedAt: 42, retried: false },
+      states: [{ cardId: 'skill-card', runId: '42', phase: 'running', startedAt: 42, retried: false }],
     })
     runner.cancel('skill-card')
   })
@@ -663,12 +666,55 @@ describe('workbench skill card run route', () => {
     expect(fake.activations).toEqual([])
   })
 
-  it('refuses a second run while one is in flight', async () => {
-    const { run: handle, runner } = runtime({ outcomes: ['hang'] })
+  it('refuses a run once the concurrency limit is reached', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang'], maxConcurrentRuns: 1 })
     await run(handle, at(RUN_PATH, 'POST', runBody()))
-    const response = await run(handle, at(RUN_PATH, 'POST', runBody()))
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({ cardId: 'other-card' })))
     expect(response.statusCode).toBe(409)
     expect(JSON.parse(response.body).error.code).toBe('run-in-progress')
+    runner.cancel('skill-card')
+  })
+
+  it('accepts a second run of the same card and reports both', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang', 'hang'] })
+    expect((await run(handle, at(RUN_PATH, 'POST', runBody()))).statusCode).toBe(202)
+    expect((await run(handle, at(RUN_PATH, 'POST', runBody()))).statusCode).toBe(202)
+    const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card`))
+    expect(response.statusCode).toBe(200)
+    const body = JSON.parse(response.body) as { states: { runId: string; phase: string }[] }
+    expect(body.states).toHaveLength(2)
+    expect(body.states.every(state => state.phase === 'running')).toBe(true)
+    expect(body.states[0]?.runId).not.toBe(body.states[1]?.runId)
+    runner.cancel('skill-card')
+  })
+
+  it('stops one named run and leaves the other in flight', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang', 'hang'] })
+    await run(handle, at(RUN_PATH, 'POST', runBody()))
+    await run(handle, at(RUN_PATH, 'POST', runBody()))
+    const listed = await run(handle, at(`${RUN_PATH}?cardId=skill-card`))
+    const states = (JSON.parse(listed.body) as { states: { runId: string }[] }).states
+    const named = states[0]?.runId
+    if (named === undefined) throw new Error('the runs were not reported')
+    const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card&runId=${named}`, 'DELETE'))
+    expect(response.statusCode).toBe(200)
+    // The answer names the run that was signalled; its phase settles on the runner's own
+    // turn, so the cancellation is read from the runner rather than from this body.
+    const body = JSON.parse(response.body) as { state: { runId: string } }
+    expect(body.state.runId).toBe(named)
+    await vi.waitFor(() => {
+      const phases = runner.states('skill-card').map(state => `${state.runId}:${state.phase}`)
+      expect(phases).toEqual([`${named}:cancelled`, expect.stringContaining(':running')])
+    })
+    runner.cancel('skill-card')
+  })
+
+  it('reports a cancel that names a run which is not in flight', async () => {
+    const { run: handle, runner } = runtime({ outcomes: ['hang'] })
+    await run(handle, at(RUN_PATH, 'POST', runBody()))
+    const response = await run(handle, at(`${RUN_PATH}?cardId=skill-card&runId=nope`, 'DELETE'))
+    expect(response.statusCode).toBe(404)
+    expect(JSON.parse(response.body).error.message).toBe('run "nope" is not in flight')
     runner.cancel('skill-card')
   })
 

@@ -1393,18 +1393,41 @@ function cardSelection(card) {
 	};
 }
 /**
+* How many settled runs one card's table keeps besides the ones in flight.
+*
+* The stored results are the card's history; this table exists for the runs a reader is
+* watching or has just watched — a run in flight, and the cancelled run that stored
+* nothing. A bound keeps a long-lived process from holding every run it ever started.
+*/
+const RUN_TABLE_LIMIT = 24;
+/**
 * Run one card's skill and own the outcome.
 *
-* One run at a time per card, bounded globally by the deployment's concurrency
-* limit. A run that produces no usable structured value is retried exactly once;
+* A card may run several at once, bounded by the deployment's concurrency limit — each
+* run in a session of its own, which is what keeps two runs of one card from sharing a
+* conversation. A run that produces no usable structured value is retried exactly once;
 * a cancelled run never is.
 */
 var WorkbenchSkillCardRunner = class {
 	options;
+	/**
+	* Every card's runs, in start order.
+	*
+	* A list rather than one record because one card may have several in flight: the last
+	* entry is the newest, and each carries the id its settled record will use.
+	*/
 	runs = /* @__PURE__ */ new Map();
 	inflight = /* @__PURE__ */ new Set();
 	now;
 	active = 0;
+	/**
+	* The run ids handed out per card, in this process.
+	*
+	* A run's id is its start, so two runs of one card started within the same millisecond —
+	* which is what a fixed clock in a spec produces — would be one id. The suffix keeps them
+	* apart while the first keeps the readable form.
+	*/
+	runStamps = /* @__PURE__ */ new Map();
 	/**
 	* @param options - host services, budgets, and the two storage seams.
 	*/
@@ -1534,7 +1557,10 @@ var WorkbenchSkillCardRunner = class {
 		if (workspace === void 0) return reject("workspace-missing", `no workspace directory is configured for card "${request.cardId}"`);
 		const found = await this.options.statDirectory(workspace.path);
 		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspace.path}" does not exist or is not a directory`);
-		if (this.congested(request.cardId)) return reject("run-in-progress", "another run is already in flight");
+		if (this.congested()) return reject("run-in-progress", "the concurrency limit is reached");
+		if (refineSessionId !== void 0) {
+			if (this.sessionBusy(refineSessionId) !== void 0) return reject("run-in-progress", `session "${refineSessionId}" is already running`);
+		}
 		const scopeAgent = request.scopeSessionId === void 0 ? void 0 : this.options.host.agents.get(request.scopeSessionId);
 		const scopeRoute = scopeAgent === void 0 ? void 0 : scopeAgent.options !== void 0 && scopeAgent.options.provider !== void 0 && scopeAgent.options.model !== void 0 ? {
 			provider: scopeAgent.options.provider,
@@ -1551,14 +1577,15 @@ var WorkbenchSkillCardRunner = class {
 			if (error instanceof WorkbenchSandboxModeError) return reject("permission-unavailable", `card "${request.cardId}" cannot apply its permission mode: ${error.message}`);
 			throw error;
 		}
-		if (this.congested(request.cardId)) {
+		if (this.congested()) {
 			await session.settle();
-			return reject("run-in-progress", "another run is already in flight");
+			return reject("run-in-progress", "the concurrency limit is reached");
 		}
 		const agent = session.agent;
 		const scope = scopeAgent;
 		const run = {
 			cardId: request.cardId,
+			runId: this.nextRunId(request.cardId, startedAt),
 			startedAt,
 			controller: new AbortController(),
 			bare: mode.kind === "bare",
@@ -1572,7 +1599,7 @@ var WorkbenchSkillCardRunner = class {
 			run.timedOut = true;
 			run.controller.abort();
 		}, this.options.runTimeoutMs);
-		this.runs.set(request.cardId, run);
+		this.retain(run);
 		this.active += 1;
 		const execution = this.execute(run, inputOf(agent, scope), activate);
 		this.inflight.add(execution);
@@ -1587,16 +1614,32 @@ var WorkbenchSkillCardRunner = class {
 		};
 	}
 	/**
-	* Whether one more start would exceed the card's or the deployment's limit.
+	* Whether one more start would exceed the deployment's limit.
 	*
 	* Asked twice per start: once before the run's session is resolved, so a refused start
 	* publishes no session and restores none underneath a child still running in it, and once
 	* immediately before the run is recorded, so the reservation itself stays synchronous.
-	* @param cardId - the card the run belongs to.
-	* @returns whether another run is already in flight or the limit is reached.
+	*
+	* Only the deployment's limit is asked about: a card may have several runs in flight, and
+	* refusing the second was what made a card a one-at-a-time thing. The limit counts every
+	* run, so it bounds one card's concurrency as well as the whole workbench's.
+	* @returns whether the limit is reached.
 	*/
-	congested(cardId) {
-		return this.runs.get(cardId)?.phase === "running" || this.active >= this.options.maxConcurrentRuns;
+	congested() {
+		return this.active >= this.options.maxConcurrentRuns;
+	}
+	/**
+	* Whether a run is already executing in one session.
+	*
+	* A refinement continues the conversation its document came from, and two agents on one
+	* session would interleave two conversations into one log — so a refinement of a session
+	* another run is inside is refused rather than merged. Plain runs are unaffected: each
+	* gets a session of its own.
+	* @param sessionId - the session the new run would execute in.
+	* @returns the run already in that session, if there is one.
+	*/
+	sessionBusy(sessionId) {
+		for (const list of this.runs.values()) for (const run of list) if (run.phase === "running" && run.session.id === sessionId) return run;
 	}
 	/**
 	* Resolve the run seam this harness offers, bound to its service.
@@ -1668,7 +1711,7 @@ var WorkbenchSkillCardRunner = class {
 	* @param error - the failure the agent reported.
 	*/
 	observeAgentError(agentId, error) {
-		for (const run of this.runs.values()) {
+		for (const run of this.everyRun()) {
 			if (run.childId !== agentId || run.phase !== "running") continue;
 			run.childError = messageOf(error);
 		}
@@ -1687,39 +1730,105 @@ var WorkbenchSkillCardRunner = class {
 	observeChildEvent(sessionId, event) {
 		const entries = activityEntriesFor(event);
 		if (entries.length === 0) return;
-		for (const run of this.runs.values()) {
+		for (const run of this.everyRun()) {
 			if (run.childId !== sessionId || run.phase !== "running") continue;
 			run.activity = withActivityEntries(run.activity, entries);
 		}
 	}
 	/**
-	* Read one card's run state.
+	* Every run this runner keeps, across all cards.
+	* @returns the runs, in no particular order.
+	*/
+	everyRun() {
+		return [...this.runs.values()].flat();
+	}
+	/**
+	* The runs this runner keeps for one card, oldest first.
+	* @param cardId - the card.
+	* @returns the runs; empty when none has been started.
+	*/
+	runsOf(cardId) {
+		return this.runs.get(cardId) ?? [];
+	}
+	/**
+	* Read one card's newest run state.
 	* @param cardId - the card.
 	* @returns the state, or undefined when no run has been started for it.
 	*/
 	state(cardId) {
-		const run = this.runs.get(cardId);
+		const list = this.runsOf(cardId);
+		const run = list[list.length - 1];
 		return run === void 0 ? void 0 : this.stateOf(run);
 	}
 	/**
-	* Cancel one card's in-flight run.
+	* Read every run state one card still keeps, newest first.
+	*
+	* A card may run several at once, so a client needs the list: the newest state alone
+	* would hide a second run in flight. Newest first is the order the history reads in, and
+	* the order the list settles into once the runs are stored.
 	* @param cardId - the card.
-	* @returns whether a running run was signalled.
+	* @returns the states; empty when no run has been started.
 	*/
-	cancel(cardId) {
-		const run = this.runs.get(cardId);
-		if (run === void 0 || run.phase !== "running") return false;
-		run.controller.abort();
-		return true;
+	states(cardId) {
+		return [...this.runsOf(cardId)].reverse().map((run) => this.stateOf(run));
+	}
+	/**
+	* Cancel one of a card's in-flight runs, or all of them.
+	*
+	* Naming a run stops that one: a card with two runs in flight has two stopping stories,
+	* and a reader who wants one of them stopped should not have to stop the other. Naming
+	* none stops whatever is in flight for the card, which is the control the card's own
+	* header offers.
+	* @param cardId - the card.
+	* @param runId - the run to stop; absent stops every run in flight for the card.
+	* @returns whether any running run was signalled.
+	*/
+	cancel(cardId, runId) {
+		const running = this.runsOf(cardId).filter((run) => run.phase === "running").filter((run) => runId === void 0 || run.runId === runId);
+		for (const run of running) run.controller.abort();
+		return running.length > 0;
 	}
 	/**
 	* Cancel every in-flight run and wait for them to settle.
 	* @returns resolution once no run is still executing.
 	*/
 	async dispose() {
-		for (const run of this.runs.values()) if (run.phase === "running") run.controller.abort();
+		for (const run of this.everyRun()) if (run.phase === "running") run.controller.abort();
 		await Promise.allSettled([...this.inflight]);
 		this.runs.clear();
+	}
+	/**
+	* Mint one run's identity within its card.
+	*
+	* The start time is the id, so a record's identity reads as the moment the run began and
+	* the live row can be matched to the stored record it becomes. Two runs of one card that
+	* start in the same millisecond — a fixed clock, or a fast double click — take a counter
+	* suffix, so the second keeps a distinct id instead of overwriting the first's row.
+	* @param cardId - the card the run belongs to.
+	* @param startedAt - the run's start in milliseconds since the epoch.
+	* @returns the id.
+	*/
+	nextRunId(cardId, startedAt) {
+		const previous = this.runStamps.get(cardId);
+		const stamp = previous === void 0 ? startedAt : Math.max(startedAt, previous + 1);
+		this.runStamps.set(cardId, stamp);
+		return String(stamp);
+	}
+	/**
+	* File one run into its card's table, keeping the table bounded.
+	*
+	* A run is kept while it is in flight and after it settles, because the row a reader is
+	* watching is the run itself — a cancelled run in particular stores nothing, so this
+	* table is the only place its row exists. The bound drops the oldest settled runs once
+	* the table is full; a run in flight is never dropped.
+	* @param run - the run just started.
+	*/
+	retain(run) {
+		const list = [...this.runsOf(run.cardId), run];
+		const settled = list.filter((entry) => entry.phase !== "running");
+		const excess = settled.length - RUN_TABLE_LIMIT;
+		const dropped = excess <= 0 ? /* @__PURE__ */ new Set() : new Set(settled.slice(0, excess));
+		this.runs.set(run.cardId, dropped.size === 0 ? list : list.filter((entry) => !dropped.has(entry)));
 	}
 	/**
 	* Publish the session one card run executes in, with the card's permission mode applied.
@@ -1964,7 +2073,7 @@ var WorkbenchSkillCardRunner = class {
 		run.childError = void 0;
 		try {
 			const result = await activation.result;
-			const runId = String(run.startedAt);
+			const runId = run.runId;
 			const sessionId = run.session.id;
 			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
@@ -2071,6 +2180,7 @@ var WorkbenchSkillCardRunner = class {
 	stateOf(run) {
 		return {
 			cardId: run.cardId,
+			runId: run.runId,
 			phase: run.phase,
 			startedAt: run.startedAt,
 			retried: run.retried,
@@ -2658,7 +2768,8 @@ async function handleStart(options, request, response) {
 		}
 		sendJson(response, 202, {
 			apiVersion: 1,
-			state: outcome.state
+			state: outcome.state,
+			states: options.runner.states(outcome.state.cardId)
 		});
 	} catch (error) {
 		if (error instanceof SkillCardRequestError) {
@@ -2689,11 +2800,15 @@ function handleState(options, request, response) {
 	}
 	sendJson(response, 200, {
 		apiVersion: 1,
-		state
+		state,
+		states: options.runner.states(cardId)
 	});
 }
 /**
-* Cancel one card's in-flight run.
+* Cancel one of a card's in-flight runs, or all of them.
+*
+* A `runId` stops that run alone; without one the card's every in-flight run is stopped,
+* which is what the card's own header control means by 取消.
 * @param options - route dependencies.
 * @param request - the DELETE request.
 * @param response - the response to own.
@@ -2704,18 +2819,24 @@ function handleCancel(options, request, response) {
 		sendError(response, 400, "invalid-request", "cardId must be a namespaced card id");
 		return;
 	}
-	if (!options.runner.cancel(cardId)) {
-		sendError(response, 404, "not-found", "no run is in flight for this card");
+	const runId = queryParam(request, "runId");
+	if (runId !== void 0 && runId.length === 0) {
+		sendError(response, 400, "invalid-request", "runId must not be empty when given");
 		return;
 	}
-	const state = options.runner.state(cardId);
+	if (!options.runner.cancel(cardId, runId)) {
+		sendError(response, 404, "not-found", runId === void 0 ? "no run is in flight for this card" : `run "${runId}" is not in flight`);
+		return;
+	}
+	const state = runId === void 0 ? options.runner.state(cardId) : options.runner.states(cardId).find((entry) => entry.runId === runId);
 	if (state === void 0) {
 		sendError(response, 404, "not-found", "no run has been started for this card");
 		return;
 	}
 	sendJson(response, 200, {
 		apiVersion: 1,
-		state
+		state,
+		states: options.runner.states(cardId)
 	});
 }
 /**
@@ -3301,7 +3422,7 @@ const Config = z$1.object({
 	maxResultBytes: z$1.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
 	maxResultsPerCard: z$1.number().step(1).min(1).max(30).default(30),
 	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(3e5),
-	maxConcurrentRuns: z$1.number().step(1).min(1).max(8).default(1),
+	maxConcurrentRuns: z$1.number().step(1).min(1).max(8).default(4),
 	resultStaleAfterMs: z$1.number().step(1).min(6e4).default(864e5)
 });
 //#endregion
