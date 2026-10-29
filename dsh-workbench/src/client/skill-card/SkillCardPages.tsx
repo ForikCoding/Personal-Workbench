@@ -16,7 +16,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
-import type { WorkbenchResultRecord } from '../../skill-card-contract.ts'
+import type { WorkbenchInstructionMode, WorkbenchResultRecord } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
 import { runIdOf, useSkillCard } from './controller.ts'
 import type {
@@ -505,6 +505,203 @@ function RefinePanel({
   )
 }
 
+/** Rows the run bar's field shows before it scrolls. */
+const RUN_BAR_MAX_ROWS = 3
+
+/** Prefix of the session-scoped draft key, one per card. */
+const DRAFT_PREFIX = 'dsh-workbench:instruction:'
+
+/**
+ * Read one card's unsent instruction back.
+ *
+ * A draft rather than a stored value: it belongs to the page the user is on, and a card's
+ * next run should not inherit a sentence left behind hours ago. Session storage rather
+ * than memory because the two pages a run starts from are separate mounts — navigating
+ * from the history to a row's result would otherwise drop the half-written ask.
+ * @param cardId - the card whose draft is read.
+ * @returns the draft, or an empty string when none was kept or storage is unavailable.
+ */
+function readDraft(cardId: string): string {
+  try {
+    return globalThis.sessionStorage?.getItem(`${DRAFT_PREFIX}${cardId}`) ?? ''
+  } catch {
+    // Storage can be denied outright; a tab without a draft is still a working tab.
+    return ''
+  }
+}
+
+/**
+ * Keep or clear one card's unsent instruction.
+ * @param cardId - the card whose draft is written.
+ * @param text - the draft; an empty string clears it.
+ */
+function writeDraft(cardId: string, text: string): void {
+  try {
+    if (text === '') globalThis.sessionStorage?.removeItem(`${DRAFT_PREFIX}${cardId}`)
+    else globalThis.sessionStorage?.setItem(`${DRAFT_PREFIX}${cardId}`, text)
+  } catch {
+    // As above: losing the draft costs a retype, not the run.
+  }
+}
+
+/**
+ * The one composer a card's runs are started from, in the bar that holds the run control.
+ *
+ * One bar rather than a composer per page, and beside the control rather than in a dialog:
+ * the ask and the button that spends it are one decision, so they read as one line. What the
+ * card's mode decides is only whether the bar is there at all and what an empty field means
+ * — `none` keeps the plain run control, `optional` says the field may stay empty, and
+ * `required` refuses to send nothing and says so in place instead of disabling the control,
+ * because a disabled button explains nothing.
+ * @param props - the mode, the page's own state, and the two controls.
+ * @returns the run bar.
+ */
+function RunBar({
+  cardId,
+  mode,
+  recent,
+  t,
+  running,
+  disabled,
+  onRun,
+  onCancel,
+}: {
+  readonly cardId: string
+  /** The card's effective instruction mode. */
+  readonly mode: WorkbenchInstructionMode
+  /** Instructions this card's recent runs carried, newest first. */
+  readonly recent: readonly string[]
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  /** Whether a run holds the card, which turns the control into 取消. */
+  readonly running: boolean
+  /** Whether the control is closed for a reason other than an empty field. */
+  readonly disabled: boolean
+  readonly onRun: (instruction: string) => void
+  readonly onCancel: () => void
+}): ReactNode {
+  const [text, setText] = useState(() => readDraft(cardId))
+  // Whether the user pressed Run with nothing written. Cleared as soon as they type, so the
+  // sentence disappears the moment it stops being true.
+  const [refused, setRefused] = useState(false)
+  const field = useRef<HTMLTextAreaElement>(null)
+  const empty = text.trim() === ''
+  const rows = Math.min(RUN_BAR_MAX_ROWS, Math.max(1, text.split('\n').length))
+  useLayoutEffect(() => {
+    const element = field.current
+    if (element === null) return
+    element.style.height = 'auto'
+    // A field that cannot measure reports 0; collapsing to no height would hide the field.
+    if (element.scrollHeight > 0) element.style.height = `${String(element.scrollHeight)}px`
+  }, [text, mode])
+  const submit = (): void => {
+    if (disabled) return
+    if (empty) {
+      if (mode !== 'required') {
+        // Optional and none both treat an empty field as "no instruction": the run goes
+        // ahead on what the card is, which is exactly what those modes promise.
+        onRun('')
+        return
+      }
+      // Required, and nothing was written. The run is not sent: the refusal happens here,
+      // in view, with the field focused — the one thing a disabled control could not do.
+      setRefused(true)
+      field.current?.focus()
+      return
+    }
+    setRefused(false)
+    setText('')
+    writeDraft(cardId, '')
+    onRun(text)
+  }
+  // A card that needs no instruction keeps its plain header control and renders no bar at
+  // all, so its page is byte-for-byte what it was before this feature existed. The pages
+  // ask for the bar only when the mode calls for one; this branch is the second guard, for
+  // a mode that changed while the page was open.
+  if (mode === 'none') return null
+  return (
+    <div className={css.runBar} data-run-bar={mode}>
+      {running
+        ? null
+        : (
+          <div className={css.runBarRow}>
+            <textarea
+              ref={field}
+              className={css.runBarInput}
+              rows={rows}
+              value={text}
+              placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
+              aria-label={t('runInstructionField')}
+              disabled={disabled}
+              onChange={(event) => {
+                setText(event.target.value)
+                writeDraft(cardId, event.target.value)
+                if (refused && event.target.value.trim() !== '') setRefused(false)
+              }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return
+                if (event.key !== 'Enter') return
+                // Ctrl/Cmd+Enter is "send regardless", which is the only way to submit a
+                // multi-line ask. A bare Enter submits only while the ask is one line, because
+                // past that it is the field's own newline.
+                if (event.metaKey || event.ctrlKey) {
+                  event.preventDefault()
+                  submit()
+                  return
+                }
+                if (event.shiftKey) return
+                if (text.includes('\n')) return
+                event.preventDefault()
+                submit()
+              }}
+            />
+          </div>
+        )}
+      {/* The control sits in the same bar as the field: the ask and the button that
+          spends it are one action, even when the ask is empty. */}
+      <Button
+        variant="primary"
+        size="sm"
+        disabled={disabled}
+        onClick={() => { if (running) onCancel(); else submit() }}
+      >
+        {running ? t('skillCardCancel') : t('skillCardRun')}
+      </Button>
+      {refused
+        ? (
+          <p className={css.runBarHint} role="alert" data-run-instruction-required="">
+            {t('runInstructionRequired')}
+          </p>
+        )
+        : null}
+      {running || recent.length === 0
+        ? null
+        : (
+          <div className={css.runChips} data-run-instruction-recent="">
+            <span className={css.runChipsLabel}>{t('runInstructionRecent')}</span>
+            {recent.map(instruction => (
+              <button
+                key={instruction}
+                type="button"
+                className={css.runChip}
+                // Refill rather than run: the chip's text is a starting point the user
+                // almost always edits before sending.
+                onClick={() => {
+                  setText(instruction)
+                  writeDraft(cardId, instruction)
+                  setRefused(false)
+                  field.current?.focus()
+                }}
+                data-run-instruction-chip=""
+              >
+                {instruction}
+              </button>
+            ))}
+          </div>
+        )}
+    </div>
+  )
+}
+
 /**
  * Render the card's run history in the whole display column.
  *
@@ -568,15 +765,33 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
               )}
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={bareRunning || !view.runnable}
-          onClick={actions.run}
-        >
-          {t('skillCardRun')}
-        </Button>
+        {/* The header's own control, for a card whose runs need no instruction. A card that
+            takes one gets the bar below instead — one control, never two. */}
+        {view.instructionMode === 'none'
+          ? (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={bareRunning || !view.runnable}
+              onClick={() => { actions.run() }}
+            >
+              {t('skillCardRun')}
+            </Button>
+          )
+          : null}
       </header>
+      {/* The bar starts every run from this page, so running is one click whether the ask is
+          empty or not. Never in-flight here: this page starts runs alongside others. */}
+      <RunBar
+        cardId={cardId}
+        mode={view.instructionMode}
+        recent={view.recentInstructions}
+        t={t}
+        running={false}
+        disabled={bareRunning || !view.runnable}
+        onRun={(instruction) => { actions.run(instruction) }}
+        onCancel={() => { actions.cancel() }}
+      />
       {/* The same sentences the result page states, so a run this list's button cannot
           start says why here too: the list is where the user pressed it. */}
       {view.modelField.kind === 'unavailable'
@@ -708,6 +923,17 @@ function RunHistoryRow({
                 ? null
                 : <span className={css.runHistoryEdited} data-run-history-edited="">{t('runHistoryEdited')}</span>}
             </span>
+            {/* What the run was asked for, in the one line the row has for it. Two runs of
+                one card differ by this sentence, so it is the row's own title's context
+                rather than a separate field: the headline says what came out, this says
+                what went in. */}
+            {run.instruction === undefined || run.instruction === ''
+              ? null
+              : (
+                <span className={css.runHistoryInstruction} data-run-history-instruction="">
+                  {t('runHistoryInstruction', { text: run.instruction })}
+                </span>
+              )}
           </span>
           <span className={css.runHistorySide}>
             <span className={css.runHistoryOutcome} data-run-history-outcome="">
@@ -818,16 +1044,34 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         {/* The run control lives here: this is the page that shows what a run produces.
             A bare run holds this card's run slot, so pressing Run during one would only
             be refused; the control waits instead. It also waits while the editor is open,
-            because a run replaces the very result the draft is being kept against. */}
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={bareRunning || editing || (!cardRunning && !view.runnable)}
-          onClick={cardRunning ? actions.cancel : actions.run}
-        >
-          {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
-        </Button>
+            because a run replaces the very result the draft is being kept against.
+            A card that takes an instruction has no control here — the bar below owns the one
+            control, so pressing Run always spends the ask in the field. */}
+        {view.instructionMode === 'none'
+          ? (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={bareRunning || editing || (!cardRunning && !view.runnable)}
+              onClick={() => { if (cardRunning) actions.cancel(); else actions.run() }}
+            >
+              {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
+            </Button>
+          )
+          : null}
       </header>
+      {/* While a run holds the card the bar keeps only its control, which stops that run:
+          the field would offer a second start that the Host would refuse. */}
+      <RunBar
+        cardId={cardId}
+        mode={view.instructionMode}
+        recent={view.recentInstructions}
+        t={t}
+        running={cardRunning}
+        disabled={cardRunning ? false : bareRunning || editing || !view.runnable}
+        onRun={(instruction) => { actions.run(instruction) }}
+        onCancel={() => { actions.cancel() }}
+      />
       {/* A disabled run control with no sentence beside it is the same defect the catalog
           notice fixes on the configuration page: the user cannot tell what is missing. */}
       {view.modelField.kind === 'unavailable'
@@ -998,6 +1242,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
         onChoose={actions.chooseSkill}
         onChooseModel={actions.chooseModel}
         onChoosePermission={actions.choosePermission}
+        onChooseInstructionMode={actions.chooseInstructionMode}
         onChooseWorkspace={actions.chooseWorkspace}
         onSave={actions.saveTemplate}
         onRename={actions.rename}

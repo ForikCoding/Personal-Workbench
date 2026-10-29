@@ -88,8 +88,20 @@ describe('starting a card run', () => {
       status: 'ok',
       state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
     }))
-    await startCardRun(transport, 'other-card', undefined, { task_number: 'CP-1' })
+    await startCardRun(transport, 'other-card', undefined, { payload: { task_number: 'CP-1' } })
     expect(recording.requests[0]?.payload).toEqual({ task_number: 'CP-1' })
+  })
+
+  it('carries the instruction, trimmed, and sends none when it says nothing', async () => {
+    const { api: transport, recording } = api(async request => ({
+      status: 'ok',
+      state: { cardId: request.cardId, phase: 'running', startedAt: 1, retried: false },
+    }))
+    await startCardRun(transport, 'other-card', undefined, { instruction: '  分析 T202601010001  ' })
+    expect(recording.requests[0]?.instruction).toBe('分析 T202601010001')
+    // Blank is not an instruction: sending it would reach the prompt as an empty ask.
+    await startCardRun(transport, 'other-card', undefined, { instruction: '   ' })
+    expect(recording.requests[1]).not.toHaveProperty('instruction')
   })
 
   it('passes the Host’s refusal through as it stands', async () => {

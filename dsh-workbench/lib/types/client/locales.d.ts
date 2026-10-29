@@ -107,6 +107,12 @@ export declare const zh: {
     skillCardPermissionWarning: string;
     skillCardRunsWithPermission: string;
     skillCardProblemPermissionUnavailable: string;
+    skillCardInstructionLabel: string;
+    skillCardInstructionNone: string;
+    skillCardInstructionOptional: string;
+    skillCardInstructionRequired: string;
+    skillCardInstructionNote: string;
+    skillCardProblemInstructionMissing: string;
     skillCardBack: string;
     skillCardCardName: string;
     skillCardModel: string;
@@ -142,6 +148,12 @@ export declare const zh: {
     runHistoryOrdinal: string;
     runHistoryLatest: string;
     runHistoryRunning: string;
+    runHistoryInstruction: string;
+    runInstructionPlaceholderRequired: string;
+    runInstructionPlaceholderOptional: string;
+    runInstructionRequired: string;
+    runInstructionRecent: string;
+    runInstructionField: string;
     skillCardRunningBody: string;
     refinePlaceholder: string;
     refineAction: string;

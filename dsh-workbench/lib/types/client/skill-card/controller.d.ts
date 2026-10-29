@@ -14,7 +14,7 @@
  * and a reload starts the conversation over.
  * @module dsh-workbench/client/skill-card/controller
  */
-import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchResultRecord, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchInstructionMode, WorkbenchResultRecord, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 import type { WorkbenchActionErrorCode } from './actions.ts';
 import type { WorkbenchModelField, WorkbenchModelSeat } from './model.ts';
@@ -221,6 +221,21 @@ export interface WorkbenchCardView {
      */
     readonly permission: WorkbenchSandboxMode;
     /**
+     * How much instruction this card's runs need, as the effective mode.
+     *
+     * Never absent, like {@link permission}: a card that stores none runs under the default,
+     * and the run bar renders one of the three from this value rather than from the stored one.
+     */
+    readonly instructionMode: WorkbenchInstructionMode;
+    /**
+     * Instructions this card's recent runs carried, newest first, one per run.
+     *
+     * Read from the stored records rather than kept as a separate list: what the user wrote
+     * last time is exactly what a repeat click wants, and the history already holds it. Bounded
+     * by the run bar, which offers a few and no more.
+     */
+    readonly recentInstructions: readonly string[];
+    /**
      * Whether a directory picker can be offered at all.
      *
      * False on a page whose composition has no picker, and after one refused: the field then
@@ -246,8 +261,12 @@ export interface WorkbenchCardView {
 }
 /** What one card can do. */
 export interface WorkbenchCardActions {
-    /** Start a run. */
-    run(): void;
+    /**
+     * Start a run.
+     * @param instruction - what to do, as the run bar's field holds it. Absent for a card that
+     * takes no instruction, and for one whose field is empty.
+     */
+    run(instruction?: string): void;
     /**
      * Cancel what the page is about.
      *
@@ -314,6 +333,14 @@ export interface WorkbenchCardActions {
      * @param mode - the mode the user chose.
      */
     choosePermission(mode: WorkbenchSandboxMode): void;
+    /**
+     * Store how much instruction this card's runs need.
+     *
+     * A setting about the run bar, not about a run: nothing in flight is touched, and the next
+     * start is the first one the new mode governs.
+     * @param mode - the mode the user chose.
+     */
+    chooseInstructionMode(mode: WorkbenchInstructionMode): void;
     /**
      * Store a template for the selected skill, together with the card's name.
      * @param template - the HTML to store.

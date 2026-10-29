@@ -11,7 +11,7 @@
  * @module dsh-workbench/client/skill-card/permission
  */
 
-import type { WorkbenchSandboxMode } from '../../skill-card-contract.ts'
+import type { WorkbenchInstructionMode, WorkbenchSandboxMode } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 
 /**
@@ -33,4 +33,25 @@ const PERMISSION_LABEL_KEYS: Record<WorkbenchSandboxMode, WorkbenchLocaleKey> = 
  */
 export function permissionLabelKey(mode: WorkbenchSandboxMode): WorkbenchLocaleKey {
   return PERMISSION_LABEL_KEYS[mode]
+}
+
+/**
+ * Locale key for each instruction mode's label.
+ *
+ * Exhaustive for the same reason as the permissions above: a mode added to the contract
+ * fails compilation here until both dictionaries name it.
+ */
+const INSTRUCTION_LABEL_KEYS: Record<WorkbenchInstructionMode, WorkbenchLocaleKey> = {
+  none: 'skillCardInstructionNone',
+  optional: 'skillCardInstructionOptional',
+  required: 'skillCardInstructionRequired',
+}
+
+/**
+ * Read the locale key naming one instruction mode.
+ * @param mode - the mode to name.
+ * @returns the dictionary key holding its label.
+ */
+export function instructionLabelKey(mode: WorkbenchInstructionMode): WorkbenchLocaleKey {
+  return INSTRUCTION_LABEL_KEYS[mode]
 }

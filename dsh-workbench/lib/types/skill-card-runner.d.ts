@@ -8,7 +8,7 @@
  * bare run skips the store entirely, because its whole result is whether it worked.
  * @module dsh-workbench/skill-card-runner
  */
-import type { WorkbenchCardConfigView, WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
+import type { WorkbenchCardConfigView, WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchInstructionMode, WorkbenchResultRecord, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSandboxMode, WorkbenchSkillCardErrorCode, WorkbenchSkillCatalogEntry } from './skill-card-contract.ts';
 import type { WorkbenchActivityEvent } from './skill-card-activity.ts';
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts';
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts';
@@ -60,6 +60,13 @@ export interface WorkbenchCardSelection {
      * card is, so a client cannot start a run under a mode the card does not name.
      */
     readonly permission?: WorkbenchSandboxMode;
+    /**
+     * How much instruction this card's runs need; absent means the default applies.
+     *
+     * Read from storage for the same reason as the mode above: whether a card may run with an
+     * empty ask is part of what the card is, so a client cannot start a run the card forbids.
+     */
+    readonly instructionMode?: WorkbenchInstructionMode;
 }
 /**
  * Project one stored card onto the selection a run reads.

@@ -39,6 +39,10 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // The mode is on the view (the result page states it), but the body renders only the
     // document, so the face's cases never read it.
     permission: 'workspace-write',
+    // Likewise the instruction mode and the few asks the run bar offers back: the face
+    // renders neither, and the default is the face a card has always had.
+    instructionMode: 'none',
+    recentInstructions: [],
     canChooseWorkspace: false,
     catalog: [],
     catalogStatus: 'idle',

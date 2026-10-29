@@ -14,6 +14,7 @@ import type {
   WorkbenchCardWorkspace,
   WorkbenchCatalogResponse,
   WorkbenchDirectoryStatResponse,
+  WorkbenchInstructionMode,
   WorkbenchResultEditRequest,
   WorkbenchResultEditResponse,
   WorkbenchRunCapabilities,
@@ -26,15 +27,18 @@ import type {
   WorkbenchSkillCardResponse,
 } from './skill-card-contract.ts'
 import {
+  WORKBENCH_INSTRUCTION_MODES,
   WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
   WORKBENCH_RESULT_MAX_BYTES,
+  WORKBENCH_RUN_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_SANDBOX_MODES,
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
+  isWorkbenchInstructionMode,
   isWorkbenchSandboxMode,
   isWorkbenchSkillName,
   isWorkbenchWorkspacePath,
@@ -190,6 +194,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     model?: unknown
     workspace?: unknown
     permission?: unknown
+    instructionMode?: unknown
     template?: unknown
   }
   if (typeof body.baseRevision !== 'string') {
@@ -270,6 +275,21 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     )
   }
 
+  let instructionMode: WorkbenchInstructionMode | null | undefined
+  if (body.instructionMode === undefined) {
+    instructionMode = undefined
+  } else if (body.instructionMode === null) {
+    instructionMode = null
+  } else if (isWorkbenchInstructionMode(body.instructionMode)) {
+    instructionMode = body.instructionMode
+  } else {
+    throw new SkillCardRequestError(
+      400,
+      'invalid-request',
+      `instructionMode must be null or one of ${WORKBENCH_INSTRUCTION_MODES.join(', ')}`,
+    )
+  }
+
   let template: { readonly skill: string; readonly html: string } | undefined
   if (body.template !== undefined) {
     const raw = body.template
@@ -300,6 +320,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     ...model === undefined ? {} : { model },
     ...workspace === undefined ? {} : { workspace },
     ...permission === undefined ? {} : { permission },
+    ...instructionMode === undefined ? {} : { instructionMode },
     ...template === undefined ? {} : { template },
   }
 }
@@ -572,6 +593,9 @@ const STATUS_BY_CODE: Record<WorkbenchSkillCardErrorCode, number> = {
   // A conflict rather than a bad request for the same reason: the request is well formed and
   // the card is otherwise ready, and no change to the request would make the mode apply.
   'permission-unavailable': 409,
+  // The request is well formed and the card is ready, and the one thing missing is the
+  // sentence this card's runs need — a bad request by omission, like a missing workspace.
+  'instruction-missing': 400,
 }
 
 /** Everything the catalog route needs. */
@@ -814,6 +838,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     scopeSessionId?: unknown
     mode?: unknown
     payload?: unknown
+    instruction?: unknown
     outputSchema?: unknown
   }
   if (typeof body.cardId !== 'string' || !isWorkbenchCardId(body.cardId)) {
@@ -844,6 +869,20 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     }
     payload = body.payload as Record<string, unknown>
   }
+  // What the user asked for. Free text, so the only rules are "if present it says
+  // something" and a bound on what one request carries; whether this card needs one at all
+  // is the runner's precondition, answered as `instruction-missing` there. A blank string is
+  // refused rather than stored: it would reach the prompt as an empty ask, and the record
+  // would then claim the run was told something.
+  const instruction = body.instruction
+  if (instruction !== undefined) {
+    if (typeof instruction !== 'string' || instruction.trim() === '') {
+      throw new SkillCardRequestError(400, 'invalid-request', 'instruction must be a non-empty string when present')
+    }
+    if (instruction.length > WORKBENCH_RUN_INSTRUCTION_MAX_LENGTH) {
+      throw new SkillCardRequestError(400, 'invalid-request', 'instruction is longer than the limit')
+    }
+  }
   // Whether the contract itself is usable is the runner's precondition, so it is
   // carried through unchecked here and answered as `schema-rejected` there. It is
   // absent for a bare run, which asks for no value at all.
@@ -853,6 +892,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     ...scopeSessionId === undefined ? {} : { scopeSessionId },
     mode: parseRunMode(body.mode),
     ...payload === undefined ? {} : { payload },
+    ...instruction === undefined ? {} : { instruction },
     ...body.outputSchema === undefined ? {} : { outputSchema: body.outputSchema },
   }
 }

@@ -168,6 +168,9 @@ describe('a refine run', () => {
         stopReason: 'completed',
         structured: { html: '<b>新</b>' },
         outputText: 'ok',
+        // The revision request is kept too: a refined run's row has to say which request it
+        // answered, exactly as a first run's row says what it was asked for.
+        instruction: INSTRUCTION,
       },
     }])
   })

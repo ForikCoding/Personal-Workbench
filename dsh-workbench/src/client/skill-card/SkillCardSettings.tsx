@@ -15,19 +15,26 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
+  WORKBENCH_INSTRUCTION_MODES,
   WORKBENCH_REGION_BEGIN,
   WORKBENCH_REGION_END,
   WORKBENCH_SANDBOX_MODES,
   WORKBENCH_TEMPLATE_MAX_BYTES,
+  isWorkbenchInstructionMode,
   isWorkbenchSandboxMode,
 } from '../../skill-card-contract.ts'
-import type { WorkbenchActionTarget, WorkbenchCardModel, WorkbenchSandboxMode } from '../../skill-card-contract.ts'
+import type {
+  WorkbenchActionTarget,
+  WorkbenchCardModel,
+  WorkbenchInstructionMode,
+  WorkbenchSandboxMode,
+} from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import { ActionDeclarationPanel } from './ActionDeclarationPanel.tsx'
 import type { WorkbenchCardView } from './controller.ts'
 import { declarationLine, insertDeclaration } from './declarations.ts'
 import { modelKey, parseModelKey } from './model.ts'
-import { permissionLabelKey } from './permission.ts'
+import { instructionLabelKey, permissionLabelKey } from './permission.ts'
 import { templateSkeleton } from './skeleton.ts'
 import { analyzeTemplate, findActionsBlock, findRegion } from './template.ts'
 import type { WorkbenchTemplateViolation, WorkbenchTemplateViolationCode } from './template.ts'
@@ -69,6 +76,14 @@ export interface SkillCardSettingsProps {
    * @param mode - the mode the user chose.
    */
   readonly onChoosePermission: (mode: WorkbenchSandboxMode) => void
+  /**
+   * Store how much instruction this card's runs need.
+   *
+   * A stored write like the others, and the one that decides what the run bar offers before
+   * a run starts. Nothing in flight is touched.
+   * @param mode - the mode the user chose.
+   */
+  readonly onChooseInstructionMode: (mode: WorkbenchInstructionMode) => void
   /**
    * Open a directory picker and store what it returns.
    *
@@ -140,7 +155,19 @@ function gutterLineClass(kind: GutterLineFact['kind']): string {
  * @returns the editor element.
  */
 export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
-  const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props
+  const {
+    view,
+    t,
+    onChoose,
+    onChooseModel,
+    onChoosePermission,
+    onChooseInstructionMode,
+    onChooseWorkspace,
+    onSave,
+    onRename,
+    onClose,
+    onDelete,
+  } = props
   const [draft, setDraft] = useState(view.template ?? '')
   const [name, setName] = useState(view.name ?? '')
   // The declaration builder is closed until asked for: an editor whose first frame
@@ -156,6 +183,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const skillId = `${base}-skill`
   const modelId = `${base}-model`
   const permissionId = `${base}-permission`
+  const instructionId = `${base}-instruction`
   const templateId = `${base}-template`
   const previewId = `${base}-preview`
 
@@ -479,6 +507,31 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
                 {t('skillCardPermissionWarning')}
               </p>
             ) : null}
+          </div>
+          {/* Whether a run needs a sentence first. A card setting rather than a property of
+              the skill: it is a judgement about the work, and the card is where the user
+              records it. The note states what the mode governs, so the setting is not
+              mistaken for a stored prompt. */}
+          <div className={css.field}>
+            <label className={css.fieldLabel} htmlFor={instructionId}>
+              {t('skillCardInstructionLabel')}
+            </label>
+            <select
+              id={instructionId}
+              className={css.select}
+              value={view.instructionMode}
+              data-instruction-select=""
+              onChange={(event) => {
+                const chosen = event.target.value
+                if (!isWorkbenchInstructionMode(chosen)) return
+                onChooseInstructionMode(chosen)
+              }}
+            >
+              {WORKBENCH_INSTRUCTION_MODES.map(mode => (
+                <option key={mode} value={mode}>{t(instructionLabelKey(mode))}</option>
+              ))}
+            </select>
+            <p className={css.fieldNote}>{t('skillCardInstructionNote')}</p>
           </div>
         </div>
         {catalogNotice(view, options.length, t)}

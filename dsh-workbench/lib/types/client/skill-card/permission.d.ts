@@ -10,7 +10,7 @@
  * the same wherever it appears in the product.
  * @module dsh-workbench/client/skill-card/permission
  */
-import type { WorkbenchSandboxMode } from '../../skill-card-contract.ts';
+import type { WorkbenchInstructionMode, WorkbenchSandboxMode } from '../../skill-card-contract.ts';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 /**
  * Read the locale key naming one permission mode.
@@ -18,3 +18,9 @@ import type { WorkbenchLocaleKey } from '../locales.ts';
  * @returns the dictionary key holding its label.
  */
 export declare function permissionLabelKey(mode: WorkbenchSandboxMode): WorkbenchLocaleKey;
+/**
+ * Read the locale key naming one instruction mode.
+ * @param mode - the mode to name.
+ * @returns the dictionary key holding its label.
+ */
+export declare function instructionLabelKey(mode: WorkbenchInstructionMode): WorkbenchLocaleKey;

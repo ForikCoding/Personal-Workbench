@@ -57,6 +57,10 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // The effective mode, which is what an unset card shows: the editor always displays a
     // concrete choice rather than an empty option.
     permission: 'workspace-write',
+    // The same rule for the instruction field: an unset card shows the default, which is
+    // the face every card had before the field existed.
+    instructionMode: 'none',
+    recentInstructions: [],
     canChooseWorkspace: true,
     catalog: [],
     catalogStatus: 'ready',
@@ -83,6 +87,7 @@ function setup(
   onChoose: ReturnType<typeof vi.fn>
   onChooseModel: ReturnType<typeof vi.fn>
   onChoosePermission: ReturnType<typeof vi.fn>
+  onChooseInstructionMode: ReturnType<typeof vi.fn>
   onChooseWorkspace: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
@@ -92,6 +97,7 @@ function setup(
   const onChoose = vi.fn()
   const onChooseModel = vi.fn()
   const onChoosePermission = vi.fn()
+  const onChooseInstructionMode = vi.fn()
   const onChooseWorkspace = vi.fn()
   const onRename = vi.fn()
   const onClose = vi.fn()
@@ -104,6 +110,7 @@ function setup(
       onChoose={onChoose}
       onChooseModel={onChooseModel}
       onChoosePermission={onChoosePermission}
+      onChooseInstructionMode={onChooseInstructionMode}
       onChooseWorkspace={onChooseWorkspace}
       onRename={onRename}
       onClose={onClose}
@@ -116,6 +123,7 @@ function setup(
     onChoose,
     onChooseModel,
     onChoosePermission,
+    onChooseInstructionMode,
     onChooseWorkspace,
     onRename,
     onClose,
@@ -913,22 +921,24 @@ describe('the workspace field', () => {
       .toBe(zh.skillCardNamePlaceholder)
   })
 
-  it('lays the five fields out as two rows of two and the permission mode beneath', () => {
+  it('lays the six fields out two to a row, in the order the card is configured', () => {
     // Adding a fourth field to the single row crowded every label against the next control
-    // and pushed the last one past the page's edge. The grid is what makes the shape two
-    // rows of two; the permission mode then takes the third row of its own.
+    // and pushed the last one past the page's edge. The grid is what makes the shape two to
+    // a row; the two per-run settings then take rows of their own.
     const { container } = setup({ skill: 'git-repo', workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' } }, zhT)
     const grid = container.querySelector('.fieldGrid') as HTMLElement
     expect(grid).not.toBeNull()
-    // Five cells, in the order the page states them: name, skill, model, workspace, mode.
+    // Six cells, in the order the page states them: name, skill, model, workspace, what the
+    // run may write, and whether it needs an instruction first.
     const cells = [...grid.children] as HTMLElement[]
-    expect(cells).toHaveLength(5)
+    expect(cells).toHaveLength(6)
     expect(cells.map(cell => cell.querySelector('.fieldLabel')?.textContent)).toEqual([
       zh.skillCardCardName,
       zh.skillCardSelectSkill,
       zh.skillCardModel,
       zh.skillCardWorkspace,
       zh.skillCardPermissionLabel,
+      zh.skillCardInstructionLabel,
     ])
     // jsdom computes no media queries, so the two-column shape is asserted where it lives.
     expect(grid.className).toContain('fieldGrid')
@@ -996,6 +1006,39 @@ describe('the permission field', () => {
     const picker = container.querySelector('[data-permission-select]') as HTMLSelectElement
     fireEvent.change(picker, { target: { value: 'full-control' } })
     expect(onChoosePermission).not.toHaveBeenCalled()
+  })
+})
+
+describe('the instruction field', () => {
+  it('offers the three modes, with the default one shown for a card that stores none', () => {
+    // The setting is what the run bar renders, so it has to be a concrete choice rather than
+    // a blank option: an unset card takes the default, and the picker shows exactly that.
+    const { container } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-instruction-select]') as HTMLSelectElement
+    expect([...picker.options].map(option => option.value)).toEqual(['none', 'optional', 'required'])
+    expect([...picker.options].map(option => option.textContent)).toEqual([
+      zh.skillCardInstructionNone,
+      zh.skillCardInstructionOptional,
+      zh.skillCardInstructionRequired,
+    ])
+    expect(picker.value).toBe('none')
+    // The note says what the mode governs, so it is not mistaken for a stored prompt.
+    expect(screen.getByLabelText(zh.skillCardInstructionLabel)).toBe(picker)
+  })
+
+  it('states the stored mode', () => {
+    const { container } = setup({ skill: 'git-repo', instructionMode: 'required' }, zhT)
+    expect((container.querySelector('[data-instruction-select]') as HTMLSelectElement).value)
+      .toBe('required')
+  })
+
+  it('stores a newly chosen mode, and drops one the contract does not hold', () => {
+    const { container, onChooseInstructionMode } = setup({ skill: 'git-repo' }, zhT)
+    const picker = container.querySelector('[data-instruction-select]') as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 'optional' } })
+    expect(onChooseInstructionMode).toHaveBeenCalledWith('optional')
+    fireEvent.change(picker, { target: { value: 'always' } })
+    expect(onChooseInstructionMode).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -51,14 +51,19 @@ function setup(outcomes?: FakeHostOptions['outcomes']): {
 /**
  * A card run request.
  * @param payload - the row that triggered it, when a click did.
+ * @param instruction - what the user asked for, when they asked for something.
  * @returns the request.
  */
-function cardRequest(payload?: Record<string, unknown>): WorkbenchRunRequest {
+function cardRequest(
+  payload?: Record<string, unknown>,
+  instruction?: string,
+): WorkbenchRunRequest {
   return {
     cardId: 'skill-card',
     sessionId: AGENT.id,
     mode: { kind: 'card' },
     ...payload === undefined ? {} : { payload },
+    ...instruction === undefined ? {} : { instruction },
     outputSchema: { type: 'object', properties: {} },
   }
 }
@@ -147,6 +152,17 @@ describe('the row a run was triggered from', () => {
       expect(prompt).not.toContain('</row_data>')
       expect(prompt).toContain('<skill_content name="git-repo">')
     }
+  })
+
+  it('carries the instruction after the row and before the document', async () => {
+    // Both are inputs to the same run, and the order states which is which: the row is data
+    // the click carried, the instruction is what the user said to do with it.
+    const { runner, activations } = setup()
+    const prompt = await promptOf(runner, activations, cardRequest(ROW, '按任务单要求分析'))
+    const block = /\n<run_instruction>\n([\s\S]*?)\n<\/run_instruction>\n/u.exec(prompt)?.[1]
+    expect(block).toBe('按任务单要求分析')
+    expect(prompt.indexOf('</row_data>')).toBeLessThan(prompt.indexOf('<run_instruction>'))
+    expect(prompt.indexOf('</run_instruction>')).toBeLessThan(prompt.indexOf('<output_document>'))
   })
 
   it('leaves the rest of the prompt untouched when a row is added', async () => {

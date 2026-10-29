@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
 // The Loader never fetches a sibling stylesheet, so this one ships inside
 // the factory and installs on first evaluation.
 {
-  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_14mdo_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_14mdo_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_14mdo_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_14mdo_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_14mdo_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_14mdo_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_14mdo_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_14mdo_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_14mdo_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_14mdo_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_14mdo_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide. */\n._cell_14mdo_91 {\n  display: grid;\n  min-width: 0;\n}\n\n._createRoot_14mdo_96 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n._createTile_14mdo_105 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_14mdo_105:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. */\n._createMark_14mdo_134 {\n  font-size: 20px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._createTile_14mdo_105:hover ._createMark_14mdo_134 {\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_14mdo_105:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_14mdo_81 {\n    grid-template-columns: 1fr;\n  }\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1bbhu_4 {\n  display: block;\n}\n\n._body_1bbhu_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._cardActions_1bbhu_14 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1bbhu_22 {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n  width: 100%;\n  min-width: 0;\n}\n\n._pageViewHead_1bbhu_30 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._pageViewTitle_1bbhu_37 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 16px;\n  font-weight: 500;\n  line-height: 24px;\n  overflow-wrap: anywhere;\n}\n\n._pageViewSubtitle_1bbhu_47 {\n  flex: none;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runProblem_1bbhu_54 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result, set off from it by the same\n   hairline the record used to carry. */\n._runTrace_1bbhu_66 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  padding-top: 8px;\n}\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom. The rows wear the conversation's run-record\n   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,\n   so a long trace reads like the chat it came from rather than a log dump.\n\n   The list is not bounded: like the conversation's own run record, it grows with its\n   content and the page scrolls, so a long reasoning span opens to its full text rather\n   than a narrow frame. */\n._runTraceList_1bbhu_79 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._activityList_1bbhu_85 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 4px 0 0;\n  padding: 0;\n  list-style: none;\n}\n\n._activityItem_1bbhu_94 {\n  display: block;\n  min-width: 0;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityToolRow_1bbhu_100 {\n  min-width: 0;\n}\n\n/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header\n   with the secondary tier; the workbench only sizes the pieces it supplies. */\n._activityRow_1bbhu_106 {\n  min-width: 0;\n}\n\n._activityTitle_1bbhu_110 {\n  font-weight: 400;\n}\n\n/* The 2x2 separator between the title and the collapsed summary, matching the\n   conversation's run rows. */\n._activitySep_1bbhu_116 {\n  flex: none;\n  width: 2px;\n  height: 2px;\n  margin: 0 8px;\n  border-radius: 1px;\n  background: var(--dsw-alias-label-caption);\n}\n\n/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */\n._activitySummary_1bbhu_126 {\n  flex: 1 1 auto;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n}\n\n/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */\n._activityBody_1bbhu_137 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  padding: 4px 0 4px 22px;\n}\n\n._activityBodyLabel_1bbhu_145 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n._activityBodyText_1bbhu_151 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The model thinking: a disclosure row like the conversation's, set apart from the calls\n   because it is what the card is *reasoning*, not what it is doing. */\n._activityReasoning_1bbhu_161 {\n  min-width: 0;\n}\n\n/* The model speaking to the user: plain narration, no chrome — it is the reply, not a\n   step. Reads like an assistant message in the conversation. */\n._activityNarration_1bbhu_167 {\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  overflow-wrap: anywhere;\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_1bbhu_177 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The settled turn-process header above a trace, matching the conversation's Turn process\n   row: a full-width button with the outcome word and a chevron that folds the whole stream. */\n._turnProcess_1bbhu_185 {\n  display: flex;\n  align-items: center;\n  width: 100%;\n  min-width: 0;\n  height: calc(33px + var(--dsh-content-font-delta, 0px));\n  padding: 0 0 8px;\n  border: none;\n  border-bottom: 0.5px solid var(--dsw-alias-border-l2);\n  background: none;\n  color: var(--dsw-alias-label-tertiary);\n  font: inherit;\n  font-size: var(--dsh-content-font-size, 14px);\n  cursor: pointer;\n  text-align: left;\n  transition: color 100ms ease;\n}\n\n._turnProcess_1bbhu_185:hover {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._turnProcessLabel_1bbhu_207 {\n  min-width: 0;\n  overflow: hidden;\n  font-size: inherit;\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._turnProcessChevron_1bbhu_216 {\n  flex: none;\n  width: 14px;\n  height: 14px;\n  margin-left: 4px;\n  color: inherit;\n  transition: transform 100ms ease;\n}\n\n._turnProcess_1bbhu_185[data-open] ._turnProcessChevron_1bbhu_216 {\n  transform: rotate(180deg);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._turnProcess_1bbhu_185,\n  ._turnProcessChevron_1bbhu_216 {\n    transition: none;\n  }\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1bbhu_244 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1bbhu_256 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* Revising the result is a sentence about what is on screen, so the composer sits\n   directly under it: field and send on one line, the log of what was already asked\n   below. */\n._composer_1bbhu_266 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* The field grows upwards from one row and the regenerating control sits beside it, so\n   the control has to stay at the bottom edge rather than float beside the middle of a\n   four-row field. The gap is what keeps a disabled control reading as \"nothing written\n   yet\" instead of as part of the field. */\n._composerRow_1bbhu_277 {\n  display: flex;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because\n   this is the same kind of input as the conversation's: `min-height: 36px` and\n   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in\n   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value\n   `--dsw-radius-panel`, and the type is the card's own inherited\n   `var(--dsh-content-font-size, 14px)` over\n   `calc(24px + var(--dsh-content-font-delta, 0px))`.\n   The bottom inset is the one value restated rather than copied: the chat field's bottom\n   space comes from the toolbar row beneath it, while this field ends on its own border,\n   so it repeats the top inset instead of sitting its last line on the edge. */\n._composerInput_1bbhu_294 {\n  /* The chat card's own stroke colour, so the field's edge is the same hairline the\n     elevation token draws around the conversation's composer. */\n  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-width: 0;\n  min-height: 36px;\n  /* Four rows of the same line box, plus its own insets and border. Past that the field\n     scrolls rather than growing. */\n  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 8px 4px 14px;\n  border: 0;\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  box-shadow: var(--dsw-elevation-soft);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._composerInput_1bbhu_294::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The chat composer's own disabled treatment: the text it holds stays readable but stops\n   looking like something that can be written into. */\n._composerInput_1bbhu_294:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._composerInput_1bbhu_294:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1bbhu_335 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1bbhu_343 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1bbhu_351 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1bbhu_358 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1bbhu_368 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1bbhu_380 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1bbhu_385 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1bbhu_390 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1bbhu_399 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1bbhu_406 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1bbhu_413 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1bbhu_420 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1bbhu_429 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1bbhu_438 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 20px 0;\n}\n\n._section_1bbhu_438:first-child {\n  padding-top: 0;\n}\n\n._section_1bbhu_438 + ._section_1bbhu_438 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1bbhu_454 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1bbhu_466 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1bbhu_466 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1bbhu_466 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1bbhu_491 {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  height: 28px;\n  padding: 0 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1bbhu_507 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1bbhu_515 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n._workspaceValue_1bbhu_526 {\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 3px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1bbhu_543 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceLeaf_1bbhu_547 {\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1bbhu_557 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1bbhu_568 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._select_1bbhu_575,\n._editor_1bbhu_576 {\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n}\n\n._select_1bbhu_575 {\n  height: 28px;\n  padding: 0 6px;\n}\n\n._editor_1bbhu_576 {\n  min-height: 320px;\n  padding: 6px;\n  font-family: monospace;\n  resize: vertical;\n}\n\n/* The editor is the page's main work surface, so one line above it carries the three\n   facts a writer needs while typing: where the region is, what the template declares,\n   and how much of the size budget it uses. */\n._editorStatus_1bbhu_599 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1bbhu_607 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1bbhu_612 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The one control this line carries: writing the missing markers. It inherits the\n   line's type so it reads as part of the sentence. */\n._editorStatusAction_1bbhu_618 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-link);\n  font: inherit;\n  text-decoration: underline;\n  cursor: pointer;\n}\n\n/* Gutter plus text area in one row. The two must share font, size, line height and\n   vertical padding, or the numbers stop lining up with the lines they label. */\n._editorPane_1bbhu_630 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1bbhu_643 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1bbhu_661 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1bbhu_661:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1bbhu_681 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1bbhu_689 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1bbhu_630 ._editor_1bbhu_576 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n}\n\n._editorPane_1bbhu_630 ._editor_1bbhu_576:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1bbhu_630:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1bbhu_576:focus-visible,\n._select_1bbhu_575:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1bbhu_718 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1bbhu_728 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1bbhu_728:hover,\n._violationJump_1bbhu_728:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The preview's own surface, inset from the page. What is inside is the user's\n   document in a shadow root, so only this frame is styled here. */\n._previewSurface_1bbhu_748 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._previewLabel_1bbhu_760 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._preview_1bbhu_748 {\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px;\n}\n\n._settingsActions_1bbhu_772 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1bbhu_779 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1bbhu_790 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1bbhu_797 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1bbhu_807 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1bbhu_814 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall. */\n._configFooter_1bbhu_820 {\n  position: sticky;\n  bottom: 0;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 12px 0 16px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n}\n\n._footerActions_1bbhu_834 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1bbhu_840 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1bbhu_845 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1bbhu_834 ._deleteCard_1bbhu_853 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1bbhu_834 ._deleteCard_1bbhu_853:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1bbhu_863 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The permission note, demoted to a footnote: it is a statement about the page, not\n   part of the document the card renders, and it stands beneath everything. */\n._permission_1bbhu_872 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1bbhu_882 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1bbhu_891 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1bbhu_891 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1bbhu_891 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1bbhu_911 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1bbhu_927 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1bbhu_927[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are\n   pointless; narrower, stacking them pushes whichever is second below the fold, so the\n   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */\n._panes_1bbhu_942 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 16px;\n  align-items: start;\n}\n\n/* A grid child defaults to min-width auto, which lets the editor's content widen the\n   column instead of scrolling inside it. */\n._panes_1bbhu_942 > ._section_1bbhu_438 {\n  min-width: 0;\n}\n\n._paneTabs_1bbhu_955 {\n  display: flex;\n  gap: 4px;\n  padding: 3px;\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._paneTab_1bbhu_955 {\n  flex: 1 1 auto;\n  padding: 5px 10px;\n  border: 0;\n  border-radius: calc(var(--dsw-radius-sm) - 1px);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._paneTab_1bbhu_955[aria-selected='true'] {\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n._paneTab_1bbhu_955:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (min-width: 1100px) {\n  ._panes_1bbhu_942 {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    gap: 24px;\n  }\n\n  /* Both panes are visible, so a tab strip would only repeat their headings. */\n  ._paneTabs_1bbhu_955 {\n    display: none;\n  }\n}\n\n@media (max-width: 1099px) {\n  /* The selected tab already names the pane, so the heading would say it twice. */\n  ._panes_1bbhu_942 ._sectionTitle_1bbhu_454 {\n    display: none;\n  }\n\n  ._panes_1bbhu_942[data-pane='edit'] > ._section_1bbhu_438:nth-of-type(2),\n  ._panes_1bbhu_942[data-pane='preview'] > ._section_1bbhu_438:nth-of-type(1) {\n    display: none;\n  }\n}\n\n/* The run-history page: its heading, the count line, the empty state, and the runs.\n\n   The list is read as days: one heading per day, rows under it, a hairline between rows.\n   A row is two lines of its own — what the run produced, then the facts that tell it\n   apart from its neighbours — with the outcome opposite, so a reader scanning for a run\n   lands on content rather than on seven identical completion words. */\n\n._runsHeadText_1bbhu_1017 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n._runsHeadTitle_1bbhu_1025 {\n  margin: 0;\n  font-size: 18px;\n  font-weight: 600;\n  line-height: 26px;\n  overflow-wrap: anywhere;\n}\n\n._runsHeadMeta_1bbhu_1033 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 8px;\n  margin: 0;\n  min-width: 0;\n}\n\n._runHistoryCount_1bbhu_1042 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runHistoryEmpty_1bbhu_1049 {\n  margin: 0;\n  padding: 32px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  line-height: 20px;\n  text-align: center;\n}\n\n._runHistoryList_1bbhu_1060 {\n  display: flex;\n  flex-direction: column;\n  gap: 20px;\n  min-width: 0;\n}\n\n._runHistoryGroup_1bbhu_1067 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n}\n\n/* The day a group of rows completed on. It is a caption, not a title: the rows below it\n   are what the page is about, and a heavier heading would make the list read as days. */\n._runHistoryDay_1bbhu_1076 {\n  margin: 0;\n  color: var(--dsw-alias-label-caption);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  letter-spacing: 0.04em;\n}\n\n._runHistoryItems_1bbhu_1085 {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n  min-width: 0;\n}\n\n._runHistoryItem_1bbhu_1085 {\n  min-width: 0;\n}\n\n/* Rows separate by a hairline rather than by their own borders: seven outlined boxes\n   read as seven unrelated cards, while one column of rows reads as one day's work. */\n._runHistoryItem_1bbhu_1085 + ._runHistoryItem_1bbhu_1085 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* The row is a container rather than the button itself: a run in flight carries a stop\n   control of its own, and a button inside a button is not a thing a browser can draw. */\n._runHistoryRow_1bbhu_1104 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  min-width: 0;\n  margin: 0;\n  padding: 9px 8px;\n  border-radius: var(--dsw-radius-sm);\n}\n\n._runHistoryRow_1bbhu_1104:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._runHistoryOpen_1bbhu_1119 {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and\n   only the row of a run in flight has one. */\n._runHistoryStop_1bbhu_1137 {\n  flex: none;\n  margin: 0;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-sm);\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._runHistoryStop_1bbhu_1137:hover {\n  color: var(--dsw-alias-label-primary);\n  border-color: var(--dsw-alias-border-primary);\n}\n\n._runHistoryBody_1bbhu_1156 {\n  display: flex;\n  flex-direction: column;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The run's content is the row's title: the only line at reading weight, and the only\n   one allowed to be the first thing the eye lands on. */\n._runHistoryTitle_1bbhu_1166 {\n  min-width: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 14px;\n  font-weight: 500;\n  line-height: 21px;\n  /* One line: a two-line clamp let one long title stand taller than its neighbours and\n     made the rhythm of the list ragged. */\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryMeta_1bbhu_1179 {\n  display: flex;\n  align-items: baseline;\n  gap: 8px;\n  min-width: 0;\n  flex-wrap: wrap;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._runHistoryTime_1bbhu_1190 {\n  color: var(--dsw-alias-label-secondary);\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n._runHistoryModel_1bbhu_1196 {\n  max-width: 18ch;\n  color: var(--dsw-alias-label-tertiary);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryOrdinal_1bbhu_1204,\n._runHistoryEdited_1bbhu_1205 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  white-space: nowrap;\n}\n\n._runHistorySide_1bbhu_1211 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n}\n\n/* The outcome is a quiet dot and a word. Only a run that did not complete earns a\n   hearing: a wall of neutral \"已完成\" would compete with the titles it sits beside. */\n._runHistoryOutcome_1bbhu_1220 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n\n._runHistoryDot_1bbhu_1230 {\n  width: 6px;\n  height: 6px;\n  flex: none;\n  border-radius: 50%;\n  background: currentColor;\n}\n\n._runHistoryRow_1bbhu_1104 [data-run-outcome='aborted'] ._runHistoryOutcome_1bbhu_1220 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryRow_1bbhu_1104 [data-run-outcome='error'] ._runHistoryOutcome_1bbhu_1220,\n._runHistoryRow_1bbhu_1104 [data-run-outcome='failed'] ._runHistoryOutcome_1bbhu_1220 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryRow_1bbhu_1104 [data-run-outcome='running'] ._runHistoryOutcome_1bbhu_1220 {\n  color: var(--dsw-alias-link);\n}\n\n._runHistoryRow_1bbhu_1104 [data-run-outcome='running'] ._runHistoryDot_1bbhu_1230 {\n  animation: _runHistoryPulse_1bbhu_1 1.4s ease-in-out infinite;\n}\n\n@keyframes _runHistoryPulse_1bbhu_1 {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.25; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._runHistoryRow_1bbhu_1104[data-run-outcome='running'] ._runHistoryDot_1bbhu_1230 {\n    animation: none;\n  }\n}\n\n._runHistoryChevron_1bbhu_1266 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 13px;\n  line-height: 1;\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_1qbpg_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  box-sizing: border-box;\n  height: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_1qbpg_17 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_1qbpg_24 {\n  cursor: pointer;\n}\n\n._activatable_1qbpg_24:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_1qbpg_24:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_1qbpg_41 {\n  grid-row: span 2;\n}\n\n._spanLarge_1qbpg_45 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_1qbpg_50 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_1qbpg_62 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_1qbpg_69 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_1qbpg_81 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_1qbpg_94 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_1qbpg_104 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_1qbpg_111 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_1qbpg_3:hover ._iconButton_1qbpg_111,\n._card_1qbpg_3:focus-within ._iconButton_1qbpg_111 {\n  opacity: 1;\n}\n\n._iconButton_1qbpg_111:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_1qbpg_111:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_1qbpg_147 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_1qbpg_147:active {\n  cursor: grabbing;\n}\n\n._body_1qbpg_157 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n._failure_1qbpg_164 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_1qbpg_172 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
+  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_14mdo_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_14mdo_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_14mdo_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_14mdo_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_14mdo_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_14mdo_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_14mdo_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_14mdo_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_14mdo_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_14mdo_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_14mdo_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide. */\n._cell_14mdo_91 {\n  display: grid;\n  min-width: 0;\n}\n\n._createRoot_14mdo_96 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n._createTile_14mdo_105 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_14mdo_105:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. */\n._createMark_14mdo_134 {\n  font-size: 20px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._createTile_14mdo_105:hover ._createMark_14mdo_134 {\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_14mdo_105:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_14mdo_81 {\n    grid-template-columns: 1fr;\n  }\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1todq_4 {\n  display: block;\n}\n\n._body_1todq_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._cardActions_1todq_14 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1todq_22 {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n  width: 100%;\n  min-width: 0;\n}\n\n._pageViewHead_1todq_30 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._pageViewTitle_1todq_37 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 16px;\n  font-weight: 500;\n  line-height: 24px;\n  overflow-wrap: anywhere;\n}\n\n._pageViewSubtitle_1todq_47 {\n  flex: none;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runProblem_1todq_54 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result, set off from it by the same\n   hairline the record used to carry. */\n._runTrace_1todq_66 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  padding-top: 8px;\n}\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom. The rows wear the conversation's run-record\n   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,\n   so a long trace reads like the chat it came from rather than a log dump.\n\n   The list is not bounded: like the conversation's own run record, it grows with its\n   content and the page scrolls, so a long reasoning span opens to its full text rather\n   than a narrow frame. */\n._runTraceList_1todq_79 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._activityList_1todq_85 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 4px 0 0;\n  padding: 0;\n  list-style: none;\n}\n\n._activityItem_1todq_94 {\n  display: block;\n  min-width: 0;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityToolRow_1todq_100 {\n  min-width: 0;\n}\n\n/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header\n   with the secondary tier; the workbench only sizes the pieces it supplies. */\n._activityRow_1todq_106 {\n  min-width: 0;\n}\n\n._activityTitle_1todq_110 {\n  font-weight: 400;\n}\n\n/* The 2x2 separator between the title and the collapsed summary, matching the\n   conversation's run rows. */\n._activitySep_1todq_116 {\n  flex: none;\n  width: 2px;\n  height: 2px;\n  margin: 0 8px;\n  border-radius: 1px;\n  background: var(--dsw-alias-label-caption);\n}\n\n/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */\n._activitySummary_1todq_126 {\n  flex: 1 1 auto;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n}\n\n/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */\n._activityBody_1todq_137 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  padding: 4px 0 4px 22px;\n}\n\n._activityBodyLabel_1todq_145 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n._activityBodyText_1todq_151 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The model thinking: a disclosure row like the conversation's, set apart from the calls\n   because it is what the card is *reasoning*, not what it is doing. */\n._activityReasoning_1todq_161 {\n  min-width: 0;\n}\n\n/* The model speaking to the user: plain narration, no chrome — it is the reply, not a\n   step. Reads like an assistant message in the conversation. */\n._activityNarration_1todq_167 {\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  overflow-wrap: anywhere;\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_1todq_177 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The settled turn-process header above a trace, matching the conversation's Turn process\n   row: a full-width button with the outcome word and a chevron that folds the whole stream. */\n._turnProcess_1todq_185 {\n  display: flex;\n  align-items: center;\n  width: 100%;\n  min-width: 0;\n  height: calc(33px + var(--dsh-content-font-delta, 0px));\n  padding: 0 0 8px;\n  border: none;\n  border-bottom: 0.5px solid var(--dsw-alias-border-l2);\n  background: none;\n  color: var(--dsw-alias-label-tertiary);\n  font: inherit;\n  font-size: var(--dsh-content-font-size, 14px);\n  cursor: pointer;\n  text-align: left;\n  transition: color 100ms ease;\n}\n\n._turnProcess_1todq_185:hover {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._turnProcessLabel_1todq_207 {\n  min-width: 0;\n  overflow: hidden;\n  font-size: inherit;\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._turnProcessChevron_1todq_216 {\n  flex: none;\n  width: 14px;\n  height: 14px;\n  margin-left: 4px;\n  color: inherit;\n  transition: transform 100ms ease;\n}\n\n._turnProcess_1todq_185[data-open] ._turnProcessChevron_1todq_216 {\n  transform: rotate(180deg);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._turnProcess_1todq_185,\n  ._turnProcessChevron_1todq_216 {\n    transition: none;\n  }\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1todq_244 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1todq_256 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* Revising the result is a sentence about what is on screen, so the composer sits\n   directly under it: field and send on one line, the log of what was already asked\n   below. */\n._composer_1todq_266 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* The field grows upwards from one row and the regenerating control sits beside it, so\n   the control has to stay at the bottom edge rather than float beside the middle of a\n   four-row field. The gap is what keeps a disabled control reading as \"nothing written\n   yet\" instead of as part of the field. */\n._composerRow_1todq_277 {\n  display: flex;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because\n   this is the same kind of input as the conversation's: `min-height: 36px` and\n   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in\n   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value\n   `--dsw-radius-panel`, and the type is the card's own inherited\n   `var(--dsh-content-font-size, 14px)` over\n   `calc(24px + var(--dsh-content-font-delta, 0px))`.\n   The bottom inset is the one value restated rather than copied: the chat field's bottom\n   space comes from the toolbar row beneath it, while this field ends on its own border,\n   so it repeats the top inset instead of sitting its last line on the edge. */\n._composerInput_1todq_294 {\n  /* The chat card's own stroke colour, so the field's edge is the same hairline the\n     elevation token draws around the conversation's composer. */\n  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-width: 0;\n  min-height: 36px;\n  /* Four rows of the same line box, plus its own insets and border. Past that the field\n     scrolls rather than growing. */\n  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 8px 4px 14px;\n  border: 0;\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  box-shadow: var(--dsw-elevation-soft);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._composerInput_1todq_294::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The chat composer's own disabled treatment: the text it holds stays readable but stops\n   looking like something that can be written into. */\n._composerInput_1todq_294:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._composerInput_1todq_294:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The run bar: the field a run's instruction is written into, and the control beside it.\n   One row, wrapping to as many as the pieces need: the field takes the width, and the\n   refusal or the recent chips below it span the bar rather than narrowing the field. */\n._runBar_1todq_337 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n}\n\n._runBarRow_1todq_345 {\n  flex: 1 1 260px;\n  min-width: 0;\n}\n\n/* The bar's field: the composer's own surface, one row tall until the ask wraps, and\n   scrolling past the third row rather than pushing the page down while it is typed in. */\n._runBarInput_1todq_352 {\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 32px;\n  max-height: calc(3 * (22px + var(--dsh-content-font-delta, 0px)) + 10px);\n  padding: 4px 10px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-specific-input-major);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  resize: none;\n  overflow-y: auto;\n}\n\n._runBarInput_1todq_352::placeholder {\n  color: var(--dsw-alias-label-caption);\n}\n\n._runBarInput_1todq_352:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._runBarInput_1todq_352:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* Nothing was written and the card needs something: said in place of the run it refused,\n   in the same red the composer uses for a refusal. */\n._runBarHint_1todq_385 {\n  flex: 1 1 100%;\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The instructions this card was recently given, offered back as chips. A shortcut for the\n   common case — the same ask again, with a small edit — so a click refills the field rather\n   than starting a run. */\n._runChips_1todq_396 {\n  display: flex;\n  flex: 1 1 100%;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  overflow: hidden;\n}\n\n._runChipsLabel_1todq_405 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runChip_1todq_396 {\n  max-width: 220px;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 999px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  line-height: 16px;\n  white-space: nowrap;\n  text-overflow: ellipsis;\n  overflow: hidden;\n  cursor: pointer;\n}\n\n._runChip_1todq_396:hover {\n  border-color: var(--dsw-alias-border-l3);\n  color: var(--dsw-alias-label-primary);\n}\n\n._runChip_1todq_396:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1todq_439 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1todq_447 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1todq_455 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1todq_462 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1todq_472 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1todq_484 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1todq_489 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1todq_494 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1todq_503 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1todq_510 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1todq_517 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1todq_524 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1todq_533 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1todq_542 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 20px 0;\n}\n\n._section_1todq_542:first-child {\n  padding-top: 0;\n}\n\n._section_1todq_542 + ._section_1todq_542 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1todq_558 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1todq_570 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1todq_570 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1todq_570 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1todq_595 {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  height: 28px;\n  padding: 0 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1todq_611 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1todq_619 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n._workspaceValue_1todq_630 {\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 3px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1todq_647 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceLeaf_1todq_651 {\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1todq_661 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1todq_672 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._select_1todq_679,\n._editor_1todq_680 {\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n}\n\n._select_1todq_679 {\n  height: 28px;\n  padding: 0 6px;\n}\n\n._editor_1todq_680 {\n  min-height: 320px;\n  padding: 6px;\n  font-family: monospace;\n  resize: vertical;\n}\n\n/* The editor is the page's main work surface, so one line above it carries the three\n   facts a writer needs while typing: where the region is, what the template declares,\n   and how much of the size budget it uses. */\n._editorStatus_1todq_703 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1todq_711 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1todq_716 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The one control this line carries: writing the missing markers. It inherits the\n   line's type so it reads as part of the sentence. */\n._editorStatusAction_1todq_722 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--dsw-alias-link);\n  font: inherit;\n  text-decoration: underline;\n  cursor: pointer;\n}\n\n/* Gutter plus text area in one row. The two must share font, size, line height and\n   vertical padding, or the numbers stop lining up with the lines they label. */\n._editorPane_1todq_734 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1todq_747 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1todq_765 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1todq_765:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1todq_785 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1todq_793 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1todq_734 ._editor_1todq_680 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n}\n\n._editorPane_1todq_734 ._editor_1todq_680:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1todq_734:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1todq_680:focus-visible,\n._select_1todq_679:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1todq_822 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1todq_832 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1todq_832:hover,\n._violationJump_1todq_832:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The preview's own surface, inset from the page. What is inside is the user's\n   document in a shadow root, so only this frame is styled here. */\n._previewSurface_1todq_852 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._previewLabel_1todq_864 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._preview_1todq_852 {\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px;\n}\n\n._settingsActions_1todq_876 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1todq_883 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1todq_894 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1todq_901 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1todq_911 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1todq_918 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall. */\n._configFooter_1todq_924 {\n  position: sticky;\n  bottom: 0;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 12px 0 16px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n}\n\n._footerActions_1todq_938 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1todq_944 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1todq_949 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1todq_938 ._deleteCard_1todq_957 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1todq_938 ._deleteCard_1todq_957:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1todq_967 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The permission note, demoted to a footnote: it is a statement about the page, not\n   part of the document the card renders, and it stands beneath everything. */\n._permission_1todq_976 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1todq_986 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1todq_995 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1todq_995 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1todq_995 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1todq_1015 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1todq_1031 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1todq_1031[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are\n   pointless; narrower, stacking them pushes whichever is second below the fold, so the\n   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */\n._panes_1todq_1046 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 16px;\n  align-items: start;\n}\n\n/* A grid child defaults to min-width auto, which lets the editor's content widen the\n   column instead of scrolling inside it. */\n._panes_1todq_1046 > ._section_1todq_542 {\n  min-width: 0;\n}\n\n._paneTabs_1todq_1059 {\n  display: flex;\n  gap: 4px;\n  padding: 3px;\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._paneTab_1todq_1059 {\n  flex: 1 1 auto;\n  padding: 5px 10px;\n  border: 0;\n  border-radius: calc(var(--dsw-radius-sm) - 1px);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._paneTab_1todq_1059[aria-selected='true'] {\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n._paneTab_1todq_1059:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (min-width: 1100px) {\n  ._panes_1todq_1046 {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    gap: 24px;\n  }\n\n  /* Both panes are visible, so a tab strip would only repeat their headings. */\n  ._paneTabs_1todq_1059 {\n    display: none;\n  }\n}\n\n@media (max-width: 1099px) {\n  /* The selected tab already names the pane, so the heading would say it twice. */\n  ._panes_1todq_1046 ._sectionTitle_1todq_558 {\n    display: none;\n  }\n\n  ._panes_1todq_1046[data-pane='edit'] > ._section_1todq_542:nth-of-type(2),\n  ._panes_1todq_1046[data-pane='preview'] > ._section_1todq_542:nth-of-type(1) {\n    display: none;\n  }\n}\n\n/* The run-history page: its heading, the count line, the empty state, and the runs.\n\n   The list is read as days: one heading per day, rows under it, a hairline between rows.\n   A row is two lines of its own — what the run produced, then the facts that tell it\n   apart from its neighbours — with the outcome opposite, so a reader scanning for a run\n   lands on content rather than on seven identical completion words. */\n\n._runsHeadText_1todq_1121 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n._runsHeadTitle_1todq_1129 {\n  margin: 0;\n  font-size: 18px;\n  font-weight: 600;\n  line-height: 26px;\n  overflow-wrap: anywhere;\n}\n\n._runsHeadMeta_1todq_1137 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 8px;\n  margin: 0;\n  min-width: 0;\n}\n\n._runHistoryCount_1todq_1146 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runHistoryEmpty_1todq_1153 {\n  margin: 0;\n  padding: 32px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  line-height: 20px;\n  text-align: center;\n}\n\n._runHistoryList_1todq_1164 {\n  display: flex;\n  flex-direction: column;\n  gap: 20px;\n  min-width: 0;\n}\n\n._runHistoryGroup_1todq_1171 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n}\n\n/* The day a group of rows completed on. It is a caption, not a title: the rows below it\n   are what the page is about, and a heavier heading would make the list read as days. */\n._runHistoryDay_1todq_1180 {\n  margin: 0;\n  color: var(--dsw-alias-label-caption);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  letter-spacing: 0.04em;\n}\n\n._runHistoryItems_1todq_1189 {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n  min-width: 0;\n}\n\n._runHistoryItem_1todq_1189 {\n  min-width: 0;\n}\n\n/* Rows separate by a hairline rather than by their own borders: seven outlined boxes\n   read as seven unrelated cards, while one column of rows reads as one day's work. */\n._runHistoryItem_1todq_1189 + ._runHistoryItem_1todq_1189 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* The row is a container rather than the button itself: a run in flight carries a stop\n   control of its own, and a button inside a button is not a thing a browser can draw. */\n._runHistoryRow_1todq_1208 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  min-width: 0;\n  margin: 0;\n  padding: 9px 8px;\n  border-radius: var(--dsw-radius-sm);\n}\n\n._runHistoryRow_1todq_1208:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._runHistoryOpen_1todq_1223 {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and\n   only the row of a run in flight has one. */\n._runHistoryStop_1todq_1241 {\n  flex: none;\n  margin: 0;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-sm);\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._runHistoryStop_1todq_1241:hover {\n  color: var(--dsw-alias-label-primary);\n  border-color: var(--dsw-alias-border-primary);\n}\n\n._runHistoryBody_1todq_1260 {\n  display: flex;\n  flex-direction: column;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The run's content is the row's title: the only line at reading weight, and the only\n   one allowed to be the first thing the eye lands on. */\n._runHistoryTitle_1todq_1270 {\n  min-width: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 14px;\n  font-weight: 500;\n  line-height: 21px;\n  /* One line: a two-line clamp let one long title stand taller than its neighbours and\n     made the rhythm of the list ragged. */\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryMeta_1todq_1283 {\n  display: flex;\n  align-items: baseline;\n  gap: 8px;\n  min-width: 0;\n  flex-wrap: wrap;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._runHistoryTime_1todq_1294 {\n  color: var(--dsw-alias-label-secondary);\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n._runHistoryModel_1todq_1300 {\n  max-width: 18ch;\n  color: var(--dsw-alias-label-tertiary);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryOrdinal_1todq_1308,\n._runHistoryEdited_1todq_1309 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  white-space: nowrap;\n}\n\n/* What the run was asked for: one line under the row's own meta, because two runs of one\n   card differ by this and a wrapped quote would make every row's height depend on how much\n   was typed. The full text is on the result page that opens from the row. */\n._runHistoryInstruction_1todq_1318 {\n  display: block;\n  max-width: 100%;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistorySide_1todq_1329 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n}\n\n/* The outcome is a quiet dot and a word. Only a run that did not complete earns a\n   hearing: a wall of neutral \"已完成\" would compete with the titles it sits beside. */\n._runHistoryOutcome_1todq_1338 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n\n._runHistoryDot_1todq_1348 {\n  width: 6px;\n  height: 6px;\n  flex: none;\n  border-radius: 50%;\n  background: currentColor;\n}\n\n._runHistoryRow_1todq_1208 [data-run-outcome='aborted'] ._runHistoryOutcome_1todq_1338 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryRow_1todq_1208 [data-run-outcome='error'] ._runHistoryOutcome_1todq_1338,\n._runHistoryRow_1todq_1208 [data-run-outcome='failed'] ._runHistoryOutcome_1todq_1338 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryRow_1todq_1208 [data-run-outcome='running'] ._runHistoryOutcome_1todq_1338 {\n  color: var(--dsw-alias-link);\n}\n\n._runHistoryRow_1todq_1208 [data-run-outcome='running'] ._runHistoryDot_1todq_1348 {\n  animation: _runHistoryPulse_1todq_1 1.4s ease-in-out infinite;\n}\n\n@keyframes _runHistoryPulse_1todq_1 {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.25; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._runHistoryRow_1todq_1208[data-run-outcome='running'] ._runHistoryDot_1todq_1348 {\n    animation: none;\n  }\n}\n\n._runHistoryChevron_1todq_1384 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 13px;\n  line-height: 1;\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_1qbpg_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  box-sizing: border-box;\n  height: 100%;\n  min-height: 180px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_1qbpg_17 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_1qbpg_24 {\n  cursor: pointer;\n}\n\n._activatable_1qbpg_24:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_1qbpg_24:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_1qbpg_41 {\n  grid-row: span 2;\n}\n\n._spanLarge_1qbpg_45 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_1qbpg_50 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_1qbpg_62 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_1qbpg_69 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_1qbpg_81 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_1qbpg_94 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_1qbpg_104 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_1qbpg_111 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_1qbpg_3:hover ._iconButton_1qbpg_111,\n._card_1qbpg_3:focus-within ._iconButton_1qbpg_111 {\n  opacity: 1;\n}\n\n._iconButton_1qbpg_111:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_1qbpg_111:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_1qbpg_147 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_1qbpg_147:active {\n  cursor: grabbing;\n}\n\n._body_1qbpg_157 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n._failure_1qbpg_164 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_1qbpg_172 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
   if (typeof document !== 'undefined' && document.querySelector("style[data-plugin-css=\"dsh-workbench\"]") === null) {
     const tag = document.createElement('style');
     tag.dataset.pluginCss = "dsh-workbench";
@@ -323,6 +323,12 @@ window.__ModuleLoader__.load({
 			skillCardPermissionWarning: "完全权限：工作目录不再限制写入，这个 skill 可以修改工作目录以外的文件。",
 			skillCardRunsWithPermission: "运行时权限：{mode}",
 			skillCardProblemPermissionUnavailable: "这张卡要求的权限模式无法应用，运行已拒绝",
+			skillCardInstructionLabel: "运行指令",
+			skillCardInstructionNone: "不需要",
+			skillCardInstructionOptional: "可选",
+			skillCardInstructionRequired: "必须",
+			skillCardInstructionNote: "运行时是否要先写一句指令。选「必须」时，没有指令不会开始运行。",
+			skillCardProblemInstructionMissing: "这张卡需要一句指令才能运行",
 			skillCardBack: "返回",
 			skillCardCardName: "卡片名称",
 			skillCardModel: "模型",
@@ -358,6 +364,12 @@ window.__ModuleLoader__.load({
 			runHistoryOrdinal: "第 {n} 次",
 			runHistoryLatest: "最近 {time}",
 			runHistoryRunning: "运行中",
+			runHistoryInstruction: "指令：{text}",
+			runInstructionPlaceholderRequired: "这次要做什么？",
+			runInstructionPlaceholderOptional: "补充一句指令，留空直接运行",
+			runInstructionRequired: "这个技能需要一句指令才能运行",
+			runInstructionRecent: "最近用过",
+			runInstructionField: "运行指令",
 			skillCardRunningBody: "技能正在执行，完成后结果会显示在这里。",
 			refinePlaceholder: "说明要改哪里，例如「按时间倒序」",
 			refineAction: "重新生成",
@@ -506,6 +518,12 @@ window.__ModuleLoader__.load({
 			skillCardPermissionWarning: "Full access: the workspace no longer limits writes, so this skill can change files outside it.",
 			skillCardRunsWithPermission: "Runs with {mode} permission",
 			skillCardProblemPermissionUnavailable: "This card’s permission mode could not be applied, so the run was refused",
+			skillCardInstructionLabel: "Run instruction",
+			skillCardInstructionNone: "Not needed",
+			skillCardInstructionOptional: "Optional",
+			skillCardInstructionRequired: "Required",
+			skillCardInstructionNote: "Whether a run needs a sentence first. On Required, a run will not start without one.",
+			skillCardProblemInstructionMissing: "This card needs an instruction before it can run",
 			skillCardBack: "Back",
 			skillCardCardName: "Card name",
 			skillCardModel: "Model",
@@ -541,6 +559,12 @@ window.__ModuleLoader__.load({
 			runHistoryOrdinal: "Run {n}",
 			runHistoryLatest: "latest {time}",
 			runHistoryRunning: "Running",
+			runHistoryInstruction: "Instruction: {text}",
+			runInstructionPlaceholderRequired: "What should this run do?",
+			runInstructionPlaceholderOptional: "Add an instruction, or leave it empty to run",
+			runInstructionRequired: "This skill needs an instruction before it can run",
+			runInstructionRecent: "Recent",
+			runInstructionField: "Run instruction",
 			skillCardRunningBody: "The skill is executing. Its result appears here when it finishes.",
 			refinePlaceholder: "Say what to change, e.g. “newest first”",
 			refineAction: "Regenerate",
@@ -734,6 +758,39 @@ window.__ModuleLoader__.load({
 			if (value.length === 0 || value.length > 4096) return false;
 			if (value.includes("\0")) return false;
 			return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
+		}
+		/**
+		* How much instruction one card's runs need before they can start.
+		*
+		* A property of the skill rather than of a run: some skills work on their own — a
+		* directory reader, a status board — and some only make sense once told what to act on.
+		* Declaring it lets the card ask before it starts instead of running on an empty ask, and
+		* lets a card that needs nothing stay uncluttered.
+		*/
+		var WORKBENCH_INSTRUCTION_MODES = [
+			"none",
+			"optional",
+			"required"
+		];
+		/**
+		* Whether a value is an instruction mode a card may store.
+		* @param value - candidate value, read from storage or from a request body.
+		* @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
+		*/
+		function isWorkbenchInstructionMode(value) {
+			return typeof value === "string" && WORKBENCH_INSTRUCTION_MODES.includes(value);
+		}
+		/**
+		* Resolve the mode one card actually uses.
+		*
+		* The single place unset becomes a mode, for the same reason the sandbox mode has one: the
+		* settings page displays it, the run bar renders it, and the runner enforces it, so all
+		* three read the same answer.
+		* @param stored - the mode the card stores, when it stores one.
+		* @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
+		*/
+		function effectiveWorkbenchInstructionMode(stored) {
+			return stored ?? "none";
 		}
 		/**
 		* Whether a value is a usable card workspace.
@@ -2667,15 +2724,20 @@ window.__ModuleLoader__.load({
 		* @param cardId - the card to run.
 		* @param scopeSessionId - the session whose scope resolves the skill definition; undefined
 		* resolves through the run's own fresh agent (the global and project layers).
-		* @param payload - the clicked row's raw fields; omitted for a run no row triggered.
+		* @param ask - what else travels with the run: the clicked row, and the instruction the user
+		* wrote for it. Both optional and independent — a run may act on a row, on a sentence, on
+		* both, or on neither.
 		* @returns the accepted run state, or the Host's own refusal.
 		*/
-		async function startCardRun(api, cardId, scopeSessionId, payload) {
+		async function startCardRun(api, cardId, scopeSessionId, ask = {}) {
+			const { payload, instruction } = ask;
+			const trimmed = instruction?.trim();
 			return await api.start({
 				cardId,
 				...scopeSessionId === void 0 ? {} : { scopeSessionId },
 				mode: { kind: "card" },
 				...payload === void 0 ? {} : { payload },
+				...trimmed === void 0 || trimmed === "" ? {} : { instruction: trimmed },
 				outputSchema: WORKBENCH_OUTPUT_SCHEMA
 			});
 		}
@@ -2982,6 +3044,7 @@ window.__ModuleLoader__.load({
 					runId,
 					skill: card?.skill ?? "",
 					executedAt: state.startedAt,
+					...state.instruction === void 0 ? {} : { instruction: state.instruction },
 					stopReason: state.phase === "cancelled" ? "aborted" : "running"
 				}];
 			});
@@ -2989,6 +3052,7 @@ window.__ModuleLoader__.load({
 				const stored = config.snapshot.results.filter((entry) => entry.cardId === cardId).sort((left, right) => right.executedAt - left.executedAt);
 				return [...liveRunRecords.filter((record) => !stored.some((entry) => entry.runId === record.runId)), ...stored].sort((left, right) => right.executedAt - left.executedAt);
 			})() : liveRunRecords;
+			const recentInstructions = recentInstructionsOf(runs);
 			const modelField = (0, react.useMemo)(() => resolveModelField(card?.model, directory), [card?.model, directory]);
 			const [workspaceCheck, setWorkspaceCheck] = (0, react.useState)(void 0);
 			const workspacePath = card?.workspace?.path;
@@ -3020,7 +3084,7 @@ window.__ModuleLoader__.load({
 					at: previousResult.executedAt
 				};
 			}, [previousResult]);
-			const start = (0, react.useCallback)(() => {
+			const start = (0, react.useCallback)((instruction) => {
 				refinement.current = void 0;
 				setResultOverride(void 0);
 				setPreviousResult(void 0);
@@ -3053,7 +3117,7 @@ window.__ModuleLoader__.load({
 					});
 					return;
 				}
-				startCardRun(api, cardId, session()).then((outcome) => {
+				startCardRun(api, cardId, session(), instruction === void 0 ? {} : { instruction }).then((outcome) => {
 					if (outcome.status === "ok") {
 						publishRun(outcome.state);
 						setProblem(void 0);
@@ -3310,6 +3374,19 @@ window.__ModuleLoader__.load({
 				cardId,
 				revision
 			]);
+			const chooseInstructionMode = (0, react.useCallback)((mode) => {
+				if (revision === void 0) return;
+				api.write({
+					baseRevision: revision,
+					cardId,
+					instructionMode: mode
+				}).then(applyWrite);
+			}, [
+				api,
+				applyWrite,
+				cardId,
+				revision
+			]);
 			const saveTemplate = (0, react.useCallback)((template, name) => {
 				const skill = card?.skill;
 				if (revision === void 0 || skill === void 0) return;
@@ -3519,7 +3596,7 @@ window.__ModuleLoader__.load({
 				setPendingAction(void 0);
 				setActionProblem(void 0);
 				if (pending.target.kind === "card") {
-					startCardRun(api, pending.reference, session(), pending.payload).then((outcome) => {
+					startCardRun(api, pending.reference, session(), { payload: pending.payload }).then((outcome) => {
 						if (outcome.status !== "ok") {
 							setActionProblem(startProblem(outcome));
 							return;
@@ -3578,6 +3655,7 @@ window.__ModuleLoader__.load({
 				chooseModel,
 				chooseWorkspace,
 				choosePermission,
+				chooseInstructionMode,
 				saveTemplate,
 				rename,
 				remove,
@@ -3596,6 +3674,7 @@ window.__ModuleLoader__.load({
 				chooseModel,
 				chooseWorkspace,
 				choosePermission,
+				chooseInstructionMode,
 				saveTemplate,
 				rename,
 				remove,
@@ -3634,6 +3713,8 @@ window.__ModuleLoader__.load({
 					modelField,
 					workspaceField,
 					permission: effectiveWorkbenchSandboxMode(card?.permission),
+					instructionMode: effectiveWorkbenchInstructionMode(card?.instructionMode),
+					recentInstructions,
 					canChooseWorkspace,
 					catalog,
 					catalogStatus,
@@ -3649,6 +3730,8 @@ window.__ModuleLoader__.load({
 					modelField,
 					workspaceField,
 					card?.permission,
+					card?.instructionMode,
+					recentInstructions,
 					canChooseWorkspace,
 					result,
 					runs,
@@ -3667,6 +3750,25 @@ window.__ModuleLoader__.load({
 				]),
 				actions
 			};
+		}
+		/**
+		* Read the last few instructions a card's runs carried, newest first.
+		*
+		* Distinct by exact text, because a repeat that differs by one character is a different
+		* ask; blank instructions are skipped, so a card whose runs carried none offers no chips.
+		* @param runs - the card's history, newest first.
+		* @returns at most {@link WORKBENCH_RECENT_INSTRUCTIONS} instructions.
+		*/
+		function recentInstructionsOf(runs) {
+			const out = [];
+			for (const record of runs) {
+				const instruction = record.instruction?.trim();
+				if (instruction === void 0 || instruction === "") continue;
+				if (out.includes(instruction)) continue;
+				out.push(instruction);
+				if (out.length === 3) break;
+			}
+			return out;
 		}
 		/**
 		* Read the title one card face shows, when nothing else supplies that rule.
@@ -3785,7 +3887,8 @@ window.__ModuleLoader__.load({
 			"run-unavailable": true,
 			"workspace-missing": true,
 			"workspace-invalid": true,
-			"permission-unavailable": true
+			"permission-unavailable": true,
+			"instruction-missing": true
 		};
 		/**
 		* Read one refused-start code as a localizable failure code.
@@ -3796,123 +3899,131 @@ window.__ModuleLoader__.load({
 			return Object.hasOwn(LOCALIZED_CODES, code) ? code : "unavailable";
 		}
 		var skill_card_module_default = {
-			template: "_template_1bbhu_4",
-			body: "_body_1bbhu_8",
-			cardActions: "_cardActions_1bbhu_14",
-			pageView: "_pageView_1bbhu_22",
-			pageViewHead: "_pageViewHead_1bbhu_30",
-			pageViewTitle: "_pageViewTitle_1bbhu_37",
-			pageViewSubtitle: "_pageViewSubtitle_1bbhu_47",
-			runProblem: "_runProblem_1bbhu_54",
-			runTrace: "_runTrace_1bbhu_66",
-			runTraceList: "_runTraceList_1bbhu_79",
-			activityList: "_activityList_1bbhu_85",
-			activityItem: "_activityItem_1bbhu_94",
-			activityToolRow: "_activityToolRow_1bbhu_100",
-			activityRow: "_activityRow_1bbhu_106",
-			activityTitle: "_activityTitle_1bbhu_110",
-			activitySep: "_activitySep_1bbhu_116",
-			activitySummary: "_activitySummary_1bbhu_126",
-			activityBody: "_activityBody_1bbhu_137",
-			activityBodyLabel: "_activityBodyLabel_1bbhu_145",
-			activityBodyText: "_activityBodyText_1bbhu_151",
-			activityReasoning: "_activityReasoning_1bbhu_161",
-			activityNarration: "_activityNarration_1bbhu_167",
-			activityTruncated: "_activityTruncated_1bbhu_177",
-			turnProcess: "_turnProcess_1bbhu_185",
-			turnProcessLabel: "_turnProcessLabel_1bbhu_207",
-			turnProcessChevron: "_turnProcessChevron_1bbhu_216",
-			resultSurface: "_resultSurface_1bbhu_244",
-			resultEditor: "_resultEditor_1bbhu_256",
-			composer: "_composer_1bbhu_266",
-			composerRow: "_composerRow_1bbhu_277",
-			composerInput: "_composerInput_1bbhu_294",
-			composerProblem: "_composerProblem_1bbhu_335",
-			refineLog: "_refineLog_1bbhu_343",
-			refineLogHead: "_refineLogHead_1bbhu_351",
-			refineLogTitle: "_refineLogTitle_1bbhu_358",
-			refineLogList: "_refineLogList_1bbhu_368",
-			refineLogItem: "_refineLogItem_1bbhu_380",
-			refineLogInstruction: "_refineLogInstruction_1bbhu_385",
-			refineLogTime: "_refineLogTime_1bbhu_390",
-			refineLogNote: "_refineLogNote_1bbhu_399",
-			notice: "_notice_1bbhu_406",
-			noticeTitle: "_noticeTitle_1bbhu_413",
-			noticeBody: "_noticeBody_1bbhu_420",
-			settings: "_settings_1bbhu_429",
-			section: "_section_1bbhu_438",
-			sectionTitle: "_sectionTitle_1bbhu_454",
-			fieldGrid: "_fieldGrid_1bbhu_466",
-			field: "_field_1bbhu_466",
-			fieldValue: "_fieldValue_1bbhu_491",
-			fieldLabel: "_fieldLabel_1bbhu_507",
-			workspaceRow: "_workspaceRow_1bbhu_515",
-			workspaceValue: "_workspaceValue_1bbhu_526",
-			workspaceValueInvalid: "_workspaceValueInvalid_1bbhu_543",
-			workspaceLeaf: "_workspaceLeaf_1bbhu_547",
-			workspacePath: "_workspacePath_1bbhu_557",
-			fieldNote: "_fieldNote_1bbhu_568",
-			select: "_select_1bbhu_575",
-			editor: "_editor_1bbhu_576",
-			editorStatus: "_editorStatus_1bbhu_599",
-			editorStatusMissing: "_editorStatusMissing_1bbhu_607",
-			editorStatusWarn: "_editorStatusWarn_1bbhu_612",
-			editorStatusAction: "_editorStatusAction_1bbhu_618",
-			editorPane: "_editorPane_1bbhu_630",
-			gutter: "_gutter_1bbhu_643",
-			gutterLine: "_gutterLine_1bbhu_661",
-			gutterLineRegion: "_gutterLineRegion_1bbhu_681",
-			gutterLineActions: "_gutterLineActions_1bbhu_689",
-			violations: "_violations_1bbhu_718",
-			violationJump: "_violationJump_1bbhu_728",
-			previewSurface: "_previewSurface_1bbhu_748",
-			previewLabel: "_previewLabel_1bbhu_760",
-			preview: "_preview_1bbhu_748",
-			settingsActions: "_settingsActions_1bbhu_772",
-			actionBuilder: "_actionBuilder_1bbhu_779",
-			builderRow: "_builderRow_1bbhu_790",
-			builderField: "_builderField_1bbhu_797",
-			hint: "_hint_1bbhu_807",
-			hintError: "_hintError_1bbhu_814",
-			configFooter: "_configFooter_1bbhu_820",
-			footerActions: "_footerActions_1bbhu_834",
-			footerSpacer: "_footerSpacer_1bbhu_840",
-			deletePrompt: "_deletePrompt_1bbhu_845",
-			deleteCard: "_deleteCard_1bbhu_853",
-			writeFailure: "_writeFailure_1bbhu_863",
-			permission: "_permission_1bbhu_872",
-			actionPanel: "_actionPanel_1bbhu_882",
-			actionFacts: "_actionFacts_1bbhu_891",
-			actionPayload: "_actionPayload_1bbhu_911",
-			bareRun: "_bareRun_1bbhu_927",
-			panes: "_panes_1bbhu_942",
-			paneTabs: "_paneTabs_1bbhu_955",
-			paneTab: "_paneTab_1bbhu_955",
-			runsHeadText: "_runsHeadText_1bbhu_1017",
-			runsHeadTitle: "_runsHeadTitle_1bbhu_1025",
-			runsHeadMeta: "_runsHeadMeta_1bbhu_1033",
-			runHistoryCount: "_runHistoryCount_1bbhu_1042",
-			runHistoryEmpty: "_runHistoryEmpty_1bbhu_1049",
-			runHistoryList: "_runHistoryList_1bbhu_1060",
-			runHistoryGroup: "_runHistoryGroup_1bbhu_1067",
-			runHistoryDay: "_runHistoryDay_1bbhu_1076",
-			runHistoryItems: "_runHistoryItems_1bbhu_1085",
-			runHistoryItem: "_runHistoryItem_1bbhu_1085",
-			runHistoryRow: "_runHistoryRow_1bbhu_1104",
-			runHistoryOpen: "_runHistoryOpen_1bbhu_1119",
-			runHistoryStop: "_runHistoryStop_1bbhu_1137",
-			runHistoryBody: "_runHistoryBody_1bbhu_1156",
-			runHistoryTitle: "_runHistoryTitle_1bbhu_1166",
-			runHistoryMeta: "_runHistoryMeta_1bbhu_1179",
-			runHistoryTime: "_runHistoryTime_1bbhu_1190",
-			runHistoryModel: "_runHistoryModel_1bbhu_1196",
-			runHistoryOrdinal: "_runHistoryOrdinal_1bbhu_1204",
-			runHistoryEdited: "_runHistoryEdited_1bbhu_1205",
-			runHistorySide: "_runHistorySide_1bbhu_1211",
-			runHistoryOutcome: "_runHistoryOutcome_1bbhu_1220",
-			runHistoryDot: "_runHistoryDot_1bbhu_1230",
-			runHistoryPulse: "_runHistoryPulse_1bbhu_1",
-			runHistoryChevron: "_runHistoryChevron_1bbhu_1266"
+			template: "_template_1todq_4",
+			body: "_body_1todq_8",
+			cardActions: "_cardActions_1todq_14",
+			pageView: "_pageView_1todq_22",
+			pageViewHead: "_pageViewHead_1todq_30",
+			pageViewTitle: "_pageViewTitle_1todq_37",
+			pageViewSubtitle: "_pageViewSubtitle_1todq_47",
+			runProblem: "_runProblem_1todq_54",
+			runTrace: "_runTrace_1todq_66",
+			runTraceList: "_runTraceList_1todq_79",
+			activityList: "_activityList_1todq_85",
+			activityItem: "_activityItem_1todq_94",
+			activityToolRow: "_activityToolRow_1todq_100",
+			activityRow: "_activityRow_1todq_106",
+			activityTitle: "_activityTitle_1todq_110",
+			activitySep: "_activitySep_1todq_116",
+			activitySummary: "_activitySummary_1todq_126",
+			activityBody: "_activityBody_1todq_137",
+			activityBodyLabel: "_activityBodyLabel_1todq_145",
+			activityBodyText: "_activityBodyText_1todq_151",
+			activityReasoning: "_activityReasoning_1todq_161",
+			activityNarration: "_activityNarration_1todq_167",
+			activityTruncated: "_activityTruncated_1todq_177",
+			turnProcess: "_turnProcess_1todq_185",
+			turnProcessLabel: "_turnProcessLabel_1todq_207",
+			turnProcessChevron: "_turnProcessChevron_1todq_216",
+			resultSurface: "_resultSurface_1todq_244",
+			resultEditor: "_resultEditor_1todq_256",
+			composer: "_composer_1todq_266",
+			composerRow: "_composerRow_1todq_277",
+			composerInput: "_composerInput_1todq_294",
+			runBar: "_runBar_1todq_337",
+			runBarRow: "_runBarRow_1todq_345",
+			runBarInput: "_runBarInput_1todq_352",
+			runBarHint: "_runBarHint_1todq_385",
+			runChips: "_runChips_1todq_396",
+			runChipsLabel: "_runChipsLabel_1todq_405",
+			runChip: "_runChip_1todq_396",
+			composerProblem: "_composerProblem_1todq_439",
+			refineLog: "_refineLog_1todq_447",
+			refineLogHead: "_refineLogHead_1todq_455",
+			refineLogTitle: "_refineLogTitle_1todq_462",
+			refineLogList: "_refineLogList_1todq_472",
+			refineLogItem: "_refineLogItem_1todq_484",
+			refineLogInstruction: "_refineLogInstruction_1todq_489",
+			refineLogTime: "_refineLogTime_1todq_494",
+			refineLogNote: "_refineLogNote_1todq_503",
+			notice: "_notice_1todq_510",
+			noticeTitle: "_noticeTitle_1todq_517",
+			noticeBody: "_noticeBody_1todq_524",
+			settings: "_settings_1todq_533",
+			section: "_section_1todq_542",
+			sectionTitle: "_sectionTitle_1todq_558",
+			fieldGrid: "_fieldGrid_1todq_570",
+			field: "_field_1todq_570",
+			fieldValue: "_fieldValue_1todq_595",
+			fieldLabel: "_fieldLabel_1todq_611",
+			workspaceRow: "_workspaceRow_1todq_619",
+			workspaceValue: "_workspaceValue_1todq_630",
+			workspaceValueInvalid: "_workspaceValueInvalid_1todq_647",
+			workspaceLeaf: "_workspaceLeaf_1todq_651",
+			workspacePath: "_workspacePath_1todq_661",
+			fieldNote: "_fieldNote_1todq_672",
+			select: "_select_1todq_679",
+			editor: "_editor_1todq_680",
+			editorStatus: "_editorStatus_1todq_703",
+			editorStatusMissing: "_editorStatusMissing_1todq_711",
+			editorStatusWarn: "_editorStatusWarn_1todq_716",
+			editorStatusAction: "_editorStatusAction_1todq_722",
+			editorPane: "_editorPane_1todq_734",
+			gutter: "_gutter_1todq_747",
+			gutterLine: "_gutterLine_1todq_765",
+			gutterLineRegion: "_gutterLineRegion_1todq_785",
+			gutterLineActions: "_gutterLineActions_1todq_793",
+			violations: "_violations_1todq_822",
+			violationJump: "_violationJump_1todq_832",
+			previewSurface: "_previewSurface_1todq_852",
+			previewLabel: "_previewLabel_1todq_864",
+			preview: "_preview_1todq_852",
+			settingsActions: "_settingsActions_1todq_876",
+			actionBuilder: "_actionBuilder_1todq_883",
+			builderRow: "_builderRow_1todq_894",
+			builderField: "_builderField_1todq_901",
+			hint: "_hint_1todq_911",
+			hintError: "_hintError_1todq_918",
+			configFooter: "_configFooter_1todq_924",
+			footerActions: "_footerActions_1todq_938",
+			footerSpacer: "_footerSpacer_1todq_944",
+			deletePrompt: "_deletePrompt_1todq_949",
+			deleteCard: "_deleteCard_1todq_957",
+			writeFailure: "_writeFailure_1todq_967",
+			permission: "_permission_1todq_976",
+			actionPanel: "_actionPanel_1todq_986",
+			actionFacts: "_actionFacts_1todq_995",
+			actionPayload: "_actionPayload_1todq_1015",
+			bareRun: "_bareRun_1todq_1031",
+			panes: "_panes_1todq_1046",
+			paneTabs: "_paneTabs_1todq_1059",
+			paneTab: "_paneTab_1todq_1059",
+			runsHeadText: "_runsHeadText_1todq_1121",
+			runsHeadTitle: "_runsHeadTitle_1todq_1129",
+			runsHeadMeta: "_runsHeadMeta_1todq_1137",
+			runHistoryCount: "_runHistoryCount_1todq_1146",
+			runHistoryEmpty: "_runHistoryEmpty_1todq_1153",
+			runHistoryList: "_runHistoryList_1todq_1164",
+			runHistoryGroup: "_runHistoryGroup_1todq_1171",
+			runHistoryDay: "_runHistoryDay_1todq_1180",
+			runHistoryItems: "_runHistoryItems_1todq_1189",
+			runHistoryItem: "_runHistoryItem_1todq_1189",
+			runHistoryRow: "_runHistoryRow_1todq_1208",
+			runHistoryOpen: "_runHistoryOpen_1todq_1223",
+			runHistoryStop: "_runHistoryStop_1todq_1241",
+			runHistoryBody: "_runHistoryBody_1todq_1260",
+			runHistoryTitle: "_runHistoryTitle_1todq_1270",
+			runHistoryMeta: "_runHistoryMeta_1todq_1283",
+			runHistoryTime: "_runHistoryTime_1todq_1294",
+			runHistoryModel: "_runHistoryModel_1todq_1300",
+			runHistoryOrdinal: "_runHistoryOrdinal_1todq_1308",
+			runHistoryEdited: "_runHistoryEdited_1todq_1309",
+			runHistoryInstruction: "_runHistoryInstruction_1todq_1318",
+			runHistorySide: "_runHistorySide_1todq_1329",
+			runHistoryOutcome: "_runHistoryOutcome_1todq_1338",
+			runHistoryDot: "_runHistoryDot_1todq_1348",
+			runHistoryPulse: "_runHistoryPulse_1todq_1",
+			runHistoryChevron: "_runHistoryChevron_1todq_1384"
 		};
 		//#endregion
 		//#region src/client/skill-card/ActivityTrace.tsx
@@ -4395,6 +4506,7 @@ window.__ModuleLoader__.load({
 			"workspace-missing": "skillCardProblemWorkspaceMissing",
 			"workspace-invalid": "skillCardProblemWorkspaceInvalid",
 			"permission-unavailable": "skillCardProblemPermissionUnavailable",
+			"instruction-missing": "skillCardProblemInstructionMissing",
 			"too-large": "skillCardProblemTooLarge",
 			"unavailable": "skillCardProblemUnavailable",
 			"unauthorized": "skillCardProblemGeneric",
@@ -5142,6 +5254,25 @@ window.__ModuleLoader__.load({
 			return PERMISSION_LABEL_KEYS[mode];
 		}
 		/**
+		* Locale key for each instruction mode's label.
+		*
+		* Exhaustive for the same reason as the permissions above: a mode added to the contract
+		* fails compilation here until both dictionaries name it.
+		*/
+		var INSTRUCTION_LABEL_KEYS = {
+			none: "skillCardInstructionNone",
+			optional: "skillCardInstructionOptional",
+			required: "skillCardInstructionRequired"
+		};
+		/**
+		* Read the locale key naming one instruction mode.
+		* @param mode - the mode to name.
+		* @returns the dictionary key holding its label.
+		*/
+		function instructionLabelKey(mode) {
+			return INSTRUCTION_LABEL_KEYS[mode];
+		}
+		/**
 		* Count the line a character offset falls on.
 		* @param text - the text.
 		* @param offset - a character offset within it.
@@ -5853,7 +5984,7 @@ window.__ModuleLoader__.load({
 		* @returns the editor element.
 		*/
 		function SkillCardSettings(props) {
-			const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props;
+			const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseInstructionMode, onChooseWorkspace, onSave, onRename, onClose, onDelete } = props;
 			const [draft, setDraft] = (0, react.useState)(view.template ?? "");
 			const [name, setName] = (0, react.useState)(view.name ?? "");
 			const [builderOpen, setBuilderOpen] = (0, react.useState)(false);
@@ -5864,6 +5995,7 @@ window.__ModuleLoader__.load({
 			const skillId = `${base}-skill`;
 			const modelId = `${base}-model`;
 			const permissionId = `${base}-permission`;
+			const instructionId = `${base}-instruction`;
 			const templateId = `${base}-template`;
 			const previewId = `${base}-preview`;
 			const analysis = (0, react.useMemo)(() => analyzeTemplate(draft), [draft]);
@@ -6168,6 +6300,35 @@ window.__ModuleLoader__.load({
 												"data-permission-warning": "",
 												children: t("skillCardPermissionWarning")
 											}) : null
+										]
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: skill_card_module_default.field,
+										children: [
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+												className: skill_card_module_default.fieldLabel,
+												htmlFor: instructionId,
+												children: t("skillCardInstructionLabel")
+											}),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+												id: instructionId,
+												className: skill_card_module_default.select,
+												value: view.instructionMode,
+												"data-instruction-select": "",
+												onChange: (event) => {
+													const chosen = event.target.value;
+													if (!isWorkbenchInstructionMode(chosen)) return;
+													onChooseInstructionMode(chosen);
+												},
+												children: WORKBENCH_INSTRUCTION_MODES.map((mode) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+													value: mode,
+													children: t(instructionLabelKey(mode))
+												}, mode))
+											}),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+												className: skill_card_module_default.fieldNote,
+												children: t("skillCardInstructionNote")
+											})
 										]
 									})
 								]
@@ -6911,6 +7072,151 @@ window.__ModuleLoader__.load({
 				]
 			});
 		}
+		/** Rows the run bar's field shows before it scrolls. */
+		var RUN_BAR_MAX_ROWS = 3;
+		/** Prefix of the session-scoped draft key, one per card. */
+		var DRAFT_PREFIX = "dsh-workbench:instruction:";
+		/**
+		* Read one card's unsent instruction back.
+		*
+		* A draft rather than a stored value: it belongs to the page the user is on, and a card's
+		* next run should not inherit a sentence left behind hours ago. Session storage rather
+		* than memory because the two pages a run starts from are separate mounts — navigating
+		* from the history to a row's result would otherwise drop the half-written ask.
+		* @param cardId - the card whose draft is read.
+		* @returns the draft, or an empty string when none was kept or storage is unavailable.
+		*/
+		function readDraft(cardId) {
+			try {
+				return globalThis.sessionStorage?.getItem(`${DRAFT_PREFIX}${cardId}`) ?? "";
+			} catch {
+				return "";
+			}
+		}
+		/**
+		* Keep or clear one card's unsent instruction.
+		* @param cardId - the card whose draft is written.
+		* @param text - the draft; an empty string clears it.
+		*/
+		function writeDraft(cardId, text) {
+			try {
+				if (text === "") globalThis.sessionStorage?.removeItem(`${DRAFT_PREFIX}${cardId}`);
+				else globalThis.sessionStorage?.setItem(`${DRAFT_PREFIX}${cardId}`, text);
+			} catch {}
+		}
+		/**
+		* The one composer a card's runs are started from, in the bar that holds the run control.
+		*
+		* One bar rather than a composer per page, and beside the control rather than in a dialog:
+		* the ask and the button that spends it are one decision, so they read as one line. What the
+		* card's mode decides is only whether the bar is there at all and what an empty field means
+		* — `none` keeps the plain run control, `optional` says the field may stay empty, and
+		* `required` refuses to send nothing and says so in place instead of disabling the control,
+		* because a disabled button explains nothing.
+		* @param props - the mode, the page's own state, and the two controls.
+		* @returns the run bar.
+		*/
+		function RunBar({ cardId, mode, recent, t, running, disabled, onRun, onCancel }) {
+			const [text, setText] = (0, react.useState)(() => readDraft(cardId));
+			const [refused, setRefused] = (0, react.useState)(false);
+			const field = (0, react.useRef)(null);
+			const empty = text.trim() === "";
+			const rows = Math.min(RUN_BAR_MAX_ROWS, Math.max(1, text.split("\n").length));
+			(0, react.useLayoutEffect)(() => {
+				const element = field.current;
+				if (element === null) return;
+				element.style.height = "auto";
+				if (element.scrollHeight > 0) element.style.height = `${String(element.scrollHeight)}px`;
+			}, [text, mode]);
+			const submit = () => {
+				if (disabled) return;
+				if (empty) {
+					if (mode !== "required") {
+						onRun("");
+						return;
+					}
+					setRefused(true);
+					field.current?.focus();
+					return;
+				}
+				setRefused(false);
+				setText("");
+				writeDraft(cardId, "");
+				onRun(text);
+			};
+			if (mode === "none") return null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: skill_card_module_default.runBar,
+				"data-run-bar": mode,
+				children: [
+					running ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: skill_card_module_default.runBarRow,
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
+							ref: field,
+							className: skill_card_module_default.runBarInput,
+							rows,
+							value: text,
+							placeholder: t(mode === "required" ? "runInstructionPlaceholderRequired" : "runInstructionPlaceholderOptional"),
+							"aria-label": t("runInstructionField"),
+							disabled,
+							onChange: (event) => {
+								setText(event.target.value);
+								writeDraft(cardId, event.target.value);
+								if (refused && event.target.value.trim() !== "") setRefused(false);
+							},
+							onKeyDown: (event) => {
+								if (event.nativeEvent.isComposing) return;
+								if (event.key !== "Enter") return;
+								if (event.metaKey || event.ctrlKey) {
+									event.preventDefault();
+									submit();
+									return;
+								}
+								if (event.shiftKey) return;
+								if (text.includes("\n")) return;
+								event.preventDefault();
+								submit();
+							}
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						variant: "primary",
+						size: "sm",
+						disabled,
+						onClick: () => {
+							if (running) onCancel();
+							else submit();
+						},
+						children: running ? t("skillCardCancel") : t("skillCardRun")
+					}),
+					refused ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: skill_card_module_default.runBarHint,
+						role: "alert",
+						"data-run-instruction-required": "",
+						children: t("runInstructionRequired")
+					}) : null,
+					running || recent.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: skill_card_module_default.runChips,
+						"data-run-instruction-recent": "",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: skill_card_module_default.runChipsLabel,
+							children: t("runInstructionRecent")
+						}), recent.map((instruction) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: skill_card_module_default.runChip,
+							onClick: () => {
+								setText(instruction);
+								writeDraft(cardId, instruction);
+								setRefused(false);
+								field.current?.focus();
+							},
+							"data-run-instruction-chip": "",
+							children: instruction
+						}, instruction))]
+					})
+				]
+			});
+		}
 		/**
 		* Render the card's run history in the whole display column.
 		*
@@ -6976,14 +7282,30 @@ window.__ModuleLoader__.load({
 									]
 								})]
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							view.instructionMode === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 								variant: "primary",
 								size: "sm",
 								disabled: bareRunning || !view.runnable,
-								onClick: actions.run,
+								onClick: () => {
+									actions.run();
+								},
 								children: t("skillCardRun")
-							})
+							}) : null
 						]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunBar, {
+						cardId,
+						mode: view.instructionMode,
+						recent: view.recentInstructions,
+						t,
+						running: false,
+						disabled: bareRunning || !view.runnable,
+						onRun: (instruction) => {
+							actions.run(instruction);
+						},
+						onCancel: () => {
+							actions.cancel();
+						}
 					}),
 					view.modelField.kind === "unavailable" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: skill_card_module_default.runProblem,
@@ -7076,33 +7398,41 @@ window.__ModuleLoader__.load({
 						"data-run-outcome": run.stopReason,
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 							className: skill_card_module_default.runHistoryBody,
-							children: [headline === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: skill_card_module_default.runHistoryTitle,
-								"data-run-history-summary": "",
-								children: headline
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								className: skill_card_module_default.runHistoryMeta,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: skill_card_module_default.runHistoryTime,
-										"data-run-history-time": "",
-										children: runClockText(run.executedAt)
-									}),
-									run.model === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: skill_card_module_default.runHistoryModel,
-										children: run.model.model
-									}),
-									ordinal <= 1 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: skill_card_module_default.runHistoryOrdinal,
-										children: t("runHistoryOrdinal", { n: ordinal })
-									}),
-									run.editedAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: skill_card_module_default.runHistoryEdited,
-										"data-run-history-edited": "",
-										children: t("runHistoryEdited")
-									})
-								]
-							})]
+							children: [
+								headline === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: skill_card_module_default.runHistoryTitle,
+									"data-run-history-summary": "",
+									children: headline
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+									className: skill_card_module_default.runHistoryMeta,
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: skill_card_module_default.runHistoryTime,
+											"data-run-history-time": "",
+											children: runClockText(run.executedAt)
+										}),
+										run.model === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: skill_card_module_default.runHistoryModel,
+											children: run.model.model
+										}),
+										ordinal <= 1 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: skill_card_module_default.runHistoryOrdinal,
+											children: t("runHistoryOrdinal", { n: ordinal })
+										}),
+										run.editedAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: skill_card_module_default.runHistoryEdited,
+											"data-run-history-edited": "",
+											children: t("runHistoryEdited")
+										})
+									]
+								}),
+								run.instruction === void 0 || run.instruction === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: skill_card_module_default.runHistoryInstruction,
+									"data-run-history-instruction": "",
+									children: t("runHistoryInstruction", { text: run.instruction })
+								})
+							]
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 							className: skill_card_module_default.runHistorySide,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
@@ -7188,14 +7518,31 @@ window.__ModuleLoader__.load({
 								"data-result-edit-start": "",
 								children: t("skillCardResultEdit")
 							}) : null,
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							view.instructionMode === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 								variant: "primary",
 								size: "sm",
 								disabled: bareRunning || editing || !cardRunning && !view.runnable,
-								onClick: cardRunning ? actions.cancel : actions.run,
+								onClick: () => {
+									if (cardRunning) actions.cancel();
+									else actions.run();
+								},
 								children: cardRunning ? t("skillCardCancel") : t("skillCardRun")
-							})
+							}) : null
 						]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RunBar, {
+						cardId,
+						mode: view.instructionMode,
+						recent: view.recentInstructions,
+						t,
+						running: cardRunning,
+						disabled: cardRunning ? false : bareRunning || editing || !view.runnable,
+						onRun: (instruction) => {
+							actions.run(instruction);
+						},
+						onCancel: () => {
+							actions.cancel();
+						}
 					}),
 					view.modelField.kind === "unavailable" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: skill_card_module_default.runProblem,
@@ -7321,6 +7668,7 @@ window.__ModuleLoader__.load({
 					onChoose: actions.chooseSkill,
 					onChooseModel: actions.chooseModel,
 					onChoosePermission: actions.choosePermission,
+					onChooseInstructionMode: actions.chooseInstructionMode,
 					onChooseWorkspace: actions.chooseWorkspace,
 					onSave: actions.saveTemplate,
 					onRename: actions.rename,

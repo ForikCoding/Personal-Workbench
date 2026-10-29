@@ -564,6 +564,39 @@ function isWorkbenchWorkspacePath(value) {
 	return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
 }
 /**
+* How much instruction one card's runs need before they can start.
+*
+* A property of the skill rather than of a run: some skills work on their own — a
+* directory reader, a status board — and some only make sense once told what to act on.
+* Declaring it lets the card ask before it starts instead of running on an empty ask, and
+* lets a card that needs nothing stay uncluttered.
+*/
+const WORKBENCH_INSTRUCTION_MODES = [
+	"none",
+	"optional",
+	"required"
+];
+/**
+* Whether a value is an instruction mode a card may store.
+* @param value - candidate value, read from storage or from a request body.
+* @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
+*/
+function isWorkbenchInstructionMode(value) {
+	return typeof value === "string" && WORKBENCH_INSTRUCTION_MODES.includes(value);
+}
+/**
+* Resolve the mode one card actually uses.
+*
+* The single place unset becomes a mode, for the same reason the sandbox mode has one: the
+* settings page displays it, the run bar renders it, and the runner enforces it, so all
+* three read the same answer.
+* @param stored - the mode the card stores, when it stores one.
+* @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
+*/
+function effectiveWorkbenchInstructionMode(stored) {
+	return stored ?? "none";
+}
+/**
 * Whether a value is a usable card workspace.
 * @param value - candidate value.
 * @returns whether it holds one absolute directory path.
@@ -1492,16 +1525,26 @@ function withActivityEntries(trace, entries) {
 //#endregion
 //#region src/skill-card-prompt.ts
 /**
-* What the child is asked to do beyond the skill's own instructions.
-*
-* The subagent seam already appends its own instruction telling the child to
-* report through the structured-output tool, so this text covers what only the
-* template can say: which values to produce and how a repeated element maps onto
-* a list. It carries no UI or transport vocabulary.
+* The task's subject, for a run that named none: the workspace is what the skill acts on.
 */
-const TASK_INSTRUCTION = [
-	"Apply the skill above to the current workspace now.",
-	"",
+const TASK_INSTRUCTION_SUBJECT = "Apply the skill above to the current workspace now.";
+/**
+* The subject a run names itself.
+*
+* One line in place of the default above, because the instruction and "the workspace" are
+* two different things to act on and a child told both would have to choose.
+*/
+const TASK_INSTRUCTION_NAMED_SUBJECT = "Apply the skill above to what the run instruction names.";
+/**
+* What the child is asked to do beyond the skill's own instructions, once the subject is
+* fixed.
+*
+* The subagent seam already appends its own instruction telling the child to report through
+* the structured-output tool, so this text covers what only the template can say: which
+* values to produce and how a repeated element maps onto a list. It carries no UI or
+* transport vocabulary.
+*/
+const TASK_INSTRUCTION_REGION = [
 	"Then fill in the part of the document below that sits between <!-- template-begin --> and",
 	"<!-- template-end -->, and report only that part through the structured-output tool as `html`.",
 	"",
@@ -1545,19 +1588,44 @@ const REFINE_TASK_INSTRUCTION = [
 * @param skill - the loaded skill.
 * @param template - the card's own HTML for this skill.
 * @param payload - the clicked row's raw fields; absent for a run no row triggered.
+* @param instruction - what the user asked this run to do; absent for a run that said nothing.
 * @returns the complete model-facing prompt text.
 */
-function renderWorkbenchSkillPrompt(skill, template, payload) {
+function renderWorkbenchSkillPrompt(skill, template, payload, instruction) {
 	return [
 		...skillBlock(skill),
 		...rowDataBlock(payload),
+		...instructionBlock(instruction),
 		"",
 		"<output_document>",
 		template,
 		"</output_document>",
 		"",
-		TASK_INSTRUCTION
+		[
+			instruction === void 0 ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
+			"",
+			TASK_INSTRUCTION_REGION
+		].join("\n")
 	].join("\n");
+}
+/**
+* Frame what the user asked for, when they asked for something.
+*
+* Quoted and separated like a row, for the same reason: the text is the user's own words
+* about this one run, so it is the subject the skill is applied to rather than a second
+* instruction set layered over the skill's own.
+* @param instruction - what the user wrote, verbatim, or undefined.
+* @returns the block's lines, or nothing at all when the run carried no instruction.
+*/
+function instructionBlock(instruction) {
+	if (instruction === void 0) return [];
+	return [
+		"",
+		"Below is what the user asked this run to do; it names the subject to apply the skill to.",
+		"<run_instruction>",
+		instruction,
+		"</run_instruction>"
+	];
 }
 /**
 * Render one skill, the document, the result to revise, and the revision request.
@@ -1717,7 +1785,8 @@ function cardSelection(card) {
 		...card?.template === void 0 ? {} : { template: card.template },
 		...card?.model === void 0 ? {} : { model: card.model },
 		...card?.workspace === void 0 ? {} : { workspace: card.workspace },
-		...card?.permission === void 0 ? {} : { permission: card.permission }
+		...card?.permission === void 0 ? {} : { permission: card.permission },
+		...card?.instructionMode === void 0 ? {} : { instructionMode: card.instructionMode }
 	};
 }
 /**
@@ -1836,6 +1905,9 @@ var WorkbenchSkillCardRunner = class {
 		const selection = this.options.selection(request.cardId);
 		const skill = mode.kind === "bare" ? mode.skill : selection.skill;
 		if (skill === void 0) return reject("not-configured", "no skill is configured for this card");
+		const instruction = mode.kind === "card" ? request.instruction?.trim() : void 0;
+		const carried = instruction === void 0 || instruction === "" ? void 0 : instruction;
+		if (mode.kind === "card" && carried === void 0 && request.payload === void 0 && effectiveWorkbenchInstructionMode(selection.instructionMode) === "required") return reject("instruction-missing", "this card requires an instruction before it can run");
 		const refineSessionId = mode.kind === "refine" ? request.sessionId : void 0;
 		const model = selection.model;
 		const pinned = model === void 0 ? {} : { model };
@@ -1869,6 +1941,7 @@ var WorkbenchSkillCardRunner = class {
 				skill,
 				template,
 				...pinned,
+				...carried === void 0 ? {} : { instruction: carried },
 				...request.payload === void 0 ? {} : { payload: request.payload },
 				outputSchema: request.outputSchema
 			});
@@ -1917,6 +1990,7 @@ var WorkbenchSkillCardRunner = class {
 			startedAt,
 			controller: new AbortController(),
 			bare: mode.kind === "bare",
+			...carried === void 0 ? {} : { instruction: carried },
 			session,
 			phase: "running",
 			retried: false,
@@ -2390,7 +2464,7 @@ var WorkbenchSkillCardRunner = class {
 				parent,
 				prompt: [{
 					type: "text",
-					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload) : renderWorkbenchBarePrompt(skill, input.payload)
+					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
 				...resolvedCwd === void 0 ? {} : { cwd: resolvedCwd },
 				...input.kind === "bare" ? {} : { outputSchema: input.outputSchema },
@@ -2403,7 +2477,7 @@ var WorkbenchSkillCardRunner = class {
 			const result = await activation.result;
 			const runId = run.runId;
 			const sessionId = run.session.id;
-			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId);
+			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId, input.kind === "card" ? run.instruction : input.instruction);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
 				...stored,
 				diagnostic: run.childError
@@ -2511,6 +2585,7 @@ var WorkbenchSkillCardRunner = class {
 			runId: run.runId,
 			phase: run.phase,
 			startedAt: run.startedAt,
+			...run.instruction === void 0 ? {} : { instruction: run.instruction },
 			retried: run.retried,
 			...run.activity.length === 0 ? {} : { activity: run.activity },
 			...run.result === void 0 ? {} : { result: run.result },
@@ -2567,9 +2642,10 @@ function toCatalogEntry(skill) {
 * @param model - the route the run was pinned to, when the card named one.
 * @param runId - the run identity, unique within the card.
 * @param sessionId - the session the run executed in.
+* @param instruction - what the user told the run to do, when the run carried one.
 * @returns the stored record.
 */
-function toResultRecord(skill, result, executedAt, model, runId, sessionId) {
+function toResultRecord(skill, result, executedAt, model, runId, sessionId, instruction) {
 	const text = textOf(result.output);
 	return {
 		runId,
@@ -2578,6 +2654,7 @@ function toResultRecord(skill, result, executedAt, model, runId, sessionId) {
 		executedAt,
 		stopReason: result.stopReason,
 		...model === void 0 ? {} : { model },
+		...instruction === void 0 ? {} : { instruction },
 		...result.structured === void 0 ? {} : { structured: result.structured },
 		...text === "" ? {} : { outputText: text },
 		...result.diagnostic === void 0 ? {} : { diagnostic: result.diagnostic }
@@ -2803,6 +2880,11 @@ function parsePatch(value, maxTemplateBytes) {
 	else if (body.permission === null) permission = null;
 	else if (isWorkbenchSandboxMode(body.permission)) permission = body.permission;
 	else throw new SkillCardRequestError(400, "invalid-request", `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(", ")}`);
+	let instructionMode;
+	if (body.instructionMode === void 0) instructionMode = void 0;
+	else if (body.instructionMode === null) instructionMode = null;
+	else if (isWorkbenchInstructionMode(body.instructionMode)) instructionMode = body.instructionMode;
+	else throw new SkillCardRequestError(400, "invalid-request", `instructionMode must be null or one of ${WORKBENCH_INSTRUCTION_MODES.join(", ")}`);
 	let template;
 	if (body.template !== void 0) {
 		const raw = body.template;
@@ -2825,6 +2907,7 @@ function parsePatch(value, maxTemplateBytes) {
 		...model === void 0 ? {} : { model },
 		...workspace === void 0 ? {} : { workspace },
 		...permission === void 0 ? {} : { permission },
+		...instructionMode === void 0 ? {} : { instructionMode },
 		...template === void 0 ? {} : { template }
 	};
 }
@@ -3012,7 +3095,8 @@ const STATUS_BY_CODE = {
 	"run-unavailable": 501,
 	"workspace-missing": 400,
 	"workspace-invalid": 409,
-	"permission-unavailable": 409
+	"permission-unavailable": 409,
+	"instruction-missing": 400
 };
 /**
 * Build the route handler for the session-scoped skill catalog.
@@ -3186,12 +3270,18 @@ function parseRunRequest(value) {
 		if (typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload)) throw new SkillCardRequestError(400, "invalid-request", "payload must be an object");
 		payload = body.payload;
 	}
+	const instruction = body.instruction;
+	if (instruction !== void 0) {
+		if (typeof instruction !== "string" || instruction.trim() === "") throw new SkillCardRequestError(400, "invalid-request", "instruction must be a non-empty string when present");
+		if (instruction.length > 2e3) throw new SkillCardRequestError(400, "invalid-request", "instruction is longer than the limit");
+	}
 	return {
 		cardId: body.cardId,
 		...sessionId === void 0 ? {} : { sessionId },
 		...scopeSessionId === void 0 ? {} : { scopeSessionId },
 		mode: parseRunMode(body.mode),
 		...payload === void 0 ? {} : { payload },
+		...instruction === void 0 ? {} : { instruction },
 		...body.outputSchema === void 0 ? {} : { outputSchema: body.outputSchema }
 	};
 }
@@ -3320,6 +3410,7 @@ var WorkbenchSkillCardStore = class {
 			const model = record?.model;
 			const workspace = record?.workspace;
 			const permission = record?.permission;
+			const instructionMode = record?.instructionMode;
 			const bySkill = templatesByCard.get(cardId);
 			const template = selected === void 0 ? void 0 : bySkill?.get(selected);
 			cards.push({
@@ -3329,6 +3420,7 @@ var WorkbenchSkillCardStore = class {
 				...model === void 0 ? {} : { model },
 				...workspace === void 0 ? {} : { workspace },
 				...permission === void 0 ? {} : { permission },
+				...instructionMode === void 0 ? {} : { instructionMode },
 				templateSkills: bySkill === void 0 ? [] : [...bySkill.keys()].sort(),
 				...template === void 0 ? {} : { template }
 			});
@@ -3400,13 +3492,16 @@ var WorkbenchSkillCardStore = class {
 		const workspace = patchedWorkspace === void 0 ? current?.workspace : patchedWorkspace === null ? void 0 : patchedWorkspace;
 		const patchedPermission = patch.permission;
 		const permission = patchedPermission === void 0 ? current?.permission : patchedPermission === null ? void 0 : patchedPermission;
-		if (name === void 0 && skill === void 0 && model === void 0 && workspace === void 0 && permission === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
+		const patchedInstructionMode = patch.instructionMode;
+		const instructionMode = patchedInstructionMode === void 0 ? current?.instructionMode : patchedInstructionMode === null ? void 0 : patchedInstructionMode;
+		if (name === void 0 && skill === void 0 && model === void 0 && workspace === void 0 && permission === void 0 && instructionMode === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
 		else await this.run("put", () => this.options.card.put(patch.cardId, {
 			...name === void 0 ? {} : { name },
 			...skill === void 0 ? {} : { skill },
 			...model === void 0 ? {} : { model },
 			...workspace === void 0 ? {} : { workspace },
-			...permission === void 0 ? {} : { permission }
+			...permission === void 0 ? {} : { permission },
+			...instructionMode === void 0 ? {} : { instructionMode }
 		}));
 		return {
 			status: "written",
@@ -3546,7 +3641,9 @@ var WorkbenchSkillCardStore = class {
 		if (workspace !== void 0 && workspace !== null && !isWorkbenchCardWorkspace(workspace)) return `workspace must name one absolute directory path within ${String(WORKBENCH_WORKSPACE_PATH_MAX_LENGTH)} characters`;
 		const permission = patch.permission;
 		if (permission !== void 0 && permission !== null && !isWorkbenchSandboxMode(permission)) return `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(", ")}`;
-		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.permission !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template";
+		const instructionMode = patch.instructionMode;
+		if (instructionMode !== void 0 && instructionMode !== null && !isWorkbenchInstructionMode(instructionMode)) return `instructionMode must be null or one of ${WORKBENCH_INSTRUCTION_MODES.join(", ")}`;
+		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.permission !== void 0 || patch.instructionMode !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template";
 		const template = patch.template;
 		if (template === void 0) return void 0;
 		if (!isWorkbenchSkillName(template.skill)) return `template skill ${JSON.stringify(template.skill)} is not a kebab-case skill name`;
@@ -3643,7 +3740,8 @@ function trimResult(record, maxBytes) {
 		executedAt: record.executedAt,
 		stopReason: record.stopReason,
 		...record.model === void 0 ? {} : { model: record.model },
-		...record.sessionId === void 0 ? {} : { sessionId: record.sessionId }
+		...record.sessionId === void 0 ? {} : { sessionId: record.sessionId },
+		...record.instruction === void 0 ? {} : { instruction: record.instruction }
 	};
 	const withStructured = record.structured === void 0 ? base : {
 		...base,

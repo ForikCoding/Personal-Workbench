@@ -12,7 +12,7 @@
  * @module dsh-workbench/client/skill-card/SkillCardSettings
  */
 import { type ReactNode } from 'react';
-import type { WorkbenchCardModel, WorkbenchSandboxMode } from '../../skill-card-contract.ts';
+import type { WorkbenchCardModel, WorkbenchInstructionMode, WorkbenchSandboxMode } from '../../skill-card-contract.ts';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchCardView } from './controller.ts';
 /** Props of the editor. */
@@ -38,6 +38,14 @@ export interface SkillCardSettingsProps {
      * @param mode - the mode the user chose.
      */
     readonly onChoosePermission: (mode: WorkbenchSandboxMode) => void;
+    /**
+     * Store how much instruction this card's runs need.
+     *
+     * A stored write like the others, and the one that decides what the run bar offers before
+     * a run starts. Nothing in flight is touched.
+     * @param mode - the mode the user chose.
+     */
+    readonly onChooseInstructionMode: (mode: WorkbenchInstructionMode) => void;
     /**
      * Open a directory picker and store what it returns.
      *

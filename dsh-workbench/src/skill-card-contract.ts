@@ -556,6 +556,71 @@ export function isWorkbenchWorkspacePath(value: string): boolean {
 }
 
 /**
+ * How much instruction one card's runs need before they can start.
+ *
+ * A property of the skill rather than of a run: some skills work on their own — a
+ * directory reader, a status board — and some only make sense once told what to act on.
+ * Declaring it lets the card ask before it starts instead of running on an empty ask, and
+ * lets a card that needs nothing stay uncluttered.
+ */
+export const WORKBENCH_INSTRUCTION_MODES = ['none', 'optional', 'required'] as const
+
+/** One instruction mode a card may declare. */
+export type WorkbenchInstructionMode = (typeof WORKBENCH_INSTRUCTION_MODES)[number]
+
+/**
+ * The mode a card runs with when it declares none.
+ *
+ * `none`, so an existing card keeps the face it has: a composer appearing on every card
+ * that never needed one is a silent layout change, and declaring the need is one setting
+ * away. The consequence is that a card whose skill does need an instruction is switched to
+ * `required` once, which is exactly the decision this field exists to record.
+ */
+export const WORKBENCH_DEFAULT_INSTRUCTION_MODE: WorkbenchInstructionMode = 'none'
+
+/**
+ * Whether a value is an instruction mode a card may store.
+ * @param value - candidate value, read from storage or from a request body.
+ * @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
+ */
+export function isWorkbenchInstructionMode(value: unknown): value is WorkbenchInstructionMode {
+  return typeof value === 'string' && (WORKBENCH_INSTRUCTION_MODES as readonly string[]).includes(value)
+}
+
+/**
+ * Resolve the mode one card actually uses.
+ *
+ * The single place unset becomes a mode, for the same reason the sandbox mode has one: the
+ * settings page displays it, the run bar renders it, and the runner enforces it, so all
+ * three read the same answer.
+ * @param stored - the mode the card stores, when it stores one.
+ * @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
+ */
+export function effectiveWorkbenchInstructionMode(
+  stored: WorkbenchInstructionMode | undefined,
+): WorkbenchInstructionMode {
+  return stored ?? WORKBENCH_DEFAULT_INSTRUCTION_MODE
+}
+
+/**
+ * Longest instruction one card run carries, in characters.
+ *
+ * The same bound as a refinement's request and for the same reason: the instruction is the
+ * user's own sentence about what to do, so the limit only bounds what one request carries
+ * and what the prompt spends on it.
+ */
+export const WORKBENCH_RUN_INSTRUCTION_MAX_LENGTH = 2_000
+
+/**
+ * How many instructions the run bar offers back.
+ *
+ * Three, because the chips are a shortcut for the common case — the same request again,
+ * perhaps with a small edit — and a longer list turns a text field into a menu the user has
+ * to read before typing.
+ */
+export const WORKBENCH_RECENT_INSTRUCTIONS = 3
+
+/**
  * One card's working directory.
  *
  * A one-field object rather than a bare string so the record can grow — a display name,
@@ -673,6 +738,14 @@ export interface WorkbenchCardConfigRecord {
    * the configuration page would have nothing to show.
    */
   readonly permission?: WorkbenchSandboxMode
+  /**
+   * How much instruction this card's runs need; absent means
+   * {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
+   *
+   * Stored rather than inferred from the skill: whether a skill needs to be told what to
+   * do is a judgement about the work, and the card is where the user records it.
+   */
+  readonly instructionMode?: WorkbenchInstructionMode
 }
 
 /** One card's template for one skill. */
@@ -725,6 +798,15 @@ export interface WorkbenchResultRecord {
   readonly model?: WorkbenchCardModel
   /** The validated structured value; absent means no valid capture was committed. */
   readonly structured?: unknown
+  /**
+   * What the user told this run to do, verbatim.
+   *
+   * Kept on the record because it is what makes a run legible after the fact: a card that
+   * takes an instruction produces one document per instruction, and a row that showed only a
+   * headline and a clock would leave two runs of the same skill indistinguishable. Absent for
+   * a run that carried none, and for every record written before the field existed.
+   */
+  readonly instruction?: string
   /** The child's final assistant output, kept for "view raw output". */
   readonly outputText?: string
   /** Provider-authored failure detail, if any. */
@@ -807,6 +889,14 @@ export interface WorkbenchCardConfigView {
    * read pretending a value was written.
    */
   readonly permission?: WorkbenchSandboxMode
+  /**
+   * Instruction mode this card stores; absent means the default applies.
+   *
+   * The stored value, not the effective one, for the same reason `permission` is: the page
+   * resolves the default itself so an unset card and one explicitly set to the default look
+   * alike without the read pretending a value was written.
+   */
+  readonly instructionMode?: WorkbenchInstructionMode
   /** Skills this card already holds a template for. */
   readonly templateSkills: readonly string[]
   /**
@@ -897,6 +987,14 @@ export interface WorkbenchSkillCardPatch {
    * spell the default out.
    */
   readonly permission?: WorkbenchSandboxMode | null
+  /**
+   * How much instruction this card's runs need; `null` clears it back to the default.
+   *
+   * Clearing is offered for the same reason as the permission mode: "needs nothing" is a
+   * real answer, and a card that declared something and wants the quiet face back should not
+   * have to guess what to store.
+   */
+  readonly instructionMode?: WorkbenchInstructionMode | null
   /** Template to store alongside the selection. */
   readonly template?: { readonly skill: string; readonly html: string }
 }
@@ -989,6 +1087,15 @@ export interface WorkbenchRunRequest {
    */
   readonly payload?: Record<string, unknown>
   /**
+   * What the card run was told to do, as the user wrote it.
+   *
+   * Carried for a card run only: a refinement already states its instruction inside its
+   * mode, because there the instruction is what the run revises *toward* rather than the
+   * task itself. Absent means the card's runs need no instruction or the user sent none,
+   * which the runner accepts unless the card declares `required`.
+   */
+  readonly instruction?: string
+  /**
    * Output contract, carried by every run that fills a template.
    *
    * Optional because a bare run has nothing to validate: its verdict is the child's
@@ -1019,6 +1126,14 @@ export interface WorkbenchRunState {
   readonly phase: WorkbenchRunPhase
   /** Start time in milliseconds since the epoch. */
   readonly startedAt?: number
+  /**
+   * What the user told this run to do, verbatim; absent when it carried none.
+   *
+   * On the live state as well as the settled record, because the history lists a run the
+   * moment it is in flight: a row that said nothing about its instruction until the run
+   * settled would change its own text under the reader.
+   */
+  readonly instruction?: string
   /** Whether the one allowed retry has already happened. */
   readonly retried: boolean
   /** Settled result, once one exists. */
@@ -1145,3 +1260,11 @@ export type WorkbenchSkillCardErrorCode =
    * refusal names the card and the mode.
    */
   | 'permission-unavailable'
+  /**
+   * The card's runs need an instruction and this one carried none.
+   *
+   * Refused on the Host rather than only in the composer, for the reason every other
+   * precondition is: a stale client, a template button, or a direct route call would
+   * otherwise start a run with nothing to act on and spend a model call finding out.
+   */
+  | 'instruction-missing'

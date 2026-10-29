@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { WorkbenchSkillCardStore } from '../src/skill-card-store.ts'
 import type { SkillCardChangeSource, WorkbenchSkillCardStoreOptions } from '../src/skill-card-store.ts'
+import type { WorkbenchInstructionMode } from '../src/skill-card-contract.ts'
 import { fakeSkillCardTables } from './support/fake-skill-card-tables.ts'
 import type { FakeSkillCardSeed } from './support/fake-skill-card-tables.ts'
 
@@ -266,6 +267,48 @@ describe('workbench skill card store', () => {
     }])
   })
 
+  it('stores the instruction mode, reads it back, and merges it like the other fields', async () => {
+    // The same rule as the permission mode: one record holds every choice about the card, so
+    // choosing a mode must not un-configure the skill and the directory it was chosen for.
+    const workspace = { path: '/repo' }
+    const { store, tables } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', workspace, permission: 'read-only' } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', instructionMode: 'required' })
+    expect(tables.operations.at(-1)).toEqual({
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: { skill: 'git-repo', workspace, permission: 'read-only', instructionMode: 'required' },
+    })
+    expect(store.read().cards).toEqual([{
+      cardId: 'skill-card',
+      skill: 'git-repo',
+      workspace,
+      permission: 'read-only',
+      instructionMode: 'required',
+      templateSkills: [],
+    }])
+  })
+
+  it('reads a card with no instruction mode without inventing one', async () => {
+    // Every card created before this field existed is in this state. The default is applied
+    // where it is read, so a load never writes a choice the user did not make.
+    const { store } = setup({ seed: { card: { 'skill-card': { skill: 'git-repo' } } } })
+    const [card] = store.read().cards
+    expect(card).not.toHaveProperty('instructionMode')
+  })
+
+  it('clears the instruction mode alone, leaving the other fields in place', async () => {
+    const { store } = setup({
+      seed: { card: { 'skill-card': { name: 'Repo', skill: 'git-repo', instructionMode: 'required' } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', instructionMode: null })
+    expect(store.read().cards).toEqual([
+      { cardId: 'skill-card', name: 'Repo', skill: 'git-repo', templateSkills: [] },
+    ])
+  })
+
   it('reads a card with no permission mode without inventing one', async () => {
     // Every card created before this field existed is in this state, and the effective mode
     // is applied at run time rather than written into storage on load.
@@ -348,7 +391,18 @@ describe('workbench skill card store', () => {
       },
       {
         patch: { baseRevision: '7:0', cardId: 'skill-card', remove: true, name: 'Repo overview' },
-        reason: 'a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template',
+        reason: 'a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template',
+      },
+      {
+        // A mode the run bar could not render is refused for the same reason as an unknown
+        // permission: the card would declare a need nothing enforces. Cast because the wire
+        // type cannot express it — that is exactly the case the store is here to catch.
+        patch: {
+          baseRevision: '7:0',
+          cardId: 'skill-card',
+          instructionMode: 'always' as unknown as WorkbenchInstructionMode,
+        },
+        reason: 'instructionMode must be null or one of none, optional, required',
       },
       {
         // A route is two ids or nothing. An empty half is not a route, and accepting it

@@ -61,6 +61,8 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     modelField: { kind: 'fixed', model: { provider: 'deepseek', model: 'deepseek-chat' } },
     workspaceField: { kind: 'missing' },
     permission: 'workspace-write',
+    instructionMode: 'none',
+    recentInstructions: [],
     canChooseWorkspace: false,
     catalog: [],
     catalogStatus: 'idle',

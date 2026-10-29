@@ -286,6 +286,10 @@ const PROBLEM_KEYS: Record<WorkbenchCardProblem['code'], WorkbenchLocaleKey> = {
   // The card's permission mode could not be applied, so the run was refused rather than
   // executed under a mode nobody chose.
   'permission-unavailable': 'skillCardProblemPermissionUnavailable',
+  // A card that declares its runs need an instruction and was started without one. The
+  // composer refuses the same case before sending, so this text is what a stale page or a
+  // declared action sees.
+  'instruction-missing': 'skillCardProblemInstructionMissing',
   'too-large': 'skillCardProblemTooLarge',
   'unavailable': 'skillCardProblemUnavailable',
   'unauthorized': 'skillCardProblemGeneric',

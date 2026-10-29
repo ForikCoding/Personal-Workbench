@@ -317,8 +317,49 @@ describe('workbench skill card route', () => {
     const response = await run(handle, new FakeRequest('PATCH', patch({ remove: true, workspace: { path: '/repo' } })))
     expect(response.statusCode).toBe(400)
     expect(JSON.parse(response.body).error.message)
-      .toBe('a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template')
+      .toBe('a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template')
     expect(tables.operations).toEqual([])
+  })
+
+  it('carries the instruction mode through the wire and stores it', async () => {
+    // The mode is what the run bar renders and what the runner enforces, so it is stored as
+    // an absolute value like the permission: the three modes are the whole choice.
+    const { handle, tables } = setup()
+    const response = await run(handle, new FakeRequest('PATCH', patch({ instructionMode: 'required' })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', instructionMode: 'required', templateSkills: [] },
+    ])
+    expect(tables.operations).toEqual([{
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: { skill: 'git-repo', instructionMode: 'required' },
+    }])
+  })
+
+  it('refuses an instruction mode this build does not know', async () => {
+    // A mode neither the bar nor the runner knows would leave the card's declared need
+    // unenforced while its page showed one, so it is refused at the boundary.
+    const { handle, tables } = setup()
+    for (const instructionMode of ['always', '', 1, false]) {
+      const response = await run(handle, new FakeRequest('PATCH', patch({ instructionMode })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message)
+        .toBe('instructionMode must be null or one of none, optional, required')
+    }
+    expect(tables.operations).toEqual([])
+  })
+
+  it('clears the instruction mode when the patch says null', async () => {
+    const { handle } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', instructionMode: 'required' } } },
+    })
+    const response = await run(handle, new FakeRequest('PATCH', patch({ instructionMode: null })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', templateSkills: [] },
+    ])
   })
 
   it('refuses a template above the wire limit with the size code', async () => {
@@ -761,6 +802,32 @@ describe('workbench skill card run route', () => {
 
     const invalid = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: { kind: 'bare', skill: 'Git-Repo' } })))
     expect(JSON.parse(invalid.body).error.message).toBe('mode.skill must be a kebab-case skill name')
+  })
+
+  it('rejects an instruction that says nothing or says too much', async () => {
+    // Free text still has two rules: a blank ask would reach the prompt as nothing and the
+    // record as if something was said, and the bound is what keeps one request from
+    // carrying an essay into the prompt.
+    const { run: handle, runner } = runtime({ outcomes: ['hang'] })
+    for (const instruction of ['', '   ', 7, ['a']]) {
+      const response = await run(handle, at(RUN_PATH, 'POST', runBody({ instruction })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message).toBe('instruction must be a non-empty string when present')
+    }
+    const long = await run(handle, at(RUN_PATH, 'POST', runBody({ instruction: 'x'.repeat(2_001) })))
+    expect(long.statusCode).toBe(400)
+    expect(JSON.parse(long.body).error.message).toBe('instruction is longer than the limit')
+    runner.cancel('skill-card')
+  })
+
+  it('carries the instruction into the prompt and the record', async () => {
+    // The route forwards what it validated, and the run keeps it: what the user typed is what
+    // the child reads and what the history row will show.
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({ instruction: '分析 T202601010001' })))
+    expect(response.statusCode).toBe(202)
+    expect(fake.activations[0]?.request.prompt[0]?.text).toContain('<run_instruction>\n分析 T202601010001\n</run_instruction>')
+    runner.cancel('skill-card')
   })
 
   it('accepts a bare run for a card with no template at all', async () => {

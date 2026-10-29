@@ -21,13 +21,19 @@ import type {
   WorkbenchCardModel,
   WorkbenchCardResult,
   WorkbenchDirectoryStat,
+  WorkbenchInstructionMode,
   WorkbenchResultRecord,
   WorkbenchRunState,
   WorkbenchSandboxMode,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
 } from '../../skill-card-contract.ts'
-import { effectiveWorkbenchSandboxMode, WORKBENCH_ACTION_KEY_PATTERN } from '../../skill-card-contract.ts'
+import {
+  effectiveWorkbenchInstructionMode,
+  effectiveWorkbenchSandboxMode,
+  WORKBENCH_ACTION_KEY_PATTERN,
+  WORKBENCH_RECENT_INSTRUCTIONS,
+} from '../../skill-card-contract.ts'
 import type {
   WorkbenchCardSnapshot,
   WorkbenchConfigWrite,
@@ -278,6 +284,21 @@ export interface WorkbenchCardView {
    */
   readonly permission: WorkbenchSandboxMode
   /**
+   * How much instruction this card's runs need, as the effective mode.
+   *
+   * Never absent, like {@link permission}: a card that stores none runs under the default,
+   * and the run bar renders one of the three from this value rather than from the stored one.
+   */
+  readonly instructionMode: WorkbenchInstructionMode
+  /**
+   * Instructions this card's recent runs carried, newest first, one per run.
+   *
+   * Read from the stored records rather than kept as a separate list: what the user wrote
+   * last time is exactly what a repeat click wants, and the history already holds it. Bounded
+   * by the run bar, which offers a few and no more.
+   */
+  readonly recentInstructions: readonly string[]
+  /**
    * Whether a directory picker can be offered at all.
    *
    * False on a page whose composition has no picker, and after one refused: the field then
@@ -304,8 +325,12 @@ export interface WorkbenchCardView {
 
 /** What one card can do. */
 export interface WorkbenchCardActions {
-  /** Start a run. */
-  run(): void
+  /**
+   * Start a run.
+   * @param instruction - what to do, as the run bar's field holds it. Absent for a card that
+   * takes no instruction, and for one whose field is empty.
+   */
+  run(instruction?: string): void
   /**
    * Cancel what the page is about.
    *
@@ -372,6 +397,14 @@ export interface WorkbenchCardActions {
    * @param mode - the mode the user chose.
    */
   choosePermission(mode: WorkbenchSandboxMode): void
+  /**
+   * Store how much instruction this card's runs need.
+   *
+   * A setting about the run bar, not about a run: nothing in flight is touched, and the next
+   * start is the first one the new mode governs.
+   * @param mode - the mode the user chose.
+   */
+  chooseInstructionMode(mode: WorkbenchInstructionMode): void
   /**
    * Store a template for the selected skill, together with the card's name.
    * @param template - the HTML to store.
@@ -738,6 +771,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       runId,
       skill: card?.skill ?? '',
       executedAt: state.startedAt,
+      // The row states what it was asked for from its first frame, so a settled record
+      // replacing this one does not change the row's text under the reader.
+      ...state.instruction === undefined ? {} : { instruction: state.instruction },
       // Not a stored stop reason: it names what the history row shows while the run is
       // neither complete nor stored. A cancelled run stores nothing, so its row keeps
       // the aborted verdict for this session only.
@@ -756,6 +792,11 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       return [...live, ...stored].sort((left, right) => right.executedAt - left.executedAt)
     })()
     : liveRunRecords
+  // The few things this card was last asked to do, as the run bar's chips offer them back.
+  // Derived from the history on every render rather than stored or memoized: the history is
+  // itself rebuilt per render, so a memo here would be one that never hits, and a second list
+  // would be a second answer to the same question.
+  const recentInstructions = recentInstructionsOf(runs)
   // A card's own route wins and the session's selection is only the default it shows. The
   // field answers both questions at once: what the picker offers, and whether a run can
   // name the model it would use.
@@ -826,7 +867,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     return html === undefined ? undefined : { html, at: previousResult.executedAt }
   }, [previousResult])
 
-  const start = useCallback(() => {
+  const start = useCallback((instruction?: string) => {
     // A fresh run replaces the result outright, so the revision state stops describing
     // it: the step back is no longer "the version before the last change", and an
     // intent left over by a refinement must not be credited to this run.
@@ -860,7 +901,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // live session is named only as the skill definition's scope: the Host gives the run
     // a fresh session of its own, so a card never runs in the conversation the user is
     // having.
-    void startCardRun(api, cardId, session()).then((outcome) => {
+    void startCardRun(api, cardId, session(), instruction === undefined ? {} : { instruction }).then((outcome) => {
       if (outcome.status === 'ok') {
         publishRun(outcome.state)
         setProblem(undefined)
@@ -1092,6 +1133,15 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     void api.write({ baseRevision: revision, cardId, permission: mode }).then(applyWrite)
   }, [api, applyWrite, cardId, revision])
 
+  const chooseInstructionMode = useCallback((mode: WorkbenchInstructionMode) => {
+    if (revision === undefined) return
+    // Written as an absolute value for the same reason as the permission mode: the three
+    // modes are the whole choice. The default is one of them, so a card set to `none` and a
+    // card that never chose read the same, which is the intent — the field records a need,
+    // not a preference to be remembered separately.
+    void api.write({ baseRevision: revision, cardId, instructionMode: mode }).then(applyWrite)
+  }, [api, applyWrite, cardId, revision])
+
   const saveTemplate = useCallback((template: string, name: string) => {    const skill = card?.skill
     if (revision === undefined || skill === undefined) return
     // The name travels with the template: "保存" is the one action the user takes, and
@@ -1304,7 +1354,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       // The target card's directory was resolved when the panel opened. A run that still
       // arrives without one is refused by the route, which reads that card's own record —
       // this page holds no stat for another card to re-check at confirm time.
-      void startCardRun(api, pending.reference, session(), pending.payload).then((outcome) => {
+      // No instruction travels with a declared action: the ask is a button in a document a
+      // run produced, and the row it carries is its input. A card that requires an
+      // instruction is refused here, and the panel says so, rather than running on nothing.
+      void startCardRun(api, pending.reference, session(), { payload: pending.payload }).then((outcome) => {
         if (outcome.status !== 'ok') {
           setActionProblem(startProblem(outcome))
           return
@@ -1360,6 +1413,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseModel,
       chooseWorkspace,
       choosePermission,
+      chooseInstructionMode,
       saveTemplate,
       rename,
       remove,
@@ -1379,6 +1433,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseModel,
       chooseWorkspace,
       choosePermission,
+      chooseInstructionMode,
       saveTemplate,
       rename,
       remove,
@@ -1443,6 +1498,10 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // Never absent: a card that stores no mode runs under the default, and the page shows
     // that mode rather than an empty choice.
     permission: effectiveWorkbenchSandboxMode(card?.permission),
+    // Never absent for the same reason: the run bar renders one of the three modes from this
+    // value, so an unset card must read as the default rather than as nothing.
+    instructionMode: effectiveWorkbenchInstructionMode(card?.instructionMode),
+    recentInstructions,
     canChooseWorkspace,
     catalog,
     catalogStatus,
@@ -1462,6 +1521,8 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     modelField,
     workspaceField,
     card?.permission,
+    card?.instructionMode,
+    recentInstructions,
     canChooseWorkspace,
     result,
     runs,
@@ -1480,6 +1541,26 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   ])
 
   return { view, actions }
+}
+
+/**
+ * Read the last few instructions a card's runs carried, newest first.
+ *
+ * Distinct by exact text, because a repeat that differs by one character is a different
+ * ask; blank instructions are skipped, so a card whose runs carried none offers no chips.
+ * @param runs - the card's history, newest first.
+ * @returns at most {@link WORKBENCH_RECENT_INSTRUCTIONS} instructions.
+ */
+function recentInstructionsOf(runs: readonly WorkbenchResultRecord[]): readonly string[] {
+  const out: string[] = []
+  for (const record of runs) {
+    const instruction = record.instruction?.trim()
+    if (instruction === undefined || instruction === '') continue
+    if (out.includes(instruction)) continue
+    out.push(instruction)
+    if (out.length === WORKBENCH_RECENT_INSTRUCTIONS) break
+  }
+  return out
 }
 
 /**
@@ -1610,6 +1691,7 @@ const LOCALIZED_CODES: Record<WorkbenchSkillCardErrorCode, true> = {
   'workspace-missing': true,
   'workspace-invalid': true,
   'permission-unavailable': true,
+  'instruction-missing': true,
 }
 
 /**

@@ -10,7 +10,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
@@ -19,6 +19,7 @@ import { zh } from '../src/client/locales.ts'
 import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
 import type {
   WorkbenchCardResult,
+  WorkbenchInstructionMode,
   WorkbenchRunState,
   WorkbenchRunCapabilities,
 } from '../src/skill-card-contract.ts'
@@ -69,13 +70,15 @@ function result(overrides: Partial<WorkbenchCardResult> = {}): WorkbenchCardResu
 
 /**
  * Build a transport for one card that is configured and ready to run.
- * @param options - the stored results, what the Host recorded about running, and the
- * run-state answer for the mount-time adoption read.
+ * @param options - the stored results, the card's instruction mode, what the Host recorded
+ * about running, and the run-state answer for the mount-time adoption read.
  * @returns the api.
  */
 function pageApi(options: {
   results?: readonly WorkbenchCardResult[]
   capabilities?: WorkbenchRunCapabilities
+  /** How much instruction the card's runs need; absent models a card created before it. */
+  instructionMode?: WorkbenchInstructionMode
   /** What the adoption poll answers; defaults to "nothing in flight". */
   poll?: () => Promise<
     | { readonly status: 'missing' }
@@ -101,6 +104,7 @@ function pageApi(options: {
           template: TEMPLATE,
           templateSkills: ['git-repo'],
           workspace: { path: 'D:\\Git\\Personal-Workbench' },
+          ...options.instructionMode === undefined ? {} : { instructionMode: options.instructionMode },
         }],
         results: [...(options.results ?? [])],
         ...options.capabilities === undefined ? {} : { capabilities: options.capabilities },
@@ -550,5 +554,169 @@ describe('the run-history page', () => {
     expect(stops).toHaveLength(1)
     await act(async () => { stops[0]?.click() })
     expect(cancelled).toEqual([{ cardId: 'skill-card', runId: String(STARTED_AT) }])
+  })
+
+  it('states the instruction each run carried, and none for a run that carried none', async () => {
+    // Two runs of one card produce two documents that differ only by what was asked for, so
+    // the row that names the run also has to name its ask.
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            results: [
+              result({ runId: 'run-asked', instruction: '分析 T202601010001', executedAt: STARTED_AT + 60_000 }),
+              result({ runId: 'run-plain', executedAt: STARTED_AT }),
+            ],
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    expect([...container.querySelectorAll('[data-run-history-instruction]')]
+      .map(node => node.textContent))
+      .toEqual([t('runHistoryInstruction', { text: '分析 T202601010001' })])
+  })
+})
+
+describe('the run bar', () => {
+  /** What a start answered, as the page recorded it. */
+  interface Started {
+    readonly instruction?: string
+  }
+
+  /**
+   * Build the page with a card whose mode is under test, recording what each start carried.
+   * @param mode - the card's instruction mode.
+   * @returns the render container and the starts.
+   */
+  function barPage(mode: WorkbenchInstructionMode): { container: HTMLElement; started: Started[] } {
+    const started: Started[] = []
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            instructionMode: mode,
+            start: async (request: { instruction?: string }) => {
+              started.push(request.instruction === undefined ? {} : { instruction: request.instruction })
+              return {
+                status: 'ok',
+                state: { cardId: 'skill-card', phase: 'running', startedAt: STARTED_AT, retried: false },
+              }
+            },
+            poll: async () => ({ status: 'missing' }),
+          }),
+        })}
+      />,
+    )
+    return { container, started }
+  }
+
+  /** The bar's field. */
+  function field(container: HTMLElement): HTMLTextAreaElement {
+    const element = container.querySelector<HTMLTextAreaElement>('[data-run-bar] textarea')
+    if (element === null) throw new Error('the run bar did not render a field')
+    return element
+  }
+
+  /**
+   * The page's one run control: the bar's for a card that takes an instruction, and the
+   * header's for one that does not.
+   */
+  function control(container: HTMLElement): HTMLButtonElement {
+    const element = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === zh.skillCardRun)
+    if (element === undefined) throw new Error('the page did not render a run control')
+    return element
+  }
+
+  it('renders no field for a card whose runs need no instruction', async () => {
+    // The face every card had before the setting existed: one control, nothing to fill in.
+    const { container, started } = barPage('none')
+    await loaded(container)
+    expect(container.querySelector('[data-run-bar] textarea')).toBeNull()
+    await act(async () => { control(container).click() })
+    expect(started).toEqual([{}])
+  })
+
+  it('runs on an empty field in optional mode, and sends what was written otherwise', async () => {
+    const { container, started } = barPage('optional')
+    await loaded(container)
+    const input = field(container)
+    expect(input.placeholder).toBe(zh.runInstructionPlaceholderOptional)
+    await act(async () => { control(container).click() })
+    expect(started).toEqual([{}])
+    fireEvent.change(input, { target: { value: '按时间倒序' } })
+    await act(async () => { control(container).click() })
+    expect(started[1]).toEqual({ instruction: '按时间倒序' })
+    // The ask was sent, so the field no longer holds it.
+    expect(input.value).toBe('')
+  })
+
+  it('refuses an empty field in required mode, without sending and without disabling the control', async () => {
+    // A disabled control explains nothing; this one names the missing ask in place and puts
+    // the caret where it belongs.
+    const { container, started } = barPage('required')
+    await loaded(container)
+    const input = field(container)
+    expect(input.placeholder).toBe(zh.runInstructionPlaceholderRequired)
+    expect(control(container).disabled).toBe(false)
+    await act(async () => { control(container).click() })
+    expect(started).toEqual([])
+    expect(container.querySelector('[data-run-instruction-required]')?.textContent)
+      .toBe(zh.runInstructionRequired)
+    expect(document.activeElement).toBe(input)
+    // Typing retires the sentence; it was about the field being empty.
+    fireEvent.change(input, { target: { value: '分析任务' } })
+    expect(container.querySelector('[data-run-instruction-required]')).toBeNull()
+    await act(async () => { control(container).click() })
+    expect(started).toEqual([{ instruction: '分析任务' }])
+  })
+
+  it('submits on Enter while the ask is one line, and on Ctrl+Enter once it is not', async () => {
+    const { container, started } = barPage('optional')
+    await loaded(container)
+    const input = field(container)
+    fireEvent.change(input, { target: { value: '一句话' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(started).toEqual([{ instruction: '一句话' }])
+    // A multi-line ask: Enter is the field's own newline, so only the explicit chord sends it.
+    fireEvent.change(input, { target: { value: '第一行\n第二行' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(started).toHaveLength(1)
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(started[1]).toEqual({ instruction: '第一行\n第二行' })
+  })
+
+  it('offers this card’s recent asks back, refilling the field rather than running', async () => {
+    const started: Started[] = []
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            instructionMode: 'required',
+            results: [
+              result({ runId: 'run-1', instruction: '分析 T202601010001', executedAt: STARTED_AT + 120_000 }),
+              result({ runId: 'run-2', instruction: '分析 T202601010002', executedAt: STARTED_AT + 60_000 }),
+              result({ runId: 'run-3', instruction: '分析 T202601010001', executedAt: STARTED_AT }),
+            ],
+            start: async (request: { instruction?: string }) => {
+              started.push(request.instruction === undefined ? {} : { instruction: request.instruction })
+              return {
+                status: 'ok',
+                state: { cardId: 'skill-card', phase: 'running', startedAt: STARTED_AT, retried: false },
+              }
+            },
+            poll: async () => ({ status: 'missing' }),
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-run-instruction-chip]')]
+    // Distinct, newest first: the third run asked for the same thing as the first.
+    expect(chips.map(chip => chip.textContent)).toEqual(['分析 T202601010001', '分析 T202601010002'])
+    await act(async () => { chips[1]?.click() })
+    expect(field(container).value).toBe('分析 T202601010002')
+    expect(started).toEqual([])
   })
 })

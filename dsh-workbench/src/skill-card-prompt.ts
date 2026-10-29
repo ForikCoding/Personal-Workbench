@@ -16,16 +16,28 @@
 import type { WorkbenchSkillDefinition } from './skill-card-host.ts'
 
 /**
- * What the child is asked to do beyond the skill's own instructions.
- *
- * The subagent seam already appends its own instruction telling the child to
- * report through the structured-output tool, so this text covers what only the
- * template can say: which values to produce and how a repeated element maps onto
- * a list. It carries no UI or transport vocabulary.
+ * The task's subject, for a run that named none: the workspace is what the skill acts on.
  */
-const TASK_INSTRUCTION = [
-  'Apply the skill above to the current workspace now.',
-  '',
+const TASK_INSTRUCTION_SUBJECT = 'Apply the skill above to the current workspace now.'
+
+/**
+ * The subject a run names itself.
+ *
+ * One line in place of the default above, because the instruction and "the workspace" are
+ * two different things to act on and a child told both would have to choose.
+ */
+const TASK_INSTRUCTION_NAMED_SUBJECT = 'Apply the skill above to what the run instruction names.'
+
+/**
+ * What the child is asked to do beyond the skill's own instructions, once the subject is
+ * fixed.
+ *
+ * The subagent seam already appends its own instruction telling the child to report through
+ * the structured-output tool, so this text covers what only the template can say: which
+ * values to produce and how a repeated element maps onto a list. It carries no UI or
+ * transport vocabulary.
+ */
+const TASK_INSTRUCTION_REGION = [
   'Then fill in the part of the document below that sits between <!-- template-begin --> and',
   '<!-- template-end -->, and report only that part through the structured-output tool as `html`.',
   '',
@@ -72,23 +84,50 @@ const REFINE_TASK_INSTRUCTION = [
  * @param skill - the loaded skill.
  * @param template - the card's own HTML for this skill.
  * @param payload - the clicked row's raw fields; absent for a run no row triggered.
+ * @param instruction - what the user asked this run to do; absent for a run that said nothing.
  * @returns the complete model-facing prompt text.
  */
 export function renderWorkbenchSkillPrompt(
   skill: WorkbenchSkillDefinition,
   template: string,
   payload?: Record<string, unknown>,
+  instruction?: string,
 ): string {
   return [
     ...skillBlock(skill),
     ...rowDataBlock(payload),
+    ...instructionBlock(instruction),
     '',
     '<output_document>',
     template,
     '</output_document>',
     '',
-    TASK_INSTRUCTION,
+    [
+      instruction === undefined ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
+      '',
+      TASK_INSTRUCTION_REGION,
+    ].join('\n'),
   ].join('\n')
+}
+
+/**
+ * Frame what the user asked for, when they asked for something.
+ *
+ * Quoted and separated like a row, for the same reason: the text is the user's own words
+ * about this one run, so it is the subject the skill is applied to rather than a second
+ * instruction set layered over the skill's own.
+ * @param instruction - what the user wrote, verbatim, or undefined.
+ * @returns the block's lines, or nothing at all when the run carried no instruction.
+ */
+function instructionBlock(instruction: string | undefined): string[] {
+  if (instruction === undefined) return []
+  return [
+    '',
+    'Below is what the user asked this run to do; it names the subject to apply the skill to.',
+    '<run_instruction>',
+    instruction,
+    '</run_instruction>',
+  ]
 }
 
 /**

@@ -1195,6 +1195,106 @@ describe('the permission mode a card runs under', () => {
   })
 })
 
+describe('the instruction a card run carries', () => {
+  /** A captured result, so a case that only reads the prompt pays for one attempt. */
+  const CAPTURED: WorkbenchSubagentResult = { output: [], stopReason: 'completed', structured: { a: '1' } }
+
+  /** Prompt text of one activation. */
+  function promptOf(fake: FakeHost, index = 0): string {
+    return fake.activations[index]?.request.prompt[0]?.text ?? ''
+  }
+
+  it('carries the instruction into the prompt and onto the stored record', async () => {
+    // The instruction is the run's subject, so it travels in the prompt rather than only
+    // being shown back to the user, and it is kept on the record that names the run.
+    const { runner, fake, saved } = setup({ outcomes: [CAPTURED] })
+    await runner.start(request({ instruction: '分析 T202601010001 这个任务' }))
+    const state = await settle(runner)
+    const prompt = promptOf(fake)
+    expect(prompt).toContain('<run_instruction>\n分析 T202601010001 这个任务\n</run_instruction>')
+    // The default subject is replaced, not merely supplemented: a child told both "the
+    // workspace" and "this task" would have to pick.
+    expect(prompt).toContain('Apply the skill above to what the run instruction names.')
+    expect(prompt).not.toContain('Apply the skill above to the current workspace now.')
+    expect(state?.instruction).toBe('分析 T202601010001 这个任务')
+    expect(saved[0]?.record.instruction).toBe('分析 T202601010001 这个任务')
+  })
+
+  it('keeps the workspace subject for a run that says nothing', async () => {
+    const { runner, fake, saved } = setup({ outcomes: [CAPTURED] })
+    await runner.start(request())
+    await settle(runner)
+    const prompt = promptOf(fake)
+    expect(prompt).toContain('Apply the skill above to the current workspace now.')
+    expect(prompt).not.toContain('<run_instruction>')
+    expect(saved[0]?.record).not.toHaveProperty('instruction')
+  })
+
+  it('treats a whitespace-only instruction as none, whichever mode the card declares', async () => {
+    // Whitespace is not an ask, and the record must not claim the run was told something.
+    const { runner, fake, saved } = setup({
+      outcomes: [CAPTURED],
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, instructionMode: 'optional' },
+    })
+    await runner.start(request({ instruction: '   ' }))
+    await settle(runner)
+    expect(promptOf(fake)).not.toContain('<run_instruction>')
+    expect(saved[0]?.record).not.toHaveProperty('instruction')
+  })
+
+  it('refuses a card that requires an instruction when the run carries none', async () => {
+    // Criterion: the Host enforces the mode, not only the page. A stale client, a template
+    // button or a direct route call would otherwise spend a model call on an empty ask.
+    const { runner, fake } = setup({
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, instructionMode: 'required' },
+    })
+    await expect(runner.start(request())).resolves.toMatchObject({
+      status: 'rejected',
+      code: 'instruction-missing',
+    })
+    // Refused before anything was spent: no session, no child, no run record.
+    expect(fake.activations).toEqual([])
+    expect(fake.createdAgents).toEqual([])
+    expect(runner.state('skill-card')).toBeUndefined()
+  })
+
+  it('starts the same card once the instruction is there', async () => {
+    const { runner, fake } = setup({
+      outcomes: [CAPTURED],
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, instructionMode: 'required' },
+    })
+    await expect(runner.start(request({ instruction: '分析任务单' }))).resolves.toMatchObject({ status: 'started' })
+    await settle(runner)
+    expect(promptOf(fake)).toContain('<run_instruction>\n分析任务单\n</run_instruction>')
+  })
+
+  it('exempts a run a row started, because the click named the subject', async () => {
+    // A row's own button is told what to do by the row it carries. Requiring a sentence as
+    // well would break every template button on a card that declares its runs need one.
+    const { runner, fake } = setup({
+      outcomes: [CAPTURED],
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, instructionMode: 'required' },
+    })
+    await expect(runner.start(request({ payload: { task_number: 'CP-1' } })))
+      .resolves.toMatchObject({ status: 'started' })
+    await settle(runner)
+    expect(promptOf(fake)).toContain('<row_data>')
+  })
+
+  it('does not impose the mode on a bare run, which carries no instruction at all', async () => {
+    // A bare run executes a skill target from a document, and a required card must still be
+    // able to show one: the mode is about the card's own runs, not about every click.
+    const { runner, fake } = setup({
+      outcomes: [CAPTURED],
+      selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: WORKSPACE_PATH }, instructionMode: 'required' },
+    })
+    await expect(runner.start(request({ mode: { kind: 'bare', skill: 'git-repo' } })))
+      .resolves.toMatchObject({ status: 'started' })
+    await settle(runner)
+    expect(fake.activations).toHaveLength(1)
+  })
+})
+
 function fakeHostSelection(path: string): { path: string } {
   return { path }
 }

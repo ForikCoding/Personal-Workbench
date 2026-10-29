@@ -29,15 +29,19 @@ import type { WorkbenchRunStart, WorkbenchSkillCardApi } from './api.ts'
  * @param cardId - the card to run.
  * @param scopeSessionId - the session whose scope resolves the skill definition; undefined
  * resolves through the run's own fresh agent (the global and project layers).
- * @param payload - the clicked row's raw fields; omitted for a run no row triggered.
+ * @param ask - what else travels with the run: the clicked row, and the instruction the user
+ * wrote for it. Both optional and independent — a run may act on a row, on a sentence, on
+ * both, or on neither.
  * @returns the accepted run state, or the Host's own refusal.
  */
 export async function startCardRun(
   api: WorkbenchSkillCardApi,
   cardId: string,
   scopeSessionId: string | undefined,
-  payload?: Record<string, unknown>,
+  ask: { readonly payload?: Record<string, unknown>; readonly instruction?: string } = {},
 ): Promise<WorkbenchRunStart> {
+  const { payload, instruction } = ask
+  const trimmed = instruction?.trim()
   return await api.start({
     cardId,
     ...scopeSessionId === undefined ? {} : { scopeSessionId },
@@ -45,6 +49,9 @@ export async function startCardRun(
     // The row the user confirmed travels with the run: the panel gates nothing unless
     // what it displayed is what the child reads.
     ...payload === undefined ? {} : { payload },
+    // The sentence the user wrote travels the same way, and is dropped when it says
+    // nothing: an empty instruction would reach the prompt as a blank ask.
+    ...trimmed === undefined || trimmed === '' ? {} : { instruction: trimmed },
     outputSchema: WORKBENCH_OUTPUT_SCHEMA,
   })
 }

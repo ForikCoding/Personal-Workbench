@@ -12,6 +12,23 @@ Design and rationale: [workbench overview](../docs/workbench-design.md) and [wor
 - **Layout**: ordering is the only layout dimension. Reorder by dragging a card's header handle or with the arrow keys on that handle. Hiding does not exist: the X is a physical delete that removes the card together with its templates and its result, and a card type that supplies no `onRemove` simply has no X.
 - **Persistence**: the ordering lives in the Host-side `workbench_layout` storage domain (`per-record` plus `invalidRecords: 'backup-and-skip'`), keyed by card id, so every client of one profile sees the same arrangement. Each record holds one `position` and nothing else; a record written by an older build that still carries `hidden` is read as visible, with no migration step.
 
+## Run instructions
+
+A skill may need to be told what to work on. Whether it does is a per-card setting; what it is told belongs to one run.
+
+| `instructionMode` | Run bar | A run with an empty field |
+| --- | --- | --- |
+| `none` (default) | no composer at all — the header's Run button, unchanged | runs |
+| `optional` | one composer in the run bar, beside that button | runs |
+| `required` | one composer in the run bar, beside that button | is refused in place: the field says what is missing and takes focus, nothing is sent |
+
+- Absence reads as `none`, so every card that predates the field keeps exactly the interface it had.
+- There is one composer and no dialog. The Run button is never disabled *because* the field is empty: refusal says why, in place, and leaves the button available.
+- The route validates it too — a blank instruction is a bad request, and one longer than 2000 characters is refused — so a stale client cannot spend a run on an empty ask, and the runner refuses a `required` card whose own run carries none (`instruction-missing`). A run started from a row's own button is exempt: the click named the subject, so requiring a sentence as well would break every template button on such a card.
+- The text travels in the prompt as `<run_instruction>`, framed as the subject of the skill rather than as another set of instructions, and is kept on the result record, so a history row states the ask it answered.
+- Keyboard: `Enter` submits while the text is one line, `Shift+Enter` is a newline, and `Ctrl`/`Cmd`+`Enter` always submits. A multi-line ask therefore never runs by accident.
+- The last three distinct asks of one card are offered back as chips that refill the field; they are derived from the run history, not stored separately. An unsent draft survives a page change within the session, keyed per card.
+
 ## Contract
 
 | Item | Value |
@@ -97,4 +114,5 @@ The **region** a run fills is model output, not user code: a script inside it is
 - The page shows no workspace context yet, so `useWorkspaces` is not part of its props.
 - The skill card's model picker reads the optional `modelDirectories` client service, injected in its scoped form. Without that service a card still runs on a model it has stored, but its runs inherit the session's model, and such a result cannot name the route it used: the result record's `model` is written only when the card itself pinned one. The field asks that directory for a catalog when it mounts, as the application's own picker does.
 - The skill card's workspace is a directory the user picks, never a registered workspace id. On Windows the picker is the Desktop plugin's own (`window.__DSH_DESKTOP_PICK_DIRECTORY__`, behind `POST /_dsh/desktop/pick-directory`); elsewhere it is the optional `uiWorkspace` client service, injected in its scoped form. Without either, the field states that no picker exists — there is no text field, and a card with no directory cannot run.
+- The run instruction is trimmed, capped at 2000 characters, and stored on the result record of the run that carried it — one run's ask is not a reusable prompt, so a card has no saved instruction field to edit. A card's `instructionMode` is stored like the permission and defaults to `none` when unset, so a card that existed before the setting never grows a composer on its own.
 - The skill card's permission mode is a per-card setting stored as `permission`, defaulting to `workspace-write` when unset, so cards that predate the field run stricter than the session they use to inherit. It is applied by appending one `sandbox/mode` event to the card's own agent, whose session a child inherits — the same agent that fences the run at the card's directory. The workspace therefore limits writes only under `read-only` and `workspace-write`, and the fence itself has never been verified in a real application: `tests/skill-card-workspace-sandbox.spec.ts` is a deliberately skipped specification, so no part of this should be read as "writes are confined to the chosen directory".

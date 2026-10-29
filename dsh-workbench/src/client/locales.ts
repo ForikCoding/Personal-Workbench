@@ -128,6 +128,14 @@ export const zh = {
   skillCardPermissionWarning: '完全权限：工作目录不再限制写入，这个 skill 可以修改工作目录以外的文件。',
   skillCardRunsWithPermission: '运行时权限：{mode}',
   skillCardProblemPermissionUnavailable: '这张卡要求的权限模式无法应用，运行已拒绝',
+  // The per-card instruction mode. The three labels are the choice itself, and the note
+  // states what the mode governs so the setting is not mistaken for a stored prompt.
+  skillCardInstructionLabel: '运行指令',
+  skillCardInstructionNone: '不需要',
+  skillCardInstructionOptional: '可选',
+  skillCardInstructionRequired: '必须',
+  skillCardInstructionNote: '运行时是否要先写一句指令。选「必须」时，没有指令不会开始运行。',
+  skillCardProblemInstructionMissing: '这张卡需要一句指令才能运行',
   skillCardBack: '返回',
   skillCardCardName: '卡片名称',
   // The model field. Its two non-selectable states say what the card knows: a route it
@@ -182,6 +190,18 @@ export const zh = {
   // The row of the run in flight: a record the controller builds while the host has not
   // stored anything yet, so it is named here rather than pretending a run stored it.
   runHistoryRunning: '运行中',
+  // The instruction a run was given, on its history row. The row states it in one line so
+  // two runs of the same card are distinguishable; the value is the user's own text, never
+  // summarized, because a summary would be a second description of the ask.
+  runHistoryInstruction: '指令：{text}',
+  // The run bar: one composer beside the run control. `required` names what is missing when
+  // the control is pressed empty — the control itself never disables over an empty field,
+  // because a disabled button explains nothing.
+  runInstructionPlaceholderRequired: '这次要做什么？',
+  runInstructionPlaceholderOptional: '补充一句指令，留空直接运行',
+  runInstructionRequired: '这个技能需要一句指令才能运行',
+  runInstructionRecent: '最近用过',
+  runInstructionField: '运行指令',
   skillCardRunningBody: '技能正在执行，完成后结果会显示在这里。',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
@@ -361,6 +381,14 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardPermissionWarning: 'Full access: the workspace no longer limits writes, so this skill can change files outside it.',
   skillCardRunsWithPermission: 'Runs with {mode} permission',
   skillCardProblemPermissionUnavailable: 'This card’s permission mode could not be applied, so the run was refused',
+  // The per-card instruction mode. The note states what the mode governs, so the setting is
+  // not mistaken for a stored prompt.
+  skillCardInstructionLabel: 'Run instruction',
+  skillCardInstructionNone: 'Not needed',
+  skillCardInstructionOptional: 'Optional',
+  skillCardInstructionRequired: 'Required',
+  skillCardInstructionNote: 'Whether a run needs a sentence first. On Required, a run will not start without one.',
+  skillCardProblemInstructionMissing: 'This card needs an instruction before it can run',
   skillCardBack: 'Back',
   skillCardCardName: 'Card name',
   // The model field. Its two non-selectable states say what the card knows: a route it
@@ -407,6 +435,17 @@ export const en: Record<keyof typeof zh, string> = {
   runHistoryOrdinal: 'Run {n}',
   runHistoryLatest: 'latest {time}',
   runHistoryRunning: 'Running',
+  // The instruction a run was given, on its history row: one line, so two runs of one card
+  // are distinguishable.
+  runHistoryInstruction: 'Instruction: {text}',
+  // The run bar: one composer beside the run control. The required message names what is
+  // missing when the control is pressed empty; the control itself never disables over an
+  // empty field.
+  runInstructionPlaceholderRequired: 'What should this run do?',
+  runInstructionPlaceholderOptional: 'Add an instruction, or leave it empty to run',
+  runInstructionRequired: 'This skill needs an instruction before it can run',
+  runInstructionRecent: 'Recent',
+  runInstructionField: 'Run instruction',
   skillCardRunningBody: 'The skill is executing. Its result appears here when it finishes.',
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a

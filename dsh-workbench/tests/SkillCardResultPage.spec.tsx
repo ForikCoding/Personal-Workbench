@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
@@ -19,6 +19,7 @@ import type { WorkbenchLocaleKey } from '../src/client/locales.ts'
 import type {
   WorkbenchCardResult,
   WorkbenchDirectoryStat,
+  WorkbenchInstructionMode,
   WorkbenchRunCapabilities,
   WorkbenchRunState,
 } from '../src/skill-card-contract.ts'
@@ -90,6 +91,8 @@ function pageApi(options: {
   directory?: WorkbenchDirectoryStat
   /** A run in flight on this card, which the page's poll adopts. */
   running?: WorkbenchRunState
+  /** How much instruction the card's runs need; absent models a card created before it. */
+  instructionMode?: WorkbenchInstructionMode
 } = {}): WorkbenchSkillCardApi {
   const workspace = options.workspace === undefined ? undefined : options.workspace
   return {
@@ -103,6 +106,7 @@ function pageApi(options: {
           template: TEMPLATE,
           templateSkills: ['git-repo'],
           ...workspace === undefined ? {} : { workspace },
+          ...options.instructionMode === undefined ? {} : { instructionMode: options.instructionMode },
         }],
         results: options.result === undefined ? [] : [options.result],
         // Absent is the pre-field Host, which this page treats as able to run.
@@ -469,6 +473,66 @@ describe('the result page', () => {
     expect(container.querySelector('[data-refine-composer]')).toBeNull()
     expect(container.querySelector('[data-run-stop-row]')).toBeNull()
     expect(screen.queryByRole('button', { name: zh.refineStop })).toBeNull()
+    expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
+  })
+
+  it('gives a card that takes an instruction one control, in the bar with its field', async () => {
+    // Two run controls on one page would be two answers to the same question, and the header
+    // one could not spend what the field holds. The bar owns the only control instead.
+    const started: { readonly instruction?: string }[] = []
+    const api: WorkbenchSkillCardApi = {
+      // A card ready to run in every other respect, so the refusal under test is the ask.
+      ...pageApi({ result: result(), instructionMode: 'required', workspace: { path: WORKSPACE_PATH } }),
+      start: async (request: { instruction?: string }) => {
+        started.push(request.instruction === undefined ? {} : { instruction: request.instruction })
+        return {
+          status: 'ok',
+          state: { cardId: 'skill-card', phase: 'running', startedAt: STARTED_AT, retried: false },
+        }
+      },
+      poll: async () => ({ status: 'missing' }),
+    }
+    const { container } = render(<SkillCardResultPage {...props({ api })} />)
+    await loaded(container)
+    // The header keeps its 编辑 control and loses its run control; the bar carries the field.
+    expect(container.querySelector('header')?.querySelectorAll('button')).toHaveLength(2)
+    const field = container.querySelector<HTMLTextAreaElement>('[data-run-bar] textarea')
+    expect(field).not.toBeNull()
+    // Pressing the bar's control with nothing written refuses in place rather than sending.
+    const control = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === zh.skillCardRun)
+    if (control === undefined) throw new Error('the run control did not render')
+    // The card becomes runnable once its directory and its route have answered, so the
+    // control opens a moment after the read lands.
+    await waitFor(() => { expect(control.disabled).toBe(false) })
+    await act(async () => { control.click() })
+    expect(started).toEqual([])
+    expect(container.querySelector('[data-run-instruction-required]')?.textContent)
+      .toBe(zh.runInstructionRequired)
+    fireEvent.change(field as HTMLTextAreaElement, { target: { value: '分析任务' } })
+    await act(async () => { control.click() })
+    expect(started).toEqual([{ instruction: '分析任务' }])
+  })
+
+  it('keeps the bar’s control as the stop while a run holds a card that takes an instruction', async () => {
+    // The field would offer a second start the Host refuses, so only the control stays — and
+    // it names the stop, which is the one thing worth doing during a run.
+    const running: WorkbenchRunState = {
+      cardId: 'skill-card',
+      phase: 'running',
+      startedAt: STARTED_AT,
+      retried: false,
+      activity: [{ kind: 'tool', tool: 'read', argument: 'a.ts' }],
+    }
+    const api: WorkbenchSkillCardApi = {
+      ...pageApi({ result: result(), instructionMode: 'optional' }),
+      poll: async () => ({ status: 'ok', state: running }),
+    }
+    const { container } = render(<SkillCardResultPage {...props({ api })} />)
+    await waitFor(() => {
+      expect(container.querySelector('[data-result-busy="true"]')).not.toBeNull()
+    })
+    expect(container.querySelector('[data-run-bar] textarea')).toBeNull()
     expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
   })
 })

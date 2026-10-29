@@ -14,6 +14,7 @@ import type {
   WorkbenchCardConfigView,
   WorkbenchCardModel,
   WorkbenchCardWorkspace,
+  WorkbenchInstructionMode,
   WorkbenchResultRecord,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
@@ -22,7 +23,10 @@ import type {
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
 } from './skill-card-contract.ts'
-import { effectiveWorkbenchSandboxMode } from './skill-card-contract.ts'
+import {
+  effectiveWorkbenchInstructionMode,
+  effectiveWorkbenchSandboxMode,
+} from './skill-card-contract.ts'
 import type { WorkbenchActivityEvent } from './skill-card-activity.ts'
 import { activityEntriesFor, withActivityEntries } from './skill-card-activity.ts'
 import type {
@@ -134,6 +138,13 @@ export interface WorkbenchCardSelection {
    * card is, so a client cannot start a run under a mode the card does not name.
    */
   readonly permission?: WorkbenchSandboxMode
+  /**
+   * How much instruction this card's runs need; absent means the default applies.
+   *
+   * Read from storage for the same reason as the mode above: whether a card may run with an
+   * empty ask is part of what the card is, so a client cannot start a run the card forbids.
+   */
+  readonly instructionMode?: WorkbenchInstructionMode
 }
 
 /**
@@ -154,6 +165,7 @@ export function cardSelection(card: WorkbenchCardConfigView | undefined): Workbe
     ...card?.model === undefined ? {} : { model: card.model },
     ...card?.workspace === undefined ? {} : { workspace: card.workspace },
     ...card?.permission === undefined ? {} : { permission: card.permission },
+    ...card?.instructionMode === undefined ? {} : { instructionMode: card.instructionMode },
   }
 }
 
@@ -228,6 +240,14 @@ interface RunRecord {
    * stored result. The flag is what keeps that promise in the paths that persist.
    */
   readonly bare: boolean
+  /**
+   * What the user told this run to do, verbatim; absent when it carried none.
+   *
+   * On the run rather than only on its result because the history lists a run while it is
+   * in flight: the live state and the settled record have to say the same thing, and the
+   * stored record is built from this one field.
+   */
+  readonly instruction?: string
   phase: WorkbenchRunPhase
   retried: boolean
   result?: WorkbenchResultRecord
@@ -288,6 +308,8 @@ type RunInput =
     readonly template: string
     /** Route this run is pinned to; absent inherits the session's. */
     readonly model?: WorkbenchCardModel
+    /** What the user told this run to do; absent for a run that carries none. */
+    readonly instruction?: string
     /** The row that triggered this run, when a click did. */
     readonly payload?: Record<string, unknown>
     readonly outputSchema: unknown
@@ -477,6 +499,26 @@ export class WorkbenchSkillCardRunner {
     if (skill === undefined) {
       return reject('not-configured', 'no skill is configured for this card')
     }
+    // What the user asked for, for the one mode that carries it. Trimmed here as well as
+    // validated by the route: whitespace is not an instruction, and the value travels into a
+    // prompt and into the stored record.
+    const instruction = mode.kind === 'card' ? request.instruction?.trim() : undefined
+    const carried = instruction === undefined || instruction === '' ? undefined : instruction
+    // A card that declares its runs need an instruction is refused rather than asked
+    // implicitly: the child would otherwise read "apply this skill to the workspace" and
+    // pick its own subject, which spends a model call to produce the wrong document. Checked
+    // before the session is opened, so the refusal costs nothing. `optional` and `none` both
+    // accept an empty ask — the difference is what the page offers, not what the Host allows.
+    //
+    // A run a row's own button started is exempt: the click named the subject, so the row is
+    // the ask and asking for a sentence too would make every template button on such a card
+    // fail. The mode governs the card's free-form run, which is the one that has no subject.
+    if (mode.kind === 'card'
+      && carried === undefined
+      && request.payload === undefined
+      && effectiveWorkbenchInstructionMode(selection.instructionMode) === 'required') {
+      return reject('instruction-missing', 'this card requires an instruction before it can run')
+    }
     // A refinement continues the session the revised document came from, so a request names
     // that one when the record carries it. A record stored before the workbench kept one
     // per run has none, and where no session is named the run falls back to a fresh one of
@@ -528,6 +570,7 @@ export class WorkbenchSkillCardRunner {
             skill,
             template,
             ...pinned,
+            ...carried === undefined ? {} : { instruction: carried },
             ...request.payload === undefined ? {} : { payload: request.payload },
             outputSchema: request.outputSchema,
           })
@@ -654,6 +697,7 @@ export class WorkbenchSkillCardRunner {
       startedAt,
       controller: new AbortController(),
       bare: mode.kind === 'bare',
+      ...carried === undefined ? {} : { instruction: carried },
       session,
       phase: 'running',
       retried: false,
@@ -1226,7 +1270,7 @@ await this.finish(run, outcome)
         prompt: [{
           type: 'text',
           text: input.kind === 'card'
-            ? renderWorkbenchSkillPrompt(skill, input.template, input.payload)
+            ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction)
             : input.kind === 'refine'
               ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload)
               : renderWorkbenchBarePrompt(skill, input.payload),
@@ -1253,7 +1297,15 @@ await this.finish(run, outcome)
       const sessionId = run.session.id
       const stored = input.kind === 'bare'
         ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId)
-        : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId)
+        : toResultRecord(
+            input.skill,
+            result,
+            this.now(),
+            input.model,
+            runId,
+            sessionId,
+            input.kind === 'card' ? run.instruction : input.instruction,
+          )
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
       const record = result.stopReason === 'error'
@@ -1368,6 +1420,7 @@ await this.finish(run, outcome)
       runId: run.runId,
       phase: run.phase,
       startedAt: run.startedAt,
+      ...run.instruction === undefined ? {} : { instruction: run.instruction },
       retried: run.retried,
       ...run.activity.length === 0 ? {} : { activity: run.activity },
       ...run.result === undefined ? {} : { result: run.result },
@@ -1433,6 +1486,7 @@ function toCatalogEntry(skill: {
  * @param model - the route the run was pinned to, when the card named one.
  * @param runId - the run identity, unique within the card.
  * @param sessionId - the session the run executed in.
+ * @param instruction - what the user told the run to do, when the run carried one.
  * @returns the stored record.
  */
 function toResultRecord(
@@ -1442,6 +1496,7 @@ function toResultRecord(
   model: WorkbenchCardModel | undefined,
   runId: string,
   sessionId: string,
+  instruction: string | undefined,
 ): WorkbenchResultRecord {
   const text = textOf(result.output)
   return {
@@ -1451,6 +1506,7 @@ function toResultRecord(
     executedAt,
     stopReason: result.stopReason,
     ...model === undefined ? {} : { model },
+    ...instruction === undefined ? {} : { instruction },
     ...result.structured === undefined ? {} : { structured: result.structured },
     ...text === '' ? {} : { outputText: text },
     ...result.diagnostic === undefined ? {} : { diagnostic: result.diagnostic },

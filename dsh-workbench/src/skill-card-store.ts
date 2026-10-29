@@ -21,12 +21,14 @@ import type {
 import { splitActivity } from './skill-card-activity.ts'
 import {
   WORKBENCH_CARD_NAME_MAX_LENGTH,
+  WORKBENCH_INSTRUCTION_MODES,
   WORKBENCH_MAX_RESULTS_PER_CARD,
   WORKBENCH_SANDBOX_MODES,
   WORKBENCH_WORKSPACE_PATH_MAX_LENGTH,
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
+  isWorkbenchInstructionMode,
   isWorkbenchSandboxMode,
   isWorkbenchSkillName,
   parseResultKey,
@@ -200,6 +202,7 @@ export class WorkbenchSkillCardStore {
       const model = record?.model
       const workspace = record?.workspace
       const permission = record?.permission
+      const instructionMode = record?.instructionMode
       const bySkill = templatesByCard.get(cardId)
       const template = selected === undefined ? undefined : bySkill?.get(selected)
       cards.push({
@@ -209,6 +212,7 @@ export class WorkbenchSkillCardStore {
         ...model === undefined ? {} : { model },
         ...workspace === undefined ? {} : { workspace },
         ...permission === undefined ? {} : { permission },
+        ...instructionMode === undefined ? {} : { instructionMode },
         templateSkills: bySkill === undefined ? [] : [...bySkill.keys()].sort(),
         ...template === undefined ? {} : { template },
       })
@@ -307,11 +311,16 @@ export class WorkbenchSkillCardStore {
     const permission = patchedPermission === undefined
       ? current?.permission
       : patchedPermission === null ? undefined : patchedPermission
+    const patchedInstructionMode = patch.instructionMode
+    const instructionMode = patchedInstructionMode === undefined
+      ? current?.instructionMode
+      : patchedInstructionMode === null ? undefined : patchedInstructionMode
     if (name === undefined
       && skill === undefined
       && model === undefined
       && workspace === undefined
-      && permission === undefined) {
+      && permission === undefined
+      && instructionMode === undefined) {
       await this.run('delete', () => this.options.card.delete(patch.cardId))
     } else {
       await this.run('put', () => this.options.card.put(patch.cardId, {
@@ -320,6 +329,7 @@ export class WorkbenchSkillCardStore {
         ...model === undefined ? {} : { model },
         ...workspace === undefined ? {} : { workspace },
         ...permission === undefined ? {} : { permission },
+        ...instructionMode === undefined ? {} : { instructionMode },
       }))
     }
 
@@ -490,14 +500,22 @@ export class WorkbenchSkillCardStore {
     if (permission !== undefined && permission !== null && !isWorkbenchSandboxMode(permission)) {
       return `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(', ')}`
     }
+    const instructionMode = patch.instructionMode
+    // Refused for the same reason as an unknown permission mode: a mode neither the run bar
+    // nor the runner knows would leave the card's declared need unenforced while its page
+    // showed one.
+    if (instructionMode !== undefined && instructionMode !== null && !isWorkbenchInstructionMode(instructionMode)) {
+      return `instructionMode must be null or one of ${WORKBENCH_INSTRUCTION_MODES.join(', ')}`
+    }
     if (patch.remove === true
       && (patch.name !== undefined
         || patch.skill !== undefined
         || patch.model !== undefined
         || patch.workspace !== undefined
         || patch.permission !== undefined
+        || patch.instructionMode !== undefined
         || patch.template !== undefined)) {
-      return 'a removal cannot carry a name, a skill, a model, a workspace, a permission, or a template'
+      return 'a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template'
     }
     const template = patch.template
     if (template === undefined) return undefined
@@ -618,6 +636,9 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
     // The session is the same kind of fact: a few characters, and the one thing 重新生成
     // needs. A trimmed record that lost it would show a result nothing can refine.
     ...record.sessionId === undefined ? {} : { sessionId: record.sessionId },
+    // And the instruction: two runs of one card differ by it, so a trimmed record that shed
+    // it would leave a row nobody can tell apart from the run beside it.
+    ...record.instruction === undefined ? {} : { instruction: record.instruction },
   }
   const withStructured: WorkbenchResultRecord = record.structured === undefined
     ? base
