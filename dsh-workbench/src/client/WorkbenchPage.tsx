@@ -18,6 +18,7 @@ import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
 import type { WorkbenchCardSnapshot } from './skill-card/api.ts'
 import type { WorkbenchModelSeat } from './skill-card/model.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
+import type { WorkbenchScriptBinder } from './skill-card/render.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
 import { WorkbenchCreateCard } from './WorkbenchCreateCard.tsx'
 import type { WorkbenchCardType } from './WorkbenchCreateCard.tsx'
@@ -56,6 +57,14 @@ export interface WorkbenchPageInjected {
     readonly models: WorkbenchModelSeat
     /** Directory picker the configuration page offers for the card's workspace. */
     readonly workspacePicker: WorkbenchWorkspacePicker
+    /**
+     * Binding the rendered document's own script receives.
+     *
+     * Omitted is read as "the document runs on its own", which is what a host without the
+     * document route can offer: the template's script still runs, and a read it asks for
+     * finds no card behind it.
+     */
+    readonly documents?: WorkbenchScriptBinder | undefined
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
@@ -248,6 +257,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         fallbackTitle: labelOf(selection.cardId),
         openCard,
         t,
+        ...skillCards.documents === undefined ? {} : { documents: skillCards.documents },
         onBack: selection.view === 'result'
           ? () => openCard(selection.cardId, 'runs')
           : closeCard,

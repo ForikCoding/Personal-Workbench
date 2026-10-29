@@ -27,6 +27,8 @@ import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import { SKILL_CARD_ID, SkillCard } from './skill-card/SkillCard.tsx'
 import type { SkillCardFace } from './skill-card/SkillCard.tsx'
 import { createPickerSession } from './skill-card/picker-session.ts'
+import { createWorkbenchDocumentBinder } from './skill-card/documents.ts'
+import type { WorkbenchScriptBinder } from './skill-card/render.ts'
 import { pickRunSession } from './skill-card/session.ts'
 import type { WorkbenchSessionRow } from './skill-card/session.ts'
 import { WorkbenchPage } from './WorkbenchPage.tsx'
@@ -137,6 +139,14 @@ export interface WorkbenchPanelFace {
     readonly models: WorkbenchModelSeat
     /** Directory picker the configuration page offers for the card's workspace. */
     readonly workspacePicker: WorkbenchWorkspacePicker
+    /**
+     * Binding the rendered document's own script receives.
+     *
+     * A card's template is the user's own HTML, and its script may read the directory the
+     * card's runs write into. The binding is what that script is handed: the card's
+     * identity, and the two reads a document reader needs.
+     */
+    readonly documents: WorkbenchScriptBinder
   }
   /** Return to the grid from whichever full-panel view is open. */
   readonly closeCard: () => void
@@ -160,6 +170,10 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'workbench: dictionaries')
   const t = ctx.locale.bind(NS)
   const cards = createSnapshotStore<readonly WorkbenchCardFact[]>([])
+  // Building the binding is per render — the card identity arrives with the document — but the
+  // rules it answers by, and the Markdown chrome, are the panel's, so one binder serves every
+  // card.
+  const documents = createWorkbenchDocumentBinder({ t })
   const api = createWorkbenchLayoutApi()
   const skillCardApi = createWorkbenchSkillCardApi()
   // The model directory is read through a getter rather than captured: the service is
@@ -253,7 +267,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): WorkbenchPanelFace => ({
       hooks: { cards, selection },
       api,
-      skillCards: { api: skillCardApi, runSessionId, pickerSessionId, models, workspacePicker },
+      skillCards: { api: skillCardApi, runSessionId, pickerSessionId, models, workspacePicker, documents },
       closeCard,
       openCard,
     }),

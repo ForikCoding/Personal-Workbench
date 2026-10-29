@@ -14,6 +14,7 @@ import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchModelSeat } from './skill-card/model.ts';
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts';
+import type { WorkbenchScriptBinder } from './skill-card/render.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 /** Cards plus the transport the page drives, as the registration injects them. */
 export interface WorkbenchPageInjected {
@@ -46,6 +47,14 @@ export interface WorkbenchPageInjected {
         readonly models: WorkbenchModelSeat;
         /** Directory picker the configuration page offers for the card's workspace. */
         readonly workspacePicker: WorkbenchWorkspacePicker;
+        /**
+         * Binding the rendered document's own script receives.
+         *
+         * Omitted is read as "the document runs on its own", which is what a host without the
+         * document route can offer: the template's script still runs, and a read it asks for
+         * finds no card behind it.
+         */
+        readonly documents?: WorkbenchScriptBinder | undefined;
     };
     /** Return to the grid from whichever full-panel view is open. */
     readonly closeCard: () => void;

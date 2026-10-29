@@ -103,7 +103,9 @@ export const zh = {
   skillCardPreview: '预览',
   skillCardSave: '保存',
   skillCardClose: '关闭',
-  skillCardViolationScript: '不允许 script 标签',
+  // The template's own script is allowed and runs; the region's is not, because the region is
+  // model output. One code, one sentence, naming the half it applies to.
+  skillCardViolationScript: '区间内容里不允许 script 标签',
   skillCardViolationEvent: '不允许事件属性',
   skillCardViolationUrl: '不允许这种 URL 协议',
   skillCardViolationExternal: '不允许会联网加载的元素',
@@ -217,6 +219,25 @@ export const zh = {
   bareRunRunning: '正在执行 skill {skill}',
   bareRunDone: 'skill 执行完成',
   bareRunFailed: 'skill 执行失败',
+  // A card's own script reads the files a run wrote. These sentences are what that script
+  // shows when a read is refused: each one names a fact about a path, so the reader can act
+  // on it instead of reading a stack trace in a card.
+  documentProblemForbidden: '浏览器拒绝了这次读取',
+  documentProblemPath: '这个路径不能用',
+  documentProblemCard: '这张卡片已经不存在了',
+  documentProblemNoWorkspace: '这张卡片还没有设置目录',
+  documentProblemOutside: '这个路径不在卡片的目录里',
+  documentProblemNotFound: '这个文件或目录已经不在了',
+  documentProblemNotDirectory: '这个路径不是目录',
+  documentProblemNotFile: '这个路径不是文件',
+  documentProblemNotText: '这个文件不是文本，无法显示',
+  documentProblemTooLarge: '这个文件太大，无法显示',
+  documentProblemUnreachable: '读不到卡片目录',
+  documentProblemUnreadable: '读取结果无法识别',
+  // The Markdown renderer's own chrome, which a document reader carries like any other.
+  documentCopy: '复制',
+  documentCopied: '已复制',
+  documentFootnotes: '脚注',
 }
 
 /** English dictionary; the annotation keeps both dictionaries on one key set. */
@@ -317,7 +338,7 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardPreview: 'Preview',
   skillCardSave: 'Save',
   skillCardClose: 'Close',
-  skillCardViolationScript: 'script elements are not allowed',
+  skillCardViolationScript: 'script elements are not allowed inside the region',
   skillCardViolationEvent: 'event attributes are not allowed',
   skillCardViolationUrl: 'that URL scheme is not allowed',
   skillCardViolationExternal: 'elements that load over the network are not allowed',
@@ -423,6 +444,23 @@ export const en: Record<keyof typeof zh, string> = {
   bareRunRunning: 'Running skill {skill}',
   bareRunDone: 'The skill finished',
   bareRunFailed: 'The skill failed',
+  // A card's own script reads the files a run wrote; these are the refusals it can show.
+  documentProblemForbidden: 'The browser refused this read',
+  documentProblemPath: 'That path cannot be used',
+  documentProblemCard: 'This card no longer exists',
+  documentProblemNoWorkspace: 'This card has no directory yet',
+  documentProblemOutside: 'That path is outside the card’s directory',
+  documentProblemNotFound: 'That file or directory is gone',
+  documentProblemNotDirectory: 'That path is not a directory',
+  documentProblemNotFile: 'That path is not a file',
+  documentProblemNotText: 'That file is not text, so it cannot be shown',
+  documentProblemTooLarge: 'That file is too large to show',
+  documentProblemUnreachable: 'The card’s directory cannot be reached',
+  documentProblemUnreadable: 'The answer could not be read',
+  // The Markdown renderer's own chrome, which a document reader carries like any other.
+  documentCopy: 'Copy',
+  documentCopied: 'Copied',
+  documentFootnotes: 'Footnotes',
 }
 
 /** Key union of the `workbench` namespace. */

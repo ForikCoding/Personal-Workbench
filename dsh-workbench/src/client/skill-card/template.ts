@@ -19,7 +19,7 @@ import {
 } from '../../skill-card-contract.ts'
 import type { WorkbenchActionDeclaration, WorkbenchActionTarget } from '../../skill-card-contract.ts'
 import { forbiddenAttributeReason, forbiddenElementReason, hasExternalCss } from './policy.ts'
-import type { WorkbenchContentViolationCode } from './policy.ts'
+import type { WorkbenchContentViolationCode, WorkbenchPolicyScope } from './policy.ts'
 
 /** Why one template cannot be used. */
 export type WorkbenchTemplateViolationCode =
@@ -211,7 +211,7 @@ export function analyzeFragment(html: string): readonly WorkbenchFragmentViolati
   const found: WorkbenchFragmentViolation[] = []
   // Lowercased once: every report looks a tag up in it, and a fragment at the size limit
   // is walked many times.
-  walk(parseTemplate(html), 'root', found, html.toLowerCase())
+  walk(parseTemplate(html), 'root', found, html.toLowerCase(), 'region')
   return found
 }
 
@@ -333,9 +333,12 @@ function analyzeActions(
  * @returns the violations, outermost first.
  */
 function contentViolations(html: string): readonly WorkbenchTemplateViolation[] {
-  // The document-level analysis reports the same five rules the fragment editor does; the
-  // narrower return type is assignable to the wider violation shape.
-  return analyzeFragment(html)
+  // The same five rules the fragment editor applies, judged on the template's own scope: the
+  // document's script is the author's code and runs, while a script inside the region is the
+  // model's text and is still refused.
+  const found: WorkbenchFragmentViolation[] = []
+  walk(parseTemplate(html), 'root', found, html.toLowerCase(), 'template')
+  return found
 }
 
 /**
@@ -359,12 +362,14 @@ function approximateTagOffset(lowerHtml: string, tag: string): number | undefine
  * @param path - the path to its parent, for the report.
  * @param found - the accumulator.
  * @param lowerHtml - the template text, lowercased, for approximate positions.
+ * @param scope - which half of the document is being judged.
  */
 function walk(
   node: Node,
   path: string,
   found: WorkbenchFragmentViolation[],
   lowerHtml: string,
+  scope: WorkbenchPolicyScope,
 ): void {
   for (const child of [...node.childNodes]) {
     if (child.nodeType !== Node.ELEMENT_NODE) continue
@@ -373,7 +378,7 @@ function walk(
     const here = `${path} > ${tag}`
     const offset = approximateTagOffset(lowerHtml, tag)
     const at = offset === undefined ? {} : { offset }
-    const reason = forbiddenElementReason(element)
+    const reason = forbiddenElementReason(element, scope)
     if (reason !== undefined) {
       found.push({ code: reason, location: here, token: tag, ...at })
       continue
@@ -386,6 +391,6 @@ function walk(
     if (tag === 'style' && hasExternalCss(element.textContent ?? '')) {
       found.push({ code: 'external-css', location: here, token: 'style', ...at })
     }
-    walk(element, here, found, lowerHtml)
+    walk(element, here, found, lowerHtml, scope)
   }
 }

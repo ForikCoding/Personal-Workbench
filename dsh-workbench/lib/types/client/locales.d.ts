@@ -171,6 +171,21 @@ export declare const zh: {
     bareRunRunning: string;
     bareRunDone: string;
     bareRunFailed: string;
+    documentProblemForbidden: string;
+    documentProblemPath: string;
+    documentProblemCard: string;
+    documentProblemNoWorkspace: string;
+    documentProblemOutside: string;
+    documentProblemNotFound: string;
+    documentProblemNotDirectory: string;
+    documentProblemNotFile: string;
+    documentProblemNotText: string;
+    documentProblemTooLarge: string;
+    documentProblemUnreachable: string;
+    documentProblemUnreadable: string;
+    documentCopy: string;
+    documentCopied: string;
+    documentFootnotes: string;
 };
 /** English dictionary; the annotation keeps both dictionaries on one key set. */
 export declare const en: Record<keyof typeof zh, string>;

@@ -9,7 +9,7 @@
 import { type ReactNode } from 'react';
 import type { InjectFace, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { WorkbenchLocaleKey } from '../locales.ts';
-import type { WorkbenchActionEvent } from './render.ts';
+import type { WorkbenchActionEvent, WorkbenchScriptBinder } from './render.ts';
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 /** Identity of the one skill card. */
@@ -72,6 +72,13 @@ export interface SkillCardBodyProps {
     /** What the card currently shows. */
     readonly view: WorkbenchCardView;
     /**
+     * The card this body belongs to; the document's own script is bound to it.
+     *
+     * Absent renders the document unbound: its own logic runs, and a read it asks for finds no
+     * card behind it. Both pages that show a card always have one; a preview need not.
+     */
+    readonly cardId?: string | undefined;
+    /**
      * Translate one workbench string.
      * @param key - dictionary key.
      * @returns the localized text.
@@ -85,6 +92,8 @@ export interface SkillCardBodyProps {
      * @param event - the action the click resolved to, or why it could not be read.
      */
     readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined;
+    /** Builds the binding the rendered document's own script receives. */
+    readonly documents?: WorkbenchScriptBinder | undefined;
 }
 /**
  * Render the card's content.
@@ -95,7 +104,7 @@ export interface SkillCardBodyProps {
  * @param props - the view, `t`, and the click outlet.
  * @returns the body element.
  */
-export declare function SkillCardBody({ view, t, onAction }: SkillCardBodyProps): ReactNode;
+export declare function SkillCardBody({ view, cardId, t, onAction, documents }: SkillCardBodyProps): ReactNode;
 /**
  * Choose the status line for a higher-priority fact.
  * @param code - the failure code.

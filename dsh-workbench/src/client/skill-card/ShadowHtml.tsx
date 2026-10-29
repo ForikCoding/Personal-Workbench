@@ -14,7 +14,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { WORKBENCH_ACTION_ATTRIBUTE } from '../../skill-card-contract.ts'
 import { readActionEvent, renderTemplate } from './render.ts'
-import type { WorkbenchActionEvent } from './render.ts'
+import type { WorkbenchActionEvent, WorkbenchScriptBinder } from './render.ts'
 
 /** Props of the shadow-root host. */
 export interface ShadowHtmlProps {
@@ -29,22 +29,41 @@ export interface ShadowHtmlProps {
    * @param event - the action the click resolved to, or why it could not be read.
    */
   readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined
+  /**
+   * The card the document belongs to.
+   *
+   * The document's own script is handed its binding under this identity, so the code a
+   * template carries reads the directory of the card that rendered it. Absent means the
+   * document runs with no binding: its own logic still runs, and anything that asks the card
+   * for a file finds nothing to ask.
+   */
+  readonly cardId?: string | undefined
+  /** The run the document shows, when the page knows it. */
+  readonly runId?: string | undefined
+  /** Builds the binding each rendered document's script receives. */
+  readonly documents?: WorkbenchScriptBinder | undefined
 }
 
 /**
  * Render one document inside a shadow root and observe its actions.
- * @param props - the document, the host class, and the action handler.
+ * @param props - the document, the host class, the action handler, and the document runtime.
  * @returns the host element.
  */
-export function ShadowHtml({ html, className, onAction }: ShadowHtmlProps): ReactNode {
+export function ShadowHtml({ html, className, onAction, cardId, runId, documents }: ShadowHtmlProps): ReactNode {
   const host = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const element = host.current
     if (element === null) return
     const root = element.shadowRoot ?? element.attachShadow({ mode: 'open' })
-    renderTemplate(root, html)
-  }, [html])
+    renderTemplate(
+      root,
+      html,
+      cardId === undefined || documents === undefined
+        ? undefined
+        : { cardId, ...runId === undefined ? {} : { runId }, bind: documents },
+    )
+  }, [html, cardId, runId, documents])
 
   useEffect(() => {
     const element = host.current

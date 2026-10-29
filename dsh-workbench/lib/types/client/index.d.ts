@@ -14,6 +14,7 @@ import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchModelSeat } from './skill-card/model.ts';
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts';
+import type { WorkbenchScriptBinder } from './skill-card/render.ts';
 export { WORKBENCH_PANEL_ID } from './workbench-panel.ts';
 export type { WorkbenchCardInput, WorkbenchCardOccurrenceProps, WorkbenchCardSlots, WorkbenchCardSpan, WorkbenchCardState, WorkbenchCardsOwnerProps, } from './contract.ts';
 export type { WorkbenchLocaleKey } from './locales.ts';
@@ -58,6 +59,14 @@ export interface WorkbenchPanelFace {
         readonly models: WorkbenchModelSeat;
         /** Directory picker the configuration page offers for the card's workspace. */
         readonly workspacePicker: WorkbenchWorkspacePicker;
+        /**
+         * Binding the rendered document's own script receives.
+         *
+         * A card's template is the user's own HTML, and its script may read the directory the
+         * card's runs write into. The binding is what that script is handed: the card's
+         * identity, and the two reads a document reader needs.
+         */
+        readonly documents: WorkbenchScriptBinder;
     };
     /** Return to the grid from whichever full-panel view is open. */
     readonly closeCard: () => void;

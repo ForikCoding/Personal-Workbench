@@ -20,6 +20,7 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
+		let react_dom_client = require("react-dom/client");
 		//#region src/client/workbench-panel.ts
 		/** Sidebar row id, shared with the main-slot key it opens. A product-reserved key. */
 		var WORKBENCH_PANEL_ID = "workbench";
@@ -301,7 +302,7 @@ window.__ModuleLoader__.load({
 			skillCardPreview: "预览",
 			skillCardSave: "保存",
 			skillCardClose: "关闭",
-			skillCardViolationScript: "不允许 script 标签",
+			skillCardViolationScript: "区间内容里不允许 script 标签",
 			skillCardViolationEvent: "不允许事件属性",
 			skillCardViolationUrl: "不允许这种 URL 协议",
 			skillCardViolationExternal: "不允许会联网加载的元素",
@@ -385,7 +386,22 @@ window.__ModuleLoader__.load({
 			actionProblemUnavailable: "目标现在不能运行",
 			bareRunRunning: "正在执行 skill {skill}",
 			bareRunDone: "skill 执行完成",
-			bareRunFailed: "skill 执行失败"
+			bareRunFailed: "skill 执行失败",
+			documentProblemForbidden: "浏览器拒绝了这次读取",
+			documentProblemPath: "这个路径不能用",
+			documentProblemCard: "这张卡片已经不存在了",
+			documentProblemNoWorkspace: "这张卡片还没有设置目录",
+			documentProblemOutside: "这个路径不在卡片的目录里",
+			documentProblemNotFound: "这个文件或目录已经不在了",
+			documentProblemNotDirectory: "这个路径不是目录",
+			documentProblemNotFile: "这个路径不是文件",
+			documentProblemNotText: "这个文件不是文本，无法显示",
+			documentProblemTooLarge: "这个文件太大，无法显示",
+			documentProblemUnreachable: "读不到卡片目录",
+			documentProblemUnreadable: "读取结果无法识别",
+			documentCopy: "复制",
+			documentCopied: "已复制",
+			documentFootnotes: "脚注"
 		};
 		/** English dictionary; the annotation keeps both dictionaries on one key set. */
 		var en = {
@@ -469,7 +485,7 @@ window.__ModuleLoader__.load({
 			skillCardPreview: "Preview",
 			skillCardSave: "Save",
 			skillCardClose: "Close",
-			skillCardViolationScript: "script elements are not allowed",
+			skillCardViolationScript: "script elements are not allowed inside the region",
 			skillCardViolationEvent: "event attributes are not allowed",
 			skillCardViolationUrl: "that URL scheme is not allowed",
 			skillCardViolationExternal: "elements that load over the network are not allowed",
@@ -553,7 +569,22 @@ window.__ModuleLoader__.load({
 			actionProblemUnavailable: "That target cannot run right now",
 			bareRunRunning: "Running skill {skill}",
 			bareRunDone: "The skill finished",
-			bareRunFailed: "The skill failed"
+			bareRunFailed: "The skill failed",
+			documentProblemForbidden: "The browser refused this read",
+			documentProblemPath: "That path cannot be used",
+			documentProblemCard: "This card no longer exists",
+			documentProblemNoWorkspace: "This card has no directory yet",
+			documentProblemOutside: "That path is outside the card’s directory",
+			documentProblemNotFound: "That file or directory is gone",
+			documentProblemNotDirectory: "That path is not a directory",
+			documentProblemNotFile: "That path is not a file",
+			documentProblemNotText: "That file is not text, so it cannot be shown",
+			documentProblemTooLarge: "That file is too large to show",
+			documentProblemUnreachable: "The card’s directory cannot be reached",
+			documentProblemUnreadable: "The answer could not be read",
+			documentCopy: "Copy",
+			documentCopied: "Copied",
+			documentFootnotes: "Footnotes"
 		};
 		//#endregion
 		//#region src/skill-card-contract.ts
@@ -581,6 +612,16 @@ window.__ModuleLoader__.load({
 		* before it starts, not after it fails.
 		*/
 		var WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
+		/**
+		* Document route: `GET cardId=…&path=…` lists one directory or reads one text file.
+		*
+		* The one route a card's own script calls. A template cannot read a filesystem — a page has
+		* no such API — so the documents a run wrote are read here, by the Host, through a read that
+		* is confined to the card's own workspace directory and refuses anything that is not text.
+		* `path` is relative to that directory (or absolute, and then it has to resolve inside it);
+		* an empty `path` names the directory itself.
+		*/
+		var WORKBENCH_SKILL_CARD_FILES_PATH = `${WORKBENCH_SKILL_CARD_PATH}/files`;
 		/** Maximum bytes of one template. */
 		var WORKBENCH_TEMPLATE_MAX_BYTES = 32768;
 		/** Maximum bytes of one stored result, counted over the structured value and the text output. */
@@ -760,7 +801,7 @@ window.__ModuleLoader__.load({
 			});
 			let queued = 0;
 			const readError = async (response) => {
-				return errorMessageOf(await readJson(response)) ?? `skill card route answered ${String(response.status)}`;
+				return errorMessageOf(await readJson$1(response)) ?? `skill card route answered ${String(response.status)}`;
 			};
 			return {
 				async read(signal) {
@@ -784,7 +825,7 @@ window.__ModuleLoader__.load({
 						status: "unavailable",
 						reason: await readError(response)
 					};
-					const snapshot = parseSnapshot(await readJson(response));
+					const snapshot = parseSnapshot(await readJson$1(response));
 					return snapshot === void 0 ? {
 						status: "unavailable",
 						reason: "skill card response did not match the contract"
@@ -820,7 +861,7 @@ window.__ModuleLoader__.load({
 							};
 						}
 						if (response.status === 409) {
-							const snapshot = parseSnapshot(await readJson(response));
+							const snapshot = parseSnapshot(await readJson$1(response));
 							return snapshot === void 0 ? {
 								status: "failed",
 								reason: "conflict response was not readable"
@@ -833,7 +874,7 @@ window.__ModuleLoader__.load({
 							status: "failed",
 							reason: await readError(response)
 						};
-						const snapshot = parseSnapshot(await readJson(response));
+						const snapshot = parseSnapshot(await readJson$1(response));
 						return snapshot === void 0 ? {
 							status: "failed",
 							reason: "skill card response did not match the contract"
@@ -867,7 +908,7 @@ window.__ModuleLoader__.load({
 							message: `skill card request failed: ${messageOf(error)}`
 						};
 					}
-					const body = await readJson(response);
+					const body = await readJson$1(response);
 					if (!response.ok) {
 						const error = errorOf(body);
 						return error === void 0 ? {
@@ -912,7 +953,7 @@ window.__ModuleLoader__.load({
 						status: "unavailable",
 						reason: await readError(response)
 					};
-					const body = await readJson(response);
+					const body = await readJson$1(response);
 					const state = parseRunResponse(body);
 					if (state === void 0) return {
 						status: "unavailable",
@@ -944,7 +985,7 @@ window.__ModuleLoader__.load({
 							reason: `skill card request failed: ${messageOf(error)}`
 						};
 					}
-					const body = await readJson(response);
+					const body = await readJson$1(response);
 					if (response.ok) {
 						const state = parseRunResponse(body);
 						return state === void 0 ? {
@@ -1003,7 +1044,7 @@ window.__ModuleLoader__.load({
 							reason: `skill card request failed: ${messageOf(error)}`
 						};
 					}
-					const body = await readJson(response);
+					const body = await readJson$1(response);
 					if (response.ok) {
 						const stored = parseResultEdit(body);
 						return stored === void 0 ? {
@@ -1043,7 +1084,7 @@ window.__ModuleLoader__.load({
 							reason: `skill card request failed: ${messageOf(error)}`
 						};
 					}
-					const body = await readJson(response);
+					const body = await readJson$1(response);
 					if (!response.ok) return {
 						status: "unavailable",
 						reason: errorOf(body)?.message ?? `skill card route answered ${String(response.status)}`
@@ -1064,7 +1105,7 @@ window.__ModuleLoader__.load({
 		* @param response - the response.
 		* @returns the decoded value, or undefined when it is not JSON.
 		*/
-		async function readJson(response) {
+		async function readJson$1(response) {
 			try {
 				return await response.json();
 			} catch {
@@ -1782,11 +1823,15 @@ window.__ModuleLoader__.load({
 		/**
 		* Why one element is refused.
 		* @param element - the element to judge.
+		* @param scope - which half of the document it sits in; a template's own script is allowed.
 		* @returns the reason, or undefined when the element is allowed.
 		*/
-		function forbiddenElementReason(element) {
+		function forbiddenElementReason(element, scope = "region") {
 			const tag = element.tagName.toLowerCase();
-			if (tag === "script") return "script";
+			if (tag === "script") {
+				if (scope === "template") return element.hasAttribute("src") ? "external-element" : void 0;
+				return "script";
+			}
 			if (tag === "input") return (element.getAttribute("type") ?? "").toLowerCase() === "image" ? "external-element" : void 0;
 			return EXTERNAL_ELEMENTS.has(tag) ? "external-element" : void 0;
 		}
@@ -1938,7 +1983,7 @@ window.__ModuleLoader__.load({
 		*/
 		function analyzeFragment(html) {
 			const found = [];
-			walk(parseTemplate(html), "root", found, html.toLowerCase());
+			walk(parseTemplate(html), "root", found, html.toLowerCase(), "region");
 			return found;
 		}
 		/** One declaration line: `<key>: card "name"` or `<key>: skill "name"`. */
@@ -2079,7 +2124,9 @@ window.__ModuleLoader__.load({
 		* @returns the violations, outermost first.
 		*/
 		function contentViolations(html) {
-			return analyzeFragment(html);
+			const found = [];
+			walk(parseTemplate(html), "root", found, html.toLowerCase(), "template");
+			return found;
 		}
 		/**
 		* Approximate where an element sits in the source text.
@@ -2101,8 +2148,9 @@ window.__ModuleLoader__.load({
 		* @param path - the path to its parent, for the report.
 		* @param found - the accumulator.
 		* @param lowerHtml - the template text, lowercased, for approximate positions.
+		* @param scope - which half of the document is being judged.
 		*/
-		function walk(node, path, found, lowerHtml) {
+		function walk(node, path, found, lowerHtml, scope) {
 			for (const child of [...node.childNodes]) {
 				if (child.nodeType !== Node.ELEMENT_NODE) continue;
 				const element = child;
@@ -2110,7 +2158,7 @@ window.__ModuleLoader__.load({
 				const here = `${path} > ${tag}`;
 				const offset = approximateTagOffset(lowerHtml, tag);
 				const at = offset === void 0 ? {} : { offset };
-				const reason = forbiddenElementReason(element);
+				const reason = forbiddenElementReason(element, scope);
 				if (reason !== void 0) {
 					found.push({
 						code: reason,
@@ -2135,7 +2183,7 @@ window.__ModuleLoader__.load({
 					token: "style",
 					...at
 				});
-				walk(element, here, found, lowerHtml);
+				walk(element, here, found, lowerHtml, scope);
 			}
 		}
 		//#endregion
@@ -2291,27 +2339,145 @@ window.__ModuleLoader__.load({
 		function filledTemplate(template, html) {
 			const region = findRegion(template);
 			if (region === void 0) return template;
-			return template.slice(0, region.start) + html + template.slice(region.end);
+			return template.slice(0, region.start) + withoutScripts(html) + template.slice(region.end);
+		}
+		/**
+		* Remove the script elements one region fragment carries.
+		*
+		* The region is model-authored on every run, so a script in it is text a language model
+		* wrote — refused here as well as by the analyser, because a stored result can reach the
+		* screen without passing the editor that would have refused it. The template's own script is
+		* untouched: it is outside the region, so it is not in this string.
+		* @param html - the region fragment.
+		* @returns the fragment with its scripts removed.
+		*/
+		function withoutScripts(html) {
+			const fragment = parseTemplate(html);
+			for (const script of [...fragment.querySelectorAll("script")]) script.remove();
+			const host = document.createElement("template");
+			host.content.append(fragment);
+			return host.innerHTML;
+		}
+		/**
+		* Global the binding is published on while one document's scripts run.
+		*
+		* A global because a script element can only be given code, not a closure. The wrapper below
+		* reads it synchronously at the moment the element runs, which is before the next document
+		* renders, so no two documents can see each other's binding.
+		*/
+		var BINDING_GLOBAL = "__dshWorkbenchDocumentBinding__";
+		/**
+		* Wrap one script's source so it receives its binding as a parameter.
+		*
+		* A parameter rather than a global lookup inside the script: the callbacks a script registers
+		* outlive the render, and one that read the global later would read whatever the next
+		* document published there.
+		* @param source - the script as the template wrote it.
+		* @returns the source to hand the element.
+		*/
+		function bindDocumentScript(source) {
+			return [
+				`(function (dsh) {`,
+				source,
+				``,
+				`})(globalThis.${BINDING_GLOBAL});`
+			].join("\n");
 		}
 		/**
 		* Render one document into a shadow root.
+		*
+		* The document is parsed inert, its scripts taken out, its forbidden constructs stripped, and
+		* the rest adopted into the root. Only then are the scripts re-created and appended: a script
+		* element that is inserted by the parser never runs, so running the template's code means
+		* building a second element for it — which is also where the binding is attached.
 		* @param root - the shadow root to fill; its previous children are replaced.
 		* @param html - the complete document.
+		* @param runtime - the card identity and binding factory; absent runs the document with no
+		* binding, which is what a preview outside a card does.
 		*/
-		function renderTemplate(root, html) {
+		function renderTemplate(root, html, runtime) {
 			const content = parseTemplate(html);
-			stripForbidden(content);
+			const scripts = takeScripts(content);
+			stripForbidden(content, "template");
 			root.replaceChildren(content);
+			if (scripts.length > 0) runScripts(root, scripts, runtime);
+		}
+		/**
+		* Take the inline script elements out of one parsed document, in document order.
+		*
+		* Every script leaves the tree: the ones that carry their code are returned to be re-created
+		* (a parsed one never runs), and the ones that name a URL are dropped.
+		* @param node - the parsed document's fragment.
+		* @returns what the allowed scripts carried.
+		*/
+		function takeScripts(node) {
+			const found = [];
+			for (const script of [...node.querySelectorAll("script")]) {
+				if (script.hasAttribute("src")) {
+					script.remove();
+					continue;
+				}
+				found.push({
+					type: script.getAttribute("type") ?? "",
+					source: script.textContent ?? ""
+				});
+				script.remove();
+			}
+			return found;
+		}
+		/**
+		* Re-create and run one document's scripts.
+		*
+		* The binding is published only for the synchronous span in which the elements are appended,
+		* and the wrapper hands it to the script as an argument, so an asynchronous callback keeps the
+		* card's own binding. A script that carried its code elsewhere was stripped with the rest of
+		* the forbidden constructs and never reaches here.
+		* @param root - the root the document was rendered into.
+		* @param scripts - the scripts, in document order.
+		* @param runtime - the card identity and binding factory.
+		*/
+		function runScripts(root, scripts, runtime) {
+			const binding = runtime?.bind({
+				cardId: runtime.cardId,
+				...runtime.runId === void 0 ? {} : { runId: runtime.runId },
+				root,
+				host: root.host
+			});
+			const scope = globalThis;
+			if (binding === void 0) {
+				for (const script of scripts) appendScript(root, script, false);
+				return;
+			}
+			scope[BINDING_GLOBAL] = binding;
+			try {
+				for (const script of scripts) appendScript(root, script, true);
+			} finally {
+				Reflect.deleteProperty(scope, BINDING_GLOBAL);
+			}
+		}
+		/**
+		* Append one script element, which is what makes its code run.
+		* @param root - the root to append into.
+		* @param script - the type and source it carried.
+		* @param bound - whether it is handed the document's binding.
+		*/
+		function appendScript(root, script, bound) {
+			const element = document.createElement("script");
+			if (script.type !== "") element.setAttribute("type", script.type);
+			element.textContent = bound ? bindDocumentScript(script.source) : script.source;
+			root.append(element);
 		}
 		/**
 		* Remove anything the document must not carry.
 		*
 		* Saving refuses these in a template, so removing them here covers the other source: a
 		* fragment a model authored, which can carry a construct into the document that no
-		* template ever held.
+		* template ever held. The scope is what decides whether the document's own script is such a
+		* construct: a template's is the user's code and stays, a region's has already been removed.
 		* @param node - the node to clean.
+		* @param scope - which half of the document this node came from.
 		*/
-		function stripForbidden(node) {
+		function stripForbidden(node, scope) {
 			for (const child of [...node.childNodes]) {
 				if (child.nodeType !== Node.ELEMENT_NODE) continue;
 				const element = child;
@@ -2319,12 +2485,12 @@ window.__ModuleLoader__.load({
 					element.remove();
 					continue;
 				}
-				if (forbiddenElementReason(element) !== void 0) {
+				if (forbiddenElementReason(element, scope) !== void 0) {
 					element.remove();
 					continue;
 				}
 				for (const attribute of [...element.attributes]) if (forbiddenAttributeReason(attribute.name, attribute.value) !== void 0) element.removeAttribute(attribute.name);
-				stripForbidden(element);
+				stripForbidden(element, scope);
 			}
 		}
 		//#endregion
@@ -2343,16 +2509,25 @@ window.__ModuleLoader__.load({
 		*/
 		/**
 		* Render one document inside a shadow root and observe its actions.
-		* @param props - the document, the host class, and the action handler.
+		* @param props - the document, the host class, the action handler, and the document runtime.
 		* @returns the host element.
 		*/
-		function ShadowHtml({ html, className, onAction }) {
+		function ShadowHtml({ html, className, onAction, cardId, runId, documents }) {
 			const host = (0, react.useRef)(null);
 			(0, react.useEffect)(() => {
 				const element = host.current;
 				if (element === null) return;
-				renderTemplate(element.shadowRoot ?? element.attachShadow({ mode: "open" }), html);
-			}, [html]);
+				renderTemplate(element.shadowRoot ?? element.attachShadow({ mode: "open" }), html, cardId === void 0 || documents === void 0 ? void 0 : {
+					cardId,
+					...runId === void 0 ? {} : { runId },
+					bind: documents
+				});
+			}, [
+				html,
+				cardId,
+				runId,
+				documents
+			]);
 			(0, react.useEffect)(() => {
 				const element = host.current;
 				if (element === null || onAction === void 0) return;
@@ -4131,20 +4306,22 @@ window.__ModuleLoader__.load({
 		* @param props - the view, `t`, and the click outlet.
 		* @returns the body element.
 		*/
-		function SkillCardBody({ view, t, onAction }) {
+		function SkillCardBody({ view, cardId, t, onAction, documents }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: skill_card_module_default.body,
-				children: cardContent(view, t, onAction)
+				children: cardContent(view, cardId, t, onAction, documents)
 			});
 		}
 		/**
 		* Render whichever content the card currently has.
 		* @param view - the card view.
+		* @param cardId - the card the body belongs to.
 		* @param t - translator.
 		* @param onAction - click outlet for buttons the document carries.
+		* @param documents - binding factory for the rendered document's own script.
 		* @returns the content element.
 		*/
-		function cardContent(view, t, onAction) {
+		function cardContent(view, cardId, t, onAction, documents) {
 			if (view.status === "loading") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
 				title: t("skillCardLoading"),
 				body: t("skillCardLoadingBody")
@@ -4170,7 +4347,10 @@ window.__ModuleLoader__.load({
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ShadowHtml, {
 				html: filledTemplate(view.template, filled),
 				className: skill_card_module_default.template,
-				onAction
+				onAction,
+				cardId,
+				runId: view.result.runId,
+				documents
 			});
 		}
 		/** One empty-state block. */
@@ -4254,6 +4434,306 @@ window.__ModuleLoader__.load({
 			observe();
 			list.subscribe(observe);
 			return { current: () => held() ?? remembered };
+		}
+		//#endregion
+		//#region src/client/skill-card/documents.ts
+		/**
+		* The binding a card document's own script receives, and the one read it exists for.
+		*
+		* A template is the user's HTML, and its script is the user's code: that code runs when the
+		* card renders. What it cannot do is reach the filesystem, because a page has no such API —
+		* so the two questions a document reader asks ("what is in this directory", "what does this
+		* file say") are answered through the Host's document route, and the Markdown those files
+		* hold is rendered with the application's own renderer.
+		*
+		* Both halves are deliberately small: three functions a template author can learn from one
+		* example, and no general bridge to the page or the Host.
+		* @module dsh-workbench/client/skill-card/documents
+		*/
+		/**
+		* One failure a document read reported, as the script sees it.
+		*
+		* An Error rather than a result object, because the script that asks is ordinary code writing
+		* `try`/`catch`: a rejection it can catch is the shape it already knows.
+		*/
+		var WorkbenchDocumentError = class extends Error {
+			code;
+			/**
+			* @param code - the route's failure code.
+			* @param message - the sentence to show.
+			*/
+			constructor(code, message) {
+				super(message);
+				this.code = code;
+				this.name = "WorkbenchDocumentError";
+			}
+		};
+		/**
+		* Build the binder the renderer hands each document's script.
+		* @param options - translator and transport seam.
+		* @returns the binder.
+		*/
+		function createWorkbenchDocumentBinder(options) {
+			const fetcher = options.fetcher ?? ((input, init) => globalThis.fetch(input, init));
+			const t = options.t;
+			const labels = markdownLabels(t);
+			return (input) => {
+				const files = {
+					list: async (path) => await requestListing(fetcher, input.cardId, path, t),
+					read: async (path) => await requestText(fetcher, input.cardId, path, t)
+				};
+				return {
+					cardId: input.cardId,
+					...input.runId === void 0 ? {} : { runId: input.runId },
+					root: input.root,
+					host: input.host,
+					files,
+					markdown: { render: async (element, text) => {
+						renderMarkdown(element, text, labels);
+					} }
+				};
+			};
+		}
+		/**
+		* Ask the Host for one directory listing.
+		* @param fetcher - transport.
+		* @param cardId - the card whose workspace is being read.
+		* @param path - path within it, empty for the workspace itself.
+		* @param t - translator, for a failure sentence.
+		* @returns the listing.
+		* @throws {WorkbenchDocumentError} when the route refuses or cannot answer.
+		*/
+		async function requestListing(fetcher, cardId, path, t) {
+			const listing = parseListing(await requestDocument(fetcher, cardId, path, t));
+			if (listing === void 0) throw new WorkbenchDocumentError("unreachable", t("documentProblemUnreadable"));
+			return listing;
+		}
+		/**
+		* Ask the Host for one file's text.
+		* @param fetcher - transport.
+		* @param cardId - the card whose workspace is being read.
+		* @param path - the file's path within it.
+		* @param t - translator, for a failure sentence.
+		* @returns the text and size.
+		* @throws {WorkbenchDocumentError} when the route refuses or cannot answer.
+		*/
+		async function requestText(fetcher, cardId, path, t) {
+			const file = parseText(await requestDocument(fetcher, cardId, path, t));
+			if (file === void 0) throw new WorkbenchDocumentError("unreachable", t("documentProblemUnreadable"));
+			return file;
+		}
+		/**
+		* Send one document request and return its decoded body.
+		* @param fetcher - transport.
+		* @param cardId - the card whose workspace is being read.
+		* @param path - the path to read.
+		* @param t - translator, for a failure sentence.
+		* @returns the decoded body.
+		* @throws {WorkbenchDocumentError} for a refused or unreadable answer.
+		*/
+		async function requestDocument(fetcher, cardId, path, t) {
+			const query = `?cardId=${encodeURIComponent(cardId)}&path=${encodeURIComponent(path)}`;
+			let response;
+			try {
+				response = await fetcher(`${WORKBENCH_SKILL_CARD_FILES_PATH}${query}`, {
+					method: "GET",
+					credentials: "same-origin",
+					redirect: "error",
+					cache: "no-store",
+					headers: { "Accept": "application/json" }
+				});
+			} catch (error) {
+				throw new WorkbenchDocumentError("unreachable", `${t("documentProblemUnreachable")}${error instanceof Error ? ` · ${error.message}` : ""}`);
+			}
+			const body = await readJson(response);
+			if (response.ok) return body;
+			const failure = failureOf(body);
+			const code = failure?.code;
+			const key = code === void 0 || !(code in ERROR_KEYS) ? "documentProblemUnreachable" : ERROR_KEYS[code];
+			throw new WorkbenchDocumentError(code ?? "unreachable", key === void 0 ? t("documentProblemUnreachable") : failure?.message === void 0 ? t(key) : `${t(key)} · ${failure.message}`);
+		}
+		/**
+		* Locale key for every failure the document route reports.
+		*
+		* A record rather than a lookup with a fallback, so a code added to the wire fails compilation
+		* here until it has copy.
+		*/
+		var ERROR_KEYS = {
+			"unauthorized": "documentProblemForbidden",
+			"forbidden": "documentProblemForbidden",
+			"invalid-request": "documentProblemPath",
+			"invalid-card": "documentProblemCard",
+			"no-workspace": "documentProblemNoWorkspace",
+			"outside-workspace": "documentProblemOutside",
+			"not-found": "documentProblemNotFound",
+			"not-directory": "documentProblemNotDirectory",
+			"not-file": "documentProblemNotFile",
+			"not-text": "documentProblemNotText",
+			"too-large": "documentProblemTooLarge"
+		};
+		/**
+		* Read one response body as JSON.
+		* @param response - the response.
+		* @returns the decoded value, or undefined when it is not JSON.
+		*/
+		async function readJson(response) {
+			try {
+				return await response.json();
+			} catch {
+				return;
+			}
+		}
+		/**
+		* Read the error fields of one body.
+		* @param body - the decoded body.
+		* @returns the code and message, or undefined when the body is not an error.
+		*/
+		function failureOf(body) {
+			if (typeof body !== "object" || body === null) return void 0;
+			const error = body.error;
+			if (typeof error !== "object" || error === null) return void 0;
+			const fields = error;
+			return {
+				...typeof fields.code === "string" ? { code: fields.code } : {},
+				...typeof fields.message === "string" ? { message: fields.message } : {}
+			};
+		}
+		/**
+		* Validate one listing body.
+		* @param value - the decoded body.
+		* @returns the listing, or undefined when a field is outside the contract.
+		*/
+		function parseListing(value) {
+			if (typeof value !== "object" || value === null) return void 0;
+			const body = value;
+			if (body.apiVersion !== 1 || body.kind !== "directory") return void 0;
+			if (typeof body.path !== "string" || !Array.isArray(body.entries)) return void 0;
+			if (typeof body.truncated !== "boolean") return void 0;
+			const entries = [];
+			for (const raw of body.entries) {
+				if (typeof raw !== "object" || raw === null) return void 0;
+				const entry = raw;
+				if (typeof entry.name !== "string" || typeof entry.path !== "string") return void 0;
+				if (entry.type !== "directory" && entry.type !== "file" && entry.type !== "other") return void 0;
+				if (entry.size !== void 0 && typeof entry.size !== "number") return void 0;
+				entries.push({
+					name: entry.name,
+					path: entry.path,
+					type: entry.type,
+					...entry.size === void 0 ? {} : { size: entry.size }
+				});
+			}
+			return {
+				path: body.path,
+				entries,
+				truncated: body.truncated
+			};
+		}
+		/**
+		* Validate one file body.
+		* @param value - the decoded body.
+		* @returns the file, or undefined when a field is outside the contract.
+		*/
+		function parseText(value) {
+			if (typeof value !== "object" || value === null) return void 0;
+			const body = value;
+			if (body.apiVersion !== 1 || body.kind !== "file") return void 0;
+			if (typeof body.path !== "string" || typeof body.text !== "string") return void 0;
+			if (typeof body.bytes !== "number") return void 0;
+			return {
+				path: body.path,
+				text: body.text,
+				bytes: body.bytes
+			};
+		}
+		/** Copy the application's Markdown chrome needs, built once per translator. */
+		var LABEL_CACHE = /* @__PURE__ */ new WeakMap();
+		/**
+		* The Markdown chrome labels for one translator.
+		* @param t - translator.
+		* @returns reference-stable labels, which the renderer caches by identity.
+		*/
+		function markdownLabels(t) {
+			const cached = LABEL_CACHE.get(t);
+			if (cached !== void 0) return cached;
+			const labels = {
+				code: {
+					copyLabel: t("documentCopy"),
+					copiedLabel: t("documentCopied")
+				},
+				footnotes: t("documentFootnotes")
+			};
+			LABEL_CACHE.set(t, labels);
+			return labels;
+		}
+		/** React roots already mounted for one element of a rendered document. */
+		var MOUNTED = /* @__PURE__ */ new WeakMap();
+		/**
+		* Render one Markdown document into an element of a card's own tree.
+		*
+		* The application's Markdown stylesheet is compiled against elements in the light DOM, so the
+		* text is rendered inside a shadow root of its own and that root adopts the page's stylesheets:
+		* the document then reads exactly as the assistant's messages do, while the containing card's
+		* own CSS stays outside it. A page whose stylesheets cannot be read (an engine without
+		* constructable stylesheets) still shows the document, unstyled rather than not at all.
+		* @param element - the element to fill; it is emptied of the previous document.
+		* @param text - the Markdown source.
+		* @param labels - localized chrome.
+		*/
+		function renderMarkdown(element, text, labels) {
+			if (_deepseek_ai_dsh_client_ui_primitives.MarkdownText === void 0 || _deepseek_ai_dsh_client_ui_primitives.MarkdownText === null) {
+				element.textContent = text;
+				return;
+			}
+			const inner = element.shadowRoot ?? element.attachShadow({ mode: "open" });
+			adoptApplicationStyles(inner);
+			let mount = inner.querySelector("[data-workbench-markdown]");
+			if (!(mount instanceof HTMLElement)) {
+				mount = document.createElement("div");
+				mount.setAttribute("data-workbench-markdown", "");
+				inner.append(mount);
+			}
+			const root = MOUNTED.get(mount) ?? (0, react_dom_client.createRoot)(mount);
+			MOUNTED.set(mount, root);
+			root.render((0, react.createElement)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+				text,
+				labels
+			}));
+		}
+		/** The page's stylesheets, compiled once and shared by every rendered document. */
+		var applicationSheet;
+		/**
+		* Adopt the page's stylesheets into one shadow root.
+		*
+		* Copied once into one constructed sheet rather than per document: the sheet object is shared,
+		* so the copy and the parse happen on the first document a card renders. A stylesheet the
+		* browser will not let this origin read (a cross-origin link) is skipped rather than failing
+		* the render, because the Markdown still has to appear.
+		* @param root - the shadow root to style.
+		*/
+		function adoptApplicationStyles(root) {
+			const current = root.adoptedStyleSheets;
+			if (current === void 0 || current.length > 0) return;
+			const sheet = applicationStyles();
+			if (sheet === void 0) return;
+			root.adoptedStyleSheets = [sheet];
+		}
+		/**
+		* Build the shared sheet from the page's own CSS.
+		* @returns the sheet, or undefined when the page's styles cannot be read here.
+		*/
+		function applicationStyles() {
+			if (applicationSheet !== void 0) return applicationSheet;
+			if (typeof CSSStyleSheet !== "function" || !("replaceSync" in CSSStyleSheet.prototype)) return void 0;
+			const parts = [];
+			for (const sheet of [...document.styleSheets]) try {
+				for (const rule of [...sheet.cssRules]) parts.push(rule.cssText);
+			} catch {}
+			if (parts.length === 0) return void 0;
+			const constructed = new CSSStyleSheet();
+			constructed.replaceSync(parts.join("\n"));
+			applicationSheet = constructed;
+			return constructed;
 		}
 		//#endregion
 		//#region src/client/skill-card/session.ts
@@ -6654,7 +7134,7 @@ window.__ModuleLoader__.load({
 		* @returns the result page.
 		*/
 		function SkillCardResultPage(props) {
-			const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props;
+			const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t, documents } = props;
 			const cardTitle = (0, react.useCallback)((id, name) => cardFaceTitle({
 				cardId: id,
 				name
@@ -6768,8 +7248,10 @@ window.__ModuleLoader__.load({
 							"aria-busy": running ? true : void 0,
 							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SkillCardBody, {
 								view,
+								cardId,
 								t,
-								onAction: actions.click
+								onAction: actions.click,
+								documents
 							})
 						})
 					}), refinable && !editing && (refining || !busy) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RefinePanel, {
@@ -7026,6 +7508,7 @@ window.__ModuleLoader__.load({
 					fallbackTitle: labelOf(selection.cardId),
 					openCard,
 					t,
+					...skillCards.documents === void 0 ? {} : { documents: skillCards.documents },
 					onBack: selection.view === "result" ? () => openCard(selection.cardId, "runs") : closeCard
 				};
 				if (selection.view === "result") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SkillCardResultPage, { ...page });
@@ -7276,6 +7759,7 @@ window.__ModuleLoader__.load({
 			}), "workbench: dictionaries");
 			const t = ctx.locale.bind(NS);
 			const cards = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)([]);
+			const documents = createWorkbenchDocumentBinder({ t });
 			const api = createWorkbenchLayoutApi();
 			const skillCardApi = createWorkbenchSkillCardApi();
 			const modelResolver = { current: void 0 };
@@ -7365,7 +7849,8 @@ window.__ModuleLoader__.load({
 						runSessionId,
 						pickerSessionId,
 						models,
-						workspacePicker
+						workspacePicker,
+						documents
 					},
 					closeCard,
 					openCard

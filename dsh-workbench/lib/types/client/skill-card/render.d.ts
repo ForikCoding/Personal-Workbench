@@ -9,6 +9,7 @@
  * model, which read the template, the skill, and whatever the skill's tools returned.
  * @module dsh-workbench/client/skill-card/render
  */
+import type { WorkbenchFilesListing, WorkbenchFilesText } from '../../skill-card-contract.ts';
 /**
  * What one click on a child-authored button turned into.
  *
@@ -89,8 +90,98 @@ export declare function resultHeadline(html: string): string | undefined;
  */
 export declare function filledTemplate(template: string, html: string): string;
 /**
+ * Remove the script elements one region fragment carries.
+ *
+ * The region is model-authored on every run, so a script in it is text a language model
+ * wrote — refused here as well as by the analyser, because a stored result can reach the
+ * screen without passing the editor that would have refused it. The template's own script is
+ * untouched: it is outside the region, so it is not in this string.
+ * @param html - the region fragment.
+ * @returns the fragment with its scripts removed.
+ */
+export declare function withoutScripts(html: string): string;
+/**
+ * What one document's own script is given while it runs.
+ *
+ * Supplied by the card: the script is the template author's code, so it runs as the page runs
+ * — but it has no way of its own to read the directory a run wrote into, which is the whole
+ * reason this exists.
+ */
+export interface WorkbenchScriptBinding {
+    /** The card the document belongs to. */
+    readonly cardId: string;
+    /** The run the document shows, when it shows one. */
+    readonly runId?: string | undefined;
+    /** The root the document was rendered into. */
+    readonly root: ShadowRoot;
+    /** The element that root belongs to. */
+    readonly host: Element;
+    /** The card's documents, read through the Host. */
+    readonly files: {
+        /**
+         * List one directory of the card's workspace.
+         * @param path - path relative to the workspace, or absolute; empty names the workspace.
+         * @returns the listing.
+         */
+        list(path: string): Promise<WorkbenchFilesListing>;
+        /**
+         * Read one text file of the card's workspace.
+         * @param path - path relative to the workspace, or absolute.
+         * @returns the file's text and size.
+         */
+        read(path: string): Promise<WorkbenchFilesText>;
+    };
+    /** Rendering one Markdown document into an element of the card's own tree. */
+    readonly markdown: {
+        /**
+         * Render Markdown into one element.
+         * @param element - the element to fill; it must be inside this document.
+         * @param text - the Markdown source.
+         */
+        render(element: Element, text: string): Promise<void>;
+    };
+}
+/**
+ * How one document's scripts are supplied with their binding.
+ *
+ * The card builds one binding per rendered document, so a script's `dsh` names the card it
+ * was rendered in and not whichever card rendered last.
+ */
+export type WorkbenchScriptBinder = (input: {
+    readonly cardId: string;
+    readonly runId?: string | undefined;
+    readonly root: ShadowRoot;
+    readonly host: Element;
+}) => WorkbenchScriptBinding;
+/** What one render needs to run the document's own scripts. */
+export interface WorkbenchRenderRuntime {
+    /** The card the document belongs to. */
+    readonly cardId: string;
+    /** The run it shows, when it shows one. */
+    readonly runId?: string | undefined;
+    /** Builds the binding each script sees. */
+    readonly bind: WorkbenchScriptBinder;
+}
+/**
+ * Wrap one script's source so it receives its binding as a parameter.
+ *
+ * A parameter rather than a global lookup inside the script: the callbacks a script registers
+ * outlive the render, and one that read the global later would read whatever the next
+ * document published there.
+ * @param source - the script as the template wrote it.
+ * @returns the source to hand the element.
+ */
+export declare function bindDocumentScript(source: string): string;
+/**
  * Render one document into a shadow root.
+ *
+ * The document is parsed inert, its scripts taken out, its forbidden constructs stripped, and
+ * the rest adopted into the root. Only then are the scripts re-created and appended: a script
+ * element that is inserted by the parser never runs, so running the template's code means
+ * building a second element for it — which is also where the binding is attached.
  * @param root - the shadow root to fill; its previous children are replaced.
  * @param html - the complete document.
+ * @param runtime - the card identity and binding factory; absent runs the document with no
+ * binding, which is what a preview outside a card does.
  */
-export declare function renderTemplate(root: ShadowRoot, html: string): void;
+export declare function renderTemplate(root: ShadowRoot, html: string, runtime?: WorkbenchRenderRuntime): void;

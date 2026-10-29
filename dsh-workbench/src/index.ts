@@ -16,7 +16,7 @@ import { WORKBENCH_LAYOUT_DOMAIN, WORKBENCH_LAYOUT_TABLE } from './layout-spec.t
 import { createWorkbenchLayoutHandler } from './layout-route.ts'
 import type { WorkbenchHostContext } from './layout-route.ts'
 import { WorkbenchLayoutService } from './layout-service.ts'
-import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_DIRECTORY_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
+import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_DIRECTORY_PATH, WORKBENCH_SKILL_CARD_FILES_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
 import type { WorkbenchSandboxMode } from './skill-card-contract.ts'
 import {
   WORKBENCH_CARD_TABLE,
@@ -28,6 +28,7 @@ import { assertSubagentProvider, probeSubagentSeam } from './skill-card-provider
 import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts'
 import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import { statDirectory } from './skill-card-directory.ts'
+import { createWorkbenchSkillCardFilesHandler } from './skill-card-files-route.ts'
 import { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
 import { cardSelection } from './skill-card-runner.ts'
 import {
@@ -324,6 +325,18 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
         path: WORKBENCH_SKILL_CARD_DIRECTORY_PATH,
         handler: createWorkbenchSkillCardDirectoryHandler({ statDirectory, fence: host.connection, warn }),
       }), 'workbench: skill card directory route'),
+      // The documents a card's template script reads. A page has no filesystem, so the list
+      // and the file text come from here; the read is confined to the card's own workspace,
+      // which is the directory its runs write into.
+      ctx.effect(() => host.webServer.register({
+        kind: 'exact',
+        path: WORKBENCH_SKILL_CARD_FILES_PATH,
+        handler: createWorkbenchSkillCardFilesHandler({
+          workspaceOf: (cardId) => store.read().cards.find(card => card.cardId === cardId)?.workspace?.path,
+          fence: host.connection,
+          warn,
+        }),
+      }), 'workbench: skill card documents route'),
     ]
     return async () => {
       for (const dispose of disposers) dispose()

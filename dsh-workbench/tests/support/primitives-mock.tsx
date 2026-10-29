@@ -80,6 +80,14 @@ export function primitivesMock(): Record<string, unknown> {
         {open && children}
       </div>
     ),
+    /**
+     * Stub of the Markdown renderer: the document binding owns *when* a file's text is
+     * rendered and *where*, which is what the spec pins; the renderer's own output belongs to
+     * its package.
+     */
+    MarkdownText: ({ text, labels }: { text: string; labels?: { footnotes?: string } }): ReactNode => (
+      <div data-markdown="" data-footnotes={labels?.footnotes}>{text}</div>
+    ),
     Menu: ({ open, items = [], anchor, onSelect }: {
       open: boolean
       items?: readonly { id: string; label?: ReactNode }[]

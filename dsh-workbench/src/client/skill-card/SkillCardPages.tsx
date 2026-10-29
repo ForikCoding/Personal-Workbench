@@ -34,6 +34,7 @@ import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
+import type { WorkbenchScriptBinder } from './render.ts'
 import css from './skill-card.module.css'
 
 /**
@@ -360,6 +361,14 @@ export interface SkillCardPageProps {
    * @returns the localized text.
    */
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  /**
+   * Builds the binding the rendered document's own script receives.
+   *
+   * The document a card renders is the user's own HTML, and its script may read the card's
+   * directory. Omitted leaves that script running with no card behind it, which is what a
+   * composition without the document route does.
+   */
+  readonly documents?: WorkbenchScriptBinder | undefined
 }
 
 /** Rows the revision field grows to before it scrolls instead. */
@@ -731,7 +740,7 @@ function RunHistoryRow({
  * @returns the result page.
  */
 export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t } = props
+  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t, documents } = props
   // The face's own naming rule, reused so an action declaration can address this card
   // by the title the user actually reads on it.
   const cardTitle = useCallback(
@@ -894,7 +903,13 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                 )
                 : (
                   <div data-result-busy={running ? 'true' : 'false'} aria-busy={running ? true : undefined}>
-                    <SkillCardBody view={view} t={t} onAction={actions.click} />
+                    <SkillCardBody
+                      view={view}
+                      cardId={cardId}
+                      t={t}
+                      onAction={actions.click}
+                      documents={documents}
+                    />
                   </div>
                 )}
             </section>

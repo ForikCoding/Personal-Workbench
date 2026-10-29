@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   WORKBENCH_RESULT_HEADLINE_MAX_LENGTH,
+  bindDocumentScript,
   documentText,
   filledTemplate,
   renderTemplate,
@@ -194,6 +195,78 @@ describe('workbench skill card render', () => {
     it('keeps the template’s own stylesheet when the fragment carries an external one', () => {
       const root = rendered(filledTemplate(TEMPLATE, '<style>@import url(a.css);</style>'))
       expect(root.querySelector('style')?.textContent).toContain('color: red')
+    })
+  })
+
+  describe('running the template’s own script', () => {
+    /**
+     * Render one document with a binding, and hand back the root.
+     * @param html - the complete document.
+     * @param seen - receives the binding the script was handed.
+     * @returns the shadow root.
+     */
+    function renderedWithBinding(html: string, seen: { current?: { cardId: string } }): ShadowRoot {
+      const host = document.createElement('div')
+      document.body.append(host)
+      const root = host.attachShadow({ mode: 'open' })
+      renderTemplate(root, html, {
+        cardId: 'card-a',
+        bind: (input) => {
+          const binding = {
+            cardId: input.cardId,
+            root: input.root,
+            host: input.host,
+            files: { list: async () => ({ path: '', entries: [], truncated: false }), read: async () => ({ path: '', text: '', bytes: 0 }) },
+            markdown: { render: async () => {} },
+          }
+          seen.current = binding
+          return binding
+        },
+      })
+      return root
+    }
+
+    it('keeps the document’s script and hands it the card’s binding', () => {
+      // The script element is re-created rather than parsed, which is what makes it run; the
+      // wrapper is what hands it the binding, so a callback that outlives the render still
+      // reads this card and not whichever rendered next.
+      const seen: { current?: { cardId: string } } = {}
+      const root = renderedWithBinding('<p>a</p><script>void 0</script>', seen)
+      const scripts = root.querySelectorAll('script')
+      expect(scripts).toHaveLength(1)
+      expect(scripts[0]?.textContent).toContain('(function (dsh) {')
+      expect(scripts[0]?.textContent).toContain('globalThis.__dshWorkbenchDocumentBinding__')
+      expect(seen.current?.cardId).toBe('card-a')
+    })
+
+    it('wraps a script so its body can reach the card as `dsh`', () => {
+      // jsdom does not run an appended script, so the wrapper is executed here instead: this
+      // is the one property that matters — the body sees the binding as its parameter, not
+      // through a global it would have to read later.
+      const scope: Record<string, unknown> = { __dshWorkbenchDocumentBinding__: { cardId: 'card-a' } }
+      const run = new Function('globalThis', bindDocumentScript('globalThis.seen = dsh.cardId')) as (
+        scope: Record<string, unknown>,
+      ) => void
+      run(scope)
+      expect(scope.seen).toBe('card-a')
+    })
+
+    it('removes a script whose source lives elsewhere, and leaves the rest alone', () => {
+      const root = renderedWithBinding('<p>kept</p><script src="https://x/y.js"></script>', {})
+      expect(root.querySelectorAll('script')).toHaveLength(0)
+      expect(root.textContent).toContain('kept')
+    })
+
+    it('runs a document with no binding when the card supplies none', () => {
+      const root = rendered('<p id="out"></p><script>document.title = "ran"</script>')
+      expect(root.querySelectorAll('script')).toHaveLength(1)
+      expect(root.querySelector('script')?.textContent).not.toContain('__dshWorkbenchDocumentBinding__')
+    })
+
+    it('leaves no binding global behind for the next document', () => {
+      renderedWithBinding('<script>void 0</script>', {})
+      const scope = globalThis as unknown as Record<string, unknown>
+      expect('__dshWorkbenchDocumentBinding__' in scope).toBe(false)
     })
   })
 })

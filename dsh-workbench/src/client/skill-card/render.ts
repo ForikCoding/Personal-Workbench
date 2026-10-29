@@ -16,6 +16,7 @@ import {
   WORKBENCH_ACTION_PAYLOAD_MAX_BYTES,
   WORKBENCH_PAYLOAD_ATTRIBUTE,
 } from '../../skill-card-contract.ts'
+import type { WorkbenchFilesListing, WorkbenchFilesText } from '../../skill-card-contract.ts'
 import { forbiddenAttributeReason, forbiddenElementReason, hasExternalCss } from './policy.ts'
 import { findRegion, parseTemplate } from './template.ts'
 
@@ -204,18 +205,215 @@ function singleLine(text: string): string {
 export function filledTemplate(template: string, html: string): string {
   const region = findRegion(template)
   if (region === undefined) return template
-  return template.slice(0, region.start) + html + template.slice(region.end)
+  return template.slice(0, region.start) + withoutScripts(html) + template.slice(region.end)
+}
+
+/**
+ * Remove the script elements one region fragment carries.
+ *
+ * The region is model-authored on every run, so a script in it is text a language model
+ * wrote — refused here as well as by the analyser, because a stored result can reach the
+ * screen without passing the editor that would have refused it. The template's own script is
+ * untouched: it is outside the region, so it is not in this string.
+ * @param html - the region fragment.
+ * @returns the fragment with its scripts removed.
+ */
+export function withoutScripts(html: string): string {
+  const fragment = parseTemplate(html)
+  for (const script of [...fragment.querySelectorAll('script')]) script.remove()
+  // Serialised through a template rather than a div: a template parses its content in the same
+  // permissive context the region was parsed in, so a structure a div would refuse to hold is
+  // written back as it came.
+  const host = document.createElement('template')
+  host.content.append(fragment)
+  return host.innerHTML
+}
+
+/**
+ * What one document's own script is given while it runs.
+ *
+ * Supplied by the card: the script is the template author's code, so it runs as the page runs
+ * — but it has no way of its own to read the directory a run wrote into, which is the whole
+ * reason this exists.
+ */
+export interface WorkbenchScriptBinding {
+  /** The card the document belongs to. */
+  readonly cardId: string
+  /** The run the document shows, when it shows one. */
+  readonly runId?: string | undefined
+  /** The root the document was rendered into. */
+  readonly root: ShadowRoot
+  /** The element that root belongs to. */
+  readonly host: Element
+  /** The card's documents, read through the Host. */
+  readonly files: {
+    /**
+     * List one directory of the card's workspace.
+     * @param path - path relative to the workspace, or absolute; empty names the workspace.
+     * @returns the listing.
+     */
+    list(path: string): Promise<WorkbenchFilesListing>
+    /**
+     * Read one text file of the card's workspace.
+     * @param path - path relative to the workspace, or absolute.
+     * @returns the file's text and size.
+     */
+    read(path: string): Promise<WorkbenchFilesText>
+  }
+  /** Rendering one Markdown document into an element of the card's own tree. */
+  readonly markdown: {
+    /**
+     * Render Markdown into one element.
+     * @param element - the element to fill; it must be inside this document.
+     * @param text - the Markdown source.
+     */
+    render(element: Element, text: string): Promise<void>
+  }
+}
+
+/**
+ * How one document's scripts are supplied with their binding.
+ *
+ * The card builds one binding per rendered document, so a script's `dsh` names the card it
+ * was rendered in and not whichever card rendered last.
+ */
+export type WorkbenchScriptBinder = (input: {
+  readonly cardId: string
+  readonly runId?: string | undefined
+  readonly root: ShadowRoot
+  readonly host: Element
+}) => WorkbenchScriptBinding
+
+/** What one render needs to run the document's own scripts. */
+export interface WorkbenchRenderRuntime {
+  /** The card the document belongs to. */
+  readonly cardId: string
+  /** The run it shows, when it shows one. */
+  readonly runId?: string | undefined
+  /** Builds the binding each script sees. */
+  readonly bind: WorkbenchScriptBinder
+}
+
+/**
+ * Global the binding is published on while one document's scripts run.
+ *
+ * A global because a script element can only be given code, not a closure. The wrapper below
+ * reads it synchronously at the moment the element runs, which is before the next document
+ * renders, so no two documents can see each other's binding.
+ */
+const BINDING_GLOBAL = '__dshWorkbenchDocumentBinding__'
+
+/**
+ * Wrap one script's source so it receives its binding as a parameter.
+ *
+ * A parameter rather than a global lookup inside the script: the callbacks a script registers
+ * outlive the render, and one that read the global later would read whatever the next
+ * document published there.
+ * @param source - the script as the template wrote it.
+ * @returns the source to hand the element.
+ */
+export function bindDocumentScript(source: string): string {
+  return [
+    `(function (dsh) {`,
+    source,
+    ``,
+    `})(globalThis.${BINDING_GLOBAL});`,
+  ].join('\n')
 }
 
 /**
  * Render one document into a shadow root.
+ *
+ * The document is parsed inert, its scripts taken out, its forbidden constructs stripped, and
+ * the rest adopted into the root. Only then are the scripts re-created and appended: a script
+ * element that is inserted by the parser never runs, so running the template's code means
+ * building a second element for it — which is also where the binding is attached.
  * @param root - the shadow root to fill; its previous children are replaced.
  * @param html - the complete document.
+ * @param runtime - the card identity and binding factory; absent runs the document with no
+ * binding, which is what a preview outside a card does.
  */
-export function renderTemplate(root: ShadowRoot, html: string): void {
+export function renderTemplate(root: ShadowRoot, html: string, runtime?: WorkbenchRenderRuntime): void {
   const content = parseTemplate(html)
-  stripForbidden(content)
+  const scripts = takeScripts(content)
+  stripForbidden(content, 'template')
   root.replaceChildren(content)
+  if (scripts.length > 0) runScripts(root, scripts, runtime)
+}
+
+/**
+ * Take the inline script elements out of one parsed document, in document order.
+ *
+ * Every script leaves the tree: the ones that carry their code are returned to be re-created
+ * (a parsed one never runs), and the ones that name a URL are dropped.
+ * @param node - the parsed document's fragment.
+ * @returns what the allowed scripts carried.
+ */
+function takeScripts(node: DocumentFragment): { readonly type: string; readonly source: string }[] {
+  const found: { readonly type: string; readonly source: string }[] = []
+  for (const script of [...node.querySelectorAll('script')]) {
+    // A script whose code lives at a URL is refused here rather than collected: it is taken
+    // out of the tree on the way past, so the stripper never sees it to refuse it.
+    if (script.hasAttribute('src')) {
+      script.remove()
+      continue
+    }
+    found.push({ type: script.getAttribute('type') ?? '', source: script.textContent ?? '' })
+    script.remove()
+  }
+  return found
+}
+
+/**
+ * Re-create and run one document's scripts.
+ *
+ * The binding is published only for the synchronous span in which the elements are appended,
+ * and the wrapper hands it to the script as an argument, so an asynchronous callback keeps the
+ * card's own binding. A script that carried its code elsewhere was stripped with the rest of
+ * the forbidden constructs and never reaches here.
+ * @param root - the root the document was rendered into.
+ * @param scripts - the scripts, in document order.
+ * @param runtime - the card identity and binding factory.
+ */
+function runScripts(
+  root: ShadowRoot,
+  scripts: readonly { readonly type: string; readonly source: string }[],
+  runtime: WorkbenchRenderRuntime | undefined,
+): void {
+  const binding = runtime?.bind({
+    cardId: runtime.cardId,
+    ...runtime.runId === undefined ? {} : { runId: runtime.runId },
+    root,
+    host: root.host,
+  })
+  const scope = globalThis as unknown as Record<string, unknown>
+  if (binding === undefined) {
+    for (const script of scripts) appendScript(root, script, false)
+    return
+  }
+  scope[BINDING_GLOBAL] = binding
+  try {
+    for (const script of scripts) appendScript(root, script, true)
+  } finally {
+    Reflect.deleteProperty(scope, BINDING_GLOBAL)
+  }
+}
+
+/**
+ * Append one script element, which is what makes its code run.
+ * @param root - the root to append into.
+ * @param script - the type and source it carried.
+ * @param bound - whether it is handed the document's binding.
+ */
+function appendScript(
+  root: ShadowRoot,
+  script: { readonly type: string; readonly source: string },
+  bound: boolean,
+): void {
+  const element = document.createElement('script')
+  if (script.type !== '') element.setAttribute('type', script.type)
+  element.textContent = bound ? bindDocumentScript(script.source) : script.source
+  root.append(element)
 }
 
 /**
@@ -223,10 +421,12 @@ export function renderTemplate(root: ShadowRoot, html: string): void {
  *
  * Saving refuses these in a template, so removing them here covers the other source: a
  * fragment a model authored, which can carry a construct into the document that no
- * template ever held.
+ * template ever held. The scope is what decides whether the document's own script is such a
+ * construct: a template's is the user's code and stays, a region's has already been removed.
  * @param node - the node to clean.
+ * @param scope - which half of the document this node came from.
  */
-function stripForbidden(node: Node): void {
+function stripForbidden(node: Node, scope: 'template' | 'region'): void {
   for (const child of [...node.childNodes]) {
     if (child.nodeType !== Node.ELEMENT_NODE) continue
     const element = child as Element
@@ -236,7 +436,7 @@ function stripForbidden(node: Node): void {
       element.remove()
       continue
     }
-    if (forbiddenElementReason(element) !== undefined) {
+    if (forbiddenElementReason(element, scope) !== undefined) {
       element.remove()
       continue
     }
@@ -245,6 +445,6 @@ function stripForbidden(node: Node): void {
         element.removeAttribute(attribute.name)
       }
     }
-    stripForbidden(element)
+    stripForbidden(element, scope)
   }
 }

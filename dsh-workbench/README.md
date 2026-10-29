@@ -21,6 +21,7 @@ Design and rationale: [workbench overview](../docs/workbench-design.md) and [wor
 | Card assembly | `workbench.card` (Factory with local `body` / `actions` slots) |
 | Locale namespace | `workbench` |
 | Layout route | `GET` / `PATCH` `/api/workbench/layout` |
+| Skill card routes | `/api/workbench/skill-card` (+ `/catalog`, `/run`, `/result`, `/directory`, `/files`) |
 | Storage domain | `workbench_layout`, table `layout` |
 
 A card id is a namespaced slug (`/^[a-z0-9][a-z0-9-]*$/`, at most 64 characters), for example `git-repo`. It is the slot entry id, the layout record key, and the reorder key at once, so it must not change once published.
@@ -54,6 +55,32 @@ The presentation facts a card may pass are `title`, `subtitle`, `span`, `state`,
 > **Two of them are contract-only today.** The card model moved the run state and the refresh gesture out of the card face, so a card that passes `state` / `status` / `onRefresh` gets no status dot and no refresh control drawn: the shipped card keeps those on its own result page. Pass `onRemove` to get the delete X; a card that omits it has no X at all.
 
 A card reads its own facts from its Host half or from existing client state. The workbench never reads, forwards, or caches card data, and offers no channel for cards to share it.
+
+## What a document's own script receives
+
+A skill card's template is the user's own HTML, and its inline `<script>` runs when the card renders. It is handed one object, as its parameter:
+
+```html
+<div id="tree"></div>
+<!-- template-begin --><!-- template-end -->
+<script>
+  const listing = await dsh.files.list('任务分析')
+  // listing.entries: [{ name, path, type: 'directory' | 'file' | 'other', size? }]
+  const file = await dsh.files.read(listing.entries[0].path)
+  await dsh.markdown.render(document.getElementById('doc'), file.text)
+</script>
+```
+
+| Member | Meaning |
+| --- | --- |
+| `dsh.cardId`, `dsh.runId` | The card that rendered the document, and the run it shows |
+| `dsh.root`, `dsh.host` | The document's shadow root and the element that holds it |
+| `dsh.files.list(path)`, `dsh.files.read(path)` | List a directory, or read one text file, of the card's own workspace directory |
+| `dsh.markdown.render(element, text)` | Render Markdown into one element of the document |
+
+Both reads answer relative to the card's workspace directory, reject a path outside it, refuse a binary or a file over 1 MiB, and list at most 500 entries. Each returns the Host's answer or throws an error whose message is already localized. The script is the user's code, so the document is not sandboxed further than that: what it can reach is the page and these two reads.
+
+The **region** a run fills is model output, not user code: a script inside it is refused by the result editor and stripped before the document is spliced, so a model cannot author behaviour.
 
 ## Configuration
 

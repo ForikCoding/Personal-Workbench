@@ -187,13 +187,30 @@ describe('skill card editor', () => {
   })
 
   it('refuses a template and points at the construct', () => {
-    const { container, onSave } = setup({ skill: 'git-repo', template: '<script>alert(1)</script>' })
-    expect(container.textContent).toContain('skillCardViolationScript')
-    expect(container.textContent).toContain('root > script')
+    const { container, onSave } = setup({ skill: 'git-repo', template: '<iframe src="https://x/y"></iframe>' })
+    expect(container.textContent).toContain('skillCardViolationExternal')
+    expect(container.textContent).toContain('root > iframe')
     const save = screen.getByRole('button', { name: 'skillCardSave' })
     expect(save).toHaveProperty('disabled', true)
     fireEvent.click(save)
     expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('accepts the inline script a document reader needs', () => {
+    // The card's own code runs, so a template that reads a directory has to pass the
+    // analyser: refusing it here would refuse every card that shows a file.
+    const template = [
+      '<h1>Docs</h1>',
+      '<div id="tree"></div>',
+      '<!-- template-begin --><div data-dsh-files="docs" hidden></div><!-- template-end -->',
+      '<script>dsh.files.list("docs")</script>',
+    ].join('\n')
+    const { onSave } = setup({ skill: 'git-repo', template })
+    expect(screen.queryByText('skillCardViolationScript')).toBeNull()
+    const save = screen.getByRole('button', { name: 'skillCardSave' })
+    expect(save).toHaveProperty('disabled', false)
+    fireEvent.click(save)
+    expect(onSave).toHaveBeenCalledWith(template, '')
   })
 
   it('refuses a template whose region markers do not pair', () => {

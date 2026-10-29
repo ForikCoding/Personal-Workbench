@@ -17,6 +17,7 @@ import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
 import type { WorkbenchModelSeat } from './model.ts';
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts';
+import type { WorkbenchScriptBinder } from './render.ts';
 /** What both pages need to show and change one card. */
 export interface SkillCardPageProps {
     /** Transport. */
@@ -87,6 +88,14 @@ export interface SkillCardPageProps {
      * @returns the localized text.
      */
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
+    /**
+     * Builds the binding the rendered document's own script receives.
+     *
+     * The document a card renders is the user's own HTML, and its script may read the card's
+     * directory. Omitted leaves that script running with no card behind it, which is what a
+     * composition without the document route does.
+     */
+    readonly documents?: WorkbenchScriptBinder | undefined;
 }
 /**
  * Render the card's run history in the whole display column.

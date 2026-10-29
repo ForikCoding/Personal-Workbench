@@ -32,8 +32,64 @@ export declare const WORKBENCH_SKILL_CARD_RESULT_PATH = "/api/workbench/skill-ca
  * before it starts, not after it fails.
  */
 export declare const WORKBENCH_SKILL_CARD_DIRECTORY_PATH = "/api/workbench/skill-card/directory";
+/**
+ * Document route: `GET cardId=…&path=…` lists one directory or reads one text file.
+ *
+ * The one route a card's own script calls. A template cannot read a filesystem — a page has
+ * no such API — so the documents a run wrote are read here, by the Host, through a read that
+ * is confined to the card's own workspace directory and refuses anything that is not text.
+ * `path` is relative to that directory (or absolute, and then it has to resolve inside it);
+ * an empty `path` names the directory itself.
+ */
+export declare const WORKBENCH_SKILL_CARD_FILES_PATH = "/api/workbench/skill-card/files";
 /** Contract version echoed in every response; a mismatched client refuses to parse. */
 export declare const WORKBENCH_SKILL_CARD_API_VERSION = 1;
+/** Most entries one directory listing returns. */
+export declare const WORKBENCH_FILES_MAX_ENTRIES = 500;
+/** Largest file the document route will read, in bytes. */
+export declare const WORKBENCH_FILES_MAX_BYTES: number;
+/**
+ * Failures the document route reports.
+ *
+ * Its own vocabulary rather than the card route's: a directory outside the card's workspace
+ * is a fact about a path, not about a card's configuration, and the client renders each of
+ * these as its own sentence beside the files it could not show.
+ */
+export type WorkbenchFileErrorCode = 'unauthorized' | 'forbidden' | 'invalid-request' | 'invalid-card' | 'no-workspace' | 'outside-workspace' | 'not-found' | 'not-directory' | 'not-file' | 'not-text' | 'too-large';
+/** One entry of a listed directory. */
+export interface WorkbenchFileEntry {
+    /** Base name, without any directory part. */
+    readonly name: string;
+    /**
+     * The same entry as the request would name it.
+     *
+     * Relative when the listing was asked for with a relative path, absolute when it was asked
+     * for with an absolute one, so a script can pass this value straight back to `read`.
+     */
+    readonly path: string;
+    /** What the entry is: a directory a script may descend into, a file, or neither. */
+    readonly type: 'directory' | 'file' | 'other';
+    /** Size in bytes, for a file. */
+    readonly size?: number;
+}
+/** One directory listing. */
+export interface WorkbenchFilesListing {
+    /** The directory that was listed. */
+    readonly path: string;
+    /** Its direct entries, directories first and then by name. */
+    readonly entries: readonly WorkbenchFileEntry[];
+    /** Whether the directory held more entries than {@link WORKBENCH_FILES_MAX_ENTRIES}. */
+    readonly truncated: boolean;
+}
+/** One file read. */
+export interface WorkbenchFilesText {
+    /** The file that was read, as the request named it. */
+    readonly path: string;
+    /** Its decoded text, verbatim. */
+    readonly text: string;
+    /** Its size in bytes. */
+    readonly bytes: number;
+}
 /** Maximum bytes of one template. */
 export declare const WORKBENCH_TEMPLATE_MAX_BYTES: number;
 /** Maximum number of skills one card may keep a template for. */

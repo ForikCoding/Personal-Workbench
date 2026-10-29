@@ -91,9 +91,31 @@ describe('workbench template analyser', () => {
   })
 
   describe('content policy', () => {
-    it('refuses a script element and stops descending into it', () => {
-      const html = '<!-- template-begin --><div><script>alert(1)</script></div><!-- template-end -->'
-      expect(codes(html)).toEqual(['script'])
+    it('allows the template its own inline script', () => {
+      // The template is the user's document and its script is the user's code: a card that
+      // reads a directory has to be written somewhere, and the renderer runs it.
+      const html = '<!-- template-begin --><div><script>dsh.files.list(".")</script></div><!-- template-end -->'
+      expect(codes(html)).toEqual([])
+    })
+
+    it('refuses a script that carries its code elsewhere, and stops descending into it', () => {
+      // An external source is the one script a card may not run: it would execute whatever
+      // that URL served. Nothing inside it is reported, because the element is refused whole.
+      const html = '<!-- template-begin --><div><script src="a.js"><i onclick="x()"></i></script></div><!-- template-end -->'
+      expect(codes(html)).toEqual(['external-element'])
+    })
+
+    it('still refuses a script in a region fragment, whatever it carries', () => {
+      // The region is model output on every run: a script there is text a language model
+      // wrote, and it is never executed, so the fragment editor refuses it while the same
+      // construct is allowed in the template that surrounds it.
+      expect(analyzeFragment('<div><script>alert(1)</script></div>').map(violation => violation.code))
+        .toEqual(['script'])
+    })
+
+    it('allows an inline module script', () => {
+      const html = '<!-- template-begin --><script type="module">const a = 1</script><!-- template-end -->'
+      expect(codes(html)).toEqual([])
     })
 
     it('refuses an event attribute', () => {
@@ -291,7 +313,7 @@ describe('workbench template analyser', () => {
       const html = '<!-- template-begin --><img src="a"><div><img src="b"></div><!-- template-end -->'
       const offsets = analyzeTemplate(html).violations.map(violation => violation.offset)
       expect(offsets).toEqual([html.indexOf('<img'), html.indexOf('<img')])
-      expect(offsetOf('<script>alert(1)</script>', 'script')).toBe(0)
+      expect(offsetOf('<script src="a.js"></script>', 'external-element')).toBe(0)
     })
 
     it('approximates an attribute violation at the element carrying it', () => {

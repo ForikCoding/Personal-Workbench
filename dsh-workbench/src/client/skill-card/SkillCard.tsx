@@ -14,7 +14,7 @@ import type { WorkbenchLocaleKey } from '../locales.ts'
 import { useWorkbenchReorder } from '../WorkbenchCardGrid.tsx'
 import { ShadowHtml } from './ShadowHtml.tsx'
 import { filledTemplate, resultHtml } from './render.ts'
-import type { WorkbenchActionEvent } from './render.ts'
+import type { WorkbenchActionEvent, WorkbenchScriptBinder } from './render.ts'
 import { useSkillCard } from './controller.ts'
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
@@ -134,6 +134,13 @@ export interface SkillCardBodyProps {
   /** What the card currently shows. */
   readonly view: WorkbenchCardView
   /**
+   * The card this body belongs to; the document's own script is bound to it.
+   *
+   * Absent renders the document unbound: its own logic runs, and a read it asks for finds no
+   * card behind it. Both pages that show a card always have one; a preview need not.
+   */
+  readonly cardId?: string | undefined
+  /**
    * Translate one workbench string.
    * @param key - dictionary key.
    * @returns the localized text.
@@ -147,6 +154,8 @@ export interface SkillCardBodyProps {
    * @param event - the action the click resolved to, or why it could not be read.
    */
   readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined
+  /** Builds the binding the rendered document's own script receives. */
+  readonly documents?: WorkbenchScriptBinder | undefined
 }
 
 /**
@@ -158,21 +167,25 @@ export interface SkillCardBodyProps {
  * @param props - the view, `t`, and the click outlet.
  * @returns the body element.
  */
-export function SkillCardBody({ view, t, onAction }: SkillCardBodyProps): ReactNode {
-  return <div className={css.body}>{cardContent(view, t, onAction)}</div>
+export function SkillCardBody({ view, cardId, t, onAction, documents }: SkillCardBodyProps): ReactNode {
+  return <div className={css.body}>{cardContent(view, cardId, t, onAction, documents)}</div>
 }
 
 /**
  * Render whichever content the card currently has.
  * @param view - the card view.
+ * @param cardId - the card the body belongs to.
  * @param t - translator.
  * @param onAction - click outlet for buttons the document carries.
+ * @param documents - binding factory for the rendered document's own script.
  * @returns the content element.
  */
 function cardContent(
   view: WorkbenchCardView,
+  cardId: string | undefined,
   t: (key: WorkbenchLocaleKey) => string,
   onAction: ((event: WorkbenchActionEvent) => void) | undefined,
+  documents: WorkbenchScriptBinder | undefined,
 ): ReactNode {
   if (view.status === 'loading') {
     return <Notice title={t('skillCardLoading')} body={t('skillCardLoadingBody')} />
@@ -213,11 +226,16 @@ function cardContent(
     return <Notice title={t('skillCardNotRunTitle')} body={t('skillCardNotRunBody')} />
   }
   // The template's skeleton stays exactly as written; only its region came from the run.
+  // The document's own script runs here too, bound to this card: it is the user's code, and
+  // the directory it reads is the card's own.
   return (
     <ShadowHtml
       html={filledTemplate(view.template, filled)}
       className={css.template}
       onAction={onAction}
+      cardId={cardId}
+      runId={view.result.runId}
+      documents={documents}
     />
   )
 }

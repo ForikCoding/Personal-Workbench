@@ -21,6 +21,7 @@ DSH Desktop 工作台：侧栏入口、主框架中的卡片页，以及让插�
 | 卡片装配 | `workbench.card`（Factory，本地槽 `body` / `actions`） |
 | locale 命名空间 | `workbench` |
 | 布局路由 | `GET` / `PATCH` `/api/workbench/layout` |
+| 技能卡路由 | `/api/workbench/skill-card`（另加 `/catalog`、`/run`、`/result`、`/directory`、`/files`） |
 | 存储域 | `workbench_layout`，表 `layout` |
 
 卡片 id 是命名空间化的 slug（`/^[a-z0-9][a-z0-9-]*$/`，不超过 64 字符），例如 `git-repo`。它同时是槽条目 id、布局记录键与重排键，一经发布不应更改。
@@ -54,6 +55,32 @@ export function apply(ctx: Context): void {
 > **其中三个今天只有契约、没有画面。** 卡片模型把运行状态与刷新手势移出了卡片正面，所以传 `state` / `status` / `onRefresh` 不会画出状态点，也不会画出刷新控件：随包发布的技能卡把它们留在自己的结果页上。传 `onRemove` 才有那个删除 X；不传就一个都没有。
 
 卡片的数据来自它自己的 Host 半边或已有的客户端事实。工作台不读取、不转发、不缓存卡片数据，也不提供卡片之间共享数据的通道。
+
+## 模板自己的脚本拿到什么
+
+技能卡的模板是用户自己的 HTML，里面的内联 `<script>` 会在卡片渲染时执行，并收到一个对象作为参数：
+
+```html
+<div id="tree"></div>
+<!-- template-begin --><!-- template-end -->
+<script>
+  const listing = await dsh.files.list('任务分析')
+  // listing.entries: [{ name, path, type: 'directory' | 'file' | 'other', size? }]
+  const file = await dsh.files.read(listing.entries[0].path)
+  await dsh.markdown.render(document.getElementById('doc'), file.text)
+</script>
+```
+
+| 成员 | 含义 |
+| --- | --- |
+| `dsh.cardId`、`dsh.runId` | 渲染这段文档的卡片，以及它显示的那次运行 |
+| `dsh.root`、`dsh.host` | 文档的 shadow root 与承载它的元素 |
+| `dsh.files.list(path)`、`dsh.files.read(path)` | 列目录 / 读一个文本文件，都限定在这张卡自己的目录里 |
+| `dsh.markdown.render(element, text)` | 把 Markdown 渲染进文档里的某个元素 |
+
+两个读操作都相对卡片的工作目录解析，路径越出这个目录会被拒绝，二进制文件与超过 1 MiB 的文件会被拒绝，一次最多列 500 条。它们要么返回宿主的结果，要么抛出带已本地化文案的错误。脚本是用户自己的代码，所以文档没有更进一步的沙箱——它能拿到的只有页面本身和这两个读操作。
+
+区间（run 填的那段）是模型输出而非用户代码：区间里的 `script` 会被结果编辑器拒绝，并在拼接前被剥掉，所以模型写不出行为。
 
 ## 配置
 
