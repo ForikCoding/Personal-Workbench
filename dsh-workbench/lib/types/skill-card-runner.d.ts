@@ -411,6 +411,27 @@ export declare class WorkbenchSkillCardRunner {
      */
     private publishRunSession;
     /**
+     * Choose the Agent preset a run composes under.
+     *
+     * The naming session's preset comes first: a card is mounted inside a conversation, and a
+     * run that behaved differently from the conversation it was started in would be a second
+     * agent wearing the same card. The deployment default is the fallback for a card started
+     * outside any session.
+     *
+     * An unavailable registry is not a failure. A channel may pin a harness without presets,
+     * and a run there composes exactly as it did before — with whatever the global tool
+     * registry offers.
+     * @param scope - the live agent of the session the run was started from, when there is one.
+     * @returns the resolved preset id, or undefined when the deployment composes none.
+     */
+    private runPreset;
+    /**
+     * Build the setup callback that binds one preset to an unpublished agent.
+     * @param preset - the resolved preset id, when one was resolved.
+     * @returns the callback, or undefined when there is nothing to bind.
+     */
+    private presetSetup;
+    /**
      * Name one run's session.
      *
      * The stamp never goes backwards for a card, so two runs that start within the same

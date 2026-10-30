@@ -44,6 +44,8 @@ const TASK_INSTRUCTION_REGION = [
   '- The comments inside the document state what each part must contain. Read them and follow them.',
   '- Everything outside that region is kept exactly as written, so do not restate or modify it.',
   '- Report HTML, not a description of it.',
+  '- Report the content itself, not a pointer to it: a folder, a file name, or a `<div data-dsh-files>`',
+  '  embed alone is not the region. If the skill also wrote a file, the region still carries the text.',
   '- Build one entry per item the skill returned. Do not invent entries to fill the document out.',
 ].join('\n')
 
@@ -71,6 +73,8 @@ const REFINE_TASK_INSTRUCTION = [
   '- Change only what the revision request names; keep everything else exactly as the previous result wrote it.',
   '- The comments inside the document still state what each part must contain.',
   '- Report HTML, not a description of it.',
+  '- Report the content itself, not a pointer to it: a folder, a file name, or a `<div data-dsh-files>`',
+  '  embed alone is not the region.',
 ].join('\n')
 
 /**

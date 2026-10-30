@@ -33,6 +33,7 @@ import type {
   WorkbenchActivationSeam,
   WorkbenchAgent,
   WorkbenchAgentHandle,
+  WorkbenchAgentSetup,
   WorkbenchModelInfo,
   WorkbenchSkillCardHost,
   WorkbenchSkillDefinition,
@@ -647,6 +648,11 @@ export class WorkbenchSkillCardRunner {
         ? { provider: scopeAgent.options.provider, model: scopeAgent.options.model }
         : undefined
     const runRoute = selection.model ?? scopeRoute
+    // The preset the run composes under. A session created without one has no coding tools
+    // — not for itself and not for the child it parents, which joins its parent's preset —
+    // so a skill that reads a file or writes a report silently loses the ability to do
+    // either, and answers from whatever its tools can still reach.
+    const runPreset = await this.runPreset(scopeAgent)
     // The session a run executes in, resolved before anything starts. A card run gets a
     // fresh one of its own, rooted at the card's directory and carrying its permission
     // mode: the mode is applied at creation, so a deployment that cannot apply it refuses
@@ -657,8 +663,8 @@ export class WorkbenchSkillCardRunner {
     let session: RunSession
     try {
       const resolved = refineSessionId === undefined
-        ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute)
-        : await this.attachRunSession(refineSessionId, runRoute)
+        ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute, runPreset)
+        : await this.attachRunSession(refineSessionId, runRoute, runPreset)
       if (resolved.status === 'rejected') return resolved
       session = resolved.session
     } catch (error) {
@@ -1004,9 +1010,10 @@ export class WorkbenchSkillCardRunner {
     cwd: string,
     startedAt: number,
     route: WorkbenchCardModel | undefined,
+    preset: string | undefined,
   ): Promise<RunSessionOutcome> {
     const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission)
-    const handle = await this.publishRunSession(cardId, cwd, startedAt, route)
+    const handle = await this.publishRunSession(cardId, cwd, startedAt, route, preset)
     try {
       this.options.host.sandbox.setMode(handle.agent.id, mode)
     } catch (error) {
@@ -1038,14 +1045,17 @@ export class WorkbenchSkillCardRunner {
   private async attachRunSession(
     sessionId: string,
     route: WorkbenchCardModel | undefined,
+    preset: string | undefined,
   ): Promise<RunSessionOutcome> {
     let owned: WorkbenchAgentHandle | undefined
     let agent = this.options.host.agents.get(sessionId)
     if (agent === undefined) {
+      const setup = this.presetSetup(preset)
       try {
         owned = await this.options.host.agents.resume({
           resumeSessionId: sessionId,
           ...route === undefined ? {} : { agentOptions: route },
+          ...setup === undefined ? {} : { setup },
         })
       } catch (error) {
         return reject('session-not-live', `session "${sessionId}" cannot be re-attached: ${messageOf(error)}`)
@@ -1120,19 +1130,62 @@ export class WorkbenchSkillCardRunner {
     cwd: string,
     startedAt: number,
     route: WorkbenchCardModel | undefined,
+    preset: string | undefined,
   ): Promise<WorkbenchAgentHandle> {
     const sessionId = this.nextSessionId(cardId, startedAt)
     const agentOptions = route === undefined ? {} : { agentOptions: route }
+    const meta = preset === undefined ? { cwd } : { cwd, agentPreset: preset }
+    const setup = this.presetSetup(preset)
+    const composition = { meta, ...agentOptions, ...setup === undefined ? {} : { setup } }
     try {
-      return await this.options.host.agents.create({ sessionId, meta: { cwd }, ...agentOptions })
+      return await this.options.host.agents.create({ sessionId, ...composition })
     } catch (error) {
       if (errorNameOf(error) !== SESSION_ALREADY_EXISTS) throw error
       return await this.options.host.agents.create({
         sessionId: this.nextSessionId(cardId, startedAt),
-        meta: { cwd },
-        ...agentOptions,
+        ...composition,
       })
     }
+  }
+
+  /**
+   * Choose the Agent preset a run composes under.
+   *
+   * The naming session's preset comes first: a card is mounted inside a conversation, and a
+   * run that behaved differently from the conversation it was started in would be a second
+   * agent wearing the same card. The deployment default is the fallback for a card started
+   * outside any session.
+   *
+   * An unavailable registry is not a failure. A channel may pin a harness without presets,
+   * and a run there composes exactly as it did before — with whatever the global tool
+   * registry offers.
+   * @param scope - the live agent of the session the run was started from, when there is one.
+   * @returns the resolved preset id, or undefined when the deployment composes none.
+   */
+  private async runPreset(scope: WorkbenchAgent | undefined): Promise<string | undefined> {
+    const presets = this.options.host.agentPresets
+    if (presets === undefined) return undefined
+    const inherited = scope?.ctx === undefined ? undefined : presets.composedPreset?.(scope.ctx)
+    if (inherited !== undefined) return inherited
+    try {
+      return (await presets.resolve()).id
+    } catch (error) {
+      // A run without a preset still runs; it just runs with less. Refusing the start would
+      // turn a compositional gap into a card that cannot be used at all.
+      this.options.warn(`workbench card run could not resolve an agent preset: ${messageOf(error)}`)
+      return undefined
+    }
+  }
+
+  /**
+   * Build the setup callback that binds one preset to an unpublished agent.
+   * @param preset - the resolved preset id, when one was resolved.
+   * @returns the callback, or undefined when there is nothing to bind.
+   */
+  private presetSetup(preset: string | undefined): WorkbenchAgentSetup | undefined {
+    const presets = this.options.host.agentPresets
+    if (presets === undefined || preset === undefined) return undefined
+    return async (agentCtx) => { await presets.mount(agentCtx, preset) }
   }
 
   /**

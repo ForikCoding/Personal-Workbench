@@ -25,7 +25,11 @@ import {
   WORKBENCH_TEMPLATE_TABLE,
 } from './skill-card-spec.ts'
 import { assertSubagentProvider, probeSubagentSeam } from './skill-card-provider.ts'
-import type { WorkbenchSkillCardHost, WorkbenchWorkingDirectory } from './skill-card-host.ts'
+import type {
+  WorkbenchAgentPresetSeam,
+  WorkbenchSkillCardHost,
+  WorkbenchWorkingDirectory,
+} from './skill-card-host.ts'
 import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import { statDirectory } from './skill-card-directory.ts'
 import { createWorkbenchSkillCardFilesHandler } from './skill-card-files-route.ts'
@@ -183,8 +187,13 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
     // at all — it is one session event — so it has to be attached explicitly. Reading a
     // member that no service provides off a wide cast compiles and does nothing at run time,
     // and a permission that silently does nothing is the one outcome this feature refuses.
+    // Read optionally, like the working-directory service: a channel that pins a harness
+    // without the preset registry still composes, and its runs simply carry the tools the
+    // global registry offers.
+    const agentPresets = ctx.get('agentPresets') as WorkbenchAgentPresetSeam | undefined
     const cardHost: WorkbenchSkillCardHost = {
       agents: runtime.agents,
+      ...agentPresets === undefined ? {} : { agentPresets },
       skills: runtime.skills,
       workspaceRegistry: runtime.workspaceRegistry,
       subagents: runtime.subagents,

@@ -56,7 +56,55 @@ export interface WorkbenchAgent {
    * persona, whose `{{model}}` template variable is read off the agent's own options.
    */
   readonly options?: { readonly provider?: string; readonly model?: string }
+  /**
+   * The agent's own scoped context, when the channel exposes it.
+   *
+   * Read for one question only: which Agent preset this agent composed, so a card's run
+   * session can be created under the same one. The narrower the better — nothing else may
+   * reach through this field.
+   */
+  readonly ctx?: unknown
 }
+
+/**
+ * Composed Agent presets, as far as a run needs them.
+ *
+ * A preset is what brings the coding tools — `read`, `write`, `edit`, `glob`, `grep`,
+ * `pwsh` — into an agent's scope: they are contributed by the preset's own composition, not
+ * registered globally. An agent created without one therefore runs with only the globally
+ * mounted tools (MCP servers, this plugin's own), and a skill that has to read a file or
+ * write a report has no way to do either.
+ */
+export interface WorkbenchAgentPresetSeam {
+  /**
+   * Resolve a preset identity.
+   * @param id - requested preset, or the deployment default when omitted.
+   * @returns the resolved identity.
+   */
+  resolve(id?: string): Promise<{ readonly id: string }>
+  /**
+   * Bind an unpublished Agent to a preset revision.
+   * @param ctx - the agent's scoped creation context.
+   * @param id - resolved preset identity.
+   * @returns resolution once the preset is bound.
+   */
+  mount(ctx: unknown, id: string): Promise<unknown>
+  /**
+   * Read the preset a live agent composed.
+   * @param ctx - the agent's scoped context.
+   * @returns its preset id, or undefined in a preset-free composition.
+   */
+  composedPreset?(ctx: unknown): string | undefined
+}
+
+/**
+ * Composition callback for one unpublished Agent.
+ *
+ * The harness awaits it before the agent is published, which is the only window in which a
+ * preset can be bound: binding later would compose a world the agent has already assembled
+ * a prompt from.
+ */
+export type WorkbenchAgentSetup = (agentCtx: unknown, agent: WorkbenchAgent) => Promise<void> | void
 
 /** Base a loaded skill resolves the relative paths it mentions against. */
 export type WorkbenchSkillResourceBase =
@@ -351,8 +399,23 @@ export interface WorkbenchSkillCardHost {
      */
     create(options: {
       readonly sessionId: string
-      readonly meta: { readonly cwd: string }
+      /**
+       * Session metadata, including the preset the session is composed under.
+       *
+       * A session created without a preset runs with only the globally mounted tools: its
+       * child then has no `read`, `write`, or `pwsh` either, because a child joins its
+       * parent's preset rather than the deployment's. A skill that must write a file
+       * cannot, and says so in prose instead.
+       */
+      readonly meta: { readonly cwd: string; readonly agentPreset?: string }
       readonly parentAgent?: WorkbenchAgent
+      /**
+       * Composition window, where the preset named in `meta` is actually bound.
+       *
+       * Both fields are needed: `meta.agentPreset` records the identity on the session, and
+       * this binds the revision the run executes under.
+       */
+      readonly setup?: WorkbenchAgentSetup
       /**
        * The route the session runs on, when one is named.
        *
@@ -383,8 +446,17 @@ export interface WorkbenchSkillCardHost {
       readonly resumeSessionId: string
       /** Route to install on the resumed agent; see {@link create} for the warrant. */
       readonly agentOptions?: { readonly provider?: string; readonly model?: string }
+      /** Preset binding for the resumed agent; see {@link create} for why it is needed. */
+      readonly setup?: WorkbenchAgentSetup
     }): Promise<WorkbenchAgentHandle>
   }
+  /**
+   * Agent presets, when the deployment composes them.
+   *
+   * Optional because a channel may pin a harness without the registry; a run then composes
+   * exactly as it did before presets existed rather than refusing to start.
+   */
+  readonly agentPresets?: WorkbenchAgentPresetSeam
   /**
    * The sandbox mode a card's own agent runs under.
    *

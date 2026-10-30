@@ -315,6 +315,69 @@ describe('workbench skill card runner', () => {
       expect(fake.activations[0]?.request.parent).toBe(fake.createdAgents[0])
     })
 
+    it('composes the naming session’s preset onto the run session', async () => {
+      // A preset is what brings the coding tools into an agent's scope, and a child joins
+      // its parent's preset rather than the deployment's. A run session created without one
+      // therefore leaves the child with no `read`, `write`, or `pwsh`: a skill that has to
+      // write a report can only describe it, which is exactly what happened.
+      const { runner, fake } = setup({ agentPresets: { composed: 'full', defaultPreset: 'default' } })
+      await runner.start(request({ scopeSessionId: AGENT.id }))
+      await settle(runner)
+      expect(fake.createdPresets).toEqual(['full'])
+      // Stated on the session and bound in its creation window: the first is what a resume
+      // reads, the second is what actually selects the tools.
+      expect(fake.mountedPresets).toEqual(['full'])
+      expect(fake.resolvedPresets).toEqual([])
+    })
+
+    it('composes the deployment default when no session is named', async () => {
+      const { runner, fake } = setup({ agentPresets: { composed: 'full', defaultPreset: 'default' } })
+      await runner.start(request())
+      await settle(runner)
+      expect(fake.resolvedPresets).toEqual([undefined])
+      expect(fake.createdPresets).toEqual(['default'])
+      expect(fake.mountedPresets).toEqual(['default'])
+    })
+
+    it('creates its session with no preset when the deployment composes none', async () => {
+      // The channel may pin a harness without the registry. A run there composes as it
+      // always did rather than failing a start over a capability the deployment lacks.
+      const { runner, fake } = setup()
+      await runner.start(request({ scopeSessionId: AGENT.id }))
+      await settle(runner)
+      expect(fake.createdAgents).toHaveLength(1)
+      expect(fake.createdPresets).toEqual([undefined])
+      expect(fake.mountedPresets).toEqual([])
+    })
+
+    it('runs without a preset when the default cannot be resolved, and says so', async () => {
+      const { runner, fake, warnings } = setup({
+        agentPresets: { defaultPreset: 'default', resolveFailure: 'registry is rebuilding' },
+      })
+      expect(await runner.start(request())).toMatchObject({ status: 'started' })
+      await settle(runner)
+      expect(fake.createdPresets).toEqual([undefined])
+      expect(warnings.some(message => message.includes('agent preset'))).toBe(true)
+    })
+
+    it('binds the preset again when a refinement resumes the session', async () => {
+      // A resumed agent is composed from scratch, so the preset has to be bound in that
+      // window too — otherwise the second run of the same conversation loses the tools the
+      // first one had.
+      const { runner, fake } = setup({
+        agentPresets: { composed: 'full' },
+        persistedSessionIds: ['workbench-skill-card-1-1'],
+      })
+      await runner.start(request({
+        mode: { kind: 'refine', instruction: 'i', previous: 'p' },
+        scopeSessionId: AGENT.id,
+        sessionId: 'workbench-skill-card-1-1',
+      }))
+      await settle(runner)
+      expect(fake.resumedSessions).toEqual(['workbench-skill-card-1-1'])
+      expect(fake.mountedPresets).toEqual(['full'])
+    })
+
     it('refuses an unregistered or incapable backend', async () => {
       const missing = setup({ providers: {} })
       expect(await missing.runner.start(request())).toMatchObject({ status: 'rejected', code: 'provider-unavailable' })

@@ -1551,6 +1551,8 @@ const TASK_INSTRUCTION_REGION = [
 	"- The comments inside the document state what each part must contain. Read them and follow them.",
 	"- Everything outside that region is kept exactly as written, so do not restate or modify it.",
 	"- Report HTML, not a description of it.",
+	"- Report the content itself, not a pointer to it: a folder, a file name, or a `<div data-dsh-files>`",
+	"  embed alone is not the region. If the skill also wrote a file, the region still carries the text.",
 	"- Build one entry per item the skill returned. Do not invent entries to fill the document out."
 ].join("\n");
 /**
@@ -1575,7 +1577,9 @@ const REFINE_TASK_INSTRUCTION = [
 	"",
 	"- Change only what the revision request names; keep everything else exactly as the previous result wrote it.",
 	"- The comments inside the document still state what each part must contain.",
-	"- Report HTML, not a description of it."
+	"- Report HTML, not a description of it.",
+	"- Report the content itself, not a pointer to it: a folder, a file name, or a `<div data-dsh-files>`",
+	"  embed alone is not the region."
 ].join("\n");
 /**
 * Render one skill, the row that triggered the run, and the document to fill.
@@ -1968,10 +1972,11 @@ var WorkbenchSkillCardRunner = class {
 			model: scopeAgent.options.model
 		} : void 0;
 		const runRoute = selection.model ?? scopeRoute;
+		const runPreset = await this.runPreset(scopeAgent);
 		const startedAt = this.now();
 		let session;
 		try {
-			const resolved = refineSessionId === void 0 ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute) : await this.attachRunSession(refineSessionId, runRoute);
+			const resolved = refineSessionId === void 0 ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute, runPreset) : await this.attachRunSession(refineSessionId, runRoute, runPreset);
 			if (resolved.status === "rejected") return resolved;
 			session = resolved.session;
 		} catch (error) {
@@ -2252,9 +2257,9 @@ var WorkbenchSkillCardRunner = class {
 	* @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the agent is
 	* released first, so a refused start leaves nothing running under no mode.
 	*/
-	async openRunSession(cardId, cwd, startedAt, route) {
+	async openRunSession(cardId, cwd, startedAt, route, preset) {
 		const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission);
-		const handle = await this.publishRunSession(cardId, cwd, startedAt, route);
+		const handle = await this.publishRunSession(cardId, cwd, startedAt, route, preset);
 		try {
 			this.options.host.sandbox.setMode(handle.agent.id, mode);
 		} catch (error) {
@@ -2282,14 +2287,16 @@ var WorkbenchSkillCardRunner = class {
 	* one; see {@link publishRunSession} for the warrant.
 	* @returns the resolved session, or why it could not be restored.
 	*/
-	async attachRunSession(sessionId, route) {
+	async attachRunSession(sessionId, route, preset) {
 		let owned;
 		let agent = this.options.host.agents.get(sessionId);
 		if (agent === void 0) {
+			const setup = this.presetSetup(preset);
 			try {
 				owned = await this.options.host.agents.resume({
 					resumeSessionId: sessionId,
-					...route === void 0 ? {} : { agentOptions: route }
+					...route === void 0 ? {} : { agentOptions: route },
+					...setup === void 0 ? {} : { setup }
 				});
 			} catch (error) {
 				return reject("session-not-live", `session "${sessionId}" cannot be re-attached: ${messageOf(error)}`);
@@ -2354,23 +2361,69 @@ var WorkbenchSkillCardRunner = class {
 	* parents a model to assemble against.
 	* @returns the created agent and its handle.
 	*/
-	async publishRunSession(cardId, cwd, startedAt, route) {
+	async publishRunSession(cardId, cwd, startedAt, route, preset) {
 		const sessionId = this.nextSessionId(cardId, startedAt);
 		const agentOptions = route === void 0 ? {} : { agentOptions: route };
+		const meta = preset === void 0 ? { cwd } : {
+			cwd,
+			agentPreset: preset
+		};
+		const setup = this.presetSetup(preset);
+		const composition = {
+			meta,
+			...agentOptions,
+			...setup === void 0 ? {} : { setup }
+		};
 		try {
 			return await this.options.host.agents.create({
 				sessionId,
-				meta: { cwd },
-				...agentOptions
+				...composition
 			});
 		} catch (error) {
 			if (errorNameOf(error) !== SESSION_ALREADY_EXISTS) throw error;
 			return await this.options.host.agents.create({
 				sessionId: this.nextSessionId(cardId, startedAt),
-				meta: { cwd },
-				...agentOptions
+				...composition
 			});
 		}
+	}
+	/**
+	* Choose the Agent preset a run composes under.
+	*
+	* The naming session's preset comes first: a card is mounted inside a conversation, and a
+	* run that behaved differently from the conversation it was started in would be a second
+	* agent wearing the same card. The deployment default is the fallback for a card started
+	* outside any session.
+	*
+	* An unavailable registry is not a failure. A channel may pin a harness without presets,
+	* and a run there composes exactly as it did before — with whatever the global tool
+	* registry offers.
+	* @param scope - the live agent of the session the run was started from, when there is one.
+	* @returns the resolved preset id, or undefined when the deployment composes none.
+	*/
+	async runPreset(scope) {
+		const presets = this.options.host.agentPresets;
+		if (presets === void 0) return void 0;
+		const inherited = scope?.ctx === void 0 ? void 0 : presets.composedPreset?.(scope.ctx);
+		if (inherited !== void 0) return inherited;
+		try {
+			return (await presets.resolve()).id;
+		} catch (error) {
+			this.options.warn(`workbench card run could not resolve an agent preset: ${messageOf(error)}`);
+			return;
+		}
+	}
+	/**
+	* Build the setup callback that binds one preset to an unpublished agent.
+	* @param preset - the resolved preset id, when one was resolved.
+	* @returns the callback, or undefined when there is nothing to bind.
+	*/
+	presetSetup(preset) {
+		const presets = this.options.host.agentPresets;
+		if (presets === void 0 || preset === void 0) return void 0;
+		return async (agentCtx) => {
+			await presets.mount(agentCtx, preset);
+		};
 	}
 	/**
 	* Name one run's session.
@@ -3947,8 +4000,10 @@ function apply(ctx, config) {
 	ctx.effect(async () => {
 		const host = ctx;
 		const runtime = ctx;
+		const agentPresets = ctx.get("agentPresets");
 		const cardHost = {
 			agents: runtime.agents,
+			...agentPresets === void 0 ? {} : { agentPresets },
 			skills: runtime.skills,
 			workspaceRegistry: runtime.workspaceRegistry,
 			subagents: runtime.subagents,

@@ -127,6 +127,15 @@ describe('the refine prompt', () => {
     expect(prompt).not.toContain('<row_data>')
   })
 
+  it('says the region is content, not a pointer to where the content lives', async () => {
+    // A child that wrote a file sometimes reported the folder instead of the report, and the
+    // page — which renders what came back, not a directory tree — showed a read failure. The
+    // line has to be in the prompt because the skill's own text cannot be relied on to say it.
+    const prompt = renderWorkbenchRefinePrompt(SKILL, TEMPLATE, PREVIOUS, INSTRUCTION)
+    expect(prompt).toContain('Report the content itself, not a pointer to it')
+    expect(prompt).toContain('data-dsh-files')
+  })
+
   it('carries the row it was given, as the other prompts do', async () => {
     const row = { task_number: 'CP-2025-001' }
     const prompt = renderWorkbenchRefinePrompt(SKILL, TEMPLATE, PREVIOUS, INSTRUCTION, row)

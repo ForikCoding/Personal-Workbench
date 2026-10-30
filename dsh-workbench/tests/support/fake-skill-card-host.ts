@@ -147,6 +147,20 @@ export interface FakeHostOptions {
    * gate would block.
    */
   readonly unarchiveFailure?: string
+  /**
+   * Agent presets the double composes, when the case wants them.
+   *
+   * Absent models a channel that pins a harness without the registry: the runner then
+   * composes no preset and creates its session exactly as it did before presets existed.
+   */
+  readonly agentPresets?: {
+    /** The preset the naming session composed; the live agent carries a scope for it. */
+    readonly composed?: string
+    /** The deployment default the registry resolves when nothing is inherited. */
+    readonly defaultPreset?: string
+    /** When set, resolving the default rejects with this detail. */
+    readonly resolveFailure?: string
+  }
 }
 
 /** The fake host plus what a spec wants to assert about. */
@@ -179,6 +193,17 @@ export interface FakeHost {
      * gone by then, so what this records is the way back in.
      */
     readonly resumedSessions: string[]
+  /**
+   * Preset ids the plugin wrote onto a created session's metadata, in order.
+   *
+   * `undefined` is recorded too: it is the whole point of the case that a run without a
+   * preset is created without one rather than with a guessed default.
+   */
+  readonly createdPresets: (string | undefined)[]
+  /** Preset ids the plugin bound in a creation window, in order. */
+  readonly mountedPresets: string[]
+  /** Preset ids asked for by `resolve`, in order; `undefined` is the default. */
+  readonly resolvedPresets: (string | undefined)[]
   /**
    * Permission modes the plugin applied, in order, with the session each was recorded on.
    *
@@ -242,6 +267,9 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   const archivedSessions: string[] = [...options.archivedSessionIds ?? []]
   const unarchivedSessions: string[] = []
   const resumedSessions: string[] = []
+  const createdPresets: (string | undefined)[] = []
+  const mountedPresets: string[] = []
+  const resolvedPresets: (string | undefined)[] = []
   const sandboxModes: { sessionId: string; mode: WorkbenchSandboxMode }[] = []
   // Ids that are already published: what a case seeds, plus everything this double
   // has minted — the create above refuses both, like the real session store.
@@ -278,9 +306,16 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
   // The route the live session carries; the AGENT constant stays the scope identity the
   // existing cases assert on, so the variant is only built (and only returned) for a case
   // that injects a route.
-  const liveAgent: WorkbenchAgent = options.agentOptions === undefined
+  const liveAgent: WorkbenchAgent = options.agentOptions === undefined && options.agentPresets === undefined
+    // The plain identity, so the scope cases can compare against AGENT itself.
     ? AGENT
-    : { ...AGENT, options: options.agentOptions }
+    : {
+        ...AGENT,
+        ...options.agentOptions === undefined ? {} : { options: options.agentOptions },
+        // A scope exists only when the case models a preset composition: without one the
+        // runner reads the live agent as a preset-free session, which is the default here.
+        ...options.agentPresets === undefined ? {} : { ctx: {} },
+      }
   const host: WorkbenchSkillCardHost = {
     agents: {
       get: (sessionId) => (options.live === false || sessionId !== AGENT.id ? undefined : liveAgent),
@@ -303,6 +338,11 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
           session: { header: { cwd: createOptions.meta.cwd } },
           ...createOptions.agentOptions === undefined ? {} : { options: createOptions.agentOptions },
         }
+        createdPresets.push(createOptions.meta.agentPreset)
+        // The composition window is where the real factory binds the preset, so the double
+        // runs it too: a case that only saw the metadata written could not tell a bound
+        // preset from a stated one.
+        if (createOptions.setup !== undefined) await createOptions.setup({}, created)
         createdAgents.push(created)
         return {
           agent: created,
@@ -321,6 +361,7 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
           session: { header: { cwd: options.cwd ?? '/repo' } },
           ...resumeOptions.agentOptions === undefined ? {} : { options: resumeOptions.agentOptions },
         }
+        if (resumeOptions.setup !== undefined) await resumeOptions.setup({}, resumed)
         return {
           agent: resumed,
           dispose: async () => { disposedAgents.push(resumeOptions.resumeSessionId) },
@@ -352,6 +393,19 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
         const at = archivedSessions.indexOf(sessionId)
         if (at !== -1) archivedSessions.splice(at, 1)
         unarchivedSessions.push(sessionId)
+      },
+    },
+    ...options.agentPresets === undefined ? {} : {
+      agentPresets: {
+        resolve: async (id?: string) => {
+          resolvedPresets.push(id)
+          if (options.agentPresets?.resolveFailure !== undefined) {
+            throw new Error(options.agentPresets.resolveFailure)
+          }
+          return { id: id ?? options.agentPresets?.defaultPreset ?? 'default' }
+        },
+        mount: async (_ctx: unknown, id: string) => { mountedPresets.push(id) },
+        composedPreset: () => options.agentPresets?.composed,
       },
     },
     skills: {
@@ -397,5 +451,23 @@ export function fakeHost(options: FakeHostOptions = {}): FakeHost {
       },
     },
   }
-  return { host, workingDirectory, statDirectory, activations, starts, lookups, disposed, createdAgents, disposedAgents, archivedSessions, unarchivedSessions, resumedSessions, sandboxModes, settleChild }
+  return {
+    host,
+    workingDirectory,
+    statDirectory,
+    activations,
+    starts,
+    lookups,
+    disposed,
+    createdAgents,
+    disposedAgents,
+    archivedSessions,
+    unarchivedSessions,
+    resumedSessions,
+    createdPresets,
+    mountedPresets,
+    resolvedPresets,
+    sandboxModes,
+    settleChild,
+  }
 }
