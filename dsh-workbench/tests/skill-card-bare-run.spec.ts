@@ -178,7 +178,7 @@ describe('a bare skill run', () => {
     const state = await settle(runner)
     expect(state?.phase).toBe('settled')
     expect(state?.failureCode).toBe('run-failed')
-    expect(state?.failure).toBe('the skill run timed out')
+    expect(state?.failure).toBe('the skill run timed out after 1 second')
     expect(fake.activations).toHaveLength(1)
   })
 

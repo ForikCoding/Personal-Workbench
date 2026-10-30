@@ -2483,10 +2483,10 @@ var WorkbenchSkillCardRunner = class {
 				diagnostic: run.childError
 			} : stored;
 			if (signal.aborted || result.stopReason === "aborted") {
-				if (input.kind === "bare" && run.timedOut) return {
+				if (run.timedOut) return {
 					kind: "unusable",
 					record,
-					failure: "the skill run timed out",
+					failure: `the skill run timed out after ${describeDeadline(this.options.runTimeoutMs)}`,
 					retryable: false
 				};
 				return {
@@ -2707,6 +2707,22 @@ function textOf(output) {
 function bareFailure(result, diagnostic) {
 	const detail = diagnostic ?? result.diagnostic;
 	return detail === void 0 ? `the skill run ended as ${result.stopReason}` : `the skill run ended as ${result.stopReason}: ${detail}`;
+}
+/**
+* Say how long a run was allowed to take.
+*
+* The deadline is configured in milliseconds and quoted back to the user in the sentence
+* that reports the timeout, so it reads as the number they set rather than as a raw one.
+* @param milliseconds - the configured deadline.
+* @returns the duration as minutes when it divides evenly, else as seconds.
+*/
+function describeDeadline(milliseconds) {
+	const seconds = Math.max(1, Math.round(milliseconds / 1e3));
+	if (seconds >= 60 && seconds % 60 === 0) {
+		const minutes = seconds / 60;
+		return minutes === 1 ? "1 minute" : `${String(minutes)} minutes`;
+	}
+	return seconds === 1 ? "1 second" : `${String(seconds)} seconds`;
 }
 /**
 * Describe why a run produced nothing usable.

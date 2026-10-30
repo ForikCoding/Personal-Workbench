@@ -1314,10 +1314,19 @@ await this.finish(run, outcome)
         ? { ...stored, diagnostic: run.childError }
         : stored
       if (signal.aborted || result.stopReason === 'aborted') {
-        // A bare run has no cancel control, so the only thing that aborts one is the
-        // deadline — and a deadline is a failure with a reason, not a cancellation.
-        if (input.kind === 'bare' && run.timedOut) {
-          return { kind: 'unusable', record, failure: 'the skill run timed out', retryable: false }
+        // A deadline is a failure with a reason, not a cancellation: nobody stopped this
+        // run, so it has to be reported and stored. A bare run has no cancel control, so a
+        // deadline is the only thing that aborts one; a card run can be either, and a card
+        // run that timed out used to settle as "cancelled" — which stores nothing, so the
+        // page fell back to "not run yet" and the history stayed empty while five minutes
+        // of work disappeared without a word.
+        if (run.timedOut) {
+          return {
+            kind: 'unusable',
+            record,
+            failure: `the skill run timed out after ${describeDeadline(this.options.runTimeoutMs)}`,
+            retryable: false,
+          }
         }
         return { kind: 'cancelled', record }
       }
@@ -1571,6 +1580,25 @@ function bareFailure(result: WorkbenchSubagentResult, diagnostic?: string): stri
   return detail === undefined
     ? `the skill run ended as ${result.stopReason}`
     : `the skill run ended as ${result.stopReason}: ${detail}`
+}
+
+/**
+ * Say how long a run was allowed to take.
+ *
+ * The deadline is configured in milliseconds and quoted back to the user in the sentence
+ * that reports the timeout, so it reads as the number they set rather than as a raw one.
+ * @param milliseconds - the configured deadline.
+ * @returns the duration as minutes when it divides evenly, else as seconds.
+ */
+function describeDeadline(milliseconds: number): string {
+  // At least one second, because a deadline below a second would otherwise report
+  // "0 seconds" — a duration nobody configured.
+  const seconds = Math.max(1, Math.round(milliseconds / 1_000))
+  if (seconds >= 60 && seconds % 60 === 0) {
+    const minutes = seconds / 60
+    return minutes === 1 ? '1 minute' : `${String(minutes)} minutes`
+  }
+  return seconds === 1 ? '1 second' : `${String(seconds)} seconds`
 }
 
 /**

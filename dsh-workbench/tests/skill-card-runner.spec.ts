@@ -879,11 +879,53 @@ describe('workbench skill card runner', () => {
       expect(runner.cancel('skill-card')).toBe(false)
     })
 
-    it('cancels a run that outlives its timeout', async () => {
-      const { runner } = setup({ outcomes: ['hang'], runTimeoutMs: 10 })
-      await runner.start(request())
+    it('reports a run that outlives its deadline as a failure and stores why', async () => {
+      // A deadline is not a cancellation: nobody stopped this run, so it has to be reported
+      // and stored. Settling as "cancelled" stored nothing, and the page then fell back to
+      // "not run yet" — the whole run vanished without a word.
+      const { runner, saved } = setup({ outcomes: ['hang'], runTimeoutMs: 2_000 })
+      await runner.start(request({ instruction: '分析任务' }))
+      // The wait is longer than the default: this case waits out its own two-second deadline.
+      await vi.waitFor(() => {
+        expect(runner.state('skill-card')?.phase).toBe('settled')
+      }, { timeout: 5_000 })
+      const state = runner.state('skill-card')
+      expect(state?.phase).toBe('settled')
+      expect(state?.failure).toBe('the skill run timed out after 2 seconds')
+      expect(state?.failureCode).toBe('run-failed')
+      expect(saved).toHaveLength(1)
+      // What the user asked survives into the record, so the row says which attempt timed out.
+      expect(saved[0]?.record.instruction).toBe('分析任务')
+    })
+
+    it('names the deadline in minutes when it is a whole number of them', async () => {
+      // The production default is five minutes, which nobody should have to wait for here:
+      // the deadline is advanced on a fake clock and the sentence is read off the settled run.
+      vi.useFakeTimers()
+      try {
+        const { runner } = setup({ outcomes: ['hang'], runTimeoutMs: 300_000 })
+        await runner.start(request())
+        vi.advanceTimersByTime(300_000)
+        for (let tick = 0; tick < 50 && runner.state('skill-card')?.phase === 'running'; tick += 1) {
+          await Promise.resolve()
+        }
+        const state = runner.state('skill-card')
+        expect(state?.phase).toBe('settled')
+        expect(state?.failure).toBe('the skill run timed out after 5 minutes')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('leaves a cancelled run unstored, because the user stopped it', async () => {
+      // The difference the fix preserves: a cancellation is the user's own decision, so the
+      // history stays clean; only the deadline is reported.
+      const { runner, saved } = setup({ outcomes: ['hang'] })
+      await runner.start(request({ instruction: '分析任务' }))
+      expect(runner.cancel('skill-card')).toBe(true)
       const state = await settle(runner)
       expect(state?.phase).toBe('cancelled')
+      expect(saved).toEqual([])
     })
 
     it('signals every in-flight run on dispose', async () => {
