@@ -27,7 +27,7 @@ import type { WorkbenchSkillDefinition } from './skill-card-host.ts';
  * @param instruction - what the user asked this run to do; absent for a run that said nothing.
  * @returns the complete model-facing prompt text.
  */
-export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string): string;
+export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number): string;
 /**
  * Render one skill, the document, the result to revise, and the revision request.
  *
@@ -43,7 +43,7 @@ export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefiniti
  * @param payload - the clicked row's raw fields; absent for a run no row triggered.
  * @returns the complete model-facing prompt text.
  */
-export declare function renderWorkbenchRefinePrompt(skill: WorkbenchSkillDefinition, template: string, previous: string, instruction: string, payload?: Record<string, unknown>): string;
+export declare function renderWorkbenchRefinePrompt(skill: WorkbenchSkillDefinition, template: string, previous: string, instruction: string, payload?: Record<string, unknown>, budgetMs?: number): string;
 /**
  * Render one skill, the row that triggered the run, and its task line, with no document.
  *
@@ -55,3 +55,12 @@ export declare function renderWorkbenchRefinePrompt(skill: WorkbenchSkillDefinit
  * @returns the complete model-facing prompt text.
  */
 export declare function renderWorkbenchBarePrompt(skill: WorkbenchSkillDefinition, payload?: Record<string, unknown>): string;
+/**
+ * Write one deadline the way a person reads it.
+ *
+ * Shared by the prompt and the failure a deadline produces, so the budget the child was
+ * given and the sentence that reports it running out cannot disagree.
+ * @param milliseconds - the deadline.
+ * @returns the duration, in minutes when it is a whole number of them, else in seconds.
+ */
+export declare function describeDuration(milliseconds: number): string;

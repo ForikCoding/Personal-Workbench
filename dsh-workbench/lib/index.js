@@ -1595,11 +1595,12 @@ const REFINE_TASK_INSTRUCTION = [
 * @param instruction - what the user asked this run to do; absent for a run that said nothing.
 * @returns the complete model-facing prompt text.
 */
-function renderWorkbenchSkillPrompt(skill, template, payload, instruction) {
+function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs) {
 	return [
 		...skillBlock(skill),
 		...rowDataBlock(payload),
 		...instructionBlock(instruction),
+		...budgetBlock(budgetMs),
 		"",
 		"<output_document>",
 		template,
@@ -1646,10 +1647,11 @@ function instructionBlock(instruction) {
 * @param payload - the clicked row's raw fields; absent for a run no row triggered.
 * @returns the complete model-facing prompt text.
 */
-function renderWorkbenchRefinePrompt(skill, template, previous, instruction, payload) {
+function renderWorkbenchRefinePrompt(skill, template, previous, instruction, payload, budgetMs) {
 	return [
 		...skillBlock(skill),
 		...rowDataBlock(payload),
+		...budgetBlock(budgetMs),
 		"",
 		"<output_document>",
 		template,
@@ -1683,6 +1685,44 @@ function renderWorkbenchBarePrompt(skill, payload) {
 		"",
 		BARE_TASK_INSTRUCTION
 	].join("\n");
+}
+/**
+* State how long the run has, and what that budget rules out.
+*
+* A card run is stopped by the Host at its deadline, and a child that does not know the
+* clock cannot spend its time well: the run that prompted this line spent most of its five
+* minutes globbing an entire drive for a codebase that was not on the machine, then reported
+* nothing at all. Naming the budget is cheap, and it turns the last minute from a surprise
+* into a plan.
+* @param budgetMs - the run's deadline.
+* @returns the block's lines, or nothing when the deployment states no budget.
+*/
+function budgetBlock(budgetMs) {
+	if (budgetMs === void 0) return [];
+	return [
+		"",
+		"<run_budget>",
+		`This run is stopped automatically after ${describeDuration(budgetMs)}.`,
+		"Spend it on the task: read the paths the task names instead of scanning whole drives,",
+		"and if a path is not on this machine say so in the result rather than searching for it.",
+		"</run_budget>"
+	];
+}
+/**
+* Write one deadline the way a person reads it.
+*
+* Shared by the prompt and the failure a deadline produces, so the budget the child was
+* given and the sentence that reports it running out cannot disagree.
+* @param milliseconds - the deadline.
+* @returns the duration, in minutes when it is a whole number of them, else in seconds.
+*/
+function describeDuration(milliseconds) {
+	const seconds = Math.max(1, Math.round(milliseconds / 1e3));
+	if (seconds >= 60 && seconds % 60 === 0) {
+		const minutes = seconds / 60;
+		return minutes === 1 ? "1 minute" : `${String(minutes)} minutes`;
+	}
+	return seconds === 1 ? "1 second" : `${String(seconds)} seconds`;
 }
 /**
 * Render the row one click carried, when it carried one.
@@ -1801,6 +1841,24 @@ function cardSelection(card) {
 * nothing. A bound keeps a long-lived process from holding every run it ever started.
 */
 const RUN_TABLE_LIMIT = 24;
+/**
+* Global tools a card run is not offered.
+*
+* The goal trio is the whole list, and the reason is the shape of a run rather than a
+* preference: a goal promises follow-up rounds in a conversation, and a card run is one
+* delegated turn in a session that is archived the moment it settles. Nothing can continue
+* what this run would have promised, so the tools are not merely useless — they are a lure.
+* A small model given them called `get_goal` five times in a row, with an empty argument
+* each time, and burned a minute of its own budget discovering that nothing answered.
+*
+* A deny list rather than an allow list: a card's skill may legitimately use any tool the
+* deployment mounts, and only these three are certain to be wrong.
+*/
+const WORKBENCH_RUN_TOOL_FILTER = { deny: [
+	"create_goal",
+	"get_goal",
+	"update_goal"
+] };
 /**
 * Run one card's skill and own the outcome.
 *
@@ -2517,9 +2575,10 @@ var WorkbenchSkillCardRunner = class {
 				parent,
 				prompt: [{
 					type: "text",
-					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload) : renderWorkbenchBarePrompt(skill, input.payload)
+					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
 				...resolvedCwd === void 0 ? {} : { cwd: resolvedCwd },
+				toolFilter: WORKBENCH_RUN_TOOL_FILTER,
 				...input.kind === "bare" ? {} : { outputSchema: input.outputSchema },
 				...input.model === void 0 ? {} : { agentOptions: input.model }
 			}
@@ -2539,7 +2598,7 @@ var WorkbenchSkillCardRunner = class {
 				if (run.timedOut) return {
 					kind: "unusable",
 					record,
-					failure: `the skill run timed out after ${describeDeadline(this.options.runTimeoutMs)}`,
+					failure: `the skill run timed out after ${describeDuration(this.options.runTimeoutMs)}`,
 					retryable: false
 				};
 				return {
@@ -2596,15 +2655,21 @@ var WorkbenchSkillCardRunner = class {
 			run.failureCode = outcome.code;
 			return;
 		}
-		const record = run.bare || run.activity.length === 0 ? outcome.record : {
+		const traced = run.bare || run.activity.length === 0 ? outcome.record : {
 			...outcome.record,
 			activity: run.activity
 		};
+		const code = run.timedOut ? "run-timeout" : "run-failed";
+		const record = outcome.kind === "unusable" ? {
+			...traced,
+			failure: outcome.failure,
+			failureCode: code
+		} : traced;
 		run.result = record;
 		run.phase = "settled";
 		if (outcome.kind === "unusable") {
 			run.failure = outcome.failure;
-			run.failureCode = "run-failed";
+			run.failureCode = code;
 		}
 		if (run.bare) return;
 		try {
@@ -2760,22 +2825,6 @@ function textOf(output) {
 function bareFailure(result, diagnostic) {
 	const detail = diagnostic ?? result.diagnostic;
 	return detail === void 0 ? `the skill run ended as ${result.stopReason}` : `the skill run ended as ${result.stopReason}: ${detail}`;
-}
-/**
-* Say how long a run was allowed to take.
-*
-* The deadline is configured in milliseconds and quoted back to the user in the sentence
-* that reports the timeout, so it reads as the number they set rather than as a raw one.
-* @param milliseconds - the configured deadline.
-* @returns the duration as minutes when it divides evenly, else as seconds.
-*/
-function describeDeadline(milliseconds) {
-	const seconds = Math.max(1, Math.round(milliseconds / 1e3));
-	if (seconds >= 60 && seconds % 60 === 0) {
-		const minutes = seconds / 60;
-		return minutes === 1 ? "1 minute" : `${String(minutes)} minutes`;
-	}
-	return seconds === 1 ? "1 second" : `${String(seconds)} seconds`;
 }
 /**
 * Describe why a run produced nothing usable.
@@ -3152,6 +3201,7 @@ const STATUS_BY_CODE = {
 	"not-found": 404,
 	"storage-failure": 500,
 	"run-failed": 500,
+	"run-timeout": 500,
 	"not-configured": 400,
 	"session-not-live": 409,
 	"skill-not-found": 404,
@@ -3810,7 +3860,9 @@ function trimResult(record, maxBytes) {
 		stopReason: record.stopReason,
 		...record.model === void 0 ? {} : { model: record.model },
 		...record.sessionId === void 0 ? {} : { sessionId: record.sessionId },
-		...record.instruction === void 0 ? {} : { instruction: record.instruction }
+		...record.instruction === void 0 ? {} : { instruction: record.instruction },
+		...record.failure === void 0 ? {} : { failure: record.failure },
+		...record.failureCode === void 0 ? {} : { failureCode: record.failureCode }
 	};
 	const withStructured = record.structured === void 0 ? base : {
 		...base,
@@ -3916,7 +3968,7 @@ const Config = z$1.object({
 	maxTemplatesPerCard: z$1.number().step(1).min(1).max(64).default(16),
 	maxResultBytes: z$1.number().step(1).min(1024).max(1024 * 1024).default(WORKBENCH_RESULT_MAX_BYTES),
 	maxResultsPerCard: z$1.number().step(1).min(1).max(30).default(30),
-	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(3e5),
+	runTimeoutMs: z$1.number().step(1).min(1e3).max(36e5).default(6e5),
 	maxConcurrentRuns: z$1.number().step(1).min(1).max(8).default(4),
 	resultStaleAfterMs: z$1.number().step(1).min(6e4).default(864e5)
 });

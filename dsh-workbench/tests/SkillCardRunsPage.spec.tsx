@@ -254,6 +254,31 @@ describe('the run-history page', () => {
       .map(row => row?.textContent)).toEqual([zh.runActivityCompleted, zh.runActivityFailed])
   })
 
+  it('reads a run the deadline stopped as failed, not as stopped', async () => {
+    // The seam reports `aborted` for a run the Host stopped at its deadline, and the list
+    // used to print 已停止 — "stopped", the word for a run a person cancelled. Nobody
+    // cancelled this one; the record's own verdict is what the row states.
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            results: [
+              result({
+                runId: 'run-timeout',
+                stopReason: 'aborted',
+                structured: undefined,
+                failure: 'the skill run timed out after 10 minutes',
+                failureCode: 'run-timeout',
+              }),
+            ],
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    expect(container.querySelector('[data-run-history-outcome]')?.textContent).toBe(zh.runActivityFailed)
+  })
+
   it('summarizes each run by its first visible line', async () => {
     const { container } = render(
       <SkillCardRunsPage

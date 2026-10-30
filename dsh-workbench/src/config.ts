@@ -59,10 +59,15 @@ export const Config: z<Config> = z.object({
   maxResultsPerCard: z.number().step(1).min(1).max(WORKBENCH_MAX_RESULTS_PER_CARD).default(WORKBENCH_MAX_RESULTS_PER_CARD),
   // A run that drives external MCP tools can spend minutes in model steps alone: a
   // served catalog of a hundred tools makes every step large, and a spilled tool result
-  // costs another read. Two minutes cancelled a real card mid-run; five leaves room
-  // without letting a hung run hold the card indefinitely, and a deployment can still
-  // tighten it here.
-  runTimeoutMs: z.number().step(1).min(1000).max(3_600_000).default(300_000),
+  // costs another read. Two minutes cancelled a real card mid-run, and five then cancelled
+  // a run that was still working — it had read the task and the defect and had found the
+  // related task that mattered, and was one call away from the report. Ten leaves room for
+  // that work without letting a hung run hold the card indefinitely: the run's own stop
+  // control is the interrupt, and a deployment can still tighten this here.
+  //
+  // The child is told this number in its prompt (`<run_budget>`), so raising it also buys
+  // a plan: a model that knows the clock stops exploring a drive it cannot finish.
+  runTimeoutMs: z.number().step(1).min(1000).max(3_600_000).default(600_000),
   // One card may run several of its own runs at once — each in a session of its own — so
   // the limit is the deployment's appetite rather than a card's exclusivity. Four covers a
   // workbench in use (a couple of cards running, one of them twice) without letting a

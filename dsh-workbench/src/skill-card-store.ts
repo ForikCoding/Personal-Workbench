@@ -639,6 +639,10 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
     // And the instruction: two runs of one card differ by it, so a trimmed record that shed
     // it would leave a row nobody can tell apart from the run beside it.
     ...record.instruction === undefined ? {} : { instruction: record.instruction },
+    // And the verdict: a record with no region and no reason reads as a run that never
+    // happened. It is one short sentence, so it is never the thing that gets shed.
+    ...record.failure === undefined ? {} : { failure: record.failure },
+    ...record.failureCode === undefined ? {} : { failureCode: record.failureCode },
   }
   const withStructured: WorkbenchResultRecord = record.structured === undefined
     ? base

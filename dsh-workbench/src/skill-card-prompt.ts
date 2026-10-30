@@ -96,11 +96,13 @@ export function renderWorkbenchSkillPrompt(
   template: string,
   payload?: Record<string, unknown>,
   instruction?: string,
+  budgetMs?: number,
 ): string {
   return [
     ...skillBlock(skill),
     ...rowDataBlock(payload),
     ...instructionBlock(instruction),
+    ...budgetBlock(budgetMs),
     '',
     '<output_document>',
     template,
@@ -155,10 +157,12 @@ export function renderWorkbenchRefinePrompt(
   previous: string,
   instruction: string,
   payload?: Record<string, unknown>,
+  budgetMs?: number,
 ): string {
   return [
     ...skillBlock(skill),
     ...rowDataBlock(payload),
+    ...budgetBlock(budgetMs),
     '',
     '<output_document>',
     template,
@@ -191,6 +195,48 @@ export function renderWorkbenchBarePrompt(
   payload?: Record<string, unknown>,
 ): string {
   return [...skillBlock(skill), ...rowDataBlock(payload), '', BARE_TASK_INSTRUCTION].join('\n')
+}
+
+/**
+ * State how long the run has, and what that budget rules out.
+ *
+ * A card run is stopped by the Host at its deadline, and a child that does not know the
+ * clock cannot spend its time well: the run that prompted this line spent most of its five
+ * minutes globbing an entire drive for a codebase that was not on the machine, then reported
+ * nothing at all. Naming the budget is cheap, and it turns the last minute from a surprise
+ * into a plan.
+ * @param budgetMs - the run's deadline.
+ * @returns the block's lines, or nothing when the deployment states no budget.
+ */
+function budgetBlock(budgetMs: number | undefined): string[] {
+  if (budgetMs === undefined) return []
+  return [
+    '',
+    '<run_budget>',
+    `This run is stopped automatically after ${describeDuration(budgetMs)}.`,
+    'Spend it on the task: read the paths the task names instead of scanning whole drives,',
+    'and if a path is not on this machine say so in the result rather than searching for it.',
+    '</run_budget>',
+  ]
+}
+
+/**
+ * Write one deadline the way a person reads it.
+ *
+ * Shared by the prompt and the failure a deadline produces, so the budget the child was
+ * given and the sentence that reports it running out cannot disagree.
+ * @param milliseconds - the deadline.
+ * @returns the duration, in minutes when it is a whole number of them, else in seconds.
+ */
+export function describeDuration(milliseconds: number): string {
+  // At least one second, because a deadline below a second would otherwise report
+  // "0 seconds" — a duration nobody configured.
+  const seconds = Math.max(1, Math.round(milliseconds / 1_000))
+  if (seconds >= 60 && seconds % 60 === 0) {
+    const minutes = seconds / 60
+    return minutes === 1 ? '1 minute' : `${String(minutes)} minutes`
+  }
+  return seconds === 1 ? '1 second' : `${String(seconds)} seconds`
 }
 
 /**

@@ -666,7 +666,9 @@ describe('workbench skill card runner', () => {
       expect(spec?.request.outputSchema).toEqual({ type: 'object', properties: {} })
       // Omitting these is how the run inherits the session's model and tools.
       expect(spec?.request).not.toHaveProperty('agentOptions')
-      expect(spec?.request).not.toHaveProperty('toolFilter')
+      // The only tool restriction a run carries is the goal trio, whose promise of a later
+      // round this session cannot keep. Everything else the session has stays available.
+      expect(spec?.request.toolFilter).toEqual({ deny: ['create_goal', 'get_goal', 'update_goal'] })
       const prompt = spec?.request.prompt[0]?.text ?? ''
       expect(prompt).toContain('<skill_content name="git-repo">')
       expect(prompt).toContain('Base directory for this skill: /repo/.agents/skills/git-repo')
@@ -703,6 +705,20 @@ describe('workbench skill card runner', () => {
       expect(prompt).toContain('body{color:red}')
       expect(prompt).toContain('<h1>今日任务</h1>')
       expect(prompt).toContain('Everything outside that region is kept exactly as written')
+    })
+
+    it('tells the child how long it has', async () => {
+      // A run stopped at its deadline with nothing to show is the failure this line exists
+      // for: the child that produced it spent most of the budget globbing a whole drive for
+      // a codebase that was not on the machine. A stated budget is the only thing that turns
+      // the last minute into a plan.
+      const { runner, fake } = setup({ runTimeoutMs: 600_000 })
+      await runner.start(request())
+      await settle(runner)
+      const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
+      expect(prompt).toContain('<run_budget>')
+      expect(prompt).toContain('This run is stopped automatically after 10 minutes.')
+      expect(prompt).toContain('instead of scanning whole drives')
     })
 
     it('retries once when the child returns no usable value', async () => {
@@ -955,10 +971,16 @@ describe('workbench skill card runner', () => {
       const state = runner.state('skill-card')
       expect(state?.phase).toBe('settled')
       expect(state?.failure).toBe('the skill run timed out after 2 seconds')
-      expect(state?.failureCode).toBe('run-failed')
+      // A deadline is its own verdict: nothing faulted and nobody cancelled, and the page
+      // says so after a reload instead of reading the seam's `aborted` as 已停止.
+      expect(state?.failureCode).toBe('run-timeout')
       expect(saved).toHaveLength(1)
       // What the user asked survives into the record, so the row says which attempt timed out.
       expect(saved[0]?.record.instruction).toBe('分析任务')
+      // The verdict is stored with the record, not only held in memory: the run state is
+      // gone after a restart, and the record is what the page still has to read.
+      expect(saved[0]?.record.failure).toBe('the skill run timed out after 2 seconds')
+      expect(saved[0]?.record.failureCode).toBe('run-timeout')
     })
 
     it('names the deadline in minutes when it is a whole number of them', async () => {

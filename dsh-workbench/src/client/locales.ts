@@ -32,6 +32,8 @@ export const zh = {
   skillCardNoTemplateBody: '这张卡需要你为所选 skill 写一段 HTML 模板才能运行。',
   skillCardNotRunTitle: '尚未运行',
   skillCardNotRunBody: '点「运行」让这个 skill 执行一次。',
+  skillCardResultFailedTitle: '这次运行没有产出内容',
+  skillCardResultTimeoutTitle: '这次运行超时了',
   skillCardProblemNotConfigured: '还没有选择 skill',
   skillCardProblemNoTemplate: '这个 skill 还没有模板',
   skillCardProblemNoSession: '没有可用的会话',
@@ -41,6 +43,7 @@ export const zh = {
   skillCardProblemTemplateInvalid: '模板不合法',
   skillCardProblemRunning: '已经有一个运行在进行',
   skillCardProblemRunFailed: '这次运行没有产出可用的结果',
+  skillCardProblemRunTimeout: '这次运行超过了时限，被宿主中止了；可以再跑一次',
   // 这张卡能读、能改，只有"运行"不行：宿主没有提供任何一条运行入口。
   skillCardProblemRunUnavailable: '当前 harness 不能运行卡片：卡片运行需要提供 startActivation（0.2.1-alpha.2 / beta 通道）或 start（0.2.0-rc.2 / 稳定通道）之一，已安装的 harness 两个都没有提供',
   // The workspace. A card runs in the directory the user picked for it and nowhere else:
@@ -287,6 +290,8 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardNoTemplateBody: 'This card needs an HTML template for the selected skill before it can run.',
   skillCardNotRunTitle: 'Not run yet',
   skillCardNotRunBody: 'Run to let the skill execute once.',
+  skillCardResultFailedTitle: 'This run produced no content',
+  skillCardResultTimeoutTitle: 'This run timed out',
   skillCardProblemNotConfigured: 'No skill selected yet',
   skillCardProblemNoTemplate: 'This skill has no template',
   skillCardProblemNoSession: 'No session is available',
@@ -296,6 +301,7 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardProblemTemplateInvalid: 'The template is not valid',
   skillCardProblemRunning: 'Another run is already in flight',
   skillCardProblemRunFailed: 'The run produced no usable result',
+  skillCardProblemRunTimeout: 'This run passed its time limit and the host stopped it; running it again is the next step',
   // The card itself is fine: the harness under it is missing every seam a run needs.
   skillCardProblemRunUnavailable: 'This harness cannot run cards: a card run needs one of startActivation (0.2.1-alpha.2, the beta channel) or start (0.2.0-rc.2, the stable channel), and the installed harness provides neither',
   // The workspace. A card runs in the directory the user picked for it and nowhere else:

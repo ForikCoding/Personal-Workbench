@@ -44,7 +44,12 @@ import type {
 } from './skill-card-host.ts'
 import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
-import { renderWorkbenchBarePrompt, renderWorkbenchRefinePrompt, renderWorkbenchSkillPrompt } from './skill-card-prompt.ts'
+import {
+  describeDuration,
+  renderWorkbenchBarePrompt,
+  renderWorkbenchRefinePrompt,
+  renderWorkbenchSkillPrompt,
+} from './skill-card-prompt.ts'
 
 /**
  * Why a card run cannot start on a harness without either run seam.
@@ -373,6 +378,21 @@ type AttemptOutcome =
  * nothing. A bound keeps a long-lived process from holding every run it ever started.
  */
 const RUN_TABLE_LIMIT = 24
+
+/**
+ * Global tools a card run is not offered.
+ *
+ * The goal trio is the whole list, and the reason is the shape of a run rather than a
+ * preference: a goal promises follow-up rounds in a conversation, and a card run is one
+ * delegated turn in a session that is archived the moment it settles. Nothing can continue
+ * what this run would have promised, so the tools are not merely useless — they are a lure.
+ * A small model given them called `get_goal` five times in a row, with an empty argument
+ * each time, and burned a minute of its own budget discovering that nothing answered.
+ *
+ * A deny list rather than an allow list: a card's skill may legitimately use any tool the
+ * deployment mounts, and only these three are certain to be wrong.
+ */
+const WORKBENCH_RUN_TOOL_FILTER = { deny: ['create_goal', 'get_goal', 'update_goal'] } as const
 
 /**
  * Run one card's skill and own the outcome.
@@ -1322,13 +1342,35 @@ await this.finish(run, outcome)
         parent,
         prompt: [{
           type: 'text',
+          // The deadline travels with the prompt. A child that does not know the clock
+          // spends the budget exploring, and the run then ends mid-thought with nothing to
+          // show for it — which is precisely how the first successful-looking run failed.
           text: input.kind === 'card'
-            ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction)
+            ? renderWorkbenchSkillPrompt(
+                skill,
+                input.template,
+                input.payload,
+                input.instruction,
+                this.options.runTimeoutMs,
+              )
             : input.kind === 'refine'
-              ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload)
+              ? renderWorkbenchRefinePrompt(
+                  skill,
+                  input.template,
+                  input.previous,
+                  input.instruction,
+                  input.payload,
+                  this.options.runTimeoutMs,
+                )
               : renderWorkbenchBarePrompt(skill, input.payload),
         }],
         ...resolvedCwd === undefined ? {} : { cwd: resolvedCwd },
+        // The goal tools are removed from a card run's world. A goal is a promise about a
+        // conversation's later rounds, and a run is one delegated turn in a session nothing
+        // will ever continue — there is no goal to create, read, or advance here. Given them
+        // anyway, a small model found them irresistible: one run called `get_goal` five times
+        // in a row with an empty argument, then spent its remaining minutes recovering.
+        toolFilter: WORKBENCH_RUN_TOOL_FILTER,
         // Conditional on purpose: a bare run sends no contract at all, and the seam
         // treats its absence as "nothing to capture" rather than as a default.
         ...input.kind === 'bare' ? {} : { outputSchema: input.outputSchema },
@@ -1377,7 +1419,7 @@ await this.finish(run, outcome)
           return {
             kind: 'unusable',
             record,
-            failure: `the skill run timed out after ${describeDeadline(this.options.runTimeoutMs)}`,
+            failure: `the skill run timed out after ${describeDuration(this.options.runTimeoutMs)}`,
             retryable: false,
           }
         }
@@ -1436,14 +1478,25 @@ await this.finish(run, outcome)
     // The trace joins the record here rather than in the attempt, because this is the one
     // place that decides what the run keeps: a bare run keeps nothing, and a run whose
     // child used no tools carries no field at all instead of an empty one.
-    const record = run.bare || run.activity.length === 0
+    // The verdict travels with the record, not only with the run. The run lives in memory
+    // and a reload forgets it; the record does not, and a record that kept the trace but not
+    // the reason left the page with a run that visibly happened and nothing to say about it —
+    // so it said "not run yet".
+    const traced = run.bare || run.activity.length === 0
       ? outcome.record
       : { ...outcome.record, activity: run.activity }
+    // A deadline is its own verdict: nobody cancelled this run and nothing faulted, it just
+    // ran out of time. Both the run and its stored record carry that, so the page can name
+    // it after a reload instead of falling back to whatever the stop reason happened to be.
+    const code = run.timedOut ? 'run-timeout' as const : 'run-failed' as const
+    const record = outcome.kind === 'unusable'
+      ? { ...traced, failure: outcome.failure, failureCode: code }
+      : traced
     run.result = record
     run.phase = 'settled'
     if (outcome.kind === 'unusable') {
       run.failure = outcome.failure
-      run.failureCode = 'run-failed'
+      run.failureCode = code
     }
     // A bare run keeps nothing: its verdict stays in the run table for this session
     // and a reload leaves the card showing its own stored result.
@@ -1633,25 +1686,6 @@ function bareFailure(result: WorkbenchSubagentResult, diagnostic?: string): stri
   return detail === undefined
     ? `the skill run ended as ${result.stopReason}`
     : `the skill run ended as ${result.stopReason}: ${detail}`
-}
-
-/**
- * Say how long a run was allowed to take.
- *
- * The deadline is configured in milliseconds and quoted back to the user in the sentence
- * that reports the timeout, so it reads as the number they set rather than as a raw one.
- * @param milliseconds - the configured deadline.
- * @returns the duration as minutes when it divides evenly, else as seconds.
- */
-function describeDeadline(milliseconds: number): string {
-  // At least one second, because a deadline below a second would otherwise report
-  // "0 seconds" — a duration nobody configured.
-  const seconds = Math.max(1, Math.round(milliseconds / 1_000))
-  if (seconds >= 60 && seconds % 60 === 0) {
-    const minutes = seconds / 60
-    return minutes === 1 ? '1 minute' : `${String(minutes)} minutes`
-  }
-  return seconds === 1 ? '1 second' : `${String(seconds)} seconds`
 }
 
 /**

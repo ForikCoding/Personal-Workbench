@@ -172,12 +172,13 @@ describe('a bare skill run', () => {
 
   it('treats the deadline as a failure with a reason', async () => {
     // Criterion 29: a timeout is a failure. A bare run has no cancel control, so the
-    // deadline is the only thing that can end one early.
+    // deadline is the only thing that can end one early. It carries its own code: nothing
+    // faulted and nobody cancelled, the work simply outlived its budget.
     const { runner, fake } = setup({ outcomes: ['hang'], runTimeoutMs: 10 })
     await runner.start(bare())
     const state = await settle(runner)
     expect(state?.phase).toBe('settled')
-    expect(state?.failureCode).toBe('run-failed')
+    expect(state?.failureCode).toBe('run-timeout')
     expect(state?.failure).toBe('the skill run timed out after 1 second')
     expect(fake.activations).toHaveLength(1)
   })

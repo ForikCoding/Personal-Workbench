@@ -106,6 +106,37 @@ describe('skill card body', () => {
     expect(container.textContent).toContain('skillCardNotRunTitle')
   })
 
+  it('names the run when its record has no content because the run failed', () => {
+    // The bug this covers: a stopped run's record carries no region, so the panel said
+    // 尚未运行 — "not run yet" — directly above a trace of that run's thirteen steps. A
+    // record with a verdict is a run that happened, and the panel owes the reader the
+    // verdict.
+    const failed = {
+      ...RESULT,
+      stopReason: 'aborted',
+      structured: undefined,
+      failure: 'the skill run timed out after 10 minutes',
+      failureCode: 'run-timeout',
+    } as unknown as typeof RESULT
+    const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: failed })} t={t} />)
+    expect(container.textContent).toContain('skillCardResultTimeoutTitle')
+    expect(container.textContent).not.toContain('skillCardNotRunTitle')
+    // The reason travels too: the heading says what happened, the line says why.
+    expect(container.textContent).toContain('the skill run timed out after 10 minutes')
+  })
+
+  it('leaves the heading at failure when the run faulted rather than timed out', () => {
+    const failed = {
+      ...RESULT,
+      stopReason: 'error',
+      structured: undefined,
+      failure: 'the child answered without reporting a structured result',
+      failureCode: 'run-failed',
+    } as unknown as typeof RESULT
+    const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: failed })} t={t} />)
+    expect(container.textContent).toContain('skillCardResultFailedTitle')
+  })
+
   it('leaves the permission note to the page that owns it', () => {
     // The note states the mode this card's runs use, so it is a footnote beneath the result
     // page's content rather than part of the document this body renders. The page spec pins

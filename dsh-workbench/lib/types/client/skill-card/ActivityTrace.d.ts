@@ -44,9 +44,14 @@ export interface ActivityTraceProps {
      *
      * Absent keeps the trace headerless, for callers that bring their own header (the running
      * card's notice). Present renders the conversation-style turn-process row above the list.
+     *
+     * `failure` is the record's own verdict, and it outranks the stop reason: a run the Host
+     * stopped at its deadline reports `aborted` from the seam, which would read as 已停止 — a
+     * run somebody stopped on purpose — when in fact the clock ran out.
      */
     readonly settled?: {
         readonly stopReason: string;
+        readonly failure?: string;
     } | undefined;
     /**
      * Translate one workbench string.

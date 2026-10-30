@@ -208,9 +208,10 @@ export interface WorkbenchAgentOptions {
 /**
  * One requested child execution.
  *
- * `toolFilter` is deliberately absent: omitting it is how a run inherits the session's
- * full tool permissions. `agentOptions` is present but optional, and a run that omits it
- * inherits the session's model — which is what a card with no model selected does.
+ * `agentOptions` is present but optional, and a run that omits it inherits the session's
+ * model — which is what a card with no model selected does. `toolFilter` is used to remove
+ * only the goal tools, whose promise of a later round a card run cannot keep; every other
+ * tool the session has stays available to the run.
  */
 export interface WorkbenchActivationSpec {
     readonly provider: string;
@@ -239,6 +240,17 @@ export interface WorkbenchActivationSpec {
          * `agentOptions` capability, which is why the runner checks that first.
          */
         readonly agentOptions?: WorkbenchAgentOptions;
+        /**
+         * Global tools to hide from the child.
+         *
+         * Intersected with what the session already allows, and it never widens: the run starts
+         * with the session's tools minus these names. See the runner's deny list for the three
+         * that are removed and why a run must not see them.
+         */
+        readonly toolFilter?: {
+            readonly allow?: readonly string[];
+            readonly deny?: readonly string[];
+        };
     };
 }
 /** Subagent surface, narrowed to provider discovery and one activation. */

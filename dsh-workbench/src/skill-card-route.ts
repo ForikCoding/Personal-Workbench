@@ -568,6 +568,9 @@ const STATUS_BY_CODE: Record<WorkbenchSkillCardErrorCode, number> = {
   'not-found': 404,
   'storage-failure': 500,
   'run-failed': 500,
+  // Read back by the client from a stored record rather than returned by a refused call;
+  // 500 is the answer if it ever is, because a deadline is the Host's own limitation.
+  'run-timeout': 500,
   'not-configured': 400,
   'session-not-live': 409,
   'skill-not-found': 404,

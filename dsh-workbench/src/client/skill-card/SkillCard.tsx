@@ -216,11 +216,23 @@ function cardContent(
   if (view.run?.phase === 'running' && view.refining !== true && subjectIsTheRun) {
     return <RunningNotice run={view.run} t={t} />
   }
+  // Why the record on screen has nothing to show, when the run said why.
+  //
+  // Read from the record first and the live run second: the record is what survives a
+  // reload, and the run is what carries the verdict while it is still in memory. Without
+  // this a failed run and a card nobody has run looked identical — "not run yet" beside a
+  // trace that plainly showed the run happening.
+  const sameRun = view.result !== undefined && view.run?.result?.runId === view.result.runId
+  const failure = view.result?.failure ?? (sameRun ? view.run?.failure : undefined)
+  const failureCode = view.result?.failureCode ?? (sameRun ? view.run?.failureCode : undefined)
   if (view.result === undefined) {
-    return <Notice title={t('skillCardNotRunTitle')} body={t('skillCardNotRunBody')} />
+    return failure === undefined
+      ? <Notice title={t('skillCardNotRunTitle')} body={t('skillCardNotRunBody')} />
+      : <Notice title={failureTitle(failureCode, t)} body={failure} />
   }
   const filled = resultHtml(view.result.structured)
   if (filled === undefined) {
+    if (failure !== undefined) return <Notice title={failureTitle(failureCode, t)} body={failure} />
     // A result stored before the region language existed carries named values instead
     // of HTML. It cannot be shown, so the card reads as not run rather than as empty.
     return <Notice title={t('skillCardNotRunTitle')} body={t('skillCardNotRunBody')} />
@@ -238,6 +250,24 @@ function cardContent(
       documents={documents}
     />
   )
+}
+
+/**
+ * Choose the heading of a card that has no content to show because a run failed.
+ *
+ * A deadline gets its own words: it is not a fault and saying "failed" would send the user
+ * looking for one. Any other code reads as the plain failure it is.
+ * @param code - the failure code stored on the record, when one was stored.
+ * @param t - translator.
+ * @returns the heading.
+ */
+function failureTitle(
+  code: string | undefined,
+  t: (key: WorkbenchLocaleKey) => string,
+): string {
+  return code === 'run-timeout'
+    ? t('skillCardResultTimeoutTitle')
+    : t('skillCardResultFailedTitle')
 }
 
 /** One empty-state block. */
@@ -276,6 +306,9 @@ const PROBLEM_KEYS: Record<WorkbenchCardProblem['code'], WorkbenchLocaleKey> = {
   'template-invalid': 'skillCardProblemTemplateInvalid',
   'run-in-progress': 'skillCardProblemRunning',
   'run-failed': 'skillCardProblemRunFailed',
+  // A deadline is not a fault: the sentence names the clock, because running again is the
+  // remedy and looking for something that broke is not.
+  'run-timeout': 'skillCardProblemRunTimeout',
   // A harness without the activation seam: the one failure that is about the deployment
   // rather than about this card, and the only one whose copy names a version to install.
   'run-unavailable': 'skillCardProblemRunUnavailable',

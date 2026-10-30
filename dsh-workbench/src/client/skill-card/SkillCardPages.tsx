@@ -146,23 +146,29 @@ function groupRunsByDay(runs: readonly WorkbenchResultRecord[]): RunHistoryGroup
 /**
  * The outcome word one settled run shows in the history list.
  *
- * The same three outcomes the turn-process header names, so the list and the detail
- * never disagree about what a run became.
- * @param stopReason - the run's terminal stop reason.
+ * The same outcomes the turn-process header names, so the list and the detail never
+ * disagree about what a run became.
+ *
+ * The record's own verdict comes first. A run the Host stopped at its deadline reports
+ * `aborted` from the seam, which is true of the child and false of the run: nobody cancelled
+ * it. The record carries the verdict the page can act on.
+ * @param record - the stored record.
  * @param t - translator.
  * @returns the localized outcome word.
  */
 function runOutcomeText(
-  stopReason: string,
+  record: Pick<WorkbenchResultRecord, 'stopReason' | 'failure'>,
   t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string,
 ): string {
+  const { stopReason } = record
   // The in-flight row is a record the controller builds, not one a run stored; its
   // stop reason is the synthetic 'running', read before the settled outcomes so a live
   // run never reads as the completed fallback.
   return stopReason === 'running' ? t('runHistoryRunning')
-    : stopReason === 'aborted' ? t('runActivityStopped')
-      : stopReason === 'error' || stopReason === 'failed' ? t('runActivityFailed')
-        : t('runActivityCompleted')
+    : record.failure !== undefined ? t('runActivityFailed')
+      : stopReason === 'aborted' ? t('runActivityStopped')
+        : stopReason === 'error' || stopReason === 'failed' ? t('runActivityFailed')
+          : t('runActivityCompleted')
 }
 
 /**
@@ -286,7 +292,11 @@ function RunTrace({
   if (result === undefined || result.activity === undefined || result.activity.length === 0) return null
   return (
     <section className={css.runTrace} data-run-trace="">
-      <ActivityTrace trace={result.activity} settled={{ stopReason: result.stopReason }} t={t} />
+      <ActivityTrace
+        trace={result.activity}
+        settled={{ stopReason: result.stopReason, ...result.failure === undefined ? {} : { failure: result.failure } }}
+        t={t}
+      />
     </section>
   )
 }
@@ -819,8 +829,12 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
             {t(problemKey(view.runUnavailable.code))}
           </p>
         )}
-      {view.problem === undefined || view.refineProblem !== undefined ? null : (
-        <p className={css.runProblem} role="alert">
+      {/* Stated here whenever there is one, including after a failed refinement: the
+          refinement's own sentence lives under its composer, and this page is where the
+          user lands when they come back — a page that showed nothing at all left them
+          reading a five-minute gap as a card that had simply never run. */}
+      {view.problem === undefined ? null : (
+        <p className={css.runProblem} role="alert" data-run-problem={view.problem.code}>
           {t(problemKey(view.problem.code))}
           {view.problem.detail === '' ? '' : ` · ${view.problem.detail}`}
         </p>
@@ -938,7 +952,7 @@ function RunHistoryRow({
           <span className={css.runHistorySide}>
             <span className={css.runHistoryOutcome} data-run-history-outcome="">
               <span className={css.runHistoryDot} aria-hidden="true" />
-              {runOutcomeText(run.stopReason, t)}
+              {runOutcomeText(run, t)}
             </span>
             <span className={css.runHistoryChevron} aria-hidden="true">›</span>
           </span>
@@ -1105,10 +1119,12 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             {t(problemKey(view.runUnavailable.code))}
           </p>
         )}
-      {/* A refinement's failure is reported under the composer instead; stating it here
-          too would put the same failure on the page twice. */}
+      {/* A refinement's failure is stated under the composer, which sits on this same page:
+          saying it here as well put the same sentence on screen twice. What the page itself
+          owed the user was a panel that named the run instead of reading "not run yet", and
+          that is the body's own notice — see `SkillCardBody`. */}
       {view.problem === undefined || view.refineProblem !== undefined ? null : (
-        <p className={css.runProblem} role="alert">
+        <p className={css.runProblem} role="alert" data-run-problem={view.problem.code}>
           {t(problemKey(view.problem.code))}
           {view.problem.detail === '' ? '' : ` · ${view.problem.detail}`}
         </p>

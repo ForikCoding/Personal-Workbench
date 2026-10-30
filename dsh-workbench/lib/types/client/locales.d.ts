@@ -29,6 +29,8 @@ export declare const zh: {
     skillCardNoTemplateBody: string;
     skillCardNotRunTitle: string;
     skillCardNotRunBody: string;
+    skillCardResultFailedTitle: string;
+    skillCardResultTimeoutTitle: string;
     skillCardProblemNotConfigured: string;
     skillCardProblemNoTemplate: string;
     skillCardProblemNoSession: string;
@@ -38,6 +40,7 @@ export declare const zh: {
     skillCardProblemTemplateInvalid: string;
     skillCardProblemRunning: string;
     skillCardProblemRunFailed: string;
+    skillCardProblemRunTimeout: string;
     skillCardProblemRunUnavailable: string;
     skillCardProblemWorkspaceMissing: string;
     skillCardProblemWorkspaceInvalid: string;

@@ -245,6 +245,8 @@ window.__ModuleLoader__.load({
 			skillCardNoTemplateBody: "这张卡需要你为所选 skill 写一段 HTML 模板才能运行。",
 			skillCardNotRunTitle: "尚未运行",
 			skillCardNotRunBody: "点「运行」让这个 skill 执行一次。",
+			skillCardResultFailedTitle: "这次运行没有产出内容",
+			skillCardResultTimeoutTitle: "这次运行超时了",
 			skillCardProblemNotConfigured: "还没有选择 skill",
 			skillCardProblemNoTemplate: "这个 skill 还没有模板",
 			skillCardProblemNoSession: "没有可用的会话",
@@ -254,6 +256,7 @@ window.__ModuleLoader__.load({
 			skillCardProblemTemplateInvalid: "模板不合法",
 			skillCardProblemRunning: "已经有一个运行在进行",
 			skillCardProblemRunFailed: "这次运行没有产出可用的结果",
+			skillCardProblemRunTimeout: "这次运行超过了时限，被宿主中止了；可以再跑一次",
 			skillCardProblemRunUnavailable: "当前 harness 不能运行卡片：卡片运行需要提供 startActivation（0.2.1-alpha.2 / beta 通道）或 start（0.2.0-rc.2 / 稳定通道）之一，已安装的 harness 两个都没有提供",
 			skillCardProblemWorkspaceMissing: "这张卡还没有选择工作目录，先选一个目录再运行",
 			skillCardProblemWorkspaceInvalid: "工作目录不存在或不是文件夹",
@@ -440,6 +443,8 @@ window.__ModuleLoader__.load({
 			skillCardNoTemplateBody: "This card needs an HTML template for the selected skill before it can run.",
 			skillCardNotRunTitle: "Not run yet",
 			skillCardNotRunBody: "Run to let the skill execute once.",
+			skillCardResultFailedTitle: "This run produced no content",
+			skillCardResultTimeoutTitle: "This run timed out",
 			skillCardProblemNotConfigured: "No skill selected yet",
 			skillCardProblemNoTemplate: "This skill has no template",
 			skillCardProblemNoSession: "No session is available",
@@ -449,6 +454,7 @@ window.__ModuleLoader__.load({
 			skillCardProblemTemplateInvalid: "The template is not valid",
 			skillCardProblemRunning: "Another run is already in flight",
 			skillCardProblemRunFailed: "The run produced no usable result",
+			skillCardProblemRunTimeout: "This run passed its time limit and the host stopped it; running it again is the next step",
 			skillCardProblemRunUnavailable: "This harness cannot run cards: a card run needs one of startActivation (0.2.1-alpha.2, the beta channel) or start (0.2.0-rc.2, the stable channel), and the installed harness provides neither",
 			skillCardProblemWorkspaceMissing: "No workspace directory is selected for this card; choose one before running",
 			skillCardProblemWorkspaceInvalid: "The workspace directory does not exist or is not a folder",
@@ -3878,6 +3884,7 @@ window.__ModuleLoader__.load({
 			"not-found": true,
 			"storage-failure": true,
 			"run-failed": true,
+			"run-timeout": true,
 			"not-configured": true,
 			"session-not-live": true,
 			"skill-not-found": true,
@@ -4152,6 +4159,7 @@ window.__ModuleLoader__.load({
 				"data-run-activity": "",
 				children: [settled !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TurnProcessHeader, {
 					stopReason: settled.stopReason,
+					failed: settled.failure !== void 0,
 					open,
 					onToggle: () => {
 						setFolded((value) => !value);
@@ -4200,12 +4208,12 @@ window.__ModuleLoader__.load({
 		* @param props - the outcome, fold state, toggle, and translator.
 		* @returns the header button.
 		*/
-		function TurnProcessHeader({ stopReason, open, onToggle, t }) {
-			const label = stopReason === "aborted" ? t("runActivityStopped") : stopReason === "error" || stopReason === "failed" ? t("runActivityFailed") : t("runActivityCompleted");
+		function TurnProcessHeader({ stopReason, failed, open, onToggle, t }) {
+			const label = failed ? t("runActivityFailed") : stopReason === "aborted" ? t("runActivityStopped") : stopReason === "error" || stopReason === "failed" ? t("runActivityFailed") : t("runActivityCompleted");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				type: "button",
 				className: skill_card_module_default.turnProcess,
-				"data-turn-process": stopReason,
+				"data-turn-process": failed ? "failed" : stopReason,
 				"data-open": open || void 0,
 				"aria-expanded": open,
 				onClick: onToggle,
@@ -4449,15 +4457,27 @@ window.__ModuleLoader__.load({
 				run: view.run,
 				t
 			});
-			if (view.result === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
+			const sameRun = view.result !== void 0 && view.run?.result?.runId === view.result.runId;
+			const failure = view.result?.failure ?? (sameRun ? view.run?.failure : void 0);
+			const failureCode = view.result?.failureCode ?? (sameRun ? view.run?.failureCode : void 0);
+			if (view.result === void 0) return failure === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
 				title: t("skillCardNotRunTitle"),
 				body: t("skillCardNotRunBody")
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
+				title: failureTitle(failureCode, t),
+				body: failure
 			});
 			const filled = resultHtml(view.result.structured);
-			if (filled === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
-				title: t("skillCardNotRunTitle"),
-				body: t("skillCardNotRunBody")
-			});
+			if (filled === void 0) {
+				if (failure !== void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
+					title: failureTitle(failureCode, t),
+					body: failure
+				});
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Notice, {
+					title: t("skillCardNotRunTitle"),
+					body: t("skillCardNotRunBody")
+				});
+			}
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ShadowHtml, {
 				html: filledTemplate(view.template, filled),
 				className: skill_card_module_default.template,
@@ -4466,6 +4486,18 @@ window.__ModuleLoader__.load({
 				runId: view.result.runId,
 				documents
 			});
+		}
+		/**
+		* Choose the heading of a card that has no content to show because a run failed.
+		*
+		* A deadline gets its own words: it is not a fault and saying "failed" would send the user
+		* looking for one. Any other code reads as the plain failure it is.
+		* @param code - the failure code stored on the record, when one was stored.
+		* @param t - translator.
+		* @returns the heading.
+		*/
+		function failureTitle(code, t) {
+			return code === "run-timeout" ? t("skillCardResultTimeoutTitle") : t("skillCardResultFailedTitle");
 		}
 		/** One empty-state block. */
 		function Notice({ title, body }) {
@@ -4505,6 +4537,7 @@ window.__ModuleLoader__.load({
 			"template-invalid": "skillCardProblemTemplateInvalid",
 			"run-in-progress": "skillCardProblemRunning",
 			"run-failed": "skillCardProblemRunFailed",
+			"run-timeout": "skillCardProblemRunTimeout",
 			"run-unavailable": "skillCardProblemRunUnavailable",
 			"workspace-missing": "skillCardProblemWorkspaceMissing",
 			"workspace-invalid": "skillCardProblemWorkspaceInvalid",
@@ -6839,14 +6872,19 @@ window.__ModuleLoader__.load({
 		/**
 		* The outcome word one settled run shows in the history list.
 		*
-		* The same three outcomes the turn-process header names, so the list and the detail
-		* never disagree about what a run became.
-		* @param stopReason - the run's terminal stop reason.
+		* The same outcomes the turn-process header names, so the list and the detail never
+		* disagree about what a run became.
+		*
+		* The record's own verdict comes first. A run the Host stopped at its deadline reports
+		* `aborted` from the seam, which is true of the child and false of the run: nobody cancelled
+		* it. The record carries the verdict the page can act on.
+		* @param record - the stored record.
 		* @param t - translator.
 		* @returns the localized outcome word.
 		*/
-		function runOutcomeText(stopReason, t) {
-			return stopReason === "running" ? t("runHistoryRunning") : stopReason === "aborted" ? t("runActivityStopped") : stopReason === "error" || stopReason === "failed" ? t("runActivityFailed") : t("runActivityCompleted");
+		function runOutcomeText(record, t) {
+			const { stopReason } = record;
+			return stopReason === "running" ? t("runHistoryRunning") : record.failure !== void 0 ? t("runActivityFailed") : stopReason === "aborted" ? t("runActivityStopped") : stopReason === "error" || stopReason === "failed" ? t("runActivityFailed") : t("runActivityCompleted");
 		}
 		/**
 		* State one bare run's progress or verdict.
@@ -6959,7 +6997,10 @@ window.__ModuleLoader__.load({
 				"data-run-trace": "",
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityTrace, {
 					trace: result.activity,
-					settled: { stopReason: result.stopReason },
+					settled: {
+						stopReason: result.stopReason,
+						...result.failure === void 0 ? {} : { failure: result.failure }
+					},
 					t
 				})
 			});
@@ -7330,9 +7371,10 @@ window.__ModuleLoader__.load({
 						"data-run-unavailable": "",
 						children: t(problemKey(view.runUnavailable.code))
 					}),
-					view.problem === void 0 || view.refineProblem !== void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+					view.problem === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 						className: skill_card_module_default.runProblem,
 						role: "alert",
+						"data-run-problem": view.problem.code,
 						children: [t(problemKey(view.problem.code)), view.problem.detail === "" ? "" : ` · ${view.problem.detail}`]
 					}),
 					view.bareRun === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
@@ -7444,7 +7486,7 @@ window.__ModuleLoader__.load({
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: skill_card_module_default.runHistoryDot,
 									"aria-hidden": "true"
-								}), runOutcomeText(run.stopReason, t)]
+								}), runOutcomeText(run, t)]
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: skill_card_module_default.runHistoryChevron,
 								"aria-hidden": "true",
@@ -7570,6 +7612,7 @@ window.__ModuleLoader__.load({
 					view.problem === void 0 || view.refineProblem !== void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 						className: skill_card_module_default.runProblem,
 						role: "alert",
+						"data-run-problem": view.problem.code,
 						children: [t(problemKey(view.problem.code)), view.problem.detail === "" ? "" : ` · ${view.problem.detail}`]
 					}),
 					view.actionProblem === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActionProblemLine, {

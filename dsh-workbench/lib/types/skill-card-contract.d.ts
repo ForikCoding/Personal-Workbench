@@ -650,6 +650,25 @@ export interface WorkbenchResultRecord {
     /** Provider-authored failure detail, if any. */
     readonly diagnostic?: string;
     /**
+     * Why this run produced no usable result, when it produced none.
+     *
+     * The run's own verdict, kept on the record because the record outlives the run: the
+     * in-memory state that used to hold this is gone after a reload, and the page then had a
+     * record with no region and nothing to say about why — so it said "not run yet" about a
+     * run that had plainly happened. A deadline is the case that matters most: nothing was
+     * cancelled, five minutes of work simply ran out.
+     *
+     * Absent for a run that produced a result.
+     */
+    readonly failure?: string;
+    /**
+     * Machine-readable reason for {@link WorkbenchResultRecord.failure}.
+     *
+     * Kept beside the text so the page picks its own words for the kind of failure instead of
+     * printing a Host sentence in a client surface.
+     */
+    readonly failureCode?: WorkbenchSkillCardErrorCode;
+    /**
      * When the region HTML was replaced by hand, in milliseconds since the epoch.
      *
      * Absent means every byte of this record came from a run. The field exists so the
@@ -1039,7 +1058,16 @@ export interface WorkbenchSkillCardErrorBody {
  * failure matrix. Collapsing them into one generic failure would leave the user
  * with an error they cannot act on, so each keeps its own code.
  */
-export type WorkbenchSkillCardErrorCode = 'unauthorized' | 'forbidden' | 'invalid-request' | 'too-large' | 'conflict' | 'not-found' | 'storage-failure' | 'run-failed' | 'not-configured' | 'session-not-live' | 'skill-not-found' | 'template-missing' | 'catalog-failed' | 'provider-unavailable' | 'model-unavailable' | 'schema-rejected' | 'run-in-progress'
+export type WorkbenchSkillCardErrorCode = 'unauthorized' | 'forbidden' | 'invalid-request' | 'too-large' | 'conflict' | 'not-found' | 'storage-failure' | 'run-failed'
+/**
+ * The run outlived its deadline and was stopped by the Host.
+ *
+ * Its own code rather than a flavour of {@link WorkbenchSkillCardErrorCode} `run-failed`,
+ * because nobody cancelled it and nothing went wrong: the work simply did not fit in the
+ * budget. A page that said "failed" would send the user looking for a fault, and the
+ * remedy — run again, or give the card more time — is its own.
+ */
+ | 'run-timeout' | 'not-configured' | 'session-not-live' | 'skill-not-found' | 'template-missing' | 'catalog-failed' | 'provider-unavailable' | 'model-unavailable' | 'schema-rejected' | 'run-in-progress'
 /**
  * Running is unavailable on this harness, not wrong with this card.
  *

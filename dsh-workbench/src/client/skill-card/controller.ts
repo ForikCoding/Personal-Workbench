@@ -1678,6 +1678,7 @@ const LOCALIZED_CODES: Record<WorkbenchSkillCardErrorCode, true> = {
   'not-found': true,
   'storage-failure': true,
   'run-failed': true,
+  'run-timeout': true,
   'not-configured': true,
   'session-not-live': true,
   'skill-not-found': true,

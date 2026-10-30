@@ -100,8 +100,12 @@ export interface ActivityTraceProps {
    *
    * Absent keeps the trace headerless, for callers that bring their own header (the running
    * card's notice). Present renders the conversation-style turn-process row above the list.
+   *
+   * `failure` is the record's own verdict, and it outranks the stop reason: a run the Host
+   * stopped at its deadline reports `aborted` from the seam, which would read as 已停止 — a
+   * run somebody stopped on purpose — when in fact the clock ran out.
    */
-  readonly settled?: { readonly stopReason: string } | undefined
+  readonly settled?: { readonly stopReason: string; readonly failure?: string } | undefined
   /**
    * Translate one workbench string.
    * @param key - dictionary key.
@@ -171,6 +175,7 @@ export function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactN
       {settled !== undefined && (
         <TurnProcessHeader
           stopReason={settled.stopReason}
+          failed={settled.failure !== undefined}
           open={open}
           onToggle={() => { setFolded(value => !value) }}
           t={t}
@@ -229,6 +234,8 @@ export function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactN
 interface TurnProcessHeaderProps {
   /** Why the run ended, as the subagent reported it. */
   readonly stopReason: string
+  /** Whether the run left a verdict of its own, which outranks the stop reason. */
+  readonly failed: boolean
   /** Whether the trace below is unfolded. */
   readonly open: boolean
   /** Fold or unfold the trace. */
@@ -251,15 +258,18 @@ interface TurnProcessHeaderProps {
  * @param props - the outcome, fold state, toggle, and translator.
  * @returns the header button.
  */
-function TurnProcessHeader({ stopReason, open, onToggle, t }: TurnProcessHeaderProps): ReactNode {
-  const label = stopReason === 'aborted' ? t('runActivityStopped')
-    : stopReason === 'error' || stopReason === 'failed' ? t('runActivityFailed')
-      : t('runActivityCompleted')
+function TurnProcessHeader({ stopReason, failed, open, onToggle, t }: TurnProcessHeaderProps): ReactNode {
+  // The verdict first, then the stop reason. A deadline stops the child, so the seam reports
+  // `aborted`; reading that as 已停止 said a person had stopped a run nobody touched.
+  const label = failed ? t('runActivityFailed')
+    : stopReason === 'aborted' ? t('runActivityStopped')
+      : stopReason === 'error' || stopReason === 'failed' ? t('runActivityFailed')
+        : t('runActivityCompleted')
   return (
     <button
       type="button"
       className={css.turnProcess}
-      data-turn-process={stopReason}
+      data-turn-process={failed ? 'failed' : stopReason}
       data-open={open || undefined}
       aria-expanded={open}
       onClick={onToggle}
