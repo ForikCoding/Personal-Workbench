@@ -18,6 +18,7 @@ import { filledTemplate, resultHeadline, resultHtml } from './render.ts'
 import type { WorkbenchActionEvent, WorkbenchScriptBinder } from './render.ts'
 import { useSkillCard } from './controller.ts'
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts'
+import { CardRunButton } from './CardRun.tsx'
 import type { WorkbenchSkillCardApi } from './api.ts'
 import { latestRunText } from './clock.ts'
 import { RunningNotice } from './ActivityTrace.tsx'
@@ -118,11 +119,17 @@ export function SkillCard(props: SkillCardProps): ReactNode {
   const { view, actions } = useSkillCard({ api, cardId, session: runSessionId })
 
   // The card face is an index entry: the user's name for the card, the skill it
-  // runs, and the way into its configuration. The result and the configuration each
-  // take the whole display column, so neither is rendered inside a grid cell.
+  // runs, the way to run it, and the way into its configuration. The result and the
+  // configuration each take the whole display column, so neither is rendered inside a
+  // grid cell.
+  //
+  // Running is here rather than on the card's own page: starting a run is an action *on*
+  // a card, and the grid is where the cards are — so a card can be run without being
+  // opened, which is what a user with five cards actually does.
   const actionsSlot = useMemo(
     () => () => (
       <div className={css.cardActions}>
+        <CardRunButton cardId={cardId} view={view} actions={actions} t={t} />
         <Button
           variant="ghost"
           size="sm"
@@ -132,7 +139,7 @@ export function SkillCard(props: SkillCardProps): ReactNode {
         </Button>
       </div>
     ),
-    [cardId, openCard, t],
+    [actions, cardId, openCard, t, view],
   )
 
   // The face's body is a summary, not a preview: the first line the last run actually

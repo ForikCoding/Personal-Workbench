@@ -24,7 +24,7 @@ import {
   IconPlayOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
-import type { WorkbenchInstructionMode, WorkbenchResultRecord } from '../../skill-card-contract.ts'
+import type { WorkbenchResultRecord } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
 import { runIdOf, useSkillCard } from './controller.ts'
 import type {
@@ -42,6 +42,7 @@ import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
+import { COMPOSER_MAX_ROWS, InstructionField, RunPrompt } from './CardRun.tsx'
 import { PromptDialog } from './PromptDialog.tsx'
 import { holdScroll, releaseScroll, revealAnchor, type ScrollHold } from './scroll-hold.ts'
 import type { WorkbenchScriptBinder } from './render.ts'
@@ -56,8 +57,6 @@ interface PageHeadProps {
   readonly title?: string | undefined
   /** The facts about the view, separated by the sheet. */
   readonly meta?: ReactNode
-  /** The view's own controls, opposite the title. */
-  readonly actions?: ReactNode
   /** Translator, for the way back. */
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
 }
@@ -69,10 +68,10 @@ interface PageHeadProps {
  * everything under it — the facts, the composer, the run history — begin on the page's
  * one left edge; inline, the back control indented the heading and every row below it
  * started somewhere else.
- * @param props - the way back, the title, the view's facts and controls.
+ * @param props - the way back, the title, and the view's facts.
  * @returns the head.
  */
-function PageHead({ onBack, title, meta, actions, t }: PageHeadProps): ReactNode {
+function PageHead({ onBack, title, meta, t }: PageHeadProps): ReactNode {
   return (
     <header className={css.pageHead}>
       <div className={css.pageHeadBar}>
@@ -85,14 +84,7 @@ function PageHead({ onBack, title, meta, actions, t }: PageHeadProps): ReactNode
           {t('skillCardBack')}
         </Button>
       </div>
-      {title === undefined
-        ? null
-        : (
-          <div className={css.pageHeadTitleRow}>
-            <h2 className={css.pageHeadTitle}>{title}</h2>
-            {actions === undefined ? null : <div className={css.pageHeadActions}>{actions}</div>}
-          </div>
-        )}
+      {title === undefined ? null : <h2 className={css.pageHeadTitle}>{title}</h2>}
       {meta === undefined ? null : <div className={css.pageHeadMeta}>{meta}</div>}
     </header>
   )
@@ -385,9 +377,6 @@ export interface SkillCardPageProps {
   readonly documents?: WorkbenchScriptBinder | undefined
 }
 
-/** Rows the revision field grows to before it scrolls instead. */
-const COMPOSER_MAX_ROWS = 4
-
 /** The three ways the result page lets a user change what it shows. */
 type ResultChange = 'revise' | 'fresh' | 'edit'
 
@@ -403,138 +392,6 @@ const CHANGE_LABELS: Record<ResultChange, WorkbenchLocaleKey> = {
   edit: 'skillCardResultEdit',
 }
 
-/**
- * The field a sentence is written into: one line grown to what it holds.
- *
- * Shared by the bar a run starts from and by the dialogs the result page opens, because the
- * two are the same field around two different controls. What a dialog changes is only when
- * Enter sends: in a dialog the dialog *is* the form, so a bare Enter sends and Shift+Enter is
- * the newline; in a bar that sits under a page, an ask that already wraps keeps Enter for
- * itself and sends on Ctrl/Cmd+Enter.
- * @param props - the text, its placeholder, and how Enter behaves.
- * @returns the field.
- */
-function InstructionField({
-  value,
-  onChange,
-  placeholder,
-  ariaLabel,
-  rows,
-  disabled = false,
-  className = css.runBarInput,
-  submitOn,
-  onSubmit,
-  focus = false,
-  refocus,
-}: {
-  readonly value: string
-  readonly onChange: (next: string) => void
-  readonly placeholder: string
-  readonly ariaLabel: string
-  /** The fallback height, for a field that cannot measure itself. */
-  readonly rows: number
-  readonly disabled?: boolean | undefined
-  readonly className?: string | undefined
-  readonly submitOn: 'enter' | 'modifier'
-  readonly onSubmit: () => void
-  /** Whether the caret starts here, which is what a dialog exists to be typed in is for. */
-  readonly focus?: boolean | undefined
-  /**
-   * A counter that takes the caret whenever it changes.
-   *
-   * For a field that is already mounted: a bar refuses an empty required ask by naming what
-   * is missing and putting the caret back in the field, which a mount-time flag cannot do.
-   */
-  readonly refocus?: number | undefined
-}): ReactNode {
-  const field = useRef<HTMLTextAreaElement>(null)
-  useLayoutEffect(() => {
-    const element = field.current
-    if (element === null) return
-    // Measure from scratch: `scrollHeight` is the content height only while the box is
-    // not already taller than its content.
-    element.style.height = 'auto'
-    // A field that cannot measure — jsdom, or a hidden mount — reports 0, and collapsing
-    // to no height would hide the very thing the user is typing into.
-    if (element.scrollHeight > 0) element.style.height = `${String(element.scrollHeight)}px`
-  }, [value])
-  useLayoutEffect(() => {
-    if (focus) field.current?.focus()
-  }, [focus])
-  useLayoutEffect(() => {
-    // Only on a change: the mount pass is the `focus` flag's business, and stealing the caret
-    // from wherever the reader put it while merely re-rendering this bar would be rude.
-    if (refocus === undefined || refocus === 0) return
-    field.current?.focus()
-  }, [refocus])
-  return (
-    <textarea
-      ref={field}
-      className={className}
-      rows={rows}
-      value={value}
-      placeholder={placeholder}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      data-prompt-focus={focus ? '' : undefined}
-      onChange={(event) => { onChange(event.target.value) }}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter') return
-        // Enter also confirms an IME candidate list. Sending there would send half of the
-        // sentence the user is still writing.
-        if (event.nativeEvent.isComposing) return
-        // Ctrl/Cmd+Enter is "send regardless", which is the only way to send a multi-line
-        // ask from the bar.
-        if (event.metaKey || event.ctrlKey) {
-          event.preventDefault()
-          onSubmit()
-          return
-        }
-        // Shift+Enter is the newline the field grows a row for.
-        if (event.shiftKey) return
-        if (submitOn === 'modifier' && value.includes('\n')) return
-        event.preventDefault()
-        onSubmit()
-      }}
-    />
-  )
-}
-
-/**
- * The instructions this card was recently given, offered back as chips.
- *
- * A shortcut for the common case — the same ask again, with a small edit — so a click refills
- * the field rather than starting anything.
- * @param props - the recent asks and what a click does with one.
- * @returns the chips, or nothing when this card has no history.
- */
-function InstructionChips({
-  recent,
-  t,
-  onPick,
-}: {
-  readonly recent: readonly string[]
-  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  readonly onPick: (instruction: string) => void
-}): ReactNode {
-  if (recent.length === 0) return null
-  return (
-    <div className={css.runChips} data-run-instruction-recent="">
-      <span className={css.runChipsLabel}>{t('runInstructionRecent')}</span>
-      {recent.map(instruction => (
-        <button
-          key={instruction}
-          type="button"
-          className={css.runChip}
-          onClick={() => { onPick(instruction) }}
-          data-run-instruction-chip=""
-        >
-          {instruction}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 /**
  * Render this session's revision log, and why the last revision was refused.
@@ -658,262 +515,14 @@ function RevisePrompt({
   )
 }
 
-/**
- * The dialog a run's instruction is written in, for a card that takes one.
- *
- * A card whose skill takes no instruction never opens this: 从头跑 starts the run itself, and
- * a dialog over a form with nothing in it would be a question with no answer.
- * @param props - the card, the mode, the recent asks, and the two ways out.
- * @returns the dialog.
- */
-function RunPrompt({
-  cardId,
-  mode,
-  recent,
-  t,
-  disabled,
-  onRun,
-  onCancel,
-}: {
-  readonly cardId: string
-  /** The card's instruction mode; `none` never reaches this dialog. */
-  readonly mode: 'optional' | 'required'
-  readonly recent: readonly string[]
-  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  readonly disabled: boolean
-  readonly onRun: (instruction: string) => void
-  readonly onCancel: () => void
-}): ReactNode {
-  const [text, setText] = useState(() => readDraft(cardId))
-  // Whether the user pressed Run with nothing written. Cleared as soon as they type, so the
-  // sentence disappears the moment it stops being true.
-  const [refused, setRefused] = useState(false)
-  const empty = text.trim() === ''
-  const submit = (): void => {
-    if (disabled) return
-    if (empty && mode === 'required') {
-      // Required, and nothing was written. The run is not sent: the refusal happens here,
-      // in view, with the field focused — the one thing a disabled control could not do.
-      setRefused(true)
-      return
-    }
-    setText('')
-    writeDraft(cardId, '')
-    onRun(empty ? '' : text)
-  }
-  return (
-    <PromptDialog
-      title={t('resultFreshMode')}
-      hint={t('promptFreshHint')}
-      submitLabel={t('skillCardRun')}
-      cancelLabel={t('skillCardCancel')}
-      closeLabel={t('promptClose')}
-      problem={refused ? t('runInstructionRequired') : undefined}
-      busy={disabled}
-      onCancel={onCancel}
-      onSubmit={submit}
-    >
-      <InstructionField
-        className={css.dialogField}
-        value={text}
-        onChange={(next) => {
-          setText(next)
-          writeDraft(cardId, next)
-          if (refused && next.trim() !== '') setRefused(false)
-        }}
-        rows={Math.min(RUN_BAR_MAX_ROWS, Math.max(2, text.split('\n').length))}
-        placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
-        ariaLabel={t('runInstructionField')}
-        submitOn="enter"
-        onSubmit={submit}
-        focus
-      />
-      <InstructionChips
-        recent={recent}
-        t={t}
-        onPick={(instruction) => {
-          setText(instruction)
-          writeDraft(cardId, instruction)
-          setRefused(false)
-        }}
-      />
-    </PromptDialog>
-  )
-}
-
-/** Rows the run bar's field shows before it scrolls. */
-const RUN_BAR_MAX_ROWS = 3
-
-/** Prefix of the session-scoped draft key, one per card. */
-const DRAFT_PREFIX = 'dsh-workbench:instruction:'
-
-/**
- * Read one card's unsent instruction back.
- *
- * A draft rather than a stored value: it belongs to the page the user is on, and a card's
- * next run should not inherit a sentence left behind hours ago. Session storage rather
- * than memory because the two pages a run starts from are separate mounts — navigating
- * from the history to a row's result would otherwise drop the half-written ask.
- * @param cardId - the card whose draft is read.
- * @returns the draft, or an empty string when none was kept or storage is unavailable.
- */
-function readDraft(cardId: string): string {
-  try {
-    return globalThis.sessionStorage?.getItem(`${DRAFT_PREFIX}${cardId}`) ?? ''
-  } catch {
-    // Storage can be denied outright; a tab without a draft is still a working tab.
-    return ''
-  }
-}
-
-/**
- * Keep or clear one card's unsent instruction.
- * @param cardId - the card whose draft is written.
- * @param text - the draft; an empty string clears it.
- */
-function writeDraft(cardId: string, text: string): void {
-  try {
-    if (text === '') globalThis.sessionStorage?.removeItem(`${DRAFT_PREFIX}${cardId}`)
-    else globalThis.sessionStorage?.setItem(`${DRAFT_PREFIX}${cardId}`, text)
-  } catch {
-    // As above: losing the draft costs a retype, not the run.
-  }
-}
-
-/**
- * The one composer a card's runs are started from, in the bar that holds the run control.
- *
- * One bar rather than a composer per page, and beside the control rather than in a dialog:
- * the ask and the button that spends it are one decision, so they read as one line. What the
- * card's mode decides is only whether the bar is there at all and what an empty field means
- * — `none` keeps the plain run control, `optional` says the field may stay empty, and
- * `required` refuses to send nothing and says so in place instead of disabling the control,
- * because a disabled button explains nothing.
- * @param props - the mode, the page's own state, and the two controls.
- * @returns the run bar.
- */
-function RunBar({
-  cardId,
-  mode,
-  recent,
-  t,
-  running,
-  disabled,
-  onRun,
-  onCancel,
-}: {
-  readonly cardId: string
-  /** The card's effective instruction mode. */
-  readonly mode: WorkbenchInstructionMode
-  /** Instructions this card's recent runs carried, newest first. */
-  readonly recent: readonly string[]
-  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  /** Whether a run holds the card, which turns the control into 取消. */
-  readonly running: boolean
-  /** Whether the control is closed for a reason other than an empty field. */
-  readonly disabled: boolean
-  readonly onRun: (instruction: string) => void
-  readonly onCancel: () => void
-}): ReactNode {
-  const [text, setText] = useState(() => readDraft(cardId))
-  // Whether the user pressed Run with nothing written. Cleared as soon as they type, so the
-  // sentence disappears the moment it stops being true.
-  const [refused, setRefused] = useState(false)
-  // A refusal names what is missing *and* puts the caret back in the field: the control stays
-  // pressable on purpose, so the field has to be where the next keystroke goes.
-  const [refusals, setRefusals] = useState(0)
-  const empty = text.trim() === ''
-  const rows = Math.min(RUN_BAR_MAX_ROWS, Math.max(1, text.split('\n').length))
-  const submit = (): void => {
-    if (disabled) return
-    if (empty) {
-      if (mode !== 'required') {
-        // Optional and none both treat an empty field as "no instruction": the run goes
-        // ahead on what the card is, which is exactly what those modes promise.
-        onRun('')
-        return
-      }
-      // Required, and nothing was written. The run is not sent: the refusal happens here,
-      // in view, with the field focused — the one thing a disabled control could not do.
-      setRefused(true)
-      setRefusals(count => count + 1)
-      return
-    }
-    setRefused(false)
-    setText('')
-    writeDraft(cardId, '')
-    onRun(text)
-  }
-  // A card that needs no instruction keeps its plain header control and renders no bar at
-  // all, so its page is byte-for-byte what it was before this feature existed. The pages
-  // ask for the bar only when the mode calls for one; this branch is the second guard, for
-  // a mode that changed while the page was open.
-  if (mode === 'none') return null
-  return (
-    <div className={css.runBar} data-run-bar={mode}>
-      {running
-        ? null
-        : (
-          <div className={css.runBarRow}>
-            <InstructionField
-              value={text}
-              onChange={(next) => {
-                setText(next)
-                writeDraft(cardId, next)
-                if (refused && next.trim() !== '') setRefused(false)
-              }}
-              rows={rows}
-              placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
-              ariaLabel={t('runInstructionField')}
-              disabled={disabled}
-              submitOn="modifier"
-              onSubmit={submit}
-              refocus={refusals}
-            />
-          </div>
-        )}
-      {/* The control sits in the same bar as the field: the ask and the button that
-          spends it are one action, even when the ask is empty. */}
-      <Button
-        variant="primary"
-        size="sm"
-        disabled={disabled}
-        onClick={() => { if (running) onCancel(); else submit() }}
-      >
-        {running ? t('skillCardCancel') : t('skillCardRun')}
-      </Button>
-      {refused
-        ? (
-          <p className={css.runBarHint} role="alert" data-run-instruction-required="">
-            {t('runInstructionRequired')}
-          </p>
-        )
-        : null}
-      {running
-        ? null
-        // Refill rather than run: the chip's text is a starting point the user almost always
-        // edits before sending.
-        : (
-          <InstructionChips
-            recent={recent}
-            t={t}
-            onPick={(instruction) => {
-              setText(instruction)
-              writeDraft(cardId, instruction)
-              setRefused(false)
-            }}
-          />
-        )}
-    </div>
-  )
-}
 
 /**
  * Render the card's run history in the whole display column.
  *
  * Every card opens here first: the list names each run and its outcome, newest first,
- * and a row opens that run's result. Running from this page is the one control the list
- * carries, because a card that has not run yet is exactly the state this page shows.
+ * and a row opens that run's result. No run starts from this page — starting one is an
+ * action on the card, and the card's face in the grid carries it — but a run in flight is
+ * stopped from its own row, because the row is what names it.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
  * @returns the run history page.
  */
@@ -937,13 +546,11 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
     watchRun: true,
     cardTitle,
   })
-  const bareRunning = view.bareRun?.phase === 'running'
-  // The header always starts a run, even while others are in flight: a card may run
-  // several at once, so the control that used to toggle to 取消 would now have to choose
-  // which of them to stop. Stopping is per row, where the run is named.
-  // The history rows stay open either way: a stored run is a read-only record, and the
-  // row of the run in flight is the way to watch it — refusing the click left the list
-  // looking like dead rows.
+  // Stopping is per row, where the run is named: a card may run several at once, so one
+  // header toggle would have to choose which of them to stop.
+  // The history rows stay open: a stored run is a read-only record, and the row of the run
+  // in flight is the way to watch it — refusing the click left the list looking like dead
+  // rows.
   // The newest stored run, if the card has one: the heading states when the card last
   // produced something, which is the one fact a history page's visitor wants before
   // reading seven rows.
@@ -972,36 +579,9 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
               )}
           </>
         )}
-        // The header's own control, for a card whose runs need no instruction. A card that
-        // takes one gets the bar below instead — one control, never two.
-        actions={view.instructionMode === 'none'
-          ? (
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<IconPlayOutlineRegular />}
-              disabled={bareRunning || !view.runnable}
-              onClick={() => { actions.run() }}
-            >
-              {t('skillCardRun')}
-            </Button>
-          )
-          : undefined}
       />
-      {/* The bar starts every run from this page, so running is one click whether the ask is
-          empty or not. Never in-flight here: this page starts runs alongside others. */}
-      <RunBar
-        cardId={cardId}
-        mode={view.instructionMode}
-        recent={view.recentInstructions}
-        t={t}
-        running={false}
-        disabled={bareRunning || !view.runnable}
-        onRun={(instruction) => { actions.run(instruction) }}
-        onCancel={() => { actions.cancel() }}
-      />
-      {/* The same sentences the result page states, so a run this list's button cannot
-          start says why here too: the list is where the user pressed it. */}
+      {/* The same sentences the result page states, so a card whose face cannot start a run
+          says why here too: this page is where the user comes to find out why it has not. */}
       {view.modelField.kind === 'unavailable'
         ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
         : null}
@@ -1473,6 +1053,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         ? (
           <RunPrompt
             cardId={cardId}
+            title={t('resultFreshMode')}
             mode={view.instructionMode}
             recent={view.recentInstructions}
             t={t}

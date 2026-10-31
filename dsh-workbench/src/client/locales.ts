@@ -190,7 +190,7 @@ export const zh = {
   // never disagree about what a run became.
   runHistoryTitle: '运行记录',
   runHistoryCount: '共 {count} 次运行',
-  runHistoryEmpty: '这张卡还没有运行过，点右上角运行一次吧。',
+  runHistoryEmpty: '这张卡还没有运行过，回到卡片列表，在卡片上点「运行」跑第一次。',
   runHistoryEdited: '已编辑',
   // A run whose record holds no region content: it ran, and stored nothing a row can
   // headline. Said in the row's first line rather than left blank, because a row with only
@@ -210,9 +210,9 @@ export const zh = {
   // two runs of the same card are distinguishable; the value is the user's own text, never
   // summarized, because a summary would be a second description of the ask.
   runHistoryInstruction: '指令：{text}',
-  // The run bar: one composer beside the run control. `required` names what is missing when
-  // the control is pressed empty — the control itself never disables over an empty field,
-  // because a disabled button explains nothing.
+  // The run dialog, which asks for the sentence a run may need. `required` names what is
+  // missing when the dialog is sent empty — the button itself never disables over an empty
+  // field, because a disabled button explains nothing.
   runInstructionPlaceholderRequired: '这次要做什么？',
   runInstructionPlaceholderOptional: '补充一句指令，留空直接运行',
   runInstructionRequired: '这个技能需要一句指令才能运行',
@@ -232,6 +232,9 @@ export const zh = {
   // corner control's name for a screen reader.
   promptReviseHint: '只改这一份结果，源文件不动。写完按 Enter 提交。',
   promptFreshHint: '按当前工作区从头跑一遍，会新增一次运行记录。',
+  // The card's own run dialog is not the result page's 从头跑: it starts this card rather than
+  // re-running a result, so it names the card rather than the old result.
+  runPromptTitle: '运行这张卡',
   promptClose: '关闭',
   refinePlaceholder: '说明要改哪里，例如「按时间倒序」',
   refineAction: '重新生成',
@@ -466,7 +469,7 @@ export const en: Record<keyof typeof zh, string> = {
   // The run-history page: the list every card opens on, one row per completed run.
   runHistoryTitle: 'Run history',
   runHistoryCount: '{count} runs',
-  runHistoryEmpty: 'This card has not run yet. Use the run control above to run it.',
+  runHistoryEmpty: 'This card has not run yet. Go back to the cards and run it from its own control.',
   runHistoryEdited: 'Edited',
   runHistoryNoContent: 'This run produced nothing',
   runHistoryDayToday: 'Today',
@@ -477,8 +480,8 @@ export const en: Record<keyof typeof zh, string> = {
   // The instruction a run was given, on its history row: one line, so two runs of one card
   // are distinguishable.
   runHistoryInstruction: 'Instruction: {text}',
-  // The run bar: one composer beside the run control. The required message names what is
-  // missing when the control is pressed empty; the control itself never disables over an
+  // The run dialog, which asks for the sentence a run may need. The required message names
+  // what is missing when the dialog is sent empty; the button itself never disables over an
   // empty field.
   runInstructionPlaceholderRequired: 'What should this run do?',
   runInstructionPlaceholderOptional: 'Add an instruction, or leave it empty to run',
@@ -494,6 +497,7 @@ export const en: Record<keyof typeof zh, string> = {
   resultFreshMode: 'Run from scratch',
   promptReviseHint: 'Changes only this result; the source files stay as they are. Enter submits.',
   promptFreshHint: 'Runs the card again on the current workspace, as a new run in its history.',
+  runPromptTitle: 'Run this card',
   promptClose: 'Close',
   refinePlaceholder: 'Say what to change, e.g. “newest first”',
   refineAction: 'Regenerate',

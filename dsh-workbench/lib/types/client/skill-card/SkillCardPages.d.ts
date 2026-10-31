@@ -101,8 +101,9 @@ export interface SkillCardPageProps {
  * Render the card's run history in the whole display column.
  *
  * Every card opens here first: the list names each run and its outcome, newest first,
- * and a row opens that run's result. Running from this page is the one control the list
- * carries, because a card that has not run yet is exactly the state this page shows.
+ * and a row opens that run's result. No run starts from this page — starting one is an
+ * action on the card, and the card's face in the grid carries it — but a run in flight is
+ * stopped from its own row, because the row is what names it.
  * @param props - transport, card identity, session resolver, title fallback, back, and `t`.
  * @returns the run history page.
  */

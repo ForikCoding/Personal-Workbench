@@ -10,7 +10,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
@@ -376,39 +376,26 @@ describe('the run-history page', () => {
   })
 
   it('lists the run in flight as its own top row, marked running', async () => {
-    // A run the page starts is on the list the moment it is in flight: the row is the
-    // run itself, not a record the host has stored yet — nothing has completed.
+    // A run the card's own face started is already in flight when this page opens, and the
+    // adoption read finds it: the row is the run itself, not a record the host has stored
+    // yet — nothing has completed.
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
       startedAt: STARTED_AT,
       retried: false,
     }
-    // Nothing is in flight when the page opens, so the adoption read finds no run; after
-    // the start the Host's own route keeps answering with the run it was asked to start.
-    let started = false
     const { container } = render(
       <SkillCardRunsPage
         {...props({
           api: pageApi({
             results: [],
-            start: async () => {
-              started = true
-              return { status: 'ok', state: running }
-            },
-            poll: async () => (started ? { status: 'ok', state: running } : { status: 'missing' }),
+            poll: async () => ({ status: 'ok', state: running }),
           }),
         })}
       />,
     )
     await loaded(container)
-    expect(container.querySelector('[data-run-history-empty]')).not.toBeNull()
-    await act(async () => {
-      const run = [...container.querySelectorAll('button')]
-        .find(button => button.textContent === zh.skillCardRun)
-      if (run === undefined) throw new Error('the run control did not render')
-      run.click()
-    })
     await waitFor(() => {
       // The list has one row where a moment ago the empty state stood.
       expect(container.querySelector('[data-run-history-empty]')).toBeNull()
@@ -504,14 +491,13 @@ describe('the run-history page', () => {
     // The host stores the record at settle; the same array the page reads gains it, so
     // the settle-triggered refresh finds the completed row in storage.
     const stored: WorkbenchCardResult[] = []
-    // The adoption read answers nothing in flight; every later poll is the run's own.
+    // The adoption read finds the run in flight; the next answer is its settle.
     let polls = 0
     const { container } = render(
       <SkillCardRunsPage
         {...props({
           api: pageApi({
             results: stored,
-            start: async () => ({ status: 'ok', state: running }),
             poll: async () => {
               polls += 1
               if (polls === 1) return { status: 'ok', state: running }
@@ -530,12 +516,6 @@ describe('the run-history page', () => {
       />,
     )
     await loaded(container)
-    await act(async () => {
-      const run = [...container.querySelectorAll('button')]
-        .find(button => button.textContent === zh.skillCardRun)
-      if (run === undefined) throw new Error('the run control did not render')
-      run.click()
-    })
     // The running row appears first, exactly as the previous case proved. The run polls
     // once a second, so the settle answer takes two ticks to arrive.
     await waitFor(() => {
@@ -554,10 +534,10 @@ describe('the run-history page', () => {
     }, { timeout: 3_000 })
   })
 
-  it('keeps the header starting runs while a run holds the card, and stops it from its own row', async () => {
-    // A card may run several at once, so the header no longer becomes 取消 — it would have
-    // to choose which of them to stop. The row names one run, so the row is where that run
-    // is stopped; every row stays a way in while another run is in flight.
+  it('stops each run from its own row, and keeps every row a way in while one runs', async () => {
+    // A card may run several at once, so no header control could say which of them it would
+    // stop. The row names one run, so the row is where that run is stopped; every row stays
+    // a way in while another run is in flight.
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
@@ -571,7 +551,6 @@ describe('the run-history page', () => {
         {...props({
           api: pageApi({
             results: [result({ runId: 'run-old' })],
-            start: async () => ({ status: 'ok', state: running }),
             poll: async () => ({ status: 'ok', state: running }),
             cancel: async (cardId, runId) => { cancelled.push({ cardId, runId }) },
           }),
@@ -580,22 +559,10 @@ describe('the run-history page', () => {
       />,
     )
     await loaded(container)
-    expect([...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')][0]?.disabled).toBe(false)
-    // Start a run from the page's own control; it stays in flight.
-    await act(async () => {
-      const run = [...container.querySelectorAll('button')]
-        .find(button => button.textContent === zh.skillCardRun)
-      if (run === undefined) throw new Error('the run control did not render')
-      run.click()
-    })
     await waitFor(() => {
       expect([...container.querySelectorAll('[data-run-history-row]')]
         .some(row => row.getAttribute('data-run-outcome') === 'running')).toBe(true)
     })
-    // The header still starts runs: a second run of this card is a click away.
-    const header = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === zh.skillCardRun)
-    expect(header?.disabled).toBe(false)
     // The stored row is still a way in while the new run is in flight.
     const rows = [...container.querySelectorAll<HTMLButtonElement>('[data-run-history-row]')]
     expect(rows.every(row => row.disabled === false)).toBe(true)
@@ -642,145 +609,23 @@ describe('the run-history page', () => {
   })
 })
 
-describe('the run bar', () => {
-  /** What a start answered, as the page recorded it. */
-  interface Started {
-    readonly instruction?: string
-  }
-
-  /**
-   * Build the page with a card whose mode is under test, recording what each start carried.
-   * @param mode - the card's instruction mode.
-   * @returns the render container and the starts.
-   */
-  function barPage(mode: WorkbenchInstructionMode): { container: HTMLElement; started: Started[] } {
-    const started: Started[] = []
-    const { container } = render(
-      <SkillCardRunsPage
-        {...props({
-          api: pageApi({
-            instructionMode: mode,
-            start: async (request: { instruction?: string }) => {
-              started.push(request.instruction === undefined ? {} : { instruction: request.instruction })
-              return {
-                status: 'ok',
-                state: { cardId: 'skill-card', phase: 'running', startedAt: STARTED_AT, retried: false },
-              }
-            },
-            poll: async () => ({ status: 'missing' }),
-          }),
-        })}
-      />,
-    )
-    return { container, started }
-  }
-
-  /** The bar's field. */
-  function field(container: HTMLElement): HTMLTextAreaElement {
-    const element = container.querySelector<HTMLTextAreaElement>('[data-run-bar] textarea')
-    if (element === null) throw new Error('the run bar did not render a field')
-    return element
-  }
-
-  /**
-   * The page's one run control: the bar's for a card that takes an instruction, and the
-   * header's for one that does not.
-   */
-  function control(container: HTMLElement): HTMLButtonElement {
-    const element = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === zh.skillCardRun)
-    if (element === undefined) throw new Error('the page did not render a run control')
-    return element
-  }
-
-  it('renders no field for a card whose runs need no instruction', async () => {
-    // The face every card had before the setting existed: one control, nothing to fill in.
-    const { container, started } = barPage('none')
-    await loaded(container)
-    expect(container.querySelector('[data-run-bar] textarea')).toBeNull()
-    await act(async () => { control(container).click() })
-    expect(started).toEqual([{}])
-  })
-
-  it('runs on an empty field in optional mode, and sends what was written otherwise', async () => {
-    const { container, started } = barPage('optional')
-    await loaded(container)
-    const input = field(container)
-    expect(input.placeholder).toBe(zh.runInstructionPlaceholderOptional)
-    await act(async () => { control(container).click() })
-    expect(started).toEqual([{}])
-    fireEvent.change(input, { target: { value: '按时间倒序' } })
-    await act(async () => { control(container).click() })
-    expect(started[1]).toEqual({ instruction: '按时间倒序' })
-    // The ask was sent, so the field no longer holds it.
-    expect(input.value).toBe('')
-  })
-
-  it('refuses an empty field in required mode, without sending and without disabling the control', async () => {
-    // A disabled control explains nothing; this one names the missing ask in place and puts
-    // the caret where it belongs.
-    const { container, started } = barPage('required')
-    await loaded(container)
-    const input = field(container)
-    expect(input.placeholder).toBe(zh.runInstructionPlaceholderRequired)
-    expect(control(container).disabled).toBe(false)
-    await act(async () => { control(container).click() })
-    expect(started).toEqual([])
-    expect(container.querySelector('[data-run-instruction-required]')?.textContent)
-      .toBe(zh.runInstructionRequired)
-    expect(document.activeElement).toBe(input)
-    // Typing retires the sentence; it was about the field being empty.
-    fireEvent.change(input, { target: { value: '分析任务' } })
-    expect(container.querySelector('[data-run-instruction-required]')).toBeNull()
-    await act(async () => { control(container).click() })
-    expect(started).toEqual([{ instruction: '分析任务' }])
-  })
-
-  it('submits on Enter while the ask is one line, and on Ctrl+Enter once it is not', async () => {
-    const { container, started } = barPage('optional')
-    await loaded(container)
-    const input = field(container)
-    fireEvent.change(input, { target: { value: '一句话' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(started).toEqual([{ instruction: '一句话' }])
-    // A multi-line ask: Enter is the field's own newline, so only the explicit chord sends it.
-    fireEvent.change(input, { target: { value: '第一行\n第二行' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(started).toHaveLength(1)
-    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
-    expect(started[1]).toEqual({ instruction: '第一行\n第二行' })
-  })
-
-  it('offers this card’s recent asks back, refilling the field rather than running', async () => {
-    const started: Started[] = []
-    const { container } = render(
-      <SkillCardRunsPage
-        {...props({
-          api: pageApi({
-            instructionMode: 'required',
-            results: [
-              result({ runId: 'run-1', instruction: '分析 T202601010001', executedAt: STARTED_AT + 120_000 }),
-              result({ runId: 'run-2', instruction: '分析 T202601010002', executedAt: STARTED_AT + 60_000 }),
-              result({ runId: 'run-3', instruction: '分析 T202601010001', executedAt: STARTED_AT }),
-            ],
-            start: async (request: { instruction?: string }) => {
-              started.push(request.instruction === undefined ? {} : { instruction: request.instruction })
-              return {
-                status: 'ok',
-                state: { cardId: 'skill-card', phase: 'running', startedAt: STARTED_AT, retried: false },
-              }
-            },
-            poll: async () => ({ status: 'missing' }),
-          }),
-        })}
-      />,
-    )
-    await loaded(container)
-    const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-run-instruction-chip]')]
-    // Distinct, newest first: the third run asked for the same thing as the first.
-    expect(chips.map(chip => chip.textContent)).toEqual(['分析 T202601010001', '分析 T202601010002'])
-    await act(async () => { chips[1]?.click() })
-    expect(field(container).value).toBe('分析 T202601010002')
-    expect(started).toEqual([])
+describe('no run control on the page', () => {
+  it('starts nothing from here, whatever the card needs before it runs', async () => {
+    // Where the run bar used to be. A run starts from the card's own face in the grid — the
+    // grid is where the cards are, so a card can be run without being opened — and this page
+    // is the history of what that produced. A second control here would be a second place to
+    // start the same thing, above a list that is not about the next run.
+    for (const mode of ['none', 'optional', 'required'] as const) {
+      const { container } = render(
+        <SkillCardRunsPage {...props({ api: pageApi({ instructionMode: mode }) })} />,
+      )
+      await loaded(container)
+      expect(container.querySelector('[data-run-bar]')).toBeNull()
+      expect(container.querySelector('textarea')).toBeNull()
+      expect([...container.querySelectorAll('button')]
+        .map(button => button.textContent)
+        .filter(text => text === zh.skillCardRun)).toEqual([])
+      cleanup()
+    }
   })
 })

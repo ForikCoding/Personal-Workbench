@@ -99,9 +99,9 @@
    of the title it belongs to. Above the title, the crumb reads as a margin note and the
    title, the meta, and the rows all share one left edge. */
 .pageHead {
-  /* Pinned: these views grow with the document under them, and the way back, the card's
-     name, and the run control used to scroll out of sight within one long report. The
-     scrollport is the workbench panel, which is this head's ancestor. */
+  /* Pinned: these views grow with the document under them, and the way back and the card's
+     name used to scroll out of sight within one long report. The scrollport is the workbench
+     panel, which is this head's ancestor. */
   position: sticky;
   top: 0;
   z-index: 2;
@@ -124,13 +124,6 @@
   margin-left: -6px;
 }
 
-.pageHeadTitleRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
 .pageHeadTitle {
   margin: 0;
   flex: 1 1 auto;
@@ -142,12 +135,6 @@
   overflow-wrap: anywhere;
 }
 
-.pageHeadActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
 
 /* The facts under the title, separated by a middot: three values set in the same grey
    with nothing between them read as one sentence, and the eye cannot tell where the
@@ -645,79 +632,15 @@
   padding-top: 2px;
 }
 
-/* The run bar: the field a run's instruction is written into, and the control beside it.
-   One row, wrapping to as many as the pieces need: the field takes the width, and the
-   refusal or the recent chips below it span the bar rather than narrowing the field. */
-.runBar {
-  display: flex;
-  flex-wrap: wrap;
-  /* Centred rather than bottom-aligned: the field grows with its own text, and a run
-     control pinned to the field's last line slid down the page as the ask wrapped. */
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.runBarRow {
-  flex: 1 1 260px;
-  min-width: 0;
-}
-
-/* The bar's field: the composer's own surface, one row tall until the ask wraps, and
-   scrolling past the third row rather than pushing the page down while it is typed in. It is
-   the run history page's, where the bar is the page's own control; the result page writes its
-   sentences in a dialog, whose field is `.dialogField`. */
-.runBarInput {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 32px;
-  max-height: calc(3 * (22px + var(--dsh-content-font-delta, 0px)) + 10px);
-  padding: 4px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-panel);
-  background: var(--dsw-specific-input-major);
-  color: var(--dsw-alias-label-primary);
-  font-family: var(--dsw-font-family);
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
-  resize: none;
-  overflow-y: auto;
-}
-
-.runBarInput::placeholder {
-  color: var(--dsw-alias-label-caption);
-}
-
-.runBarInput:disabled {
-  color: var(--dsw-alias-label-tertiary);
-  cursor: not-allowed;
-}
-
-.runBarInput:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
-}
-
-/* Nothing was written and the card needs something: said in place of the run it refused,
-   in the same red the composer uses for a refusal. */
-.runBarHint {
-  flex: 1 1 100%;
-  margin: 0;
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
-}
-
-/* The instructions this card was recently given, offered back as chips. A shortcut for the
-   common case — the same ask again, with a small edit — so a click refills the field rather
-   than starting a run. */
+/* The instructions this card was recently given, offered back as chips in the run dialog.
+   A shortcut for the common case — the same ask again, with a small edit — so a click refills
+   the field rather than starting a run. */
 .runChips {
   display: flex;
-  flex: 1 1 100%;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  overflow: hidden;
 }
 
 .runChipsLabel {

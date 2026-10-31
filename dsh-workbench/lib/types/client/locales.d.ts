@@ -171,6 +171,7 @@ export declare const zh: {
     resultFreshMode: string;
     promptReviseHint: string;
     promptFreshHint: string;
+    runPromptTitle: string;
     promptClose: string;
     refinePlaceholder: string;
     refineAction: string;
