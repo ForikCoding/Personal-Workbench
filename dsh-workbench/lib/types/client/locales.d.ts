@@ -66,6 +66,13 @@ export declare const zh: {
     skillCardActionsCount: string;
     skillCardInsertMarkers: string;
     skillCardInsertSkeleton: string;
+    skillCardTemplateJump: string;
+    skillCardTemplateJumpRegion: string;
+    skillCardTemplateFoldView: string;
+    skillCardTemplateEditView: string;
+    skillCardFoldLines: string;
+    skillCardFoldCollapse: string;
+    skillCardFoldExpand: string;
     skillCardSkeletonHeading: string;
     skillCardSkeletonWhat: string;
     skillCardSkeletonExample: string;

@@ -12,7 +12,7 @@
  * @module dsh-workbench/client/skill-card/SkillCardSettings
  */
 
-import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   WORKBENCH_INSTRUCTION_MODES,
@@ -36,6 +36,8 @@ import { declarationLine, insertDeclaration } from './declarations.ts'
 import { modelKey, parseModelKey } from './model.ts'
 import { instructionLabelKey, permissionLabelKey } from './permission.ts'
 import { templateSkeleton } from './skeleton.ts'
+import { landmarks, outline } from './template-outline.ts'
+import { TemplateFold } from './TemplateFold.tsx'
 import { analyzeTemplate, findActionsBlock, findRegion } from './template.ts'
 import type { WorkbenchTemplateViolation, WorkbenchTemplateViolationCode } from './template.ts'
 import { indentBlock, lineBounds, lineIndexAt, LINE_HEIGHT } from './text-editing.ts'
@@ -200,6 +202,12 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const dirty = draft !== (view.template ?? '') || name !== (view.name ?? '')
   // Which pane the narrow layout shows. Wide layouts ignore it and show both.
   const [pane, setPane] = useState<'edit' | 'preview'>('edit')
+  // Which presentation the template shows: the field, or the same text with its blocks
+  // folded. Both read one document, and only the field can change it.
+  const [folded, setFolded] = useState(false)
+  // A line handed over from the fold view. The field does not exist while the fold view is
+  // showing, so the selection waits here for the render that brings it back.
+  const pendingReveal = useRef<{ readonly start: number; readonly end: number } | undefined>(undefined)
 
   // The one gate for storing a template: the save button and the keyboard shortcut
   // share it, so a refused document can never be stored by a second route. A target
@@ -239,6 +247,12 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     // the lines that belong to it.
     return draft.split('\n').map((_, index) => ({ number: index + 1, kind: marks.get(index) }))
   }, [draft, regionLines])
+
+  // The template's blocks: what the jump list offers and what the fold view closes. One
+  // reading of the text serves both, and it is a pure function of the text, so an edit
+  // re-reads it once rather than per control.
+  const templateOutline = useMemo(() => outline(draft), [draft])
+  const destinations = useMemo(() => landmarks(templateOutline), [templateOutline])
 
   // The skills a human may invoke, which is also the set a skill target can address:
   // the click path resolves against exactly this list, so a declaration pointing
@@ -340,6 +354,49 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const selectLine = (line: number): void => {
     const bounds = lineBounds(draft, line)
     revealRange(bounds.start, bounds.end)
+  }
+
+  /**
+   * Show one line in the field, coming back from the fold view when that is what is showing.
+   *
+   * A jump that only scrolled the fold view would leave the user in the read view they were
+   * already in; the destination is a line of the document, so the document is what they land
+   * in, with that line selected.
+   * @param line - zero-based line index.
+   */
+  const revealLine = (line: number): void => {
+    const bounds = lineBounds(draft, line)
+    if (folded) {
+      pendingReveal.current = bounds
+      setFolded(false)
+      return
+    }
+    revealRange(bounds.start, bounds.end)
+  }
+
+  // The field is mounted only after the render that leaves the fold view, so a reveal asked
+  // for from there is applied here rather than at the click.
+  useEffect(() => {
+    const target = pendingReveal.current
+    if (target === undefined) return
+    pendingReveal.current = undefined
+    revealRange(target.start, target.end)
+  })
+
+  /**
+   * Follow one entry of the jump list.
+   * @param value - the chosen option: `region`, or `line:<index>`.
+   */
+  const jumpTo = (value: string): void => {
+    if (value === 'region') {
+      const region = findRegion(draft)
+      if (region === undefined) return
+      revealRange(region.start, region.end)
+      return
+    }
+    const prefix = 'line:'
+    if (!value.startsWith(prefix)) return
+    revealLine(Number(value.slice(prefix.length)))
   }
 
   /**
@@ -575,6 +632,45 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         <div className={css.sectionHead}>
           <h2 className={css.sectionTitle} id={templateId}>{t('skillCardTemplateLabel')}</h2>
           <div className={css.sectionTools}>
+            {draft.trim() === ''
+              ? null
+              : (
+                <>
+                  {/* A template is three hundred lines and the thing being looked for is one
+                      of a dozen blocks, so the blocks are a list rather than a scroll. */}
+                  <select
+                    className={css.jumpSelect}
+                    aria-label={t('skillCardTemplateJump')}
+                    data-template-jump=""
+                    // Always the placeholder: this goes somewhere, it does not remember where
+                    // it went, and a remembered value would look like a state of the card.
+                    value=""
+                    onChange={(event) => { jumpTo(event.target.value) }}
+                  >
+                    <option value="">{t('skillCardTemplateJump')}</option>
+                    {regionLines === undefined
+                      ? null
+                      : (
+                        <option value="region">
+                          {t('skillCardTemplateJumpRegion', { line: String(regionLines.start) })}
+                        </option>
+                      )}
+                    {destinations.map(node => (
+                      <option key={node.id} value={`line:${String(node.line)}`}>
+                        {`${'\u3000'.repeat(node.depth)}${node.label} · ${String(node.line + 1)}`}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-pressed={folded}
+                    onClick={() => { setFolded(value => !value) }}
+                  >
+                    {folded ? t('skillCardTemplateEditView') : t('skillCardTemplateFoldView')}
+                  </Button>
+                </>
+              )}
             {draft.trim() !== ''
               ? null
               : (
@@ -630,44 +726,53 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         ) : null}
 
         <div className={css.editorPane}>
-          <pre ref={gutter} className={css.gutter} aria-hidden="true">
-            {gutterLines.map(line => (
-              <button
-                key={line.number}
-                type="button"
-                // Not a tab stop: the gutter is a mouse affordance over a field that is
-                // already fully usable from the keyboard, and one stop per line would
-                // bury every control after it.
-                tabIndex={-1}
-                className={gutterLineClass(line.kind)}
-                // The field keeps focus: a control that takes focus inside an
-                // `aria-hidden` gutter is an inconsistency for assistive technology and a
-                // caret lost for everyone else.
-                onMouseDown={(event) => { event.preventDefault() }}
-                onClick={() => { selectLine(line.number - 1) }}
-              >
-                {line.number}
-              </button>
-            ))}
-          </pre>
-          <textarea
-            ref={editor}
-            className={css.editor}
-            value={draft}
-            spellCheck={false}
-            // No soft wrapping: the gutter numbers one stored line, so a wrapped line would
-            // label the wrong rows from there down.
-            wrap="off"
-            aria-label={t('skillCardTemplateLabel')}
-            placeholder={t('skillCardTemplatePlaceholder')}
-            onChange={(event) => { setDraft(event.target.value) }}
-            onKeyDown={(event) => { handleEditorKey(event) }}
-            // The gutter scrolls with the text, never on its own: a fixed gutter beside a
-            // scrolled textarea numbers the wrong lines.
-            onScroll={(event) => {
-              if (gutter.current !== null) gutter.current.scrollTop = event.currentTarget.scrollTop
-            }}
-          />
+          {/* The two presentations of one document. The gutter and the field go together:
+              a fold view with a number column of its own would be a second editor, and the
+              point of the pair is that they are the same text read two ways. */}
+          {folded
+            ? <TemplateFold text={draft} nodes={templateOutline} t={t} onReveal={revealLine} />
+            : (
+              <>
+                <pre ref={gutter} className={css.gutter} aria-hidden="true">
+                  {gutterLines.map(line => (
+                    <button
+                      key={line.number}
+                      type="button"
+                      // Not a tab stop: the gutter is a mouse affordance over a field that is
+                      // already fully usable from the keyboard, and one stop per line would
+                      // bury every control after it.
+                      tabIndex={-1}
+                      className={gutterLineClass(line.kind)}
+                      // The field keeps focus: a control that takes focus inside an
+                      // `aria-hidden` gutter is an inconsistency for assistive technology and a
+                      // caret lost for everyone else.
+                      onMouseDown={(event) => { event.preventDefault() }}
+                      onClick={() => { selectLine(line.number - 1) }}
+                    >
+                      {line.number}
+                    </button>
+                  ))}
+                </pre>
+                <textarea
+                  ref={editor}
+                  className={css.editor}
+                  value={draft}
+                  spellCheck={false}
+                  // No soft wrapping: the gutter numbers one stored line, so a wrapped line would
+                  // label the wrong rows from there down.
+                  wrap="off"
+                  aria-label={t('skillCardTemplateLabel')}
+                  placeholder={t('skillCardTemplatePlaceholder')}
+                  onChange={(event) => { setDraft(event.target.value) }}
+                  onKeyDown={(event) => { handleEditorKey(event) }}
+                  // The gutter scrolls with the text, never on its own: a fixed gutter beside a
+                  // scrolled textarea numbers the wrong lines.
+                  onScroll={(event) => {
+                    if (gutter.current !== null) gutter.current.scrollTop = event.currentTarget.scrollTop
+                  }}
+                />
+              </>
+            )}
           {/* The editor's status rail, at its foot rather than above it: where the region
               is, what the template declares, and how much of the size budget it takes are
               facts about the text below them, and a line of facts above a code block reads

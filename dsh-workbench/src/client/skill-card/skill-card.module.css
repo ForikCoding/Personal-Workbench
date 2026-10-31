@@ -1010,6 +1010,105 @@
   color: var(--dsw-alias-state-warn-label);
 }
 
+/* The template read as structure. Same metrics as the field it replaces, so switching
+   between the two does not move the text a line up or down, and the same tinted number
+   column, so the two views read as one pane. */
+.foldView {
+  grid-column: 1 / -1;
+  min-height: clamp(240px, 32vh, 380px);
+  padding: 6px 0;
+  overflow: auto;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 18px;
+  /* The scrollbar a long document brings must not narrow the code mid-read. */
+  scrollbar-gutter: stable;
+}
+
+.foldRow {
+  display: flex;
+  align-items: flex-start;
+  min-width: max-content;
+}
+
+/* Fills the rest of the row so the row's hover tint covers the whole width, while the
+   count stays against the text it belongs to instead of at the far edge of a long pane. */
+.foldRow::after {
+  content: '';
+  flex: 1 1 auto;
+}
+
+.foldRow:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
+}
+
+/* The number column, the caret, and the text are three buttons in one row. Nothing here is
+   a tab stop: the row's job is to hand a line to the field, and the field is a keyboard
+   control on its own. */
+.foldNumber,
+.foldCaret,
+.foldText {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.foldNumber {
+  flex: none;
+  width: 44px;
+  padding: 0 8px;
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
+  color: var(--dsw-alias-label-tertiary);
+  text-align: right;
+  user-select: none;
+}
+
+.foldCaret,
+.foldCaretBlank {
+  flex: none;
+  width: 18px;
+  padding: 0;
+  color: var(--dsw-alias-label-secondary);
+  text-align: center;
+  user-select: none;
+}
+
+.foldText {
+  flex: 0 0 auto;
+  padding: 0 10px 0 0;
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+  white-space: pre;
+}
+
+/* What one folded line stands for: the size of what is hidden, so a fold that swallowed
+   the whole stylesheet cannot be mistaken for a fold that hid three lines. */
+.foldCount {
+  flex: none;
+  padding: 0 12px 0 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* The jump list in the section's own row: a control that says where to go, sized like the
+   buttons beside it rather than like a form field. */
+.jumpSelect {
+  box-sizing: border-box;
+  height: 28px;
+  max-width: 240px;
+  padding: 0 6px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
 
 /* Gutter and text on the first row, the status rail under both of them. The gutter and
    the text must share font, size, line height and vertical padding, or the numbers stop
