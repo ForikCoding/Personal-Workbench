@@ -21,6 +21,25 @@ import type { WorkbenchCardState } from './contract.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 /** Composed props of one `workbench.card` occurrence. */
 export type WorkbenchCardShellProps = FactoryComponentPropsOf<'workbench.card'>;
+/**
+ * The monogram a card carries on its face.
+ *
+ * The first character of the title the user gave it: one glyph is what the eye picks out
+ * of a grid before any word is read. Taken by code point so a CJK or an emoji name yields
+ * one character rather than half of a surrogate pair.
+ * @param title - the card's visible title.
+ * @returns the mark's text.
+ */
+export declare function cardMark(title: string): string;
+/**
+ * The hue this card's mark uses.
+ *
+ * Derived from the card's identity, not its name, so renaming a card does not recolour
+ * it — the colour is how it is recognised before the title is read.
+ * @param id - the card's identity.
+ * @returns a hue in degrees.
+ */
+export declare function cardMarkHue(id: string): number;
 /** Plain inputs of the shell's presentation. */
 export interface WorkbenchCardShellViewProps {
     /** Card identity, used for the title's id and the shell's data attributes. */

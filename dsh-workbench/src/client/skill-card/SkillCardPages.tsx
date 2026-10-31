@@ -35,23 +35,8 @@ import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
 import type { WorkbenchScriptBinder } from './render.ts'
+import { clockText, dayKey, latestRunText, runClockText } from './clock.ts'
 import css from './skill-card.module.css'
-
-/**
- * Format one moment as a 24-hour clock time.
- *
- * Written by hand rather than through `toLocaleTimeString`: the revision log reads one
- * time per line, and a locale that renders a 12-hour clock would change the shape the
- * times are scanned as.
- * @param at - milliseconds since the epoch.
- * @returns `HH:MM:SS` in the browser's own time zone.
- */
-function clockText(at: number): string {
-  const date = new Date(at)
-  return [date.getHours(), date.getMinutes(), date.getSeconds()]
-    .map(part => String(part).padStart(2, '0'))
-    .join(':')
-}
 
 /** One day's worth of runs: the day and the rows that completed on it. */
 interface RunHistoryGroup {
@@ -61,47 +46,6 @@ interface RunHistoryGroup {
   readonly at: number
   /** The day's rows, newest first. */
   readonly runs: WorkbenchResultRecord[]
-}
-
-/**
- * The day one moment falls on, as a key the list groups by.
- * @param at - milliseconds since the epoch.
- * @returns `YYYY-MM-DD` in the browser's own time zone.
- */
-function dayKey(at: number): string {
-  const date = new Date(at)
-  const pad = (part: number): string => String(part).padStart(2, '0')
-  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-/**
- * The clock reading one history row shows.
- *
- * The date belongs to the group's heading, so a row carries only the minute its run
- * completed. Written by hand for the same reason as {@link clockText}: the list is
- * scanned, and a locale's own clock shape would change how the rows line up.
- * @param at - milliseconds since the epoch.
- * @returns `HH:MM` in the browser's own time zone.
- */
-function runClockText(at: number): string {
-  const date = new Date(at)
-  const pad = (part: number): string => String(part).padStart(2, '0')
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-/**
- * The moment the heading names as the card's latest run.
- *
- * Today's runs need only their clock — the heading already reads "today" in the list —
- * while any earlier run carries its day, because "最近 22:47" about a run from last week
- * would be a lie of omission.
- * @param at - the newest run's completion moment.
- * @returns `HH:MM` for today, `YYYY-MM-DD HH:MM` otherwise.
- */
-function latestRunText(at: number): string {
-  return dayKey(at) === dayKey(Date.now())
-    ? runClockText(at)
-    : `${dayKey(at)} ${runClockText(at)}`
 }
 
 /**

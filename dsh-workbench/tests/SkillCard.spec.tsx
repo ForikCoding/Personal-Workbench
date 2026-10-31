@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
-import { SkillCardBody } from '../src/client/skill-card/SkillCard.tsx'
+import { SkillCardBody, cardFaceStanding } from '../src/client/skill-card/SkillCard.tsx'
 import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -59,6 +59,29 @@ const RESULT = { runId: 'run-1', skill: 'git-repo', executedAt: 1, stopReason: '
 
 /** A template whose region is the only part a run fills. */
 const TEMPLATE = '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->'
+
+describe('card face standing', () => {
+  it('reads as idle until the card has run', () => {
+    expect(cardFaceStanding(view())).toBe('idle')
+  })
+
+  it('reads a run in flight before it reads the last record', () => {
+    // The card is working; what it stored last says nothing about that.
+    expect(cardFaceStanding(view({
+      run: { cardId: 'skill-card', phase: 'running', startedAt: 1, retried: false },
+      runs: [RESULT],
+    }))).toBe('ongoing')
+  })
+
+  it('reads a settled run by its own verdict', () => {
+    expect(cardFaceStanding(view({ runs: [RESULT] }))).toBe('done')
+    // A run that stored no content failed, whichever way the child stopped: the record
+    // now carries the verdict, and the dot is what says so at a glance.
+    expect(cardFaceStanding(view({
+      runs: [{ ...RESULT, structured: undefined, failure: 'timed out', failureCode: 'run-timeout' }],
+    }))).toBe('error')
+  })
+})
 
 /**
  * Read what one body rendered into a shadow root.

@@ -17,7 +17,7 @@
  */
 
 import { clsx } from 'clsx'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Button, IconChevronsUpDownOutlineRegular, IconCloseOutlineMedium, IconRefreshOutlineMedium, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FactoryComponentPropsOf, PropsRenderFactories, SlotComponent } from '@deepseek-ai/dsh-client-ui-slots'
@@ -57,6 +57,48 @@ const SPAN_CLASS: Record<string, string | undefined> = {
 
 /** Body rendered when a card selects no body component. */
 const EmptyBody: SlotComponent<PropsRenderFactories> = () => null
+
+/** Hues the monogram may take, spread around the wheel. */
+const MARK_HUES = [8, 34, 62, 96, 140, 172, 198, 226, 250, 276, 300, 330] as const
+
+/**
+ * The monogram a card carries on its face.
+ *
+ * The first character of the title the user gave it: one glyph is what the eye picks out
+ * of a grid before any word is read. Taken by code point so a CJK or an emoji name yields
+ * one character rather than half of a surrogate pair.
+ * @param title - the card's visible title.
+ * @returns the mark's text.
+ */
+export function cardMark(title: string): string {
+  const first = Array.from(title.trim())[0]
+  return first === undefined ? '·' : first.toUpperCase()
+}
+
+/**
+ * The hue this card's mark uses.
+ *
+ * Derived from the card's identity, not its name, so renaming a card does not recolour
+ * it — the colour is how it is recognised before the title is read.
+ * @param id - the card's identity.
+ * @returns a hue in degrees.
+ */
+export function cardMarkHue(id: string): number {
+  let hash = 0
+  for (const character of id) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) % 100_000
+  return MARK_HUES[hash % MARK_HUES.length] ?? MARK_HUES[0]
+}
+
+/**
+ * Carry the mark's hue into the stylesheet.
+ * @param hue - the hue in degrees.
+ * @returns an inline style holding the custom property the sheet reads.
+ */
+function markStyle(hue: number): CSSProperties {
+  // The custom property is not part of `CSSProperties`, and the assertion is the only way
+  // to hand a value to a sheet that reads it through `var()`.
+  return { '--wb-hue': String(hue) } as CSSProperties
+}
 
 /** Actions rendered when a card selects no actions component. */
 const EmptyActions: SlotComponent<PropsRenderFactories> = () => null
@@ -143,6 +185,7 @@ export function WorkbenchCardShellView({
   return (
     <article
       className={clsx(css.card, SPAN_CLASS[span], onActivate !== undefined && css.activatable)}
+      style={markStyle(cardMarkHue(id))}
       aria-labelledby={titleId}
       data-card-id={id}
       data-card-position={String(position)}
@@ -160,13 +203,10 @@ export function WorkbenchCardShellView({
     >
       <header className={css.head}>
         <div className={css.headRow}>
+          {/* Decorative: the title beside it is the accessible name, and a screen reader
+              announcing the same character twice adds nothing. */}
+          <span className={css.mark} aria-hidden="true">{cardMark(title)}</span>
           <h3 className={css.title} id={titleId}>{title}</h3>
-          {statusText !== undefined && (
-            <span className={css.status}>
-              {state !== undefined && <StateDot state={STATE_DOT[state]} />}
-              {statusText}
-            </span>
-          )}
           {/* The card's own controls are not the card: a click here must not also
               activate the region underneath. */}
           <div className={css.headActions} onClick={(event) => { event.stopPropagation() }}>
@@ -218,7 +258,22 @@ export function WorkbenchCardShellView({
             )}
           </div>
         </div>
-        {subtitle !== undefined && <span className={css.subtitle}>{subtitle}</span>}
+        {/* One metadata row under the title: what the card runs, and where its last run
+            stands. Both are facts about the card rather than part of its name, and one row
+            keeps them aligned across a grid of different-length titles. */}
+        {subtitle === undefined && statusText === undefined
+          ? null
+          : (
+            <div className={css.meta}>
+              {subtitle === undefined ? null : <span className={css.subtitle}>{subtitle}</span>}
+              {statusText === undefined ? null : (
+                <span className={css.status}>
+                  {state !== undefined && <StateDot state={STATE_DOT[state]} />}
+                  {statusText}
+                </span>
+              )}
+            </div>
+          )}
       </header>
       <div className={css.body}>
         {failure === undefined

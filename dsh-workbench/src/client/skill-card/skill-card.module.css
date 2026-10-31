@@ -11,9 +11,70 @@
   min-width: 0;
 }
 
+/* The face's way into configuration, as a quiet pill rather than a bare word: at rest it
+   is a control with an edge, and the grid stops reading as three titles with a stray
+   "配置" floating at the end of each. */
 .cardActions {
   display: inline-flex;
   gap: 4px;
+}
+
+/* The tint is mixed from the label colour rather than taken from a layer token: in the
+   light theme every layer token is the same white as the card, so a control filled with
+   one would have no edge at all. */
+.cardActions button {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cardActions button:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* What the face fills its frame with: the line the last run produced, and the two facts
+   a glance at the grid wants. Both are secondary; the card's name is the only primary
+   thing on it. */
+.faceBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  /* Fills the shell's body slot so the footer can be pushed to the bottom: the run
+     count then sits on one line across the whole grid, whether the card's summary ran
+     to two lines or to none. */
+  height: 100%;
+}
+
+.faceSummary {
+  display: -webkit-box;
+  margin: 2px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* An invitation is not a summary: it sits a level quieter than the text a run produced. */
+.faceSummary[data-face-summary='empty'] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Tabular figures keep the times in one column across the grid. */
+.faceFoot {
+  margin: auto 0 0;
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 /* One full-panel view: the card's result or its configuration, in the whole

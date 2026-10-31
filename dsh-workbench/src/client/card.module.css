@@ -3,10 +3,13 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   box-sizing: border-box;
   height: 100%;
-  min-height: 180px;
+  /* A card is an index entry, not a panel: with the name, the meta line, and the body
+     it carries it does not need the height an empty cell used to ask for, and the
+     shorter frame is what stops three cards from reading as three blanks. */
+  min-height: 168px;
   padding: 16px 18px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
@@ -50,8 +53,32 @@
 .head {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   min-width: 0;
+}
+
+/* The card's monogram: the first character of the user's own name for the card, on a
+   tint that is stable per card.
+   
+   Three cards of one workbench differ only in their titles, and a title is read rather
+   than seen — so the grid needed one mark each that the eye can pick out before the
+   text is read. The hue comes from the card id (see the shell), never from the name: a
+   card keeps its colour when it is renamed. Tints are mixed from a single hue so the
+   mark works in both themes without a second set of tokens. */
+.mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: color-mix(in srgb, hsl(var(--wb-hue, 250) 68% 52%) 16%, transparent);
+  color: color-mix(in srgb, hsl(var(--wb-hue, 250) 66% 42%) 78%, var(--dsw-alias-label-primary));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
 }
 
 /* The title, the status, and the card's own controls share one line. Centring that
@@ -74,6 +101,17 @@
   font-weight: 600;
   line-height: 22px;
   overflow-wrap: anywhere;
+}
+
+/* Everything the card states about itself that is not its name: the skill it runs and
+   the run it last finished. One row under the title, in the secondary colour, so the
+   title keeps the whole width and the facts line up across the grid. */
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
 }
 
 /* The skill name is a chip rather than a second line of grey text: it is a fact about
@@ -159,6 +197,7 @@
   min-height: 0;
   font-size: 13px;
   line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .failure {

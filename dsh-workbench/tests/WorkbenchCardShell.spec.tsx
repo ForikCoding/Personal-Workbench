@@ -35,6 +35,25 @@ function props(overrides: Partial<ShellProps> = {}): ShellProps {
   }
 }
 
+describe('card monogram', () => {
+  it('marks a card with the first character of its name', async () => {
+    const { cardMark } = await import('../src/client/WorkbenchCardShell.tsx')
+    expect(cardMark('任务分析')).toBe('任')
+    // One code point, not one UTF-16 unit: half a surrogate pair is not a character.
+    expect(cardMark('🎯 targets')).toBe('🎯')
+    expect(cardMark('git repo')).toBe('G')
+    expect(cardMark('   ')).toBe('·')
+  })
+
+  it('takes its hue from the card id, not from the name', async () => {
+    const { cardMarkHue } = await import('../src/client/WorkbenchCardShell.tsx')
+    // Stable across renders and across a rename: the colour is how a card is recognised
+    // before its title is read.
+    expect(cardMarkHue('skill-card-2')).toBe(cardMarkHue('skill-card-2'))
+    expect(cardMarkHue('skill-card-2')).not.toBe(cardMarkHue('skill-card-3'))
+  })
+})
+
 describe('WorkbenchCardShellView', () => {
   it('renders the title, subtitle, and body', () => {
     render(<WorkbenchCardShellView {...props({ subtitle: 'D:\\repo', body: <p>clean</p> })} />)
@@ -75,6 +94,29 @@ describe('WorkbenchCardShellView', () => {
     render(<WorkbenchCardShellView {...props()} />)
     expect(screen.queryByLabelText(en.removeCard)).toBeNull()
     expect(document.querySelectorAll('[data-workbench-remove]')).toHaveLength(0)
+  })
+
+  it('draws the mark beside the title, invisible to a screen reader', () => {
+    // The head is the title and its controls; the mark is decoration for the eye, so it
+    // must not become a second thing the accessible name says.
+    const { container } = render(<WorkbenchCardShellView {...props({ title: '任务分析' })} />)
+    const mark = container.querySelector('[aria-hidden="true"]')
+    expect(mark?.textContent).toBe('任')
+    // The hue travels on the card itself, where the stylesheet reads it from.
+    expect(container.querySelector('article')?.getAttribute('style')).toContain('--wb-hue')
+    expect(container.querySelector('h3')?.textContent).toBe('任务分析')
+  })
+
+  it('keeps the name and its facts on separate rows', () => {
+    // One metadata row under the title: the skill it runs and where its last run stands.
+    // A title long enough to wrap must not drag the facts out of line across the grid.
+    const { container } = render(
+      <WorkbenchCardShellView {...props({ subtitle: 'git-repo', state: 'done', status: '14:28' })} />,
+    )
+    const header = container.querySelector('header')
+    expect(header?.querySelector('h3')?.parentElement?.textContent).toBe('GGit repository')
+    const meta = header?.lastElementChild
+    expect(meta?.textContent).toBe('git-repo14:28')
   })
 
   it('offers the reorder handle only while reordering is possible', () => {

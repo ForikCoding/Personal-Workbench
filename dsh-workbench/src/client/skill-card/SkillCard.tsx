@@ -11,13 +11,15 @@ import { useMemo, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkbenchLocaleKey } from '../locales.ts'
+import type { WorkbenchCardState } from '../contract.ts'
 import { useWorkbenchReorder } from '../WorkbenchCardGrid.tsx'
 import { ShadowHtml } from './ShadowHtml.tsx'
-import { filledTemplate, resultHtml } from './render.ts'
+import { filledTemplate, resultHeadline, resultHtml } from './render.ts'
 import type { WorkbenchActionEvent, WorkbenchScriptBinder } from './render.ts'
 import { useSkillCard } from './controller.ts'
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
+import { latestRunText } from './clock.ts'
 import { RunningNotice } from './ActivityTrace.tsx'
 import css from './skill-card.module.css'
 
@@ -43,6 +45,23 @@ export function cardFaceTitle(
   // Only the default card may fall back to the type's name: a nameless extra instance
   // would otherwise be indistinguishable from it on the grid.
   return stored.name ?? (stored.cardId === SKILL_CARD_ID ? t('skillCardTitle') : stored.cardId)
+}
+
+/**
+ * Where one card stands, as the face's status dot reports it.
+ *
+ * A run in flight outranks everything: the card is working, whatever its last record says.
+ * With nothing running, the newest stored run is the verdict — and a run that ended
+ * without usable content is an error rather than a success, which is the distinction the
+ * record's own `failure` carries (see `run-timeout`).
+ * @param view - what the card currently shows.
+ * @returns the state the shared shell paints.
+ */
+export function cardFaceStanding(view: WorkbenchCardView): WorkbenchCardState {
+  if (view.run?.phase === 'running') return 'ongoing'
+  const latest = view.runs[0]
+  if (latest === undefined) return 'idle'
+  return latest.failure === undefined ? 'done' : 'error'
 }
 
 /** Injected share of the skill card entry. */
@@ -76,10 +95,14 @@ export type SkillCardProps =
   & {
     /**
      * Translate one workbench string.
+     *
+     * Takes parameters because the face counts and dates its own runs, and a count is
+     * part of the sentence rather than something appended to it.
      * @param key - dictionary key.
+     * @param params - named values the sentence interpolates.
      * @returns the localized text.
      */
-    readonly t: (key: WorkbenchLocaleKey) => string
+    readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   }
 
 /**
@@ -112,10 +135,50 @@ export function SkillCard(props: SkillCardProps): ReactNode {
     [cardId, openCard, t],
   )
 
+  // The face's body is a summary, not a preview: the first line the last run actually
+  // produced, so a grid of cards says what each one last said instead of showing three
+  // empty frames. The whole document stays on the result page, where there is room for it.
+  const latest = view.runs[0]
+  // Parsed once per result rather than once per render: reading a headline means building
+  // a document from the region HTML, and the face re-renders on every run-state poll.
+  const result = view.result
+  const headline = useMemo(
+    () => (result === undefined ? undefined : resultHeadline(resultHtml(result) ?? '')),
+    [result],
+  )
+  const bodySlot = useMemo(
+    () => () => (
+      <div className={css.faceBody}>
+        <p
+          className={css.faceSummary}
+          data-face-summary={headline === undefined ? 'empty' : 'text'}
+        >
+          {headline ?? t('skillCardNotRunBody')}
+        </p>
+        {/* Only the count: the status beside the title already says when the last run
+            finished, and printing the same moment twice on one card is noise. */}
+        {latest === undefined ? null : (
+          <p className={css.faceFoot}>{t('runHistoryCount', { count: view.runs.length })}</p>
+        )}
+      </div>
+    ),
+    [headline, latest, t, view.runs.length],
+  )
+
+  // The face's own verdict: what a glance at the grid has to answer — is this card
+  // working, did its last run end well, and when. The dot is the shell's, so every card
+  // in the workbench reads the same way; the text beside it is this card's own fact.
+  const state = cardFaceStanding(view)
+  const statusText = state === 'ongoing'
+    ? t('statusOngoing')
+    : latest === undefined ? t('skillCardNotRunTitle') : latestRunText(latest.executedAt)
+
   return renderFactorySlot('workbench.card', {
     id: cardId,
     title: cardFaceTitle({ cardId, name: view.name }, t),
     ...view.skill === undefined ? {} : { subtitle: view.skill },
+    state,
+    status: statusText,
     ...view.problem === undefined ? {} : { failure: t(problemKey(view.problem.code)) },
     // A card opens on its run history: the list names every run and each row opens
     // that run's result, while the grid's naked result read gave no way to the past.
@@ -126,7 +189,7 @@ export function SkillCard(props: SkillCardProps): ReactNode {
     reorderable: reorder?.reorderable ?? false,
     position: Math.max(1, visibleIds.indexOf(cardId) + 1),
     total: Math.max(1, visibleIds.length),
-  }, { slots: { actions: actionsSlot } })
+  }, { slots: { actions: actionsSlot, body: bodySlot } })
 }
 
 /** Props of the card body. */

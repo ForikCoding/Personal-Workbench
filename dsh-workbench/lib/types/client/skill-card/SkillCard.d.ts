@@ -9,6 +9,7 @@
 import { type ReactNode } from 'react';
 import type { InjectFace, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { WorkbenchLocaleKey } from '../locales.ts';
+import type { WorkbenchCardState } from '../contract.ts';
 import type { WorkbenchActionEvent, WorkbenchScriptBinder } from './render.ts';
 import type { WorkbenchCardProblem, WorkbenchCardView } from './controller.ts';
 import type { WorkbenchSkillCardApi } from './api.ts';
@@ -30,6 +31,17 @@ export declare function cardFaceTitle(stored: {
     readonly cardId: string;
     readonly name?: string | undefined;
 }, t: (key: WorkbenchLocaleKey) => string): string;
+/**
+ * Where one card stands, as the face's status dot reports it.
+ *
+ * A run in flight outranks everything: the card is working, whatever its last record says.
+ * With nothing running, the newest stored run is the verdict — and a run that ended
+ * without usable content is an error rather than a success, which is the distinction the
+ * record's own `failure` carries (see `run-timeout`).
+ * @param view - what the card currently shows.
+ * @returns the state the shared shell paints.
+ */
+export declare function cardFaceStanding(view: WorkbenchCardView): WorkbenchCardState;
 /** Injected share of the skill card entry. */
 export interface SkillCardFace {
     /** Transport. */
@@ -56,10 +68,14 @@ export interface SkillCardFace {
 export type SkillCardProps = PropsRuntime<'workbench.cards'> & PropsRenderFactories & InjectFace<SkillCardFace> & {
     /**
      * Translate one workbench string.
+     *
+     * Takes parameters because the face counts and dates its own runs, and a count is
+     * part of the sentence rather than something appended to it.
      * @param key - dictionary key.
+     * @param params - named values the sentence interpolates.
      * @returns the localized text.
      */
-    readonly t: (key: WorkbenchLocaleKey) => string;
+    readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
 };
 /**
  * Render the skill card.

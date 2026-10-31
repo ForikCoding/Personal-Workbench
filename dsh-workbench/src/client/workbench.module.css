@@ -87,9 +87,14 @@
 
 /* A cell is a one-track grid so whatever it holds fills it on both axes. A flex
    container would size the child to its content along the main axis, which left the
-   cards narrow and the columns wide. */
+   cards narrow and the columns wide.
+   
+   The track is stated rather than left implicit: an implicit `auto` track sizes itself
+   from the item's content, so the creation tile — whose only content is a mark and a
+   short word — collapsed into a narrow column while the cards beside it stayed wide. */
 .cell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
 }
 
@@ -102,16 +107,18 @@
 /* The creation entry is a grid tile, so it reads as the place cards come from
    rather than as a toolbar action detached from the grid. */
 
+/* Same frame as a card, drawn as an outline: it belongs in the row of cards without
+   claiming to be one of them. */
 .createTile {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   box-sizing: border-box;
   width: 100%;
-  min-height: 180px;
+  min-height: 168px;
   padding: 16px 18px;
   border: 1px dashed var(--dsw-alias-border-l1);
   border-radius: 12px;
@@ -119,7 +126,8 @@
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
   font-size: 13px;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .createTile:hover {
@@ -127,17 +135,31 @@
   border-style: solid;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
+  transform: translateY(-1px);
 }
 
 /* The mark is what turns the tile from "empty slot" into "entry". Without it the
-   dashed box reads as something that failed to load. */
+   dashed box reads as something that failed to load. It is the size and shape of the
+   monogram every card carries, which is what makes the tile read as a peer of the cards
+   rather than as a hole in the grid. */
 .createMark {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  /* Mixed from the label colour, not filled with a layer token: the light theme's layers
+     are all the same white as the tile, which would leave the mark with no shape. */
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+  font-size: 16px;
   line-height: 1;
   color: var(--dsw-alias-label-tertiary);
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .createTile:hover .createMark {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);
   color: var(--dsw-alias-brand-primary);
 }
 
