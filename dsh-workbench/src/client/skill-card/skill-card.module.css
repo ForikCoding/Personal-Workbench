@@ -202,16 +202,18 @@
   line-height: 18px;
 }
 
-/* The run's output section: the trace beneath the result, set off from it by the same
-   hairline the record used to carry. */
+/* The run's output section: the trace beneath the result.
+ *
+ * No box. It was a tinted slab with a hairline, and next to the act dock — the same tint,
+ * the same radius, the same weight — the two read as one banded form under the document, so
+ * neither the place to write nor the record of how the document was made stood out. The
+ * dock took the surface for writing; this keeps none and is what it is: one line of history
+ * under the place that acts, with the trace folded behind it. */
 .runTrace {
-  /* A block rather than a hairline: the trace is a fact *about* the document above it, and
-     a bare 已完成 row under a full-width report read as another section of the report
-     rather than as the record of how it was made. */
-  padding: 6px 12px 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-md);
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   min-width: 0;
 }
 
@@ -332,14 +334,21 @@
 /* No rule of its own any more: the block's edge is the boundary, and the header is the
    block's first line. It carries a step count because 已完成 alone gave no reason to open
    it — the summary said how the run ended and nothing about what was inside. */
+/* A chip, not a bar. Full width put the chevron a page away from the words it folds, which
+   is the one thing on the line nobody could connect to it; sized to its own text, the
+   outcome, the count and the chevron read as one control and its hover area agrees with
+   what it looks like. The negative start padding is only so the chip's own inset does not
+   push its text off the document's left edge. */
 .turnProcess {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  padding: 4px 0;
+  gap: 5px;
+  width: auto;
+  max-width: 100%;
+  margin-left: -4px;
+  padding: 3px 8px 3px 4px;
   border: none;
+  border-radius: 6px;
   background: none;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -347,11 +356,26 @@
   font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: color 100ms ease;
+  transition: color 100ms ease, background 100ms ease;
 }
 
 .turnProcess:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
   color: var(--dsw-alias-label-primary);
+}
+
+/* The outcome at a glance, before the word is read: a quiet dot for a settled run and the
+   warning colour for one that failed or was stopped. */
+.turnProcessDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 24%, transparent);
+}
+
+.turnProcess[data-turn-process="failed"] .turnProcessDot {
+  background: var(--dsw-alias-state-warn-label);
 }
 
 .turnProcessLabel {
@@ -372,12 +396,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* At the far edge, where a full-width row's disclosure control belongs. */
+/* Right after the count: the chevron belongs to the words it folds. */
 .turnProcessChevron {
   flex: none;
   width: 14px;
   height: 14px;
-  margin-left: auto;
   color: inherit;
   transition: transform 100ms ease;
 }
@@ -424,16 +447,35 @@
    and that way's composer under it. It was two blocks before — a run bar at the top and a
    revision composer at the bottom — and with the same field and the same pill in both,
    nothing said which one did what. The block sits under the document it changes, because
-   every one of the three ways is a sentence about what is on screen. */
+   every one of the three ways is a sentence about what is on screen.
+
+   A dock, not a panel: white, hairlined, and lifted a little off the page, because it is the
+   one surface here something is *written into* — the document above it is the output, and
+   the trace below it is history. It was tinted like the trace, and two grey slabs of the
+   same weight stacked under one document read as one banded form rather than as "act here"
+   over "this is how it was made". The lift is what separates the writing from the reading. */
 .composer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px 12px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-md);
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
+  gap: 6px;
+  padding: 8px 10px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-panel);
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent),
+    0 16px 32px -24px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
   min-width: 0;
+}
+
+/* The ring belongs to the dock rather than to the field: the field has no frame of its own
+   inside it, so a focus outline drawn on the text would put back the second box. */
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 34%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, transparent);
 }
 
 /* The block's first line: which way of changing the result is open. The page used to carry
@@ -442,8 +484,8 @@
 .segments {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: 2px;
+  gap: 1px;
+  padding: 1px;
   border-radius: var(--dsw-radius-sm);
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
   align-self: flex-start;
@@ -451,7 +493,7 @@
 }
 
 .segment {
-  padding: 3px 10px;
+  padding: 2px 9px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -459,7 +501,7 @@
   font-family: var(--dsw-font-family);
   font-size: 12px;
   font-weight: 500;
-  line-height: 18px;
+  line-height: 17px;
   cursor: pointer;
   transition: background 100ms ease, color 100ms ease;
 }
@@ -507,31 +549,27 @@
   min-width: 0;
 }
 
-/* Copied from the DeepSeek Harness Desktop chat composer rather than chosen, because
-   this is the same kind of input as the conversation's: `min-height: 36px` and
-   `padding: 4px 8px 0 14px` are `skeleton/InputBar.module.css` `.input` in
-   `@deepseek-ai/dsh-client-ui-conversation`, the radius is that file's `.card` value
-   `--dsw-radius-panel`, and the type is the card's own inherited
-   `var(--dsh-content-font-size, 14px)` over
-   `calc(24px + var(--dsh-content-font-delta, 0px))`.
-   The bottom inset is the one value restated rather than copied: the chat field's bottom
-   space comes from the toolbar row beneath it, while this field ends on its own border,
-   so it repeats the top inset instead of sitting its last line on the edge. */
-/* Flat and bordered, not lifted: the elevation belongs to the run field at the top of the
-   page, which is the primary thing to write in. This one is a field of the block it sits
-   in, so it takes a hairline and the block's own light surface. */
+/* No frame of its own: the dock around it is the frame. The field used to carry a hairline
+   and a white fill inside a tinted block, which drew a box in a box for one row of text and
+   put the placeholder's left edge 11px inside the segmented control's above it. Flat on the
+   dock, the text starts on the block's own padding, under the selector's first letter.
+
+   The type is still the chat composer's: `min-height`/insets follow
+   `skeleton/InputBar.module.css` `.input` in
+   `@deepseek-ai/dsh-client-ui-conversation`, over the card's own
+   `var(--dsh-content-font-size, 14px)` and `calc(24px + var(--dsh-content-font-delta, 0px))`. */
 .composerInput {
   flex: 1 1 auto;
   box-sizing: border-box;
   min-width: 0;
-  min-height: 32px;
-  /* Four rows of the same line box, plus its own insets and border. Past that the field
-     scrolls rather than growing. */
+  min-height: 30px;
+  /* Four rows of the same line box, plus its own insets. Past that the field scrolls
+     rather than growing. */
   max-height: calc(4 * (20px + var(--dsh-content-font-delta, 0px)) + 10px);
-  padding: 5px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  padding: 5px 4px;
+  border: 0;
   border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-1);
+  background: transparent;
   color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-family);
   font-size: 13px;
@@ -540,8 +578,10 @@
   overflow-y: auto;
 }
 
+/* The prompt, not a caption: the field is what the block is for, and a placeholder in the
+   faintest grey on white read as a disabled row. */
 .composerInput::placeholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 /* The chat composer's own disabled treatment: the text it holds stays readable but stops
@@ -551,9 +591,10 @@
   cursor: not-allowed;
 }
 
+/* No focus ring of its own: the dock draws the ring (`.composer:focus-within`), because a
+   field with no frame cannot usefully outline one. */
 .composerInput:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
+  outline: none;
 }
 
 /* The run bar: the field a run's instruction is written into, and the control beside it.
@@ -575,10 +616,15 @@
 }
 
 /* Inside the result page's act block the run field is the same field as the revision one:
-   one block, one shape, whichever way of changing the result is open. On the runs page —
-   where the field is the page's own — it keeps the larger composer surface. */
+   one block, one shape, whichever way of changing the result is open — including the shape
+   the dock gave it, which is no frame at all. On the runs page, where the field is the
+   page's own and there is no dock around it, it keeps the larger composer surface. */
 .composer .runBarInput {
+  min-height: 30px;
+  padding: 5px 4px;
+  border-color: transparent;
   border-radius: var(--dsw-radius-sm);
+  background: transparent;
   font-size: 13px;
   line-height: 20px;
   max-height: calc(4 * (20px + var(--dsh-content-font-delta, 0px)) + 10px);

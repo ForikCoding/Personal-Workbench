@@ -261,9 +261,11 @@ interface TurnProcessHeaderProps {
 /**
  * Render the settled turn-process header above the trace.
  *
- * Mirrors the conversation's Turn process row: a full-width button with the outcome word
- * and a chevron that folds the whole stream. Duration is deliberately absent: the stored
- * record has no start time, and a fabricated reading would be worse than none.
+ * Reads like the conversation's Turn process row — a dot, the outcome word, how many steps
+ * the fold holds, and a chevron that folds the whole stream — but sized to its own text
+ * rather than to the page, because nothing else is on that line and a full-width bar put the
+ * chevron where no one could connect it to the words. Duration is deliberately absent: the
+ * stored record has no start time, and a fabricated reading would be worse than none.
  * @param props - the outcome, fold state, toggle, and translator.
  * @returns the header button.
  */
@@ -283,6 +285,7 @@ function TurnProcessHeader({ stopReason, failed, steps, open, onToggle, t }: Tur
       aria-expanded={open}
       onClick={onToggle}
     >
+      <span className={css.turnProcessDot} aria-hidden />
       <span className={css.turnProcessLabel}>{label}</span>
       {/* The page's own separator, so the outcome and the count read as two facts of one
           line rather than as one run of text. */}
