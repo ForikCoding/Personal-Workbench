@@ -216,6 +216,11 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     return { start: lineIndexAt(draft, region.start) + 1, end: lineIndexAt(draft, region.end) + 1 }
   }, [analysis, draft])
 
+  // A region with nothing between its markers renders nothing of the card, so the preview
+  // under it is the skeleton rather than a result. The pane says which of the two it is
+  // instead of claiming "not filled yet" over a document that is filled.
+  const regionEmpty = regionLines === undefined || regionLines.end - regionLines.start <= 1
+
   const gutterLines = useMemo<readonly GutterLineFact[]>(() => {
     const marks = new Map<number, 'region' | 'actions'>()
     // The action band is marked first so the region wins where the two overlap: a
@@ -720,7 +725,9 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
           {/* What this pane is showing, said at the group's own level: inside the surface
               it competed with the document it describes. */}
           <div className={css.sectionTools}>
-            <span className={css.previewLabel}>{t('skillCardPreviewSample')}</span>
+            <span className={css.previewLabel}>
+              {regionEmpty ? t('skillCardPreviewSample') : t('skillCardPreviewLive')}
+            </span>
           </div>
         </div>
         {/* Its own surface, inset from the page: what is inside is the user's document

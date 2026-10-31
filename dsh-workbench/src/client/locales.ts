@@ -98,6 +98,7 @@ export const zh = {
   // The three groups of the configuration page.
   skillCardSectionBasics: '基本信息',
   skillCardPreviewSample: '骨架预览，区间尚未填充',
+  skillCardPreviewLive: '按当前模板渲染',
   // Removing a card is not a partial edit, so it is confirmed in place rather than
   // carried out on the first press.
   skillCardDeleteConfirm: '确认删除',
@@ -371,6 +372,7 @@ export const en: Record<keyof typeof zh, string> = {
   // The three groups of the configuration page.
   skillCardSectionBasics: 'Basics',
   skillCardPreviewSample: 'Skeleton preview, the region is not filled yet',
+  skillCardPreviewLive: 'Rendered from the current template',
   // Removing a card is not a partial edit, so it is confirmed in place rather than
   // carried out on the first press.
   skillCardDeleteConfirm: 'Confirm delete',

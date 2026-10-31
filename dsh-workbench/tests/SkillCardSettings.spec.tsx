@@ -777,6 +777,15 @@ describe('the page groups', () => {
     expect(container.textContent).toContain(zh.skillCardPreviewSample)
   })
 
+  it('stops calling the preview a skeleton once the region has something in it', () => {
+    // The caption used to be unconditional, so a card whose region was full still read
+    // "the region is not filled yet" over a rendered document.
+    const filled = ['<h1>Tasks</h1>', '<!-- template-begin -->', '<p>One task</p>', '<!-- template-end -->'].join('\n')
+    const { container } = setup({ skill: 'git-repo', template: filled }, zhT)
+    expect(container.textContent).toContain(zh.skillCardPreviewLive)
+    expect(container.textContent).not.toContain(zh.skillCardPreviewSample)
+  })
+
   it('pairs every label with its control', () => {
     setup({ skill: 'git-repo', template: REGION }, zhT)
     for (const name of [zh.skillCardCardName, zh.skillCardSelectSkill, zh.skillCardModel]) {

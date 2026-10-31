@@ -83,6 +83,7 @@ export declare const zh: {
     skillCardActionSkillTargetMissing: string;
     skillCardSectionBasics: string;
     skillCardPreviewSample: string;
+    skillCardPreviewLive: string;
     skillCardDeleteConfirm: string;
     skillCardDeleteConfirmPrompt: string;
     skillCardTemplatePlaceholder: string;

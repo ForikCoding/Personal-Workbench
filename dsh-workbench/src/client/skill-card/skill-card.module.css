@@ -768,7 +768,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  padding: 22px 0;
+  padding: 18px 0;
 }
 
 /* A group's first line: its name, and whatever belongs to the group as a whole — the
@@ -816,7 +816,7 @@
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 24px;
+  gap: 16px 24px;
   min-width: 0;
 }
 
@@ -952,8 +952,10 @@
   padding: 0 8px;
 }
 
+/* Tall enough to hold a page of template on a laptop window without pushing the save bar
+   half way up the screen, and still growing on a large one. */
 .editor {
-  min-height: 340px;
+  min-height: clamp(240px, 32vh, 380px);
   padding: 6px;
   font-family: monospace;
   resize: vertical;
@@ -1110,7 +1112,8 @@
   min-width: 0;
   /* As tall as the editor opposite, so the two panes end on one line instead of one
      stopping halfway down the other. */
-  min-height: 368px;
+  flex: 1 1 auto;
+  min-height: 240px;
   padding: 10px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-md);
@@ -1184,10 +1187,16 @@
 }
 
 /* The page's footer, pinned to the bottom of the scroll container: saving must not
-   depend on scrolling past a preview that can be arbitrarily tall. */
+   depend on scrolling past a preview that can be arbitrarily tall.
+
+   Sticky insets resolve against the scrollport's *content* edge, so `bottom: 0` pinned
+   this bar one page-padding up (48px, from the panel's own `.page`) — and the template's
+   lines kept scrolling through the strip underneath it, which read as the bar cutting the
+   editor in half. The negative inset puts the reference back on the padding's outer edge,
+   which is the window's own bottom. */
 .configFooter {
   position: sticky;
-  bottom: 0;
+  bottom: -48px;
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -1326,7 +1335,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  /* Stretch, so the preview column takes its height from the editor beside it instead of
+     from a number that had to be kept in step with the editor's. */
+  align-items: stretch;
   /* The document is a different kind of thing from the facts above it, and whitespace
      alone did not say so — the same hairline the head uses separates the two. */
   padding-top: 20px;
