@@ -320,14 +320,31 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     const to = Math.min(Math.max(end, from), text.length)
     element.focus()
     element.setSelectionRange(from, to)
-    // A text area offers no "scroll to offset": the line index and the shared line
-    // height are the only way to centre the target, and centring it is what makes the
-    // selection land in view even when it is far off screen.
-    const top = lineIndexAt(text, from) * LINE_HEIGHT - element.clientHeight / 2 + LINE_HEIGHT / 2
-    element.scrollTop = Math.max(0, top)
-    // The gutter follows the field's scroll events, but a programmatic scroll need not
-    // emit one before the next paint, and a gutter one line behind is a wrong number.
-    if (gutter.current !== null) gutter.current.scrollTop = element.scrollTop
+    // A text area offers no "scroll to offset", so the line index and the shared line height
+    // are the only way there. The target is put two rows under the field's top rather than in
+    // the middle of it: the field can be taller than the part of the window it is visible in
+    // (the save bar is pinned across its foot), and a line put in the middle lands where
+    // nobody is looking.
+    const line = lineIndexAt(text, from)
+    const top = Math.max(0, (line - 2) * LINE_HEIGHT)
+    element.scrollTop = top
+    // The gutter follows the field's scroll events, but a programmatic scroll need not emit
+    // one before the next paint, and a gutter one line behind is a wrong number. It is set
+    // again after the frame, in case the browser's own "reveal the caret" pass moved the field
+    // after this handler returned.
+    if (gutter.current !== null) gutter.current.scrollTop = top
+    requestAnimationFrame(() => {
+      if (editor.current !== element) return
+      element.scrollTop = top
+      // A field that grew to hold the whole file has nothing to scroll, and the box that
+      // scrolls is then one of its ancestors: the line is placed in the window instead, so a
+      // jump still arrives whether the field scrolls or the page does.
+      if (element.scrollHeight <= element.clientHeight + LINE_HEIGHT) {
+        const offset = element.getBoundingClientRect().top + line * LINE_HEIGHT
+        window.scrollBy({ top: offset - 140, behavior: 'auto' })
+      }
+      if (gutter.current !== null) gutter.current.scrollTop = element.scrollTop
+    })
   }
 
   /**

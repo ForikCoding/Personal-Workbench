@@ -966,12 +966,18 @@
 }
 
 /* Tall enough to hold a page of template on a laptop window without pushing the save bar
-   half way up the screen, and still growing on a large one. */
+   half way up the screen, and still growing on a large one.
+
+   The height comes from the pane's stated row; the field fills it and, with the content
+   taller than the box, scrolls inside it. `min-height: 0` is what lets a text area shrink
+   into a row instead of pushing the row open to fit its text. */
 .editor {
-  min-height: clamp(240px, 32vh, 380px);
+  min-height: 0;
   padding: 6px;
   font-family: monospace;
-  resize: vertical;
+  /* Not resizable: dragging the handle wrote a height on the field, the pane's row stayed as
+     stated and clipped it, so the handle was a control that broke the layout it sat in. */
+  resize: none;
 }
 
 /* The editor's status rail, at the foot of the pane: where the region is, what the
@@ -1015,7 +1021,9 @@
    column, so the two views read as one pane. */
 .foldView {
   grid-column: 1 / -1;
-  min-height: clamp(240px, 32vh, 380px);
+  /* Fills the pane's stated row, like the field it replaces: the two presentations have to be
+     the same size to read as one pane, and a view that grows with its document is a page. */
+  min-height: 0;
   padding: 6px 0;
   overflow: auto;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
@@ -1097,11 +1105,17 @@
 
 /* Gutter and text on the first row, the status rail under both of them. The gutter and
    the text must share font, size, line height and vertical padding, or the numbers stop
-   lining up with the lines they label. */
+   lining up with the lines they label.
+
+   The first row's height is stated rather than divided. `minmax(0, 1fr)` inside a grid that
+   is as tall as its own content has nothing to divide, so the row grew to the code's full
+   height: a three-hundred-line template made a five-thousand-pixel field, the page scrolled
+   instead of the field, and a jump selected a line that was nowhere on screen. A stated row
+   makes the field and the gutter the scrollers, and keeps the page a page. */
 .editorPane {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: clamp(280px, 44vh, 560px) auto;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
@@ -1178,7 +1192,12 @@
      stack that is monospaced on every Windows without the shell's default font deciding. */
   white-space: pre;
   overflow-wrap: normal;
+  /* Both axes are stated: a long file scrolls inside the field, and a jump moves that scroll.
+     Leaving the vertical axis to be inferred from the horizontal one made the pane's own
+     scroller a candidate for a jump, and a jump that scrolls the wrong box looks like a jump
+     that did nothing. */
   overflow-x: auto;
+  overflow-y: auto;
   tab-size: 2;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   /* The scrollbar that appears with a long file must not narrow the text mid-edit. */

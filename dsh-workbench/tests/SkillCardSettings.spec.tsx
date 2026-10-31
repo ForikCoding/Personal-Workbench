@@ -1059,6 +1059,16 @@ describe('the instruction field', () => {
     expect(field.selectionStart).toBe(REGION_ONLY.indexOf('<!-- template-begin -->'))
   })
 
+  it('takes the caret into the field it jumped to', () => {
+    // The jump is a move, not a highlight: the field is focused and the line selected, which
+    // is what the next keystroke has to land on. (The scroll itself is layout, and jsdom has
+    // none: it is verified in the app.)
+    const template = ['<body>', '  <p>one</p>', '<!-- template-begin -->', '<!-- template-end -->'].join('\n')
+    setup({ skill: 'git-repo', template }, zhT)
+    fireEvent.click(screen.getByRole('button', { name: zh.skillCardTemplateJump }))
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: zh.skillCardTemplateLabel }))
+  })
+
   it('offers no destination when there is no region to go to', () => {
     const { container } = setup({ skill: 'git-repo', template: '<body><div>no region</div></body>' }, zhT)
     expect(container.querySelector('[data-template-jump]')).toBeNull()
