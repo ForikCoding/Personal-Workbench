@@ -88,5 +88,19 @@ export declare function anchoredOffset(current: number, anchorNow: number, ancho
  * @param hold - the hold, when there was one.
  * @param anchor - the same element that was anchored, now that it is back on screen.
  * @param clamped - the offset the box was found at, when the caller has already read it.
+ * @returns whether the anchor is now where the hold recorded it. False means this was not the
+ * box that moves the page — the shell scrolls something this page could not find, or a box that
+ * cannot reach that far — and the caller should ask the browser to bring the anchor into view
+ * instead. The test is the anchor's own position rather than the box's offset, because a box
+ * that never scrolls accepts any offset written to it and then stays at zero.
  */
-export declare function releaseScroll(hold: ScrollHold | undefined, anchor: Element | null, clamped?: number): void;
+export declare function releaseScroll(hold: ScrollHold | undefined, anchor: Element | null, clamped?: number): boolean;
+/**
+ * Ask the browser to bring an element into view, whichever container actually scrolls it.
+ *
+ * The fallback for a page that could not find the box the shell scrolls: this works through
+ * whatever ancestor — or portal — the element really lives in, and does nothing when it is
+ * already on screen.
+ * @param anchor - the element to bring into view.
+ */
+export declare function revealAnchor(anchor: Element | null): void;

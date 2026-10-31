@@ -124,9 +124,14 @@ export function anchoredOffset(current: number, anchorNow: number, anchorHeld: n
  * @param hold - the hold, when there was one.
  * @param anchor - the same element that was anchored, now that it is back on screen.
  * @param clamped - the offset the box was found at, when the caller has already read it.
+ * @returns whether the anchor is now where the hold recorded it. False means this was not the
+ * box that moves the page — the shell scrolls something this page could not find, or a box that
+ * cannot reach that far — and the caller should ask the browser to bring the anchor into view
+ * instead. The test is the anchor's own position rather than the box's offset, because a box
+ * that never scrolls accepts any offset written to it and then stays at zero.
  */
-export function releaseScroll(hold: ScrollHold | undefined, anchor: Element | null, clamped?: number): void {
-  if (hold === undefined) return
+export function releaseScroll(hold: ScrollHold | undefined, anchor: Element | null, clamped?: number): boolean {
+  if (hold === undefined) return false
   const { box } = hold
   const limit = maxScroll(box)
   const from = clamped ?? box.scrollTop
@@ -137,4 +142,25 @@ export function releaseScroll(hold: ScrollHold | undefined, anchor: Element | nu
     ? hold.offset
     : anchoredOffset(from, measured, hold.anchorTop as number, limit)
   box.scrollTop = Math.min(Math.max(0, target), limit)
+  if (anchor === null) return true
+  if (hold.anchorTop === undefined) return false
+  const settled = anchor.getBoundingClientRect().top
+  return Number.isNaN(settled) || Math.abs(settled - hold.anchorTop) <= 1
+}
+
+/**
+ * Ask the browser to bring an element into view, whichever container actually scrolls it.
+ *
+ * The fallback for a page that could not find the box the shell scrolls: this works through
+ * whatever ancestor — or portal — the element really lives in, and does nothing when it is
+ * already on screen.
+ * @param anchor - the element to bring into view.
+ */
+export function revealAnchor(anchor: Element | null): void {
+  if (anchor === null) return
+  const scrollIntoView = anchor.scrollIntoView
+  if (typeof scrollIntoView !== 'function') return
+  // `nearest` and not `start`: the reader was at the foot of the page, looking at this block,
+  // so the smallest move that puts it back on screen is the one that leaves the least behind.
+  anchor.scrollIntoView({ block: 'nearest', inline: 'nearest' })
 }

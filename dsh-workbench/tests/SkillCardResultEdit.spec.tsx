@@ -550,6 +550,33 @@ describe('saving and leaving', () => {
     expect(container.querySelector('[data-result-composer]')?.getAttribute('data-compose-mode')).toBe('fresh')
   })
 
+  it('asks the browser for the block when the page cannot find the box that scrolls', async () => {
+    // The arithmetic can be right and still leave the reader at the top, because the shell may
+    // scroll a container this page's walk up from its own root does not find. Asking for the
+    // block works through whatever container is really scrolled, and is a no-op when the block
+    // is already on screen.
+    const { props } = fixture()
+    const container = await show(props)
+    const viewport = fakeViewport({ scrollTop: 2400, blockTop: 60 })
+    const originalScrollIntoView = Element.prototype.scrollIntoView
+    const revealed: Element[] = []
+    Element.prototype.scrollIntoView = function (this: Element): void { revealed.push(this) }
+    try {
+      // A document with nothing to scroll: every write to it is clamped away, which is what a
+      // page looking at the wrong box sees.
+      Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: 20000 })
+      openEditor()
+      viewport.state.scrollTop = 0
+      viewport.state.blockTop = 2460
+      fireEvent.click(cancelButton())
+      await waitFor(() => { expect(container.querySelector('[data-result-editor]')).toBeNull() })
+      expect(revealed.some(element => element.hasAttribute('data-result-composer'))).toBe(true)
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView
+      viewport.dispose()
+    }
+  })
+
   it('keeps the act block in the same place after saving a taller document', async () => {
     // The anchor is the block, not the offset: an edit that made the document 400px taller
     // has to be scrolled 400px further, or the block the reader was using ends up below the

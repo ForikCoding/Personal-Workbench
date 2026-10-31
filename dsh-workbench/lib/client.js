@@ -7399,15 +7399,40 @@ window.__ModuleLoader__.load({
 		* @param hold - the hold, when there was one.
 		* @param anchor - the same element that was anchored, now that it is back on screen.
 		* @param clamped - the offset the box was found at, when the caller has already read it.
+		* @returns whether the anchor is now where the hold recorded it. False means this was not the
+		* box that moves the page — the shell scrolls something this page could not find, or a box that
+		* cannot reach that far — and the caller should ask the browser to bring the anchor into view
+		* instead. The test is the anchor's own position rather than the box's offset, because a box
+		* that never scrolls accepts any offset written to it and then stays at zero.
 		*/
 		function releaseScroll(hold, anchor, clamped) {
-			if (hold === void 0) return;
+			if (hold === void 0) return false;
 			const { box } = hold;
 			const limit = maxScroll(box);
 			const from = clamped ?? box.scrollTop;
 			const measured = anchor === null || hold.anchorTop === void 0 ? void 0 : anchor.getBoundingClientRect().top;
 			const target = measured === void 0 || Number.isNaN(measured) ? hold.offset : anchoredOffset(from, measured, hold.anchorTop, limit);
 			box.scrollTop = Math.min(Math.max(0, target), limit);
+			if (anchor === null) return true;
+			if (hold.anchorTop === void 0) return false;
+			const settled = anchor.getBoundingClientRect().top;
+			return Number.isNaN(settled) || Math.abs(settled - hold.anchorTop) <= 1;
+		}
+		/**
+		* Ask the browser to bring an element into view, whichever container actually scrolls it.
+		*
+		* The fallback for a page that could not find the box the shell scrolls: this works through
+		* whatever ancestor — or portal — the element really lives in, and does nothing when it is
+		* already on screen.
+		* @param anchor - the element to bring into view.
+		*/
+		function revealAnchor(anchor) {
+			if (anchor === null) return;
+			if (typeof anchor.scrollIntoView !== "function") return;
+			anchor.scrollIntoView({
+				block: "nearest",
+				inline: "nearest"
+			});
 		}
 		//#endregion
 		//#region src/client/skill-card/SkillCardPages.tsx
@@ -8191,6 +8216,7 @@ window.__ModuleLoader__.load({
 			};
 			const wasEditing = (0, react.useRef)(editing);
 			const restoreFrame = (0, react.useRef)(void 0);
+			const restoreTimer = (0, react.useRef)(void 0);
 			(0, react.useLayoutEffect)(() => {
 				const exited = !editing && wasEditing.current;
 				wasEditing.current = editing;
@@ -8201,11 +8227,23 @@ window.__ModuleLoader__.load({
 				const clamped = held.box.scrollTop;
 				const restore = () => {
 					releaseScroll(held, actBlock.current, clamped);
+					revealAnchor(actBlock.current);
 				};
-				restore();
-				if (typeof requestAnimationFrame === "function") restoreFrame.current = requestAnimationFrame(restore);
+				let passes = 0;
+				const pass = () => {
+					restore();
+					passes += 1;
+					if (passes >= 3 || typeof requestAnimationFrame !== "function") return;
+					restoreFrame.current = requestAnimationFrame(pass);
+				};
+				pass();
+				restoreTimer.current = setTimeout(restore, 120);
 			}, [editing]);
 			(0, react.useLayoutEffect)(() => () => {
+				if (restoreTimer.current !== void 0) {
+					clearTimeout(restoreTimer.current);
+					restoreTimer.current = void 0;
+				}
 				if (restoreFrame.current === void 0 || typeof cancelAnimationFrame !== "function") return;
 				cancelAnimationFrame(restoreFrame.current);
 				restoreFrame.current = void 0;

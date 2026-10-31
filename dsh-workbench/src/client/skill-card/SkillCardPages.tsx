@@ -39,7 +39,7 @@ import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
-import { holdScroll, releaseScroll, type ScrollHold } from './scroll-hold.ts'
+import { holdScroll, releaseScroll, revealAnchor, type ScrollHold } from './scroll-hold.ts'
 import type { WorkbenchScriptBinder } from './render.ts'
 import { clockText, dayKey, latestRunText, runClockText } from './clock.ts'
 import css from './skill-card.module.css'
@@ -1110,6 +1110,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   }
   const wasEditing = useRef(editing)
   const restoreFrame = useRef<number | undefined>(undefined)
+  const restoreTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useLayoutEffect(() => {
     const exited = !editing && wasEditing.current
     wasEditing.current = editing
@@ -1118,18 +1119,41 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
     heldScroll.current = undefined
     if (held === undefined) return
     // Restored on this commit, before the browser paints the taller page: reading the block's
-    // position forces the layout that the offset must be measured against. The frame after
-    // covers content that renders once the swap has already been painted — the offset it was
-    // found at is the one this commit read, so the second pass corrects the same distance
-    // rather than adding to the first.
+    // position forces the layout that the offset must be measured against. Each pass corrects
+    // from the offset this commit found the page at, so repeating it is the same as doing it
+    // once — which is what makes the frames after it safe.
     const clamped = held.box.scrollTop
-    const restore = (): void => { releaseScroll(held, actBlock.current, clamped) }
-    restore()
-    if (typeof requestAnimationFrame === 'function') restoreFrame.current = requestAnimationFrame(restore)
+    // Every pass ends by asking the browser for the block itself.
+    //
+    // The arithmetic can be right and still leave the reader at the top: the shell may scroll
+    // a container this page's walk up from its own root does not find, or reset the offset
+    // after the swap. Asking for the block works through whatever container is really
+    // scrolled, and costs nothing when the arithmetic already landed — the block is on screen
+    // then, and `nearest` does not move a visible element.
+    const restore = (): void => {
+      releaseScroll(held, actBlock.current, clamped)
+      revealAnchor(actBlock.current)
+    }
+    let passes = 0
+    const pass = (): void => {
+      restore()
+      passes += 1
+      if (passes >= 3 || typeof requestAnimationFrame !== 'function') return
+      restoreFrame.current = requestAnimationFrame(pass)
+    }
+    pass()
+    // One more look after the frames: the document's own content can attach a moment later,
+    // and the reader is not going to have moved in a fifth of a second.
+    restoreTimer.current = setTimeout(restore, 120)
   }, [editing])
-  // The second pass is cancelled as soon as the page changes again: a reader who has started
-  // scrolling away must not be pulled back by a frame that was queued before they moved.
+  // The passes after the first are cancelled as soon as the page changes again: a reader who
+  // has started scrolling away must not be pulled back by a frame that was queued before they
+  // moved.
   useLayoutEffect(() => () => {
+    if (restoreTimer.current !== undefined) {
+      clearTimeout(restoreTimer.current)
+      restoreTimer.current = undefined
+    }
     if (restoreFrame.current === undefined || typeof cancelAnimationFrame !== 'function') return
     cancelAnimationFrame(restoreFrame.current)
     restoreFrame.current = undefined
