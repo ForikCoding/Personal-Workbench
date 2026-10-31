@@ -175,6 +175,8 @@ export const zh = {
   runActivityCompleted: '已完成',
   runActivityStopped: '已停止',
   runActivityFailed: '已失败',
+  // How much the fold is hiding. The outcome word alone gave no reason to open it.
+  runActivitySteps: '{count} 步',
   // The run-history page: the list every card opens on, one row per completed run. The
   // count states how much history the card holds next to the empty state, and a row shows
   // the run's own outcome word — the live page's words reused, so the list and the detail
@@ -213,6 +215,9 @@ export const zh = {
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
   // bug rather than as the accepted cost.
+  // The block's own name. The page shows two composers, and this is the one sentence that
+  // says which of them revises the version above rather than starting a run.
+  refineBlockTitle: '改这一版',
   refinePlaceholder: '说明要改哪里，例如「按时间倒序」',
   refineAction: '重新生成',
   refineStop: '停止',
@@ -434,6 +439,7 @@ export const en: Record<keyof typeof zh, string> = {
   runActivityArgument: 'Arguments',
   runActivityCompleted: 'Completed',
   runActivityStopped: 'Stopped',
+  runActivitySteps: '{count} steps',
   runActivityFailed: 'Failed',
   // The run-history page: the list every card opens on, one row per completed run.
   runHistoryTitle: 'Run history',
@@ -461,6 +467,7 @@ export const en: Record<keyof typeof zh, string> = {
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
   // bug rather than as the accepted cost.
+  refineBlockTitle: 'Revise this version',
   refinePlaceholder: 'Say what to change, e.g. “newest first”',
   refineAction: 'Regenerate',
   refineStop: 'Stop',

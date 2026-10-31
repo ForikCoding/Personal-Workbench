@@ -19,7 +19,7 @@ import { SkillCardBody } from '../src/client/skill-card/SkillCard.tsx'
 import { ActivityTrace, elapsedText } from '../src/client/skill-card/ActivityTrace.tsx'
 import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
 import type { WorkbenchActivityEntry, WorkbenchRunState } from '../src/skill-card-contract.ts'
-import { WORKBENCH_ACTIVITY_PREVIEW_LENGTH } from '../src/skill-card-contract.ts'
+import { WORKBENCH_ACTIVITY_PREVIEW_LENGTH, WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL } from '../src/skill-card-contract.ts'
 import { zh } from '../src/client/locales.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -272,6 +272,28 @@ describe('activity trace rendering', () => {
     fireEvent.click(header)
     expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(0)
     expect(header.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('counts what the fold holds, without counting the schema-emission call', () => {
+    // 已完成 alone gave the reader no reason to open a fold: the word says how the run ended
+    // and nothing about whether there is anything inside. The count is the number of rows a
+    // click reveals, so the schema-emission call — a step of the recording, not of the work —
+    // is not one of them.
+    const { container } = render(
+      <ActivityTrace
+        trace={[
+          { kind: 'reasoning', text: '先看任务单。' },
+          { kind: 'tool', tool: 'read', argument: 'T2026.md' },
+          { kind: 'tool', tool: WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL, argument: '{}' },
+          { kind: 'text', text: '报告如下。' },
+        ]}
+        settled={{ stopReason: 'completed' }}
+        t={t}
+      />,
+    )
+    const header = container.querySelector('[data-turn-process]') as Element
+    expect(header.textContent).toContain(zh.runActivitySteps.replace('{count}', '3'))
+    expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(3)
   })
 
   it('names an aborted and a failed settle differently', () => {

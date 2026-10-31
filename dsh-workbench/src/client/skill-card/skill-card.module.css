@@ -83,7 +83,9 @@
 .pageView {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  /* One step of rhythm between the zones — head, composer, document, its actions, the
+     trace — so the document does not read as stuck to the composer above it. */
+  gap: 18px;
   width: 100%;
   min-width: 0;
 }
@@ -97,10 +99,21 @@
    of the title it belongs to. Above the title, the crumb reads as a margin note and the
    title, the meta, and the rows all share one left edge. */
 .pageHead {
+  /* Pinned: these views grow with the document under them, and the way back, the card's
+     name, and the run control used to scroll out of sight within one long report. The
+     scrollport is the workbench panel, which is this head's ancestor. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  /* The head is opaque because the document scrolls under it, and the hairline is what
+     separates the two once it is pinned. */
+  padding: 4px 0 10px;
+  background: var(--dsw-alias-bg-base);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
 .pageHeadBar {
@@ -179,8 +192,14 @@
 /* The run's output section: the trace beneath the result, set off from it by the same
    hairline the record used to carry. */
 .runTrace {
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  padding-top: 8px;
+  /* A block rather than a hairline: the trace is a fact *about* the document above it, and
+     a bare 已完成 row under a full-width report read as another section of the report
+     rather than as the record of how it was made. */
+  padding: 6px 12px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-md);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
+  min-width: 0;
 }
 
 /* The run's activity stream: one row per entry — a tool call, a span of the model's own
@@ -297,42 +316,55 @@
 
 /* The settled turn-process header above a trace, matching the conversation's Turn process
    row: a full-width button with the outcome word and a chevron that folds the whole stream. */
+/* No rule of its own any more: the block's edge is the boundary, and the header is the
+   block's first line. It carries a step count because 已完成 alone gave no reason to open
+   it — the summary said how the run ended and nothing about what was inside. */
 .turnProcess {
   display: flex;
   align-items: center;
+  gap: 6px;
   width: 100%;
   min-width: 0;
-  height: calc(33px + var(--dsh-content-font-delta, 0px));
-  padding: 0 0 8px;
+  padding: 4px 0;
   border: none;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
   background: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
   transition: color 100ms ease;
 }
 
 .turnProcess:hover {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
 }
 
 .turnProcessLabel {
   min-width: 0;
   overflow: hidden;
   font-size: inherit;
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* How many entries the fold hides, in the colour of a count rather than of the outcome. */
+.turnProcessSteps {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* At the far edge, where a full-width row's disclosure control belongs. */
 .turnProcessChevron {
   flex: none;
   width: 14px;
   height: 14px;
-  margin-left: 4px;
+  margin-left: auto;
   color: inherit;
   transition: transform 100ms ease;
 }
@@ -378,11 +410,35 @@
 /* Revising the result is a sentence about what is on screen, so the composer sits
    directly under it: field and send on one line, the log of what was already asked
    below. */
+/* A block with a name, not a second run bar. The page shows two composers — one starts a
+   run, one revises the version on screen — and with both a chat-style field and a primary
+   pill they were indistinguishable: same shape, same button, no sentence saying what
+   either one did. Named and tinted, this one reads as a step of its own. */
 .composer {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-md);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
   min-width: 0;
+}
+
+.composerHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composerTitle {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
 }
 
 /* The field grows upwards from one row and the regenerating control sits beside it, so
@@ -406,26 +462,25 @@
    The bottom inset is the one value restated rather than copied: the chat field's bottom
    space comes from the toolbar row beneath it, while this field ends on its own border,
    so it repeats the top inset instead of sitting its last line on the edge. */
+/* Flat and bordered, not lifted: the elevation belongs to the run field at the top of the
+   page, which is the primary thing to write in. This one is a field of the block it sits
+   in, so it takes a hairline and the block's own light surface. */
 .composerInput {
-  /* The chat card's own stroke colour, so the field's edge is the same hairline the
-     elevation token draws around the conversation's composer. */
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   flex: 1 1 auto;
   box-sizing: border-box;
   min-width: 0;
-  min-height: 36px;
+  min-height: 32px;
   /* Four rows of the same line box, plus its own insets and border. Past that the field
      scrolls rather than growing. */
-  max-height: calc(4 * (24px + var(--dsh-content-font-delta, 0px)) + 10px);
-  padding: 4px 8px 4px 14px;
-  border: 0;
-  border-radius: var(--dsw-radius-panel);
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
+  max-height: calc(4 * (20px + var(--dsh-content-font-delta, 0px)) + 10px);
+  padding: 5px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-family);
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: 13px;
+  line-height: 20px;
   resize: none;
   overflow-y: auto;
 }
@@ -1092,6 +1147,10 @@
    part of the document the card renders, and it stands beneath everything. */
 .permission {
   margin: 0;
+  /* Its own hairline: the sentence is about the page, and with nothing above it, it read
+     as the last line of the trace block. */
+  padding-top: 10px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   line-height: 16px;

@@ -142,6 +142,7 @@ export declare const zh: {
     runActivityCompleted: string;
     runActivityStopped: string;
     runActivityFailed: string;
+    runActivitySteps: string;
     runHistoryTitle: string;
     runHistoryCount: string;
     runHistoryEmpty: string;
@@ -159,6 +160,7 @@ export declare const zh: {
     runInstructionRecent: string;
     runInstructionField: string;
     skillCardRunningBody: string;
+    refineBlockTitle: string;
     refinePlaceholder: string;
     refineAction: string;
     refineStop: string;

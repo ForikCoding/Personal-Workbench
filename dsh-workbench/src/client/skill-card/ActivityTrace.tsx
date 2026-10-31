@@ -170,12 +170,20 @@ function firstLine(text: string): string {
 export function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactNode {
   const [folded, setFolded] = useState(false)
   const open = !folded
+  // The schema-emission call is not a step of the visible work (see
+  // WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL). It is skipped on read as well as on record,
+  // so a trace stored before the builder filtered it stops showing — and stops counting,
+  // which is why the fold is counted from this list rather than from the stored one.
+  const visible = trace.filter(
+    entry => !(entry.kind === 'tool' && entry.tool === WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL),
+  )
   return (
     <div className={css.runTraceList} data-run-activity="">
       {settled !== undefined && (
         <TurnProcessHeader
           stopReason={settled.stopReason}
           failed={settled.failure !== undefined}
+          steps={visible.length}
           open={open}
           onToggle={() => { setFolded(value => !value) }}
           t={t}
@@ -183,11 +191,7 @@ export function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactN
       )}
       {open && (
         <ol className={css.activityList}>
-          {trace.map((entry, index) => {
-            // The schema-emission call is not a step of the visible work (see
-            // WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL). It is skipped on read as well as
-            // on record, so a trace stored before the builder filtered it stops showing too.
-            if (entry.kind === 'tool' && entry.tool === WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL) return null
+          {visible.map((entry, index) => {
             if (entry.kind === 'tool') {
               return (
                 <li
@@ -236,6 +240,8 @@ interface TurnProcessHeaderProps {
   readonly stopReason: string
   /** Whether the run left a verdict of its own, which outranks the stop reason. */
   readonly failed: boolean
+  /** How many entries the fold holds, so the collapsed row says more than the verdict. */
+  readonly steps: number
   /** Whether the trace below is unfolded. */
   readonly open: boolean
   /** Fold or unfold the trace. */
@@ -258,7 +264,7 @@ interface TurnProcessHeaderProps {
  * @param props - the outcome, fold state, toggle, and translator.
  * @returns the header button.
  */
-function TurnProcessHeader({ stopReason, failed, open, onToggle, t }: TurnProcessHeaderProps): ReactNode {
+function TurnProcessHeader({ stopReason, failed, steps, open, onToggle, t }: TurnProcessHeaderProps): ReactNode {
   // The verdict first, then the stop reason. A deadline stops the child, so the seam reports
   // `aborted`; reading that as 已停止 said a person had stopped a run nobody touched.
   const label = failed ? t('runActivityFailed')
@@ -275,6 +281,9 @@ function TurnProcessHeader({ stopReason, failed, open, onToggle, t }: TurnProces
       onClick={onToggle}
     >
       <span className={css.turnProcessLabel}>{label}</span>
+      {/* The page's own separator, so the outcome and the count read as two facts of one
+          line rather than as one run of text. */}
+      {steps === 0 ? null : <span className={css.turnProcessSteps}>{`· ${t('runActivitySteps', { count: steps })}`}</span>}
       <IconChevronDownOutlineRegular className={css.turnProcessChevron} />
     </button>
   )

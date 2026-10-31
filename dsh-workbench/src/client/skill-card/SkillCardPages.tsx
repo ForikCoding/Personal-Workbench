@@ -434,6 +434,13 @@ function RefinePanel({
   }
   return (
     <div className={css.composer} data-refine-composer="">
+      {/* The block says what it changes. Without a name the two composers on this page —
+          the run's at the top, this one at the bottom — were the same field with the same
+          dark pill, and nothing on screen said which of them starts a run and which
+          revises the version above. */}
+      <div className={css.composerHead}>
+        <p className={css.composerTitle}>{t('refineBlockTitle')}</p>
+      </div>
       <div className={css.composerRow}>
         <textarea
           ref={field}
@@ -465,7 +472,9 @@ function RefinePanel({
             </Button>
           )
           : (
-            <Button variant="primary" size="sm" disabled={empty} onClick={submit}>
+            // Outline, not primary: the page has one primary action — the run control —
+            // and a second dark pill at the bottom competed with it for the same click.
+            <Button variant="outline" size="sm" disabled={empty} onClick={submit}>
               {t('refineAction')}
             </Button>
           )}

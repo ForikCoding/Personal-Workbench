@@ -213,6 +213,20 @@ function ask(instruction: string): void {
 }
 
 describe('refining a result', () => {
+  it('names the block, so it cannot be read as the page’s run bar', async () => {
+    // The page carries two composers: the run's at the top, this one at the bottom. With the
+    // same chat-style field and the same dark pill, nothing on screen said which one starts a
+    // run and which revises the version above — so the revision says so in its own header.
+    const { api } = pageApi()
+    const container = await show(api)
+    const block = container.querySelector('[data-refine-composer]') as HTMLElement
+    expect(block.textContent).toContain(zh.refineBlockTitle)
+    // Above the field, as a block's own heading, rather than a placeholder inside it.
+    expect(block.firstElementChild?.textContent).toBe(zh.refineBlockTitle)
+    // One block, one field: the name is a heading and not a second composer.
+    expect(block.querySelectorAll('textarea')).toHaveLength(1)
+  })
+
   it('disables the regenerate control while the instruction is empty', async () => {
     // Criterion 53. An empty field is not an instruction, so the control that spends a
     // model call cannot be pressed from it.
