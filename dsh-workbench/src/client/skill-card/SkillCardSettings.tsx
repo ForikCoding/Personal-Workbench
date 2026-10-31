@@ -564,7 +564,35 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         </div>
 
       <section className={css.section} aria-labelledby={templateId}>
-        <h2 className={css.sectionTitle} id={templateId}>{t('skillCardTemplateLabel')}</h2>
+        {/* The group's own line. Its actions used to be underscores inside the sentence
+            about the region and the byte count, so "添加动作" read as one more fact about the
+            template rather than as the control it is. Buttons up here, facts below. */}
+        <div className={css.sectionHead}>
+          <h2 className={css.sectionTitle} id={templateId}>{t('skillCardTemplateLabel')}</h2>
+          <div className={css.sectionTools}>
+            {draft.trim() !== ''
+              ? null
+              : (
+                <Button variant="outline" size="sm" onClick={insertSkeleton}>
+                  {t('skillCardInsertSkeleton')}
+                </Button>
+              )}
+            {draft.trim() === '' || regionLines !== undefined
+              ? null
+              : (
+                <Button variant="outline" size="sm" onClick={insertRegionMarkers}>
+                  {t('skillCardInsertMarkers')}
+                </Button>
+              )}
+            {builderOpen
+              ? null
+              : (
+                <Button variant="outline" size="sm" onClick={() => { setBuilderOpen(true) }}>
+                  {t('skillCardAddAction')}
+                </Button>
+              )}
+          </div>
+        </div>
         {/* One line, three facts, in the order a writer needs them: where the region
             is, what the template declares, and how much of the budget it uses. */}
         <div
@@ -589,41 +617,6 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
             {t('skillCardTemplateSizeUnit')}
           </span>
           {dirty ? ` · ${t('skillCardTemplateDirty')}` : ''}
-          {/* An empty template gets the whole starter, not just the markers: the
-              declaration block is the other thing it has to learn. */}
-          {draft.trim() === ''
-            ? (
-              <>
-                {' · '}
-                <button type="button" className={css.editorStatusAction} onClick={insertSkeleton}>
-                  {t('skillCardInsertSkeleton')}
-                </button>
-              </>
-            )
-            : regionLines === undefined
-              ? (
-                <>
-                  {' · '}
-                  <button type="button" className={css.editorStatusAction} onClick={insertRegionMarkers}>
-                    {t('skillCardInsertMarkers')}
-                  </button>
-                </>
-              )
-              : null}
-          {builderOpen
-            ? null
-            : (
-              <>
-                {' · '}
-                <button
-                  type="button"
-                  className={css.editorStatusAction}
-                  onClick={() => { setBuilderOpen(true) }}
-                >
-                  {t('skillCardAddAction')}
-                </button>
-              </>
-            )}
         </div>
 
         {missingTargets.length === 0 ? null : (
@@ -722,11 +715,18 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
       </section>
 
       <section className={css.section} aria-labelledby={previewId}>
-        <h2 className={css.sectionTitle} id={previewId}>{t('skillCardPreview')}</h2>
+        <div className={css.sectionHead}>
+          <h2 className={css.sectionTitle} id={previewId}>{t('skillCardPreview')}</h2>
+          {/* What this pane is showing, said at the group's own level: inside the surface
+              it competed with the document it describes. */}
+          <div className={css.sectionTools}>
+            <span className={css.previewLabel}>{t('skillCardPreviewSample')}</span>
+          </div>
+        </div>
         {/* Its own surface, inset from the page: what is inside is the user's document
-            in a shadow root and is left exactly as they wrote it. */}
+            in a shadow root and is left exactly as they wrote it. The well it sits in is
+            tinted and as tall as the editor opposite, so the two panes end together. */}
         <div className={css.previewSurface}>
-          <span className={css.previewLabel}>{t('skillCardPreviewSample')}</span>
           <ShadowHtml html={draft} className={css.preview} />
         </div>
       </section>
@@ -759,6 +759,9 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
             {t('skillCardSave')}
           </Button>
           <Button variant="ghost" size="sm" onClick={onClose}>{t('skillCardClose')}</Button>
+          {/* What the button would keep, said where the button is: the editor's own line
+              states it too, and that line is above a pane the user may have scrolled past. */}
+          {dirty ? <span className={css.footerHint}>{t('skillCardTemplateDirty')}</span> : null}
           {/* The destructive control sits apart from the pair a user presses without
               reading, at the far end of the bar. */}
           <span className={css.footerSpacer} />

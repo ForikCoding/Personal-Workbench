@@ -768,11 +768,33 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  padding: 20px 0;
+  padding: 22px 0;
 }
 
+/* A group's first line: its name, and whatever belongs to the group as a whole — the
+   template's three actions, the preview's caption. The controls used to sit inside the
+   sentence about the region and the byte count, where an underlined 添加动作 read as one
+   more fact instead of the one thing on the line a user could press. */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sectionTools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+/* Not flush against the head: the head is pinned and carries a hairline, and a section
+   title one line under it reads as part of the head rather than as the first group. */
 .section:first-child {
-  padding-top: 0;
+  padding-top: 18px;
 }
 
 .section + .section {
@@ -794,7 +816,7 @@
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 24px;
+  gap: 18px 24px;
   min-width: 0;
 }
 
@@ -818,15 +840,16 @@
    height, so the row does not jump between the three states. */
 .fieldValue {
   margin: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -851,15 +874,20 @@
    the full path underneath is the exact directory. It matches `.fieldValue`'s border and
    background so the four fields of this group read as one set, but it is taller because it
    carries two lines. */
+/* One line, like every other control in the grid: the leaf name on the left, the exact
+   path flushing right. Two lines made this cell taller than its neighbour, so no two rows
+   of the group ever lined up — and the row's whole purpose is that they do. */
 .workspaceValue {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 3px 6px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-layer-1);
   overflow: hidden;
@@ -873,9 +901,11 @@
 }
 
 .workspaceLeaf {
+  flex: none;
+  max-width: 62%;
   color: var(--dsw-alias-label-primary);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -883,9 +913,12 @@
 
 /* Tertiary and small: the exact path, always readable, never competing with the name. */
 .workspacePath {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   line-height: 14px;
+  text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -900,22 +933,27 @@
   line-height: 16px;
 }
 
+/* The page's controls are one size and one surface: a form whose fields are 28px tall
+   reads as a settings list from a denser app, and a name field the height of a table row
+   is not obviously a place you can type. */
 .select,
 .editor {
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
-  font-size: 12px;
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
 }
 
 .select {
-  height: 28px;
-  padding: 0 6px;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 8px;
 }
 
 .editor {
-  min-height: 320px;
+  min-height: 340px;
   padding: 6px;
   font-family: monospace;
   resize: vertical;
@@ -926,8 +964,8 @@
    and how much of the size budget it uses. */
 .editorStatus {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 /* A template with no region cannot run at all, so the whole line turns into the
@@ -941,25 +979,14 @@
   color: var(--dsw-alias-state-warn-label);
 }
 
-/* The one control this line carries: writing the missing markers. It inherits the
-   line's type so it reads as part of the sentence. */
-.editorStatusAction {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--dsw-alias-link);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
 
 /* Gutter plus text area in one row. The two must share font, size, line height and
    vertical padding, or the numbers stop lining up with the lines they label. */
 .editorPane {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   overflow: hidden;
 }
@@ -972,7 +999,9 @@
   margin: 0;
   padding: 6px 0;
   border-right: 1px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-bg-layer-2);
+  /* A tint rather than a layer token: both layer tokens are the same white in this theme,
+     which left the numbers floating in the code with nothing separating them. */
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
   color: var(--dsw-alias-label-tertiary);
   font-family: monospace;
   font-size: 12px;
@@ -1079,10 +1108,13 @@
   gap: 8px;
   box-sizing: border-box;
   min-width: 0;
-  padding: 12px;
+  /* As tall as the editor opposite, so the two panes end on one line instead of one
+     stopping halfway down the other. */
+  min-height: 368px;
+  padding: 10px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-1);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
 }
 
 .previewLabel {
@@ -1091,10 +1123,18 @@
   line-height: 16px;
 }
 
+/* The well the document is drawn in: white on the tinted frame, so the user's own card
+   reads as the document and the frame reads as the page around it. Dashed while there is
+   nothing in it to look at. */
 .preview {
-  border: 1px dashed var(--dsw-alias-border-l1);
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 8px;
+  border: 1px dashed var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-sm);
-  padding: 6px;
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: auto;
 }
 
 .settingsActions {
@@ -1153,10 +1193,21 @@
   flex-direction: column;
   gap: 6px;
   box-sizing: border-box;
-  margin-top: 4px;
-  padding: 12px 0 16px;
+  margin-top: 8px;
+  padding: 12px 0 14px;
   border-top: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-base);
+  /* A hairline alone left the panes' last lines looking cut rather than covered: the bar
+     and the page are the same white, so the bar has to cast something to read as a bar. */
+  box-shadow: 0 -12px 20px -18px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);
+}
+
+/* What the save button would keep, stated beside it. */
+.footerHint {
+  margin-left: 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .footerActions {
@@ -1276,27 +1327,42 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+  /* The document is a different kind of thing from the facts above it, and whitespace
+     alone did not say so — the same hairline the head uses separates the two. */
+  padding-top: 20px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
 /* A grid child defaults to min-width auto, which lets the editor's content widen the
    column instead of scrolling inside it. */
 .panes > .section {
   min-width: 0;
+  /* The row carries the space above it now. */
+  padding-top: 0;
 }
 
+/* Two panes are two columns of one row, not a stack: the hairline that separates a
+   section from the one above it left a stray line across the preview column alone and
+   pushed its heading down by a pixel. */
+.panes > .section + .section {
+  border-top: 0;
+}
+
+/* Tinted, like the result page's own selector: both layer tokens are the same white in
+   this theme, so a strip drawn in one of them had no strip in it at all. */
 .paneTabs {
   display: flex;
-  gap: 4px;
-  padding: 3px;
+  gap: 2px;
+  padding: 2px;
   border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
 }
 
 .paneTab {
   flex: 1 1 auto;
-  padding: 5px 10px;
+  padding: 4px 10px;
   border: 0;
-  border-radius: calc(var(--dsw-radius-sm) - 1px);
+  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -1308,6 +1374,7 @@
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font-weight: 500;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);
 }
 
 .paneTab:focus-visible {

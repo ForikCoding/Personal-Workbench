@@ -1312,7 +1312,24 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
   })
   return (
     <section className={css.pageView}>
-      <PageHead onBack={onBack} t={t} />
+      {/* The configuration view names itself now. Its head used to be the way back and
+          nothing else, because the name and the skill were also in the fields below and a
+          second, uneditable copy of a fact is what a page should not show. That still holds
+          for the *values* — but a page with no title of its own borrows the panel's, and the
+          panel's title is the home page's. The title here tracks the name field, so it is
+          the same fact seen from the top of a long page rather than a copy that can drift. */}
+      <PageHead
+        onBack={onBack}
+        t={t}
+        title={cardTitle(cardId, view.name)}
+        meta={(
+          <>
+            <span>{t('skillCardSettings')}</span>
+            {view.skill === undefined ? null : <span className={css.pageHeadChip}>{view.skill}</span>}
+            <span>{t(permissionLabelKey(view.permission))}</span>
+          </>
+        )}
+      />
       <SkillCardSettings
         // Keyed on the skill so the draft re-seeds from that skill's template.
         key={view.skill ?? ''}

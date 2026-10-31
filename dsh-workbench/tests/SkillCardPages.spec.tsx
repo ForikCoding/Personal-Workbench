@@ -91,9 +91,11 @@ describe('skill card configuration page', () => {
     expect(container.querySelector('textarea')).not.toBeNull()
   })
 
-  it('keeps only the way back in the head, letting the fields carry the facts', async () => {
-    // The card's name and skill used to be stated in the head *and* again in the fields,
-    // and the head's copy was the one that could not be edited.
+  it('names the card in the head, and keeps the way back above that name', async () => {
+    // The name used to be in the fields only, which left the page titled by the panel's
+    // own header — the home page's title over a configuration form. The head now says
+    // which card this is; it reads the same stored name the field edits, so the two can
+    // never disagree the way a second, uneditable copy did.
     const { container } = render(<SkillCardConfigPage {...props({
       api: {
         ...props().api,
@@ -108,11 +110,18 @@ describe('skill card configuration page', () => {
       },
     })} />)
     const head = container.querySelector('header') as HTMLElement
-    expect(head.querySelector('h2')).toBeNull()
-    expect(head.textContent).toBe('skillCardBack')
+    // The way back sits above the title, as in the two views beside this one: the title
+    // and everything under it start on the page's one left edge.
+    expect(head.firstElementChild?.querySelector('button')?.textContent).toBe('skillCardBack')
     await waitFor(() => {
-      expect((container.querySelector('input') as HTMLInputElement).value).toBe('我的任务')
+      expect(head.querySelector('h2')?.textContent).toBe('我的任务')
     })
+    // The facts the head carries are the ones it can state without a second control:
+    // which kind of page this is, the skill, and what a run may write.
+    expect(head.textContent).toContain('skillCardSettings')
+    expect(head.textContent).toContain('git-repo')
+    // The name is still the field's: the head is a label, not a second editor.
+    expect((container.querySelector('input') as HTMLInputElement).value).toBe('我的任务')
   })
 
   it('keeps removal in the footer, away from the pair a user presses unread', async () => {
