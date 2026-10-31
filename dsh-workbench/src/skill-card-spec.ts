@@ -19,7 +19,7 @@ import type {
   WorkbenchResultRecord,
   WorkbenchTemplateRecord,
 } from './skill-card-contract.ts'
-import { WORKBENCH_SANDBOX_MODES } from './skill-card-contract.ts'
+import { WORKBENCH_INSTRUCTION_MODES, WORKBENCH_SANDBOX_MODES } from './skill-card-contract.ts'
 
 /** Table holding one skill selection per card. */
 export const WORKBENCH_CARD_TABLE = 'card'
@@ -65,6 +65,11 @@ export const workbenchCardWorkspaceSchema = z.object({
  * `permission` follows the same rule. Losing it is the worst of the four: the card would
  * come back under the default mode, so a card the user deliberately narrowed would quietly
  * run with wider write access than the page showed.
+ *
+ * `instructionMode` was the one field that got away, and it is the reason this rule is
+ * written down twice: 运行指令 was added to the page and to the store, not to this schema, so
+ * every card came back asking for no instruction after a restart — the select read 不需要
+ * again on a card the user had set to 必须. The store wrote it and the load threw it away.
  */
 export const workbenchCardConfigSchema = z.object({
   skill: z.string().optional(),
@@ -74,6 +79,9 @@ export const workbenchCardConfigSchema = z.object({
   // The enum rather than a plain string: a stored mode this build does not know must fail
   // loudly at load (backup-and-skip) instead of being handed to the sandbox later.
   permission: z.enum(WORKBENCH_SANDBOX_MODES).optional(),
+  // The same treatment for the same reason: a mode this build cannot name is a mode it cannot
+  // enforce, and a card whose runs required an instruction must not come back not requiring it.
+  instructionMode: z.enum(WORKBENCH_INSTRUCTION_MODES).optional(),
 })
 
 /** Stored schema for one template. */
@@ -166,8 +174,22 @@ export const workbenchResultSchema = z.object({
   stopReason: z.string(),
   model: workbenchCardModelSchema.optional(),
   structured: z.unknown().optional(),
+  // What the run was asked to do. Written by the runner next to the result it produced and
+  // declared here in the same change, for the reason above: two runs of one card differ by
+  // their instruction, and a record that shed it on load leaves two rows nobody can tell
+  // apart. Optional because a result written before the composer kept the ask has none.
+  instruction: z.string().optional(),
   outputText: z.string().optional(),
   diagnostic: z.string().optional(),
+  // The verdict of a run that produced no document, and the code that names it. Both are
+  // written by the runner when a run is refused or fails, and both are what the card draws
+  // its notice from: an undeclared field here made a failed run look like a run that had
+  // simply produced nothing, with the refusal gone after the next start.
+  //
+  // The code is a plain string rather than the closed union: a code from a newer build must
+  // still load, and the card already falls back to a generic title for one it cannot name.
+  failure: z.string().optional(),
+  failureCode: z.string().optional(),
   editedAt: z.number().finite().nonnegative().optional(),
   activity: z.array(workbenchActivityEntrySchema).optional(),
 })

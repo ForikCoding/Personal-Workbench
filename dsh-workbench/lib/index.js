@@ -690,13 +690,19 @@ const workbenchCardWorkspaceSchema = z.object({ path: z.string() });
 * `permission` follows the same rule. Losing it is the worst of the four: the card would
 * come back under the default mode, so a card the user deliberately narrowed would quietly
 * run with wider write access than the page showed.
+*
+* `instructionMode` was the one field that got away, and it is the reason this rule is
+* written down twice: 运行指令 was added to the page and to the store, not to this schema, so
+* every card came back asking for no instruction after a restart — the select read 不需要
+* again on a card the user had set to 必须. The store wrote it and the load threw it away.
 */
 const workbenchCardConfigSchema = z.object({
 	skill: z.string().optional(),
 	name: z.string().optional(),
 	model: workbenchCardModelSchema.optional(),
 	workspace: workbenchCardWorkspaceSchema.optional(),
-	permission: z.enum(WORKBENCH_SANDBOX_MODES).optional()
+	permission: z.enum(WORKBENCH_SANDBOX_MODES).optional(),
+	instructionMode: z.enum(WORKBENCH_INSTRUCTION_MODES).optional()
 });
 /** Stored schema for one template. */
 const workbenchTemplateSchema = z.object({ html: z.string() });
@@ -766,8 +772,11 @@ const workbenchResultSchema = z.object({
 	stopReason: z.string(),
 	model: workbenchCardModelSchema.optional(),
 	structured: z.unknown().optional(),
+	instruction: z.string().optional(),
 	outputText: z.string().optional(),
 	diagnostic: z.string().optional(),
+	failure: z.string().optional(),
+	failureCode: z.string().optional(),
 	editedAt: z.number().finite().nonnegative().optional(),
 	activity: z.array(workbenchActivityEntrySchema).optional()
 });

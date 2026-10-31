@@ -52,6 +52,11 @@ export declare const workbenchCardWorkspaceSchema: z.ZodObject<{
  * `permission` follows the same rule. Losing it is the worst of the four: the card would
  * come back under the default mode, so a card the user deliberately narrowed would quietly
  * run with wider write access than the page showed.
+ *
+ * `instructionMode` was the one field that got away, and it is the reason this rule is
+ * written down twice: 运行指令 was added to the page and to the store, not to this schema, so
+ * every card came back asking for no instruction after a restart — the select read 不需要
+ * again on a card the user had set to 必须. The store wrote it and the load threw it away.
  */
 export declare const workbenchCardConfigSchema: z.ZodObject<{
     skill: z.ZodOptional<z.ZodString>;
@@ -67,6 +72,11 @@ export declare const workbenchCardConfigSchema: z.ZodObject<{
         "read-only": "read-only";
         "workspace-write": "workspace-write";
         "danger-full-access": "danger-full-access";
+    }>>;
+    instructionMode: z.ZodOptional<z.ZodEnum<{
+        none: "none";
+        optional: "optional";
+        required: "required";
     }>>;
 }, z.core.$strip>;
 /** Stored schema for one template. */
@@ -137,8 +147,11 @@ export declare const workbenchResultSchema: z.ZodObject<{
         model: z.ZodString;
     }, z.core.$strip>>;
     structured: z.ZodOptional<z.ZodUnknown>;
+    instruction: z.ZodOptional<z.ZodString>;
     outputText: z.ZodOptional<z.ZodString>;
     diagnostic: z.ZodOptional<z.ZodString>;
+    failure: z.ZodOptional<z.ZodString>;
+    failureCode: z.ZodOptional<z.ZodString>;
     editedAt: z.ZodOptional<z.ZodNumber>;
     activity: z.ZodOptional<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
         kind: z.ZodLiteral<"tool">;

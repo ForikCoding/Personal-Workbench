@@ -94,6 +94,41 @@ describe('workbench storage schemas', () => {
     }
   })
 
+  it('keeps the instruction mode across a load, which is what the page reverts to showing', () => {
+    // 运行指令 was written by the store and missing here, so every card came back reading
+    // 不需要 after a restart: the write stayed on disk and the load threw the field away.
+    const stored = { skill: 'xiaoneng-task-detail', name: '任务分析', instructionMode: 'required' }
+    expect(workbenchCardConfigSchema.parse(stored)).toEqual(stored)
+    // The whole record, because one record holds all six fields and a mode may not cost
+    // another field on the way through.
+    const whole = {
+      skill: 'xiaoneng-task-detail',
+      name: '任务分析',
+      model: { provider: 'vendor/gateway', model: 'large' },
+      workspace: { path: 'D:\\Git\\Personal-Workbench' },
+      permission: 'workspace-write',
+      instructionMode: 'optional',
+    }
+    expect(workbenchCardConfigSchema.parse(whole)).toEqual(whole)
+  })
+
+  it('leaves a card that needs no instruction without a mode', () => {
+    // Absence means "this card runs on its own", which is the state of every card that never
+    // opened the page: the schema must not invent the default and call it a choice.
+    const parsed = workbenchCardConfigSchema.parse({ skill: 'git-repo' })
+    expect(parsed).not.toHaveProperty('instructionMode')
+  })
+
+  it('refuses an instruction mode this build does not know', () => {
+    // The mode decides whether the Host refuses a run with nothing to act on, so a value
+    // outside the vocabulary fails here (backup-and-skip) rather than loading as a card that
+    // looks enforced and is not.
+    for (const instructionMode of ['always', '', 'REQUIRED', 1, null]) {
+      expect(workbenchCardConfigSchema.safeParse({ skill: 'git-repo', instructionMode }).success)
+        .toBe(false)
+    }
+  })
+
   it('keeps the card model across a load, as a pair rather than one string', () => {    // Criterion 71. The route is written by the configuration page, so it has to be
     // declared in the same change: an undeclared field survives the write and is dropped on
     // the next load, which the user reads as "the model reverted after a restart".
@@ -288,6 +323,41 @@ describe('workbench storage schemas', () => {
     // and skip it, losing the user's history.
     const parsed = workbenchResultSchema.parse({ skill: 'git-repo', executedAt: 1, stopReason: 'completed' })
     expect(parsed).not.toHaveProperty('sessionId')
+  })
+
+  it('keeps the instruction a run was given, and the verdict of one that produced nothing', () => {
+    // Both were written and undeclared, so both were dropped on the next load: two runs of one
+    // card read as identical rows, and a failed run read as a run that had produced no document
+    // for no stated reason.
+    const given = {
+      runId: '1792940383334',
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      instruction: '把 T202601010001 的任务分析一遍',
+      structured: { html: '<p>a</p>' },
+    }
+    expect(workbenchResultSchema.parse(given)).toEqual(given)
+    const refused = {
+      runId: '1792940383335',
+      skill: 'git-repo',
+      executedAt: 2,
+      stopReason: 'error',
+      instruction: '',
+      failure: '模板里没有 template-begin 标记。',
+      failureCode: 'schema-rejected',
+    }
+    const parsed = workbenchResultSchema.parse(refused)
+    expect(parsed).toEqual(refused)
+    // Round trip in the shape storage actually performs: stringify, parse, parse again.
+    expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(refused)
+  })
+
+  it('keeps a verdict code from a build that knows more codes than this one', () => {
+    // The code is stored as a string rather than the closed union: a newer build's code must
+    // still load, and the card already falls back to a generic title for one it cannot name.
+    const stored = { skill: 'git-repo', executedAt: 1, stopReason: 'error', failure: 'x', failureCode: 'quota-exhausted' }
+    expect(workbenchResultSchema.parse(stored)).toEqual(stored)
   })
 
   it('refuses an activity entry this build cannot render', () => {
