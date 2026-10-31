@@ -284,14 +284,12 @@ function editorRoot(container: HTMLElement): HTMLElement {
 /**
  * The run control in the page's act block.
  *
- * A card holding a result opens its block on the revision, so running it again is one
- * press away: choosing 从头跑 is what puts that control, and its field, on screen.
+ * 从头跑 is the run control on this page: it starts the run itself for a card that takes no
+ * instruction, which is this fixture's card, and opens the run's dialog for one that does.
  * @returns the run button.
  */
 function runControl(): HTMLButtonElement {
-  const freshMode = screen.queryByRole('button', { name: zh.resultFreshMode })
-  if (freshMode !== null) fireEvent.click(freshMode)
-  return screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement
+  return screen.getByRole('button', { name: zh.resultFreshMode }) as HTMLButtonElement
 }
 
 /** The save control inside the editor. */
@@ -418,8 +416,8 @@ describe('offering the result editor', () => {
     // revision would replace the very result the draft is being kept against, and nothing
     // on the page would undo that. The editor's own two controls are how this mode ends.
     expect(document.querySelector('[data-result-composer]')).toBeNull()
-    expect(screen.queryByRole('button', { name: zh.skillCardRun })).toBeNull()
-    expect(document.querySelector('[data-refine-composer]')).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.resultFreshMode })).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.resultReviseMode })).toBeNull()
   })
 })
 
@@ -536,18 +534,6 @@ describe('saving and leaving', () => {
     } finally {
       viewport.dispose()
     }
-  })
-
-  it('returns to the way of changing the result the reader had chosen', async () => {
-    // Leaving the editor dropped the block back to 在上一版上改 whatever had been chosen, so a
-    // reader who had 从头跑 open and looked at 编辑 came back to a different action.
-    const { props } = fixture()
-    const container = await show(props)
-    fireEvent.click(screen.getByRole('button', { name: zh.resultFreshMode }))
-    openEditor()
-    fireEvent.click(cancelButton())
-    await waitFor(() => { expect(container.querySelector('[data-result-editor]')).toBeNull() })
-    expect(container.querySelector('[data-result-composer]')?.getAttribute('data-compose-mode')).toBe('fresh')
   })
 
   it('asks the browser for the block when the page cannot find the box that scrolls', async () => {

@@ -559,12 +559,8 @@ describe('action confirmation panel', () => {
     const { renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
-    // A run is one of the ways of changing the result, so it is behind the block's selector
-    // once a result exists.
-    const freshMode = screen.queryByRole('button', { name: en.resultFreshMode })
-    if (freshMode !== null) fireEvent.click(freshMode)
-    const run = screen.getByRole('button', { name: en.skillCardRun })
-    await act(async () => { fireEvent.click(run) })
+    // A run is one of the ways of changing the result, so it is the block's own control.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.resultFreshMode })) })
     // The in-flight notice is what states this now: the status-line row that used to
     // carry `data-run-status` is gone, so the notice is the wait target.
     await waitFor(() => { expect(screen.getByText(en.skillCardRunningBody)).toBeTruthy() })
@@ -578,10 +574,7 @@ describe('action confirmation panel', () => {
     const { recorded, renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
-    const freshMode = screen.queryByRole('button', { name: en.resultFreshMode })
-    if (freshMode !== null) fireEvent.click(freshMode)
-    const run = screen.getByRole('button', { name: en.skillCardRun })
-    await act(async () => { fireEvent.click(run) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.resultFreshMode })) })
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'clicker',

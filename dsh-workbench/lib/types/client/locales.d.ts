@@ -169,7 +169,9 @@ export declare const zh: {
     resultChangeLabel: string;
     resultReviseMode: string;
     resultFreshMode: string;
-    resultFreshNoInstruction: string;
+    promptReviseHint: string;
+    promptFreshHint: string;
+    promptClose: string;
     refinePlaceholder: string;
     refineAction: string;
     refineStop: string;

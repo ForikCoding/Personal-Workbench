@@ -18,6 +18,9 @@ import {
   Button,
   IconChevronLeftOutlineRegular,
   IconChevronRightOutlineRegular,
+  IconCloseOutlineMedium,
+  IconCodeOutlineRegular,
+  IconEditOutlineRegular,
   IconPlayOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
@@ -39,6 +42,7 @@ import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
+import { PromptDialog } from './PromptDialog.tsx'
 import { holdScroll, releaseScroll, revealAnchor, type ScrollHold } from './scroll-hold.ts'
 import type { WorkbenchScriptBinder } from './render.ts'
 import { clockText, dayKey, latestRunText, runClockText } from './clock.ts'
@@ -400,38 +404,50 @@ const CHANGE_LABELS: Record<ResultChange, WorkbenchLocaleKey> = {
 }
 
 /**
- * Render the composer that revises the result, and this session's revision log.
+ * The field a sentence is written into: one line grown to what it holds.
  *
- * It sits under the result because a revision is a sentence about what is on screen: the
- * user reads the result, says what to change, and reads it again. The log reads as a
- * conversation — the instruction, then when it was applied — because that is the order
- * the two were said in.
- * @param props - the card view, the translator, whether the card is busy, and the actions.
- * @returns the composer.
+ * Shared by the bar a run starts from and by the dialogs the result page opens, because the
+ * two are the same field around two different controls. What a dialog changes is only when
+ * Enter sends: in a dialog the dialog *is* the form, so a bare Enter sends and Shift+Enter is
+ * the newline; in a bar that sits under a page, an ask that already wraps keeps Enter for
+ * itself and sends on Ctrl/Cmd+Enter.
+ * @param props - the text, its placeholder, and how Enter behaves.
+ * @returns the field.
  */
-function RefinePanel({
-  view,
-  t,
-  busy,
-  onRefine,
-  onUndo,
-  onStop,
+function InstructionField({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+  rows,
+  disabled = false,
+  className = css.runBarInput,
+  submitOn,
+  onSubmit,
+  focus = false,
+  refocus,
 }: {
-  readonly view: WorkbenchCardView
-  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  /** Whether a run holds the card, which disables everything here. */
-  readonly busy: boolean
-  readonly onRefine: (instruction: string) => void
-  readonly onUndo: () => void
-  /** Interrupts the run that holds the card. */
-  readonly onStop: () => void
+  readonly value: string
+  readonly onChange: (next: string) => void
+  readonly placeholder: string
+  readonly ariaLabel: string
+  /** The fallback height, for a field that cannot measure itself. */
+  readonly rows: number
+  readonly disabled?: boolean | undefined
+  readonly className?: string | undefined
+  readonly submitOn: 'enter' | 'modifier'
+  readonly onSubmit: () => void
+  /** Whether the caret starts here, which is what a dialog exists to be typed in is for. */
+  readonly focus?: boolean | undefined
+  /**
+   * A counter that takes the caret whenever it changes.
+   *
+   * For a field that is already mounted: a bar refuses an empty required ask by naming what
+   * is missing and putting the caret back in the field, which a mount-time flag cannot do.
+   */
+  readonly refocus?: number | undefined
 }): ReactNode {
-  const [instruction, setInstruction] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
-  const empty = instruction.trim() === ''
-  // An instruction is a sentence, not a label: it wraps, and a newline is a line. The
-  // rows are the fallback height, so the field is already right when it cannot measure.
-  const rows = Math.min(COMPOSER_MAX_ROWS, Math.max(1, instruction.split('\n').length))
   useLayoutEffect(() => {
     const element = field.current
     if (element === null) return
@@ -441,58 +457,111 @@ function RefinePanel({
     // A field that cannot measure — jsdom, or a hidden mount — reports 0, and collapsing
     // to no height would hide the very thing the user is typing into.
     if (element.scrollHeight > 0) element.style.height = `${String(element.scrollHeight)}px`
-  }, [instruction])
-  const submit = (): void => {
-    if (empty || busy) return
-    onRefine(instruction)
-    // The sentence has been sent; leaving it in the field would read as unapplied.
-    setInstruction('')
-  }
+  }, [value])
+  useLayoutEffect(() => {
+    if (focus) field.current?.focus()
+  }, [focus])
+  useLayoutEffect(() => {
+    // Only on a change: the mount pass is the `focus` flag's business, and stealing the caret
+    // from wherever the reader put it while merely re-rendering this bar would be rude.
+    if (refocus === undefined || refocus === 0) return
+    field.current?.focus()
+  }, [refocus])
   return (
-    // The block around this — the selector and the shared surface — belongs to the page:
-    // the composer is one of the three ways of changing the result, not a page of its own.
-    <div className={css.composerBody} data-refine-composer="">
-      <div className={css.composerRow}>
-        <textarea
-          ref={field}
-          className={css.composerInput}
-          rows={rows}
-          value={instruction}
-          placeholder={t('refinePlaceholder')}
-          aria-label={t('refinePlaceholder')}
-          disabled={busy}
-          onChange={(event) => { setInstruction(event.target.value) }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return
-            // Shift+Enter is the newline the field grows a row for.
-            if (event.shiftKey) return
-            // Enter also confirms an IME candidate list. Submitting there would send half
-            // of the sentence the user is still writing.
-            if (event.nativeEvent.isComposing) return
-            event.preventDefault()
-            submit()
-          }}
-        />
-        {/* While a run holds the card the control stops it. A long task must be
-            interruptible from where the user is looking: the head's run control is at
-            the top of a page that grows with the result, so it scrolls out of reach. */}
-        {busy
-          ? (
-            <Button variant="ghost" size="sm" onClick={onStop} data-refine-stop="">
-              {t('refineStop')}
-            </Button>
-          )
-          : (
-            // Outline, not primary: the page has one primary action — the run control —
-            // and a second dark pill at the bottom competed with it for the same click.
-            <Button variant="outline" size="sm" disabled={empty} onClick={submit}>
-              {t('refineAction')}
-            </Button>
-          )}
-      </div>
+    <textarea
+      ref={field}
+      className={className}
+      rows={rows}
+      value={value}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      data-prompt-focus={focus ? '' : undefined}
+      onChange={(event) => { onChange(event.target.value) }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter') return
+        // Enter also confirms an IME candidate list. Sending there would send half of the
+        // sentence the user is still writing.
+        if (event.nativeEvent.isComposing) return
+        // Ctrl/Cmd+Enter is "send regardless", which is the only way to send a multi-line
+        // ask from the bar.
+        if (event.metaKey || event.ctrlKey) {
+          event.preventDefault()
+          onSubmit()
+          return
+        }
+        // Shift+Enter is the newline the field grows a row for.
+        if (event.shiftKey) return
+        if (submitOn === 'modifier' && value.includes('\n')) return
+        event.preventDefault()
+        onSubmit()
+      }}
+    />
+  )
+}
+
+/**
+ * The instructions this card was recently given, offered back as chips.
+ *
+ * A shortcut for the common case — the same ask again, with a small edit — so a click refills
+ * the field rather than starting anything.
+ * @param props - the recent asks and what a click does with one.
+ * @returns the chips, or nothing when this card has no history.
+ */
+function InstructionChips({
+  recent,
+  t,
+  onPick,
+}: {
+  readonly recent: readonly string[]
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  readonly onPick: (instruction: string) => void
+}): ReactNode {
+  if (recent.length === 0) return null
+  return (
+    <div className={css.runChips} data-run-instruction-recent="">
+      <span className={css.runChipsLabel}>{t('runInstructionRecent')}</span>
+      {recent.map(instruction => (
+        <button
+          key={instruction}
+          type="button"
+          className={css.runChip}
+          onClick={() => { onPick(instruction) }}
+          data-run-instruction-chip=""
+        >
+          {instruction}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Render this session's revision log, and why the last revision was refused.
+ *
+ * It stays on the page rather than inside the dialog the ask is written in: the log is a
+ * record of what the document already went through, and a reader deciding what to say next
+ * wants to read it while the document is in front of them. It reads as a conversation — the
+ * instruction, then when it was applied — because that is the order the two were said in.
+ * @param props - the card view, the translator, and the one step back.
+ * @returns the log, or nothing when this session has changed nothing.
+ */
+function RefineHistory({
+  view,
+  t,
+  onUndo,
+}: {
+  readonly view: WorkbenchCardView
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  readonly onUndo: () => void
+}): ReactNode {
+  const empty = view.refineProblem === undefined && view.refinements.length === 0 && view.previous === undefined
+  if (empty) return null
+  return (
+    <div className={css.refineLog} data-refine-log="">
       {view.refineProblem === undefined ? null : (
-        // Under the composer rather than above the result: this is where the ask came
-        // from, and the result beside it is the one that was left untouched.
+        // Under the block rather than above the result: this is where the ask came from,
+        // and the result beside it is the one that was left untouched.
         <p className={css.composerProblem} role="alert" data-refine-problem={view.refineProblem.code}>
           {t(problemKey(view.refineProblem.code))}
           {view.refineProblem.detail === undefined || view.refineProblem.detail === ''
@@ -500,37 +569,175 @@ function RefinePanel({
             : ` · ${view.refineProblem.detail}`}
         </p>
       )}
-      {view.refinements.length === 0 && view.previous === undefined ? null : (
-        <div className={css.refineLog} data-refine-log="">
-          {/* One header for the two facts about the whole log: how many revisions it
-              holds, and the single step back that undoes the last of them. */}
-          <div className={css.refineLogHead}>
-            <p className={css.refineLogTitle}>
-              {t('refineLogCount', { count: view.refinements.length })}
-            </p>
-            {view.previous === undefined
-              ? null
-              : (
-                <Button variant="ghost" size="sm" onClick={onUndo} data-refine-undo="">
-                  {t('refineUndo')}
-                </Button>
-              )}
-          </div>
-          <ol className={css.refineLogList}>
-            {view.refinements.map((entry, index) => (
-              <li key={`${String(entry.at)}-${String(index)}`} className={css.refineLogItem}>
-                <span className={css.refineLogInstruction}>{entry.instruction}</span>
-                <span className={css.refineLogTime}>{clockText(entry.at)}</span>
-              </li>
-            ))}
-          </ol>
-          {/* The last line of the block, because it covers all of it: neither the log nor
-              the version behind 回到上一版 survives a reload, and a user who finds them
-              gone should have been told they would be. */}
-          <p className={css.refineLogNote}>{t('refineSessionOnly')}</p>
-        </div>
-      )}
+      {view.refinements.length === 0 && view.previous === undefined
+        ? null
+        : (
+          <>
+            {/* One header for the two facts about the whole log: how many revisions it
+                holds, and the single step back that undoes the last of them. */}
+            <div className={css.refineLogHead}>
+              <p className={css.refineLogTitle}>
+                {t('refineLogCount', { count: view.refinements.length })}
+              </p>
+              {view.previous === undefined
+                ? null
+                : (
+                  <Button variant="ghost" size="sm" onClick={onUndo} data-refine-undo="">
+                    {t('refineUndo')}
+                  </Button>
+                )}
+            </div>
+            <ol className={css.refineLogList}>
+              {view.refinements.map((entry, index) => (
+                <li key={`${String(entry.at)}-${String(index)}`} className={css.refineLogItem}>
+                  <span className={css.refineLogInstruction}>{entry.instruction}</span>
+                  <span className={css.refineLogTime}>{clockText(entry.at)}</span>
+                </li>
+              ))}
+            </ol>
+            {/* The last line of the block, because it covers all of it: neither the log nor
+                the version behind 回到上一版 survives a reload, and a user who finds them
+                gone should have been told they would be. */}
+            <p className={css.refineLogNote}>{t('refineSessionOnly')}</p>
+          </>
+        )}
     </div>
+  )
+}
+
+/**
+ * The dialog a revision's sentence is written in.
+ *
+ * The block under the document offers the three ways of changing it as three quiet controls;
+ * the two that need a sentence take it here, where there is room to write one and the
+ * document stays behind the panel instead of the page jumping to make space for a field.
+ * @param props - the translator, whether the card is busy, and the two ways out.
+ * @returns the dialog.
+ */
+function RevisePrompt({
+  t,
+  busy,
+  onRefine,
+  onCancel,
+}: {
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  readonly busy: boolean
+  readonly onRefine: (instruction: string) => void
+  readonly onCancel: () => void
+}): ReactNode {
+  const [instruction, setInstruction] = useState('')
+  const empty = instruction.trim() === ''
+  const submit = (): void => {
+    if (empty || busy) return
+    onRefine(instruction)
+  }
+  return (
+    <PromptDialog
+      title={t('resultReviseMode')}
+      hint={t('promptReviseHint')}
+      submitLabel={t('refineAction')}
+      submitDisabled={empty}
+      cancelLabel={t('skillCardCancel')}
+      closeLabel={t('promptClose')}
+      busy={busy}
+      onCancel={onCancel}
+      onSubmit={submit}
+    >
+      <InstructionField
+        className={css.dialogField}
+        value={instruction}
+        onChange={setInstruction}
+        rows={Math.min(COMPOSER_MAX_ROWS, Math.max(2, instruction.split('\n').length))}
+        placeholder={t('refinePlaceholder')}
+        ariaLabel={t('refinePlaceholder')}
+        submitOn="enter"
+        onSubmit={submit}
+        focus
+      />
+    </PromptDialog>
+  )
+}
+
+/**
+ * The dialog a run's instruction is written in, for a card that takes one.
+ *
+ * A card whose skill takes no instruction never opens this: 从头跑 starts the run itself, and
+ * a dialog over a form with nothing in it would be a question with no answer.
+ * @param props - the card, the mode, the recent asks, and the two ways out.
+ * @returns the dialog.
+ */
+function RunPrompt({
+  cardId,
+  mode,
+  recent,
+  t,
+  disabled,
+  onRun,
+  onCancel,
+}: {
+  readonly cardId: string
+  /** The card's instruction mode; `none` never reaches this dialog. */
+  readonly mode: 'optional' | 'required'
+  readonly recent: readonly string[]
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  readonly disabled: boolean
+  readonly onRun: (instruction: string) => void
+  readonly onCancel: () => void
+}): ReactNode {
+  const [text, setText] = useState(() => readDraft(cardId))
+  // Whether the user pressed Run with nothing written. Cleared as soon as they type, so the
+  // sentence disappears the moment it stops being true.
+  const [refused, setRefused] = useState(false)
+  const empty = text.trim() === ''
+  const submit = (): void => {
+    if (disabled) return
+    if (empty && mode === 'required') {
+      // Required, and nothing was written. The run is not sent: the refusal happens here,
+      // in view, with the field focused — the one thing a disabled control could not do.
+      setRefused(true)
+      return
+    }
+    setText('')
+    writeDraft(cardId, '')
+    onRun(empty ? '' : text)
+  }
+  return (
+    <PromptDialog
+      title={t('resultFreshMode')}
+      hint={t('promptFreshHint')}
+      submitLabel={t('skillCardRun')}
+      cancelLabel={t('skillCardCancel')}
+      closeLabel={t('promptClose')}
+      problem={refused ? t('runInstructionRequired') : undefined}
+      busy={disabled}
+      onCancel={onCancel}
+      onSubmit={submit}
+    >
+      <InstructionField
+        className={css.dialogField}
+        value={text}
+        onChange={(next) => {
+          setText(next)
+          writeDraft(cardId, next)
+          if (refused && next.trim() !== '') setRefused(false)
+        }}
+        rows={Math.min(RUN_BAR_MAX_ROWS, Math.max(2, text.split('\n').length))}
+        placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
+        ariaLabel={t('runInstructionField')}
+        submitOn="enter"
+        onSubmit={submit}
+        focus
+      />
+      <InstructionChips
+        recent={recent}
+        t={t}
+        onPick={(instruction) => {
+          setText(instruction)
+          writeDraft(cardId, instruction)
+          setRefused(false)
+        }}
+      />
+    </PromptDialog>
   )
 }
 
@@ -612,16 +819,11 @@ function RunBar({
   // Whether the user pressed Run with nothing written. Cleared as soon as they type, so the
   // sentence disappears the moment it stops being true.
   const [refused, setRefused] = useState(false)
-  const field = useRef<HTMLTextAreaElement>(null)
+  // A refusal names what is missing *and* puts the caret back in the field: the control stays
+  // pressable on purpose, so the field has to be where the next keystroke goes.
+  const [refusals, setRefusals] = useState(0)
   const empty = text.trim() === ''
   const rows = Math.min(RUN_BAR_MAX_ROWS, Math.max(1, text.split('\n').length))
-  useLayoutEffect(() => {
-    const element = field.current
-    if (element === null) return
-    element.style.height = 'auto'
-    // A field that cannot measure reports 0; collapsing to no height would hide the field.
-    if (element.scrollHeight > 0) element.style.height = `${String(element.scrollHeight)}px`
-  }, [text, mode])
   const submit = (): void => {
     if (disabled) return
     if (empty) {
@@ -634,7 +836,7 @@ function RunBar({
       // Required, and nothing was written. The run is not sent: the refusal happens here,
       // in view, with the field focused — the one thing a disabled control could not do.
       setRefused(true)
-      field.current?.focus()
+      setRefusals(count => count + 1)
       return
     }
     setRefused(false)
@@ -653,35 +855,20 @@ function RunBar({
         ? null
         : (
           <div className={css.runBarRow}>
-            <textarea
-              ref={field}
-              className={css.runBarInput}
-              rows={rows}
+            <InstructionField
               value={text}
+              onChange={(next) => {
+                setText(next)
+                writeDraft(cardId, next)
+                if (refused && next.trim() !== '') setRefused(false)
+              }}
+              rows={rows}
               placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
-              aria-label={t('runInstructionField')}
+              ariaLabel={t('runInstructionField')}
               disabled={disabled}
-              onChange={(event) => {
-                setText(event.target.value)
-                writeDraft(cardId, event.target.value)
-                if (refused && event.target.value.trim() !== '') setRefused(false)
-              }}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return
-                if (event.key !== 'Enter') return
-                // Ctrl/Cmd+Enter is "send regardless", which is the only way to submit a
-                // multi-line ask. A bare Enter submits only while the ask is one line, because
-                // past that it is the field's own newline.
-                if (event.metaKey || event.ctrlKey) {
-                  event.preventDefault()
-                  submit()
-                  return
-                }
-                if (event.shiftKey) return
-                if (text.includes('\n')) return
-                event.preventDefault()
-                submit()
-              }}
+              submitOn="modifier"
+              onSubmit={submit}
+              refocus={refusals}
             />
           </div>
         )}
@@ -702,30 +889,20 @@ function RunBar({
           </p>
         )
         : null}
-      {running || recent.length === 0
+      {running
         ? null
+        // Refill rather than run: the chip's text is a starting point the user almost always
+        // edits before sending.
         : (
-          <div className={css.runChips} data-run-instruction-recent="">
-            <span className={css.runChipsLabel}>{t('runInstructionRecent')}</span>
-            {recent.map(instruction => (
-              <button
-                key={instruction}
-                type="button"
-                className={css.runChip}
-                // Refill rather than run: the chip's text is a starting point the user
-                // almost always edits before sending.
-                onClick={() => {
-                  setText(instruction)
-                  writeDraft(cardId, instruction)
-                  setRefused(false)
-                  field.current?.focus()
-                }}
-                data-run-instruction-chip=""
-              >
-                {instruction}
-              </button>
-            ))}
-          </div>
+          <InstructionChips
+            recent={recent}
+            t={t}
+            onPick={(instruction) => {
+              setText(instruction)
+              writeDraft(cardId, instruction)
+              setRefused(false)
+            }}
+          />
         )}
     </div>
   )
@@ -1049,38 +1226,23 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // opened from the history alongside the run is a read-only view of its own, which is
   // what the subject-aware `running` above separates from this.
   const busy = cardRunning || bareRunning
-  // A refinement is a run that revises what is on screen. Its composer stays: it is the row
-  // the instruction was just sent from, and it carries that run's stop control.
-  const refining = view.refining === true
-  // The composer needs something to revise: a card that has never run, or a stored
-  // result from before the region language, has no HTML to start from.
+  // A revision needs something to revise: a card that has never run, or a stored result from
+  // before the region language, has no HTML to start from.
   const refinable = resultHtml(view.result?.structured) !== undefined
-  // How the user chose to change this result. The page used to offer the same three things
-  // in three places — a run pill in the head, a run bar under it, a revision composer under
-  // the document — and two of them were the same control to look at. One choice now selects
-  // one composer, and the block that holds it is the page's only place to act.
-  const [change, setChange] = useState<ResultChange>('revise')
+
+  // Which of the two sentences is being written, if either. The block's third way — the hand
+  // edit — needs no dialog: the editor replaces the document in place, where the fragment is
+  // already readable.
+  const [prompt, setPrompt] = useState<'revise' | 'fresh' | undefined>(undefined)
   // The hand edit is offered while a result exists and no run holds the card. The fragment
   // itself is read from the record the page shows, never from the rendered DOM: the DOM is
   // the template's document with the fragment spliced into it, and its text is not the
   // value the splice needs.
   const editable = view.result !== undefined && !busy
-  // The ways this result can be changed, in the order they are offered. A card with nothing
-  // stored can only be run; one whose record has no region fragment can only be run too.
-  const changes: readonly ResultChange[] = [
-    ...refinable ? ['revise' as const] : [],
-    'fresh' as const,
-    ...editable ? ['edit' as const] : [],
-  ]
-  // What the block is actually set to: the user's choice while it is still one of the ways
-  // offered, and the first that is otherwise. A stored run from before the region language
-  // has nothing to revise, so a block left on 在上一版上改 would show a selector with
-  // nothing chosen and a composer that is not the one under it.
-  const selectable: ResultChange = changes.includes(change) ? change : changes[0] as ResultChange
   // Editing the stored result by hand. The editor replaces the rendered document in place
-  // rather than opening a dialog: there is no dialog primitive in this product, and the
-  // configuration page already works this way.
-  const editing = change === 'edit' && editable
+  // rather than opening a dialog: the fragment is long, and a dialog over the document it is
+  // a fragment *of* would put the two out of view of each other.
+  const [editing, setEditing] = useState(false)
   // Where the reader stood when the document was swapped for the editor.
   //
   // The document is thousands of pixels of template output and the editor is one bounded
@@ -1095,18 +1257,11 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   const pageRoot = useRef<HTMLElement>(null)
   const actBlock = useRef<HTMLElement>(null)
   const heldScroll = useRef<ScrollHold | undefined>(undefined)
-  // The way of changing the result the reader was on when they opened the editor. Leaving it
-  // returns to that one: someone who had 从头跑 open and looked at 编辑 came back to 在上一版
-  // 上改, which is a different action under the same block.
-  const modeBeforeEdit = useRef<ResultChange>('revise')
-  const setEditing = (next: boolean): void => {
-    if (next) {
-      // Measured before the swap, while the block being anchored to is still on screen: the
-      // editor takes the document's place and the block goes with it.
-      heldScroll.current = holdScroll(pageRoot.current, actBlock.current)
-      modeBeforeEdit.current = selectable
-    }
-    setChange(next ? 'edit' : modeBeforeEdit.current)
+  // Opening the editor holds the reader's place first, while the block being anchored to is
+  // still on screen: the editor takes the document's place and the block goes with it.
+  const openEditor = (): void => {
+    heldScroll.current = holdScroll(pageRoot.current, actBlock.current)
+    setEditing(true)
   }
   const wasEditing = useRef(editing)
   const restoreFrame = useRef<number | undefined>(undefined)
@@ -1158,11 +1313,6 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
     cancelAnimationFrame(restoreFrame.current)
     restoreFrame.current = undefined
   }, [editing])
-  // Which composer the block under the document shows. A run in flight owns the block: the
-  // control in it is that run's stop, and the field would offer a start the Host refuses.
-  const composeMode: 'revise' | 'fresh' = refining || (!busy && selectable === 'revise')
-    ? 'revise'
-    : 'fresh'
   return (
     <section className={css.pageView} ref={pageRoot}>
       <PageHead
@@ -1236,84 +1386,105 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
           />
         )}
       {/* The page's one place to act. Three ways to change the result — revise what is on
-          screen, run the card again from scratch, edit the fragment by hand — behind one
-          selector and one composer, in the spot where the document it changes ends. The
-          editor keeps the block off screen: its own two controls are how that mode ends, and
-          a switch beside a half-written draft would leave the draft without a question. */}
+          screen, run the card again from scratch, edit the fragment by hand — as one row of
+          quiet controls where the document they change ends, and the sentences two of them
+          need in a dialog over it. The row is a row and not a segmented control any more:
+          there is no longer a mode to be *in*, because choosing one of the first two opens a
+          dialog rather than swapping the block's contents for a field.
+          The editor keeps the block off screen: its own two controls are how that mode ends,
+          and a switch beside a half-written draft would leave the draft without a question. */}
       {editing
         ? null
         : (
-          <section className={css.composer} ref={actBlock} data-result-composer="" data-compose-mode={composeMode}>
-            {changes.length > 1 && !busy
-              ? (
-                <div className={css.segments} role="group" aria-label={t('resultChangeLabel')}>
-                  {changes.map(option => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={css.segment}
-                      data-change-mode={option}
-                      data-active={option === selectable || undefined}
-                      aria-pressed={option === selectable}
-                      // The hand edit goes through the setter that holds the reader's place:
-                      // choosing it collapses the page, and leaving it must not put the reader
-                      // back at the top of a document they had scrolled to the end of.
-                      onClick={() => {
-                        if (option === 'edit') setEditing(true)
-                        else setChange(option)
-                      }}
-                      data-result-edit-start={option === 'edit' ? '' : undefined}
-                    >
-                      {t(CHANGE_LABELS[option])}
-                    </button>
-                  ))}
-                </div>
-              )
-              : null}
-            {composeMode === 'revise'
-              ? (
-                <RefinePanel
-                  view={view}
-                  t={t}
-                  busy={busy}
-                  onRefine={actions.refine}
-                  onUndo={actions.undoRefine}
-                  onStop={actions.cancel}
-                />
-              )
-              : view.instructionMode === 'none'
+          <section className={css.actBlock} ref={actBlock} data-result-composer="">
+            <div className={css.actRow} role="group" aria-label={t('resultChangeLabel')}>
+              <button
+                type="button"
+                className={css.actAction}
+                data-change-mode="revise"
+                disabled={!refinable || busy}
+                onClick={() => { setPrompt('revise') }}
+              >
+                <IconEditOutlineRegular size={14} />
+                <span>{t(CHANGE_LABELS.revise)}</span>
+              </button>
+              <button
+                type="button"
+                className={css.actAction}
+                data-change-mode="fresh"
+                // While a run holds the card this control is that run's stop. It is the only
+                // thing on the page that acts on a run, so it stays one control and changes
+                // what it says, rather than growing a second button beside itself — and it is
+                // here, at the end of the result, because the head is at the top of a page
+                // that grows with that result. Otherwise it waits for the directory check.
+                disabled={busy ? false : bareRunning || !view.runnable}
+                onClick={() => {
+                  if (busy) {
+                    actions.cancel()
+                    return
+                  }
+                  // A card whose skill takes no instruction has nothing a dialog could ask,
+                  // so 从头跑 starts the run itself.
+                  if (view.instructionMode === 'none') actions.run()
+                  else setPrompt('fresh')
+                }}
+              >
+                {busy ? <IconCloseOutlineMedium size={14} /> : <IconPlayOutlineRegular size={14} />}
+                <span>{t(busy ? 'skillCardCancel' : CHANGE_LABELS.fresh)}</span>
+              </button>
+              {editable
                 ? (
-                  // A card whose skill takes no instruction has nothing to write in, so the
-                  // block shows the one control and says why the rest is empty. It is also
-                  // this run's stop while the card is in flight: the same button, because
-                  // there is nothing else on the page that could act on that run.
-                  <div className={css.composerRow}>
-                    <p className={css.composerNote}>{t('resultFreshNoInstruction')}</p>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={cardRunning ? undefined : <IconPlayOutlineRegular />}
-                      disabled={cardRunning ? false : bareRunning || !view.runnable}
-                      onClick={() => { if (cardRunning) actions.cancel(); else actions.run() }}
-                    >
-                      {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
-                    </Button>
-                  </div>
+                  <button
+                    type="button"
+                    className={css.actAction}
+                    data-change-mode="edit"
+                    data-result-edit-start=""
+                    // Through the setter that holds the reader's place: opening the editor
+                    // collapses the page, and leaving it must not put the reader back at the
+                    // top of a document they had scrolled to the end of.
+                    onClick={openEditor}
+                  >
+                    <IconCodeOutlineRegular size={14} />
+                    <span>{t(CHANGE_LABELS.edit)}</span>
+                  </button>
                 )
-                : (
-                  <RunBar
-                    cardId={cardId}
-                    mode={view.instructionMode}
-                    recent={view.recentInstructions}
-                    t={t}
-                    running={cardRunning}
-                    disabled={cardRunning ? false : bareRunning || editing || !view.runnable}
-                    onRun={(instruction) => { actions.run(instruction) }}
-                    onCancel={() => { actions.cancel() }}
-                  />
-                )}
+                : null}
+            </div>
+            <RefineHistory view={view} t={t} onUndo={actions.undoRefine} />
           </section>
         )}
+      {/* The two sentences, in the order the block offers them. Each dialog owns its own
+          field, so closing it throws away a draft the user did not send — which is what
+          cancelling a dialog means. */}
+      {prompt === 'revise'
+        ? (
+          <RevisePrompt
+            t={t}
+            busy={busy}
+            onRefine={(instruction) => {
+              actions.refine(instruction)
+              setPrompt(undefined)
+            }}
+            onCancel={() => { setPrompt(undefined) }}
+          />
+        )
+        : null}
+      {prompt === 'fresh' && view.instructionMode !== 'none'
+        ? (
+          <RunPrompt
+            cardId={cardId}
+            mode={view.instructionMode}
+            recent={view.recentInstructions}
+            t={t}
+            disabled={bareRunning || !view.runnable}
+            onRun={(instruction) => {
+              actions.run(instruction)
+              setPrompt(undefined)
+            }}
+            onCancel={() => { setPrompt(undefined) }}
+          />
+        )
+        : null}
       {/* Why the control just above cannot be pressed, stated under it rather than at the top
           of the page: the sentence belongs to the button it explains. */}
       {view.modelField.kind === 'unavailable'

@@ -4,9 +4,9 @@
  * Conversational refinement on the result page.
  *
  * A refinement is a card run with a narrower ask, so what is under test here is the
- * session around it: the composer's gate, the log that records what was already asked,
- * the one version kept for a step back, and the promise that a failed revision leaves
- * the result the user accepted exactly where it was.
+ * session around it: the dialog the ask is written in, the log that records what was
+ * already asked, the one version kept for a step back, and the promise that a failed
+ * revision leaves the result the user accepted exactly where it was.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -121,6 +121,7 @@ function pageApi(options: {
   start?: WorkbenchSkillCardApi['start']
   poll?: WorkbenchSkillCardApi['poll']
   cancel?: WorkbenchSkillCardApi['cancel']
+  instructionMode?: 'none' | 'optional' | 'required'
 } = {}): { api: WorkbenchSkillCardApi; requests: WorkbenchRunRequest[] } {
   const requests: WorkbenchRunRequest[] = []
   const stored = options.result === null ? undefined : options.result ?? result()
@@ -134,6 +135,9 @@ function pageApi(options: {
           skill: 'git-repo',
           template: TEMPLATE,
           templateSkills: ['git-repo'],
+          // A card nothing was ever configured on takes no instruction, which is why most
+          // cases here never see a run dialog at all.
+          ...options.instructionMode === undefined ? {} : { instructionMode: options.instructionMode },
           // A refinement runs in the card's own directory, so the page is given one that is
           // there; a refinement refused for where it would run is a different case.
           workspace: { path: WORKSPACE_PATH },
@@ -203,47 +207,110 @@ async function show(api: WorkbenchSkillCardApi): Promise<HTMLElement> {
 }
 
 /**
- * Type one instruction into the composer and send it.
+ * The dialog that is open, if one is.
+ *
+ * A dialog is portalled to the body, so it is never inside the render container: querying
+ * the page for it would find nothing however well it works.
+ * @returns the panel, or null.
+ */
+function dialog(): HTMLElement | null {
+  return document.querySelector('[data-prompt-panel]')
+}
+
+/**
+ * Click one of the block's ways of changing the result.
+ * @param mode - which one.
+ * @param root - where to look for the control.
+ */
+function choose(mode: 'revise' | 'fresh' | 'edit', root: ParentNode = document): void {
+  const control = root.querySelector(`[data-change-mode="${mode}"]`)
+  if (control === null) throw new Error(`no ${mode} control on the page`)
+  fireEvent.click(control)
+}
+
+/**
+ * Open the revision dialog and return its field.
+ * @returns the field the ask is written in.
+ */
+function openRevise(): HTMLTextAreaElement {
+  choose('revise')
+  const field = dialog()?.querySelector('textarea')
+  if (!(field instanceof HTMLTextAreaElement)) throw new Error('the revision dialog has no field')
+  return field
+}
+
+/**
+ * Open the revision dialog, write one ask, and send it.
  * @param instruction - what to change.
  */
 function ask(instruction: string): void {
-  const field = screen.getByLabelText(zh.refinePlaceholder)
-  fireEvent.change(field, { target: { value: instruction } })
+  fireEvent.change(openRevise(), { target: { value: instruction } })
   fireEvent.click(screen.getByRole('button', { name: zh.refineAction }))
 }
 
 describe('refining a result', () => {
-  it('offers the ways of changing the result as one selector over one composer', async () => {
-    // The page used to show three ways in three places: a run pill in the head, a run bar
-    // under it, and a revision composer under the document — two of which were the same
-    // control to look at. The selector states all three side by side, and only the chosen
-    // one has a composer.
+  it('offers the ways of changing the result as one row of quiet controls', async () => {
+    // The page used to show three ways in three places, then one segmented control over one
+    // composer. It is a row now: choosing one of the first two opens a dialog, so the block
+    // holds no field at all.
     const { api } = pageApi()
     const container = await show(api)
     const block = container.querySelector('[data-result-composer]') as HTMLElement
     expect(block).not.toBeNull()
-    const segments = [...block.querySelectorAll('[data-change-mode]')]
-    expect(segments.map(segment => segment.getAttribute('data-change-mode'))).toEqual(['revise', 'fresh', 'edit'])
-    expect(segments.map(segment => segment.textContent))
+    const controls = [...block.querySelectorAll('[data-change-mode]')]
+    expect(controls.map(control => control.getAttribute('data-change-mode'))).toEqual(['revise', 'fresh', 'edit'])
+    expect(controls.map(control => control.textContent))
       .toEqual([zh.resultReviseMode, zh.resultFreshMode, zh.skillCardResultEdit])
-    // It opens on the revision, so the field and its control are the ones on screen, and
-    // the block holds one of them rather than both.
-    expect(block.getAttribute('data-compose-mode')).toBe('revise')
-    expect(block.querySelectorAll('textarea')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: zh.refineAction })).toBeTruthy()
+    // Nothing to write into, and nothing already open.
+    expect(block.querySelector('textarea')).toBeNull()
+    expect(dialog()).toBeNull()
   })
 
-  it('swaps the composer when another way of changing the result is chosen', async () => {
-    // Choosing 从头跑 must not leave the revision field behind: one block, one composer, so
-    // what is on screen is always the way that was chosen.
+  it('writes the ask in a dialog over the page, and closes it again', async () => {
+    // The ask needs room, and the document it is about has to stay where it is: the field
+    // used to replace the block, in a page that grew with the result.
     const { api } = pageApi()
     const container = await show(api)
-    fireEvent.click(screen.getByRole('button', { name: zh.resultFreshMode }))
-    const block = container.querySelector('[data-result-composer]') as HTMLElement
-    expect(block.getAttribute('data-compose-mode')).toBe('fresh')
-    expect(block.querySelector('[data-refine-composer]')).toBeNull()
-    expect(block.querySelector('textarea')).toBeNull()
-    expect(screen.getByRole('button', { name: zh.skillCardRun })).toBeTruthy()
+    const field = openRevise()
+    // Portalled out of the page's own DOM: a `position: fixed` panel inside the shell's
+    // scroll container would be positioned against that container, not the window.
+    expect(container.contains(field)).toBe(false)
+    expect(document.body.contains(field)).toBe(true)
+    expect(dialog()?.textContent).toContain(zh.resultReviseMode)
+    expect(dialog()?.textContent).toContain(zh.promptReviseHint)
+    // The block stayed a row while the dialog was open.
+    expect(container.querySelector('[data-result-composer] textarea')).toBeNull()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(dialog()).toBeNull()
+  })
+
+  it('asks 从头跑 in its own dialog when the card takes an instruction', async () => {
+    // Two sentences, two forms: the run's asks what the run should do, the revision's asks
+    // what to change in what is on screen.
+    const { api } = pageApi({ instructionMode: 'optional' })
+    const container = await show(api)
+    choose('fresh')
+    const panel = dialog()
+    expect(panel).not.toBeNull()
+    expect(panel?.textContent).toContain(zh.resultFreshMode)
+    expect(panel?.textContent).toContain(zh.promptFreshHint)
+    const field = panel?.querySelector('textarea')
+    expect(field).not.toBeNull()
+    expect(field?.getAttribute('placeholder')).toBe(zh.runInstructionPlaceholderOptional)
+    expect(container.querySelector('[data-result-composer] textarea')).toBeNull()
+  })
+
+  it('runs 从头跑 without a dialog when the card takes no instruction', async () => {
+    // A dialog over a form with nothing in it is a question with no answer: the run starts.
+    const { api, requests } = pageApi({
+      start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),
+    })
+    await show(api)
+    choose('fresh')
+    expect(dialog()).toBeNull()
+    await waitFor(() => { expect(requests).toHaveLength(1) })
+    expect(requests[0]?.mode).toEqual({ kind: 'card' })
   })
 
   it('disables the regenerate control while the instruction is empty', async () => {
@@ -251,9 +318,9 @@ describe('refining a result', () => {
     // model call cannot be pressed from it.
     const { api } = pageApi()
     await show(api)
+    const field = openRevise()
     const button = screen.getByRole('button', { name: zh.refineAction })
     expect(button).toHaveProperty('disabled', true)
-    const field = screen.getByLabelText(zh.refinePlaceholder)
     fireEvent.change(field, { target: { value: '  ' } })
     expect(button).toHaveProperty('disabled', true)
     fireEvent.change(field, { target: { value: '按时间倒序' } })
@@ -327,6 +394,8 @@ describe('refining a result', () => {
 
     await waitFor(() => { expect(shadowText(container)).toContain('新') }, { timeout: 4_000 })
     expect(requests).toHaveLength(1)
+    // The dialog closed the moment the ask was sent, so nothing is over the result.
+    expect(dialog()).toBeNull()
     const log = container.querySelector('[data-refine-log]')
     const entries = [...(log?.querySelectorAll('li') ?? [])].map(item => item.textContent ?? '')
     expect(entries).toHaveLength(1)
@@ -350,33 +419,37 @@ describe('refining a result', () => {
       start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),
     })
     await show(api)
-    const field = screen.getByLabelText(zh.refinePlaceholder)
+    const field = openRevise()
 
     // Nothing written yet, so Enter has nothing to send.
+    fireEvent.change(field, { target: { value: '   ' } })
     fireEvent.keyDown(field, { key: 'Enter' })
     expect(requests).toHaveLength(0)
 
     fireEvent.change(field, { target: { value: '按时间倒序' } })
     fireEvent.keyDown(field, { key: 'Enter', shiftKey: true })
     expect(requests).toHaveLength(0)
+    // Shift+Enter is still the field's own newline slot.
+    expect((field as HTMLTextAreaElement).value).toBe('按时间倒序')
 
     fireEvent.keyDown(field, { key: 'Enter' })
     await waitFor(() => { expect(requests).toHaveLength(1) })
     expect(requests[0]?.mode).toEqual({ kind: 'refine', instruction: '按时间倒序', previous: FIRST_HTML })
-    // The sentence has been sent, so the field is empty again.
-    expect((screen.getByLabelText(zh.refinePlaceholder) as HTMLTextAreaElement).value).toBe('')
+    // The sentence has been sent, so the dialog is gone rather than left holding it.
+    expect(dialog()).toBeNull()
   })
 
-  it('grows from one row to four and then scrolls instead', async () => {
-    // One row is a short instruction, four is the most the block is allowed to take from
-    // the result above it; past that the field scrolls.
+  it('grows the dialog field from two rows to four and then scrolls instead', async () => {
+    // The dialog is taller than the block ever was, so it starts at two rows; past four it
+    // scrolls rather than growing the panel.
     const { api } = pageApi()
     await show(api)
+    const field = openRevise()
     const rowCount = (text: string): string | null => {
-      fireEvent.change(screen.getByLabelText(zh.refinePlaceholder), { target: { value: text } })
-      return screen.getByLabelText(zh.refinePlaceholder).getAttribute('rows')
+      fireEvent.change(field, { target: { value: text } })
+      return field.getAttribute('rows')
     }
-    expect(rowCount('一行')).toBe('1')
+    expect(rowCount('一行')).toBe('2')
     expect(rowCount('一\n二\n三')).toBe('3')
     expect(rowCount('一\n二\n三\n四')).toBe('4')
     expect(rowCount('一\n二\n三\n四\n五\n六')).toBe('4')
@@ -425,8 +498,8 @@ describe('refining a result', () => {
   })
 
   it('leaves the result untouched and reports the failure when a refinement fails', async () => {
-    // Criterion 55. The failure is stated under the composer, where the ask was made,
-    // and only there — the result the user accepted keeps its place above it.
+    // Criterion 55. The failure is stated under the block, where the ask was made, and only
+    // there — the result the user accepted keeps its place above it.
     const failed = settled('', {
       result: result({ structured: undefined, outputText: '抱歉' }),
       failure: 'the child crashed',
@@ -440,14 +513,14 @@ describe('refining a result', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(alert.textContent).toContain(zh.skillCardProblemRunFailed)
     expect(alert.textContent).toContain('the child crashed')
-    // It is under the composer, and the result above it is unchanged.
-    expect(container.querySelector('[data-refine-composer]')?.contains(alert)).toBe(true)
+    // It is inside the block, under the row that opened the dialog.
+    expect(container.querySelector('[data-refine-log]')?.contains(alert)).toBe(true)
     expect(shadowText(container)).toContain('旧')
     // Nothing was kept for a step back, because nothing was replaced.
-    expect(container.querySelector('[data-refine-log]')).toBeNull()
+    expect(container.querySelector('[data-refine-undo]')).toBeNull()
   })
 
-  it('reports a refused start under the composer too', async () => {
+  it('reports a refused start under the block too', async () => {
     const { api } = pageApi({
       start: async () => ({ status: 'rejected', code: 'run-in-progress', message: 'another run is already in flight' }),
     })
@@ -511,12 +584,12 @@ describe('refining a result', () => {
       poll: async () => revising ? { status: 'ok', state: running } : { status: 'missing' },
     })
     const container = render(<SkillCardResultPage {...props(api)} />).container
-    // The head's control waits for the directory check before it may start anything.
+    // The block's run control waits for the directory check before it may start anything.
     await waitFor(() => {
-      expect((screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement).disabled).toBe(false)
+      expect(container.querySelector('[data-change-mode="fresh"]')).toHaveProperty('disabled', false)
     })
     // Produce a result with a run; nothing is stored, so `stored` stays empty.
-    fireEvent.click(screen.getByRole('button', { name: zh.skillCardRun }))
+    choose('fresh', container)
     await waitFor(() => { expect(shadowText(container)).toContain('旧') })
 
     ask('按时间倒序')
@@ -528,7 +601,7 @@ describe('refining a result', () => {
     expect(container.textContent).not.toContain(zh.skillCardNotRunTitle)
   })
 
-  it('shows a busy result and disables the composer while a run holds the card', async () => {
+  it('shows a busy result and closes the block while a run holds the card', async () => {
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
@@ -551,12 +624,17 @@ describe('refining a result', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-result-busy="true"]')).not.toBeNull()
     })
-    expect(screen.getByLabelText(zh.refinePlaceholder)).toHaveProperty('disabled', true)
-    // The composer's control becomes a stop while a run holds the card. A long task has
-    // to be interruptible from where the user is looking: the head's control is at the
-    // top of a page that grows with the result, so it scrolls out of reach.
+    const block = container.querySelector('[data-result-composer]') as HTMLElement
+    // Every way of changing the result is closed while the card is in flight, and the hand
+    // edit is not even offered: a revision or an edit would race the run being watched.
+    expect(block.querySelector('[data-change-mode="revise"]')).toHaveProperty('disabled', true)
+    expect(block.querySelector('[data-change-mode="edit"]')).toBeNull()
+    expect(dialog()).toBeNull()
+    // ...and the run's own control becomes that run's stop, in place. A long task has to be
+    // interruptible from where the user is looking: the head is at the top of a page that
+    // grows with the result, so it scrolls out of reach.
     expect(screen.queryByRole('button', { name: zh.refineAction })).toBeNull()
-    expect(screen.getByRole('button', { name: zh.refineStop })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: zh.skillCardCancel })).toHaveProperty('disabled', false)
     // The result stays. A refinement edits what is on screen, so replacing it with a
     // progress notice would hide the very thing being revised; the surface is marked
     // busy instead and swapped when the new version arrives.
@@ -567,7 +645,7 @@ describe('refining a result', () => {
     expect(busy?.getAttribute('aria-busy')).toBe('true')
   })
 
-  it('stops the run from the composer', async () => {
+  it('stops the run from the block', async () => {
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
@@ -587,23 +665,24 @@ describe('refining a result', () => {
     await show(api)
     ask('按时间倒序')
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: zh.refineStop })).toBeTruthy()
+      expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
     })
-    fireEvent.click(screen.getByRole('button', { name: zh.refineStop }))
+    fireEvent.click(screen.getByRole('button', { name: zh.skillCardCancel }))
     await waitFor(() => { expect(cancel).toHaveBeenCalledTimes(1) })
   })
 
-  it('offers no composer before there is a result to revise', async () => {
+  it('offers no revision before there is a result to revise', async () => {
     // A refinement is a revision of a result; a card that has never run has none, and a
-    // stored result from before the region language has no HTML either.
+    // stored result from before the region language has no HTML either. The control is
+    // closed rather than missing, so the row keeps the same shape.
     const none = pageApi({ result: null })
     const first = render(<SkillCardResultPage {...props(none.api)} />)
     await waitFor(() => { expect(first.container.textContent).toContain(zh.skillCardNotRunTitle) })
-    expect(first.container.querySelector('[data-refine-composer]')).toBeNull()
+    expect(first.container.querySelector('[data-change-mode="revise"]')).toHaveProperty('disabled', true)
     cleanup()
     const stale = pageApi({ result: result({ structured: { a: 'v' } }) })
     const second = render(<SkillCardResultPage {...props(stale.api)} />)
     await waitFor(() => { expect(second.container.textContent).toContain(zh.skillCardNotRunTitle) })
-    expect(second.container.querySelector('[data-refine-composer]')).toBeNull()
+    expect(second.container.querySelector('[data-change-mode="revise"]')).toHaveProperty('disabled', true)
   })
 })

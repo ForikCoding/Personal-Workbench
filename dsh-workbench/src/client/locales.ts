@@ -228,9 +228,11 @@ export const zh = {
   resultChangeLabel: '怎么改这份结果',
   resultReviseMode: '在上一版上改',
   resultFreshMode: '从头跑',
-  // Why the block is a bare control for a card whose skill takes no instruction: the field
-  // is absent because there is nothing it could say, not because something failed to load.
-  resultFreshNoInstruction: '这张卡不需要说明，直接按当前工作区重新跑一遍。',
+  // The two dialogs those controls open: one line saying what submitting will do, and the
+  // corner control's name for a screen reader.
+  promptReviseHint: '只改这一份结果，源文件不动。写完按 Enter 提交。',
+  promptFreshHint: '按当前工作区从头跑一遍，会新增一次运行记录。',
+  promptClose: '关闭',
   refinePlaceholder: '说明要改哪里，例如「按时间倒序」',
   refineAction: '重新生成',
   refineStop: '停止',
@@ -490,7 +492,9 @@ export const en: Record<keyof typeof zh, string> = {
   resultChangeLabel: 'How to change this result',
   resultReviseMode: 'Revise this version',
   resultFreshMode: 'Run from scratch',
-  resultFreshNoInstruction: 'This skill takes no instruction — running it again uses the workspace as it is.',
+  promptReviseHint: 'Changes only this result; the source files stay as they are. Enter submits.',
+  promptFreshHint: 'Runs the card again on the current workspace, as a new run in its history.',
+  promptClose: 'Close',
   refinePlaceholder: 'Say what to change, e.g. “newest first”',
   refineAction: 'Regenerate',
   refineStop: 'Stop',

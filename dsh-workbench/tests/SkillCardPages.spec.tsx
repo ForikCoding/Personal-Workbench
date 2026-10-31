@@ -381,7 +381,7 @@ describe('skill card result page', () => {
         })}
       />,
     )
-    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
     fireEvent.click(run)
     const alert = await screen.findByRole('alert')
@@ -405,7 +405,7 @@ describe('skill card result page', () => {
         })}
       />,
     )
-    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
     fireEvent.click(run)
     const alert = await screen.findByRole('alert')
@@ -438,7 +438,7 @@ describe('skill card result page', () => {
         })}
       />,
     )
-    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
     fireEvent.click(run)
     // The in-flight notice replaces the document, so a page that just started a run is
@@ -464,7 +464,7 @@ describe('skill card result page', () => {
         })}
       />,
     )
-    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
     expect(screen.queryByText('skillCardModelUnavailable')).toBeNull()
   })
@@ -482,7 +482,7 @@ describe('skill card result page', () => {
         })}
       />,
     )
-    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(container.querySelector('[data-run-model-unavailable]')).not.toBeNull() })
     expect(run).toHaveProperty('disabled', true)
     fireEvent.click(run)
@@ -511,7 +511,7 @@ describe('skill card result page', () => {
         })}
       />,
     )
-    const run = await screen.findByRole('button', { name: 'skillCardRun' })
+    const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', true) })
 
     state = {

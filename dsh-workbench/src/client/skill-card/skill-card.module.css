@@ -443,133 +443,177 @@
   min-width: 0;
 }
 
-/* The page's one place to act: a selector for which way of changing the result is open,
-   and that way's composer under it. It was two blocks before — a run bar at the top and a
-   revision composer at the bottom — and with the same field and the same pill in both,
-   nothing said which one did what. The block sits under the document it changes, because
-   every one of the three ways is a sentence about what is on screen.
+/* The page's one place to act: three quiet controls where the document they change ends, and
+   the revision log under them. It was a selector plus a dock with a field in it; choosing a
+   way of changing the result now opens a dialog, so there is nothing to write here and
+   nothing to frame.
 
-   A dock, not a panel: white, hairlined, and lifted a little off the page, because it is the
-   one surface here something is *written into* — the document above it is the output, and
-   the trace below it is history. It was tinted like the trace, and two grey slabs of the
-   same weight stacked under one document read as one banded form rather than as "act here"
-   over "this is how it was made". The lift is what separates the writing from the reading. */
-.composer {
+   The row is the shape the chat's own message actions have: icons with their labels, quiet at
+   rest, one tinted pill under the pointer. Its controls are the page's only way to act on
+   what is above them, so they stay readable rather than waiting for a hover — hiding them
+   would leave a page that looks like it cannot do anything. */
+.actBlock {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px 9px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-panel);
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent),
-    0 16px 32px -24px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  gap: 8px;
   min-width: 0;
 }
 
-/* The ring belongs to the dock rather than to the field: the field has no frame of its own
-   inside it, so a focus outline drawn on the text would put back the second box. */
-.composer:focus-within {
-  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 34%, transparent);
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, transparent);
-}
-
-/* The block's first line: which way of changing the result is open. The page used to carry
-   three ways in three places, two of them indistinguishable; one segmented choice states
-   them side by side and lets the composer under it be a single composer. */
-.segments {
+.actRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 1px;
-  padding: 1px;
-  border-radius: var(--dsw-radius-sm);
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
-  align-self: flex-start;
+  align-items: center;
+  gap: 2px;
+  margin-left: -8px;
   min-width: 0;
 }
 
-.segment {
-  padding: 2px 9px;
+.actAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font-family: var(--dsw-font-family);
   font-size: 12px;
   font-weight: 500;
-  line-height: 17px;
+  line-height: 18px;
   cursor: pointer;
   transition: background 100ms ease, color 100ms ease;
 }
 
-.segment:hover {
+.actAction:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
   color: var(--dsw-alias-label-primary);
 }
 
-/* The open one is a surface of its own, the way a segmented control reads everywhere else;
-   the others stay text until they are chosen. */
-.segment[data-active] {
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);
+.actAction:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
 }
 
-.composerBody {
+/* A way of changing the result that this one cannot offer — nothing to revise, or a run
+   already holding the card — reads as unavailable rather than disappearing, so the row keeps
+   the same length whichever state the page is in. */
+.actAction:disabled {
+  color: var(--dsw-alias-label-caption);
+  cursor: not-allowed;
+}
+
+.actAction:disabled:hover {
+  background: transparent;
+  color: var(--dsw-alias-label-caption);
+}
+
+/* The dialog a sentence is written in. Portalled to the body by `PromptDialog`, so these
+   classes are not nested under anything the page controls. */
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 28%, transparent);
+}
+
+.dialogPanel {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  padding: 18px 18px 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-panel);
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 24px 48px -20px color-mix(in srgb, var(--dsw-alias-label-primary) 45%, transparent);
+  overflow: hidden;
+}
+
+/* Keyboard users land on the panel when it holds no field; the field takes the caret itself. */
+.dialogPanel:focus-visible {
+  outline: none;
+}
+
+.dialogHead {
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
 }
 
-/* The block's quiet line, for the one way of changing a result that has no field: it says
-   why nothing can be written, and takes the width the field would have. */
-.composerNote {
+.dialogTitle {
   flex: 1 1 auto;
-  /* The row is bottom-aligned for the field's sake; a line of text sits on the control. */
-  align-self: center;
   margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  min-width: 0;
+}
+
+.dialogClose {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -2px -2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.dialogClose:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+  color: var(--dsw-alias-label-primary);
+}
+
+.dialogClose:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+
+.dialogHint {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
-  min-width: 0;
 }
 
-/* The field grows upwards from one row and the regenerating control sits beside it, so
-   the control has to stay at the bottom edge rather than float beside the middle of a
-   four-row field. The gap is what keeps a disabled control reading as "nothing written
-   yet" instead of as part of the field. */
-.composerRow {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  min-width: 0;
+/* A refusal, inside the dialog rather than beside the page: the form was submitted and the
+   Host would not take it, which is the same sentence the run bar states in its own layout.
+   It is the error colour, not the hint's grey, because it is about the press and not the
+   form. */
+.dialogProblem {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
 }
 
-/* No frame of its own: the dock around it is the frame. The field used to carry a hairline
-   and a white fill inside a tinted block, which drew a box in a box for one row of text and
-   put the placeholder's left edge 11px inside the segmented control's above it. Flat on the
-   dock, the text starts on the block's own padding, under the selector's first letter.
-
-   The type is still the chat composer's: `min-height`/insets follow
-   `skeleton/InputBar.module.css` `.input` in
-   `@deepseek-ai/dsh-client-ui-conversation`, over the card's own
-   `var(--dsh-content-font-size, 14px)` and `calc(24px + var(--dsh-content-font-delta, 0px))`. */
-.composerInput {
-  flex: 1 1 auto;
+/* The form's own surface: unlike the row, this *is* written into, so it carries the frame the
+   block used to. Taller than the bar's field because the dialog exists to give a sentence
+   room. */
+.dialogField {
   box-sizing: border-box;
-  min-width: 0;
-  min-height: 30px;
-  /* Four rows of the same line box, plus its own insets. Past that the field scrolls
-     rather than growing. */
-  max-height: calc(4 * (20px + var(--dsh-content-font-delta, 0px)) + 10px);
-  padding: 5px 4px;
-  border: 0;
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
+  width: 100%;
+  min-height: 96px;
+  max-height: 40vh;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-secondary);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-specific-input-major);
   color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-family);
   font-size: 13px;
@@ -578,23 +622,27 @@
   overflow-y: auto;
 }
 
-/* The prompt, not a caption: the field is what the block is for, and a placeholder in the
-   faintest grey on white read as a disabled row. */
-.composerInput::placeholder {
+.dialogField::placeholder {
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* The chat composer's own disabled treatment: the text it holds stays readable but stops
-   looking like something that can be written into. */
-.composerInput:disabled {
+.dialogField:disabled {
   color: var(--dsw-alias-label-tertiary);
   cursor: not-allowed;
 }
 
-/* No focus ring of its own: the dock draws the ring (`.composer:focus-within`), because a
-   field with no frame cannot usefully outline one. */
-.composerInput:focus-visible {
-  outline: none;
+.dialogField:focus-visible {
+  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 30%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);
+  outline-offset: 1px;
+}
+
+/* The two ways out, at the end the form submits from. */
+.dialogFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 2px;
 }
 
 /* The run bar: the field a run's instruction is written into, and the control beside it.
@@ -615,23 +663,10 @@
   min-width: 0;
 }
 
-/* Inside the result page's act block the run field is the same field as the revision one:
-   one block, one shape, whichever way of changing the result is open — including the shape
-   the dock gave it, which is no frame at all. On the runs page, where the field is the
-   page's own and there is no dock around it, it keeps the larger composer surface. */
-.composer .runBarInput {
-  min-height: 30px;
-  padding: 5px 4px;
-  border-color: transparent;
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  font-size: 13px;
-  line-height: 20px;
-  max-height: calc(4 * (20px + var(--dsh-content-font-delta, 0px)) + 10px);
-}
-
 /* The bar's field: the composer's own surface, one row tall until the ask wraps, and
-   scrolling past the third row rather than pushing the page down while it is typed in. */
+   scrolling past the third row rather than pushing the page down while it is typed in. It is
+   the run history page's, where the bar is the page's own control; the result page writes its
+   sentences in a dialog, whose field is `.dialogField`. */
 .runBarInput {
   box-sizing: border-box;
   width: 100%;

@@ -170,12 +170,19 @@ async function loaded(container: HTMLElement): Promise<void> {
  * @returns the run button.
  */
 function runControl(container: HTMLElement): HTMLButtonElement {
-  const segment = container.querySelector('[data-change-mode="fresh"]')
-  if (segment instanceof HTMLElement) fireEvent.click(segment)
-  const button = [...container.querySelectorAll('button')]
-    .find(element => element.textContent === zh.skillCardRun)
-  if (button === undefined) throw new Error('the run control did not render')
-  return button as HTMLButtonElement
+  const control = container.querySelector('[data-change-mode="fresh"]')
+  if (!(control instanceof HTMLButtonElement)) throw new Error('the run control did not render')
+  return control
+}
+
+/**
+ * The dialog that is open, if one is.
+ *
+ * Portalled to the body, so it is never inside the render container.
+ * @returns the panel, or null.
+ */
+function dialog(): HTMLElement | null {
+  return document.querySelector('[data-prompt-panel]')
 }
 
 /**
@@ -479,18 +486,19 @@ describe('the result page', () => {
     expect(container.querySelector('[data-run-trace]')).toBeNull()
     expect(container.textContent).not.toContain(zh.runActivityCompleted)
     expect(container.textContent).not.toContain('旧的思考。')
-    // The dialog is gone entirely — no field, no lone stop control. The head's run button
-    // is the stop: it reads null while the card runs, so the stop stays reachable.
-    expect(container.querySelector('[data-refine-composer]')).toBeNull()
+    // No dialog, and no lone stop control in the block: the run holding the card is not a
+    // refinement of what is on screen, so the head's run button is its stop — it reads
+    // 「取消」 while the card runs, so the stop stays reachable.
+    expect(dialog()).toBeNull()
     expect(container.querySelector('[data-run-stop-row]')).toBeNull()
     expect(screen.queryByRole('button', { name: zh.refineStop })).toBeNull()
     expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
   })
 
-  it('gives a card that takes an instruction one control, in the block that asks for it', async () => {
+  it('gives a card that takes an instruction one control, in the dialog that asks for it', async () => {
     // Two run controls on one page would be two answers to the same question, and a header
-    // one could not spend what the field holds. The block owns the only control: choosing
-    // 从头跑 is what puts the field that control reads on screen.
+    // one could not spend what the field holds. The block owns the only control, and its
+    // dialog owns the field that control reads.
     const started: { readonly instruction?: string }[] = []
     const api: WorkbenchSkillCardApi = {
       // A card ready to run in every other respect, so the refusal under test is the ask.
@@ -508,29 +516,29 @@ describe('the result page', () => {
     await loaded(container)
     // The head is the way back and the card's name: neither a run nor an edit waits in it.
     expect(container.querySelector('header')?.querySelectorAll('button')).toHaveLength(1)
-    // A stored result opens on the revision, so the run's field is not the one on screen —
-    // and it is one press away, which is what makes it the same single control.
-    expect(container.querySelector('[data-run-bar] textarea')).toBeNull()
+    // The page holds no field of its own, and the run's is one press away.
+    expect(container.querySelector('textarea')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: zh.resultFreshMode }))
-    const field = container.querySelector<HTMLTextAreaElement>('[data-run-bar] textarea')
+    const field = dialog()?.querySelector('textarea')
     expect(field).not.toBeNull()
-    // Pressing the block's control with nothing written refuses in place rather than sending.
+    // Pressing the dialog's control with nothing written refuses in place rather than sending.
     const control = screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement
     // The card becomes runnable once its directory and its route have answered, so the
     // control opens a moment after the read lands.
     await waitFor(() => { expect(control.disabled).toBe(false) })
     await act(async () => { control.click() })
     expect(started).toEqual([])
-    expect(container.querySelector('[data-run-instruction-required]')?.textContent)
-      .toBe(zh.runInstructionRequired)
+    expect(dialog()?.querySelector('[data-prompt-problem]')?.textContent).toBe(zh.runInstructionRequired)
     fireEvent.change(field as HTMLTextAreaElement, { target: { value: '分析任务' } })
     await act(async () => { control.click() })
     expect(started).toEqual([{ instruction: '分析任务' }])
+    // Sent, so the dialog is gone rather than left holding what it sent.
+    expect(dialog()).toBeNull()
   })
 
-  it('keeps the bar’s control as the stop while a run holds a card that takes an instruction', async () => {
-    // The field would offer a second start the Host refuses, so only the control stays — and
-    // it names the stop, which is the one thing worth doing during a run.
+  it('closes the block while a run holds a card that takes an instruction', async () => {
+    // A second start is what the Host refuses, so the block's controls close and no dialog
+    // opens; the stop is the head's control, which is the one thing worth doing during a run.
     const running: WorkbenchRunState = {
       cardId: 'skill-card',
       phase: 'running',
@@ -546,7 +554,11 @@ describe('the result page', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-result-busy="true"]')).not.toBeNull()
     })
-    expect(container.querySelector('[data-run-bar] textarea')).toBeNull()
+    expect(container.querySelector('textarea')).toBeNull()
+    expect(dialog()).toBeNull()
+    // The run's own control is the stop while the root holds the card: one control, reading
+    // 取消, rather than a second button appearing beside it.
+    expect(runControl(container).textContent).toBe(zh.skillCardCancel)
     expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
   })
 })
