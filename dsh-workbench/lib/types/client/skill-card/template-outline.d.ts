@@ -3,9 +3,9 @@
  *
  * A template is three or four hundred lines of markup whose shape is small: a head, a style
  * block, a body holding a handful of nested boxes, a script. Reading it top to bottom with
- * nothing but a scrollbar means holding that shape in your head while you look for the one
- * box you want, so the shape is derived here instead — once, purely, from the text — and both
- * the jump list and the fold view read it.
+ * nothing but a scrollbar means holding that shape in your head while you look through it, so
+ * the shape is derived here instead — once, purely, from the text — and the fold view is built
+ * from it.
  *
  * This is not an HTML parser. It walks tags, not a tree, because the only questions asked of
  * it are "where does this block start and end on which line" and "what is it called", and
@@ -56,17 +56,6 @@ export declare function outline(text: string): readonly OutlineNode[];
  * @returns the foldable nodes, in document order.
  */
 export declare function foldableNodes(nodes: readonly OutlineNode[]): readonly OutlineNode[];
-/**
- * The blocks worth offering as a destination, outer ones first.
- *
- * A template's whole structure is a dozen blocks; the every-`tr` depth of a table is three
- * hundred rows of noise in a list that is meant to be read at a glance, so the depth is
- * capped.
- * @param nodes - an outline.
- * @param limit - how many entries to keep.
- * @returns the blocks to list, in document order.
- */
-export declare function landmarks(nodes: readonly OutlineNode[], limit?: number): readonly OutlineNode[];
 /**
  * Lay one template out as rows, with folded blocks replaced by their opening line.
  * @param text - the template source.

@@ -74,9 +74,8 @@ export const zh = {
   skillCardActionsCount: '动作声明 {count} 条',
   skillCardInsertMarkers: '插入标记',
   skillCardInsertSkeleton: '插入骨架',
-  // Reading a long template: where to jump to, and the two views of the same text.
-  skillCardTemplateJump: '跳转…',
-  skillCardTemplateJumpRegion: '填写区间 · 第 {line} 行',
+  // Reading a long template: the way back to the region, and the two views of the same text.
+  skillCardTemplateJump: '跳转到模板',
   skillCardTemplateFoldView: '折叠视图',
   skillCardTemplateEditView: '编辑',
   skillCardFoldLines: '… {count} 行',
@@ -355,9 +354,8 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardActionsCount: '{count} actions',
   skillCardInsertMarkers: 'insert markers',
   skillCardInsertSkeleton: 'insert skeleton',
-  // Reading a long template: where to jump to, and the two views of the same text.
-  skillCardTemplateJump: 'Jump to…',
-  skillCardTemplateJumpRegion: 'Region · line {line}',
+  // Reading a long template: the way back to the region, and the two views of the same text.
+  skillCardTemplateJump: 'Jump to template',
   skillCardTemplateFoldView: 'Fold view',
   skillCardTemplateEditView: 'Edit',
   skillCardFoldLines: '… {count} lines',

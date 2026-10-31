@@ -36,7 +36,7 @@ import { declarationLine, insertDeclaration } from './declarations.ts'
 import { modelKey, parseModelKey } from './model.ts'
 import { instructionLabelKey, permissionLabelKey } from './permission.ts'
 import { templateSkeleton } from './skeleton.ts'
-import { landmarks, outline } from './template-outline.ts'
+import { outline } from './template-outline.ts'
 import { TemplateFold } from './TemplateFold.tsx'
 import { analyzeTemplate, findActionsBlock, findRegion } from './template.ts'
 import type { WorkbenchTemplateViolation, WorkbenchTemplateViolationCode } from './template.ts'
@@ -248,11 +248,9 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     return draft.split('\n').map((_, index) => ({ number: index + 1, kind: marks.get(index) }))
   }, [draft, regionLines])
 
-  // The template's blocks: what the jump list offers and what the fold view closes. One
-  // reading of the text serves both, and it is a pure function of the text, so an edit
-  // re-reads it once rather than per control.
+  // The template's blocks, which is what the fold view closes. A pure function of the text,
+  // so an edit re-reads it once rather than per row.
   const templateOutline = useMemo(() => outline(draft), [draft])
-  const destinations = useMemo(() => landmarks(templateOutline), [templateOutline])
 
   // The skills a human may invoke, which is also the set a skill target can address:
   // the click path resolves against exactly this list, so a declaration pointing
@@ -384,19 +382,16 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   })
 
   /**
-   * Follow one entry of the jump list.
-   * @param value - the chosen option: `region`, or `line:<index>`.
+   * Go to the template's region.
+   *
+   * The region is the only part of the file a user keeps coming back to: everything else is
+   * the frame it sits in, and the fold view is how the frame is read. The marker's own line
+   * is the destination rather than the content, so arriving shows the boundary being edited.
    */
-  const jumpTo = (value: string): void => {
-    if (value === 'region') {
-      const region = findRegion(draft)
-      if (region === undefined) return
-      revealRange(region.start, region.end)
-      return
-    }
-    const prefix = 'line:'
-    if (!value.startsWith(prefix)) return
-    revealLine(Number(value.slice(prefix.length)))
+  const jumpToTemplate = (): void => {
+    const region = findRegion(draft)
+    if (region === undefined) return
+    revealLine(lineIndexAt(draft, region.start))
   }
 
   /**
@@ -636,31 +631,22 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               ? null
               : (
                 <>
-                  {/* A template is three hundred lines and the thing being looked for is one
-                      of a dozen blocks, so the blocks are a list rather than a scroll. */}
-                  <select
-                    className={css.jumpSelect}
-                    aria-label={t('skillCardTemplateJump')}
-                    data-template-jump=""
-                    // Always the placeholder: this goes somewhere, it does not remember where
-                    // it went, and a remembered value would look like a state of the card.
-                    value=""
-                    onChange={(event) => { jumpTo(event.target.value) }}
-                  >
-                    <option value="">{t('skillCardTemplateJump')}</option>
-                    {regionLines === undefined
-                      ? null
-                      : (
-                        <option value="region">
-                          {t('skillCardTemplateJumpRegion', { line: String(regionLines.start) })}
-                        </option>
-                      )}
-                    {destinations.map(node => (
-                      <option key={node.id} value={`line:${String(node.line)}`}>
-                        {`${'\u3000'.repeat(node.depth)}${node.label} · ${String(node.line + 1)}`}
-                      </option>
-                    ))}
-                  </select>
+                  {/* One destination: the region. It is the one place in a three-hundred-line
+                      template that a user comes back to, and the blocks around it are what the
+                      fold view is for. A list of every box the document happens to contain
+                      answered a question nobody asked. */}
+                  {regionLines === undefined
+                    ? null
+                    : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-template-jump=""
+                        onClick={jumpToTemplate}
+                      >
+                        {t('skillCardTemplateJump')}
+                      </Button>
+                    )}
                   <Button
                     variant="outline"
                     size="sm"

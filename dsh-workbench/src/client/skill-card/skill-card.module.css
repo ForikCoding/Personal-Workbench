@@ -1095,21 +1095,6 @@
   white-space: nowrap;
 }
 
-/* The jump list in the section's own row: a control that says where to go, sized like the
-   buttons beside it rather than like a form field. */
-.jumpSelect {
-  box-sizing: border-box;
-  height: 28px;
-  max-width: 240px;
-  padding: 0 6px;
-  color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-bg-base);
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-
 /* Gutter and text on the first row, the status rail under both of them. The gutter and
    the text must share font, size, line height and vertical padding, or the numbers stop
    lining up with the lines they label. */

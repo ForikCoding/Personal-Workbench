@@ -1050,21 +1050,18 @@ describe('the instruction field', () => {
     expect(onChooseInstructionMode).toHaveBeenCalledTimes(1)
   })
 
-  it('lists the template blocks, and takes one as a destination', () => {
-    // A three-hundred-line template is a dozen blocks: the way into it is a list of those,
-    // not a scrollbar. The list is derived from the text, so an element that is one line
-    // long is not offered as a place to go.
-    const template = ['<body>', '  <div class="task-board">', '    <p>one</p>', '  </div>', '</body>'].join('\n')
-    const { container } = setup({ skill: 'git-repo', template }, zhT)
-    const jump = container.querySelector('[data-template-jump]') as HTMLSelectElement
-    expect([...jump.options].map(option => option.value)).toEqual(['', 'line:0', 'line:1'])
-    expect(jump.options[2]?.textContent).toContain('<div class="task-board">')
-
-    fireEvent.change(jump, { target: { value: 'line:1' } })
+  it('goes back to the region, and offers nowhere else to go', () => {
+    // The one part of a template a user returns to is the region: the blocks around it are
+    // what the fold view is for, so they are not destinations.
+    setup({ skill: 'git-repo', template: REGION_ONLY }, zhT)
+    fireEvent.click(screen.getByRole('button', { name: zh.skillCardTemplateJump }))
     const field = screen.getByRole('textbox', { name: zh.skillCardTemplateLabel }) as HTMLTextAreaElement
-    expect(field.selectionStart).toBe(template.indexOf('  <div'))
-    // The list goes somewhere; it does not remember where it went.
-    expect(jump.value).toBe('')
+    expect(field.selectionStart).toBe(REGION_ONLY.indexOf('<!-- template-begin -->'))
+  })
+
+  it('offers no destination when there is no region to go to', () => {
+    const { container } = setup({ skill: 'git-repo', template: '<body><div>no region</div></body>' }, zhT)
+    expect(container.querySelector('[data-template-jump]')).toBeNull()
   })
 
   it('folds the template into its blocks, and hands a line back to the field', () => {

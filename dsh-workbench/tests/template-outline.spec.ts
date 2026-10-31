@@ -1,7 +1,7 @@
 /** What the outline reads out of a template, and what it deliberately does not. */
 
 import { describe, expect, it } from 'vitest'
-import { foldRows, foldableNodes, landmarks, outline } from '../src/client/skill-card/template-outline.ts'
+import { foldRows, foldableNodes, outline } from '../src/client/skill-card/template-outline.ts'
 
 /**
  * Join lines into a document.
@@ -82,7 +82,7 @@ describe('template outline', () => {
     expect(foldableNodes(outline(text))).toEqual([])
   })
 
-  it('lists the blocks worth jumping to, without the depth of a table', () => {
+  it('does not offer a block that is one line long', () => {
     const text = doc(
       '<body>',
       '  <table>',
@@ -91,10 +91,9 @@ describe('template outline', () => {
       '  </table>',
       '</body>',
     )
-    const listed = landmarks(outline(text), 10)
-    // A row that is one line is not a block, so a table of them contributes its table and
-    // nothing else: the list stays a shape rather than a dump.
-    expect(listed.map(node => node.tag)).toEqual(['body', 'table'])
+    // A row that is one line is not a block, so a table of them folds as a table rather than
+    // as three hundred rows.
+    expect(foldableNodes(outline(text)).map(node => node.tag)).toEqual(['body', 'table'])
   })
 
   it('replaces a folded block with the line that opened it and counts what it hides', () => {
