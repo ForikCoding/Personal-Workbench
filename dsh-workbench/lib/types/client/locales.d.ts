@@ -146,6 +146,7 @@ export declare const zh: {
     runHistoryCount: string;
     runHistoryEmpty: string;
     runHistoryEdited: string;
+    runHistoryNoContent: string;
     runHistoryDayToday: string;
     runHistoryDayYesterday: string;
     runHistoryOrdinal: string;

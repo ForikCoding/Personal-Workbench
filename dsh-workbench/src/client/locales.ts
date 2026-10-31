@@ -183,6 +183,10 @@ export const zh = {
   runHistoryCount: '共 {count} 次运行',
   runHistoryEmpty: '这张卡还没有运行过，点右上角运行一次吧。',
   runHistoryEdited: '已编辑',
+  // A run whose record holds no region content: it ran, and stored nothing a row can
+  // headline. Said in the row's first line rather than left blank, because a row with only
+  // its clock reads as a row that failed to load rather than a run with nothing to say.
+  runHistoryNoContent: '本次没有产出内容',
   // The list is grouped by the day a run completed on, so the day is stated once per
   // group and the rows below it carry only the clock: two runs six days apart are not
   // distinguishable by two identical clock readings.
@@ -436,6 +440,7 @@ export const en: Record<keyof typeof zh, string> = {
   runHistoryCount: '{count} runs',
   runHistoryEmpty: 'This card has not run yet. Use the run control above to run it.',
   runHistoryEdited: 'Edited',
+  runHistoryNoContent: 'This run produced nothing',
   runHistoryDayToday: 'Today',
   runHistoryDayYesterday: 'Yesterday',
   runHistoryOrdinal: 'Run {n}',

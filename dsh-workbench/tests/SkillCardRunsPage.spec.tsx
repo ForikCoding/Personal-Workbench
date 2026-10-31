@@ -178,6 +178,45 @@ describe('the run-history page', () => {
       .map(day => day?.textContent)).toEqual(['2024-01-02'])
   })
 
+  it('heads the page with the way back above the title, not beside it', async () => {
+    // Inline, the back control indented the heading by its own width while every row
+    // below started on the page's left edge: the list hung out to the left of the title
+    // it belonged to. The crumb is a tier of its own, so the title and the rows share
+    // one left edge.
+    const { container } = render(<SkillCardRunsPage {...props({ api: pageApi({ results: [result()] }) })} />)
+    await loaded(container)
+    const head = container.querySelector('header') as HTMLElement
+    const back = [...head.querySelectorAll('button')].find(button => button.textContent === zh.skillCardBack)
+    expect(back).toBeTruthy()
+    // The crumb row is the head's first child, and the title is not in it.
+    expect(head.firstElementChild?.contains(back ?? null)).toBe(true)
+    expect(head.firstElementChild?.querySelector('h2')).toBeNull()
+    expect(head.querySelector('h2')?.textContent).toBe('技能卡')
+    // The skill and the run facts share the line under the title, separated by the sheet.
+    expect(head.textContent).toContain(zh.runHistoryCount.replace('{count}', '1'))
+  })
+
+  it('states that a run produced nothing instead of leaving its row blank', async () => {
+    // A run that stored no region content used to render a lone grey meta line, which read
+    // as a row that had failed to load rather than as a run with nothing to say.
+    const { container } = render(
+      <SkillCardRunsPage
+        {...props({
+          api: pageApi({
+            results: [result({ runId: 'run-empty', stopReason: 'aborted', structured: undefined })],
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    const row = container.querySelector('[data-run-history-row]') as HTMLElement
+    expect(row.getAttribute('data-run-outcome')).toBe('aborted')
+    const nothing = row.querySelector('[data-run-history-nothing]') as HTMLElement
+    expect(nothing.textContent).toBe(zh.runHistoryNoContent)
+    // The clock is still the row's own fact and still there.
+    expect(row.querySelector('[data-run-history-time]')?.textContent).toBe('14:29')
+  })
+
   it('groups the runs by the day they completed on', async () => {
     // A row carries only its clock reading, so the day has to be stated somewhere: runs
     // from two days read as two groups, newest day first, and a day appears once.

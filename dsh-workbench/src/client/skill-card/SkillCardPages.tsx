@@ -14,7 +14,12 @@
  */
 
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  Button,
+  IconChevronLeftOutlineRegular,
+  IconChevronRightOutlineRegular,
+  IconPlayOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import type { WorkbenchInstructionMode, WorkbenchResultRecord } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from './api.ts'
@@ -37,6 +42,56 @@ import { resultHeadline, resultHtml } from './render.ts'
 import type { WorkbenchScriptBinder } from './render.ts'
 import { clockText, dayKey, latestRunText, runClockText } from './clock.ts'
 import css from './skill-card.module.css'
+
+/** What every full-panel view needs to state where it is. */
+interface PageHeadProps {
+  /** The way back to the grid. */
+  readonly onBack: () => void
+  /** The card's name; omitted by the configuration view, whose own field states it. */
+  readonly title?: string | undefined
+  /** The facts about the view, separated by the sheet. */
+  readonly meta?: ReactNode
+  /** The view's own controls, opposite the title. */
+  readonly actions?: ReactNode
+  /** Translator, for the way back. */
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+}
+
+/**
+ * The head the three full-panel views share.
+ *
+ * Tiered rather than one row. The way back sits above the title, so the title and
+ * everything under it — the facts, the composer, the run history — begin on the page's
+ * one left edge; inline, the back control indented the heading and every row below it
+ * started somewhere else.
+ * @param props - the way back, the title, the view's facts and controls.
+ * @returns the head.
+ */
+function PageHead({ onBack, title, meta, actions, t }: PageHeadProps): ReactNode {
+  return (
+    <header className={css.pageHead}>
+      <div className={css.pageHeadBar}>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<IconChevronLeftOutlineRegular />}
+          onClick={onBack}
+        >
+          {t('skillCardBack')}
+        </Button>
+      </div>
+      {title === undefined
+        ? null
+        : (
+          <div className={css.pageHeadTitleRow}>
+            <h2 className={css.pageHeadTitle}>{title}</h2>
+            {actions === undefined ? null : <div className={css.pageHeadActions}>{actions}</div>}
+          </div>
+        )}
+      {meta === undefined ? null : <div className={css.pageHeadMeta}>{meta}</div>}
+    </header>
+  )
+}
 
 /** One day's worth of runs: the day and the rows that completed on it. */
 interface RunHistoryGroup {
@@ -701,12 +756,13 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
   const ordinalOf = new Map(view.runs.map((run, index) => [run.runId, view.runs.length - index]))
   return (
     <section className={css.pageView}>
-      <header className={css.pageViewHead}>
-        <Button variant="ghost" size="sm" onClick={onBack}>{t('skillCardBack')}</Button>
-        <div className={css.runsHeadText}>
-          <h2 className={css.runsHeadTitle}>{view.name ?? fallbackTitle}</h2>
-          <p className={css.runsHeadMeta}>
-            {view.skill === undefined ? null : <span className={css.pageViewSubtitle}>{view.skill}</span>}
+      <PageHead
+        onBack={onBack}
+        title={view.name ?? fallbackTitle}
+        t={t}
+        meta={(
+          <>
+            {view.skill === undefined ? null : <span className={css.pageHeadChip}>{view.skill}</span>}
             <span className={css.runHistoryCount} data-run-history-count="">
               {t('runHistoryCount', { count: view.runs.length })}
             </span>
@@ -717,23 +773,24 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
                   {t('runHistoryLatest', { time: latestRunText(newest.executedAt) })}
                 </span>
               )}
-          </p>
-        </div>
-        {/* The header's own control, for a card whose runs need no instruction. A card that
-            takes one gets the bar below instead — one control, never two. */}
-        {view.instructionMode === 'none'
+          </>
+        )}
+        // The header's own control, for a card whose runs need no instruction. A card that
+        // takes one gets the bar below instead — one control, never two.
+        actions={view.instructionMode === 'none'
           ? (
             <Button
               variant="primary"
               size="sm"
+              icon={<IconPlayOutlineRegular />}
               disabled={bareRunning || !view.runnable}
               onClick={() => { actions.run() }}
             >
               {t('skillCardRun')}
             </Button>
           )
-          : null}
-      </header>
+          : undefined}
+      />
       {/* The bar starts every run from this page, so running is one click whether the ask is
           empty or not. Never in-flight here: this page starts runs alongside others. */}
       <RunBar
@@ -864,8 +921,15 @@ function RunHistoryRow({
           data-run-outcome={run.stopReason}
         >
           <span className={css.runHistoryBody}>
+            {/* A run that stored nothing still states that in the row's first line. Left
+                empty, the row was a lone grey meta line, indistinguishable from a row that
+                had failed to load. */}
             {headline === undefined
-              ? null
+              ? (
+                <span className={css.runHistoryTitle} data-empty="true" data-run-history-nothing="">
+                  {t('runHistoryNoContent')}
+                </span>
+              )
               : <span className={css.runHistoryTitle} data-run-history-summary="">{headline}</span>}
             <span className={css.runHistoryMeta}>
               <span className={css.runHistoryTime} data-run-history-time="">
@@ -898,7 +962,9 @@ function RunHistoryRow({
               <span className={css.runHistoryDot} aria-hidden="true" />
               {runOutcomeText(run, t)}
             </span>
-            <span className={css.runHistoryChevron} aria-hidden="true">›</span>
+            <span className={css.runHistoryChevron} aria-hidden="true">
+              <IconChevronRightOutlineRegular />
+            </span>
           </span>
         </button>
         {onStop === undefined
@@ -980,44 +1046,50 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   const editable = view.result !== undefined && !busy
   return (
     <section className={css.pageView}>
-      <header className={css.pageViewHead}>
-        <Button variant="ghost" size="sm" onClick={onBack}>{t('skillCardBack')}</Button>
-        <h2 className={css.pageViewTitle}>{view.name ?? fallbackTitle}</h2>
-        {view.skill !== undefined && <span className={css.pageViewSubtitle}>{view.skill}</span>}
-        {/* Editing is secondary to running, so it sits to the left of the run control and
-            only while there is a result to edit. While the editor is open it is gone: its
-            own two controls are how this mode ends. */}
-        {editable && !editing
-          ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setEditing(true) }}
-              data-result-edit-start=""
-            >
-              {t('skillCardResultEdit')}
-            </Button>
-          )
-          : null}
-        {/* The run control lives here: this is the page that shows what a run produces.
-            A bare run holds this card's run slot, so pressing Run during one would only
-            be refused; the control waits instead. It also waits while the editor is open,
-            because a run replaces the very result the draft is being kept against.
-            A card that takes an instruction has no control here — the bar below owns the one
-            control, so pressing Run always spends the ask in the field. */}
-        {view.instructionMode === 'none'
-          ? (
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={bareRunning || editing || (!cardRunning && !view.runnable)}
-              onClick={() => { if (cardRunning) actions.cancel(); else actions.run() }}
-            >
-              {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
-            </Button>
-          )
-          : null}
-      </header>
+      <PageHead
+        onBack={onBack}
+        title={view.name ?? fallbackTitle}
+        t={t}
+        meta={view.skill === undefined ? undefined : <span className={css.pageHeadChip}>{view.skill}</span>}
+        actions={(
+          <>
+            {/* Editing is secondary to running, so it sits to the left of the run control and
+                only while there is a result to edit. While the editor is open it is gone: its
+                own two controls are how this mode ends. */}
+            {editable && !editing
+              ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setEditing(true) }}
+                  data-result-edit-start=""
+                >
+                  {t('skillCardResultEdit')}
+                </Button>
+              )
+              : null}
+            {/* The run control lives here: this is the page that shows what a run produces.
+                A bare run holds this card's run slot, so pressing Run during one would only
+                be refused; the control waits instead. It also waits while the editor is open,
+                because a run replaces the very result the draft is being kept against.
+                A card that takes an instruction has no control here — the bar below owns the
+                one control, so pressing Run always spends the ask in the field. */}
+            {view.instructionMode === 'none'
+              ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={cardRunning ? undefined : <IconPlayOutlineRegular />}
+                  disabled={bareRunning || editing || (!cardRunning && !view.runnable)}
+                  onClick={() => { if (cardRunning) actions.cancel(); else actions.run() }}
+                >
+                  {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
+                </Button>
+              )
+              : null}
+          </>
+        )}
+      />
       {/* While a run holds the card the bar keeps only its control, which stops that run:
           the field would offer a second start that the Host would refuse. */}
       <RunBar
@@ -1191,9 +1263,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
   })
   return (
     <section className={css.pageView}>
-      <header className={css.pageViewHead}>
-        <Button variant="ghost" size="sm" onClick={onBack}>{t('skillCardBack')}</Button>
-      </header>
+      <PageHead onBack={onBack} t={t} />
       <SkillCardSettings
         // Keyed on the skill so the draft re-seeds from that skill's template.
         key={view.skill ?? ''}

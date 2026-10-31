@@ -88,28 +88,82 @@
   min-width: 0;
 }
 
-.pageViewHead {
+/* The head every full-panel view opens with, in tiers: the way back, then the title
+   with its own controls, then the facts about the view.
+
+   The crumb used to sit inline before the title, so the heading started one button's
+   width in from the page's left edge while every row of the list under it started at
+   that edge: two left margins on one page, and the list appeared to hang out to the left
+   of the title it belongs to. Above the title, the crumb reads as a margin note and the
+   title, the meta, and the rows all share one left edge. */
+.pageHead {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
 
-.pageViewTitle {
+.pageHeadBar {
+  display: flex;
+  align-items: center;
+  /* Cancels the button's own inset so the chevron's edge, not its padding, lands on the
+     page's left edge. */
+  margin-left: -6px;
+}
+
+.pageHeadTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pageHeadTitle {
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 
-.pageViewSubtitle {
+.pageHeadActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: none;
+}
+
+/* The facts under the title, separated by a middot: three values set in the same grey
+   with nothing between them read as one sentence, and the eye cannot tell where the
+   count ends and the moment begins. */
+.pageHeadMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+.pageHeadMeta > * + *::before {
+  content: '·';
+  margin: 0 8px;
+  color: var(--dsw-alias-label-caption);
+}
+
+/* The skill a card runs: a chip, because it is a name rather than part of a sentence. */
+.pageHeadChip {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .runProblem {
@@ -398,7 +452,9 @@
 .runBar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  /* Centred rather than bottom-aligned: the field grows with its own text, and a run
+     control pinned to the field's last line slid down the page as the ask wrapped. */
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
@@ -1225,7 +1281,7 @@
 .runHistoryList {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -1237,9 +1293,18 @@
 }
 
 /* The day a group of rows completed on. It is a caption, not a title: the rows below it
-   are what the page is about, and a heavier heading would make the list read as days. */
+   are what the page is about, and a heavier heading would make the list read as days.
+
+   It sticks to the top of the list while its own group scrolls past, because a long
+   history is read one day at a time and the rows themselves carry only a clock: without
+   the caption on screen, "22:47" is a time on no particular day. */
 .runHistoryDay {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   margin: 0;
+  padding: 5px 10px 6px;
+  background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-caption);
   font-size: 11px;
   font-weight: 500;
@@ -1273,7 +1338,7 @@
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 9px 8px;
+  padding: 10px;
   border-radius: var(--dsw-radius-sm);
 }
 
@@ -1282,6 +1347,7 @@
 }
 
 .runHistoryOpen {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1295,6 +1361,39 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* A run that did not finish earns a mark on the row's edge.
+
+   Seven rows of one card are mostly the same shape, and the one that failed differs
+   only in a small word on the far right: the eye scanning the titles had nothing to
+   catch on. The bar is that catch, and it is drawn inside the row's padding so that no
+   row's text moves — the list keeps one left edge, marked rows included. */
+.runHistoryOpen::before {
+  content: '';
+  position: absolute;
+  /* On the row's own left edge, one row's padding away from the text: far enough that it
+     reads as a margin mark rather than as part of the first glyph. */
+  left: -10px;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.runHistoryOpen[data-run-outcome='aborted']::before {
+  background: var(--dsw-alias-state-warn-label);
+}
+
+.runHistoryOpen[data-run-outcome='error']::before,
+.runHistoryOpen[data-run-outcome='failed']::before {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.runHistoryOpen[data-run-outcome='running']::before {
+  background: var(--dsw-alias-link);
 }
 
 /* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and
@@ -1341,10 +1440,17 @@
   white-space: nowrap;
 }
 
+/* A run that stored nothing still owns the row's first line. Without it the row was a
+   lone grey meta line, which read as a row that had failed to load rather than a run that
+   had nothing to say. */
+.runHistoryTitle[data-empty='true'] {
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .runHistoryMeta {
   display: flex;
   align-items: baseline;
-  gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
   color: var(--dsw-alias-label-tertiary);
@@ -1352,14 +1458,28 @@
   line-height: 16px;
 }
 
+/* The same middot the page head uses between its facts, for the same reason: a clock, a
+   model id, and an ordinal set in one grey with only space between them read as one
+   string. */
+.runHistoryMeta > * + *::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--dsw-alias-label-caption);
+}
+
+/* The clock is the one fact on this line a reader compares across rows, so it is a step
+   above the model id and the ordinal, in figures that line up column-wise. */
 .runHistoryTime {
   color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .runHistoryModel {
-  max-width: 18ch;
+  /* Wide enough for a real model id — `GLM-FLASH-LATEST` — so the truncation lands on a
+     name that is actually long rather than on the one this workbench runs. */
+  max-width: 24ch;
   color: var(--dsw-alias-label-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1395,11 +1515,16 @@
 }
 
 /* The outcome is a quiet dot and a word. Only a run that did not complete earns a
-   hearing: a wall of neutral "已完成" would compete with the titles it sits beside. */
+   hearing: a wall of neutral "已完成" would compete with the titles it sits beside.
+
+   Right-aligned in a column of its own width, so the dots and the words line up down the
+   right edge instead of starting wherever each word's length puts them. */
 .runHistoryOutcome {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 5px;
+  min-width: 4em;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   line-height: 16px;
@@ -1442,9 +1567,18 @@
   }
 }
 
+/* The way in, quiet at rest and nudged on hover: the whole row is the control, and this
+   only has to say which direction it goes. */
 .runHistoryChevron {
+  display: inline-flex;
   flex: none;
   color: var(--dsw-alias-label-caption);
-  font-size: 13px;
   line-height: 1;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.runHistoryRow:hover .runHistoryChevron,
+.runHistoryOpen:focus-visible .runHistoryChevron {
+  color: var(--dsw-alias-label-secondary);
+  transform: translateX(2px);
 }
