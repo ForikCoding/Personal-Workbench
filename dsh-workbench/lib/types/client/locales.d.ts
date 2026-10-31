@@ -109,7 +109,6 @@ export declare const zh: {
     skillCardPermissionWorkspaceWrite: string;
     skillCardPermissionFullAccess: string;
     skillCardPermissionWarning: string;
-    skillCardRunsWithPermission: string;
     skillCardProblemPermissionUnavailable: string;
     skillCardInstructionLabel: string;
     skillCardInstructionNone: string;

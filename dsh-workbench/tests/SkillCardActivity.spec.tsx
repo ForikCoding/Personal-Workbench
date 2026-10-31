@@ -267,11 +267,15 @@ describe('activity trace rendering', () => {
     const header = container.querySelector('[data-turn-process]') as Element
     expect(header).not.toBeNull()
     expect(header.textContent).toContain(zh.runActivityCompleted)
+    // A settled trace arrives folded: the page it sits on is showing a document, and the
+    // whole stream waits under the header like the chat's process block.
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(0)
+    fireEvent.click(header)
+    expect(header.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(2)
-    // Folding hides the rows; the whole stream sits under the header like the chat's process.
     fireEvent.click(header)
     expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(0)
-    expect(header.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('counts what the fold holds, without counting the schema-emission call', () => {
@@ -293,6 +297,7 @@ describe('activity trace rendering', () => {
     )
     const header = container.querySelector('[data-turn-process]') as Element
     expect(header.textContent).toContain(zh.runActivitySteps.replace('{count}', '3'))
+    fireEvent.click(header)
     expect(container.querySelectorAll('[data-run-activity] [data-activity-kind]')).toHaveLength(3)
   })
 

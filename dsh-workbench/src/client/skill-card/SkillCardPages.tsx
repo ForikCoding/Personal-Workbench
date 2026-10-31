@@ -1270,13 +1270,6 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
           trace, and hiding it because the card is busy with a different run would repeat
           the defect this page just fixed for the body. */}
       {running ? null : <RunTrace view={view} t={t} />}
-      {/* What this card's runs may write, stated beneath everything because it is not the
-          content and still has to be readable before pressing Run. The skill it executes is
-          disk content, so the mode is the sentence that says how far that can reach — and a
-          mode nobody can see is a permission nobody checked. */}
-      <p className={css.permission} data-run-permission={view.permission}>
-        {t('skillCardRunsWithPermission', { mode: t(permissionLabelKey(view.permission)) })}
-      </p>
     </section>
   )
 }

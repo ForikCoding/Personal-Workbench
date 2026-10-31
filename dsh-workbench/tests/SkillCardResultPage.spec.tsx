@@ -191,10 +191,11 @@ function shadowText(container: HTMLElement): string | undefined {
 }
 
 describe('the result page', () => {
-  it('shows the run’s trace beneath the result, with the model’s words and the calls', async () => {
-    // The card's output after a run is what the run did: the trace, visible rather than
-    // filed away in a disclosure. The technical record that used to sit beside it — stop
-    // reason, model, start time, structured value, raw output — is gone.
+  it('files the run’s trace under its own header, one press away', async () => {
+    // The card's output after a run is what the run did, but the page's subject is the
+    // document: a finished run's trace starts folded, so nineteen steps do not push the
+    // result off the first screen. The header still states the outcome and the count, and
+    // the rows are one press away.
     const { container } = render(
       <SkillCardResultPage
         {...props({
@@ -213,9 +214,15 @@ describe('the result page', () => {
     await loaded(container)
     const section = container.querySelector('[data-run-trace]')
     expect(section).not.toBeNull()
-    // On the page itself, not behind a collapsed disclosure; the turn header opens it.
+    // The header is on the page itself, not behind a disclosure of its own.
     expect(section?.closest('details')).toBeNull()
     expect(section?.textContent).toContain(zh.runActivityCompleted)
+    // Folded on arrival: the rows are not in the page yet.
+    expect(container.querySelectorAll('[data-run-trace] [data-activity-kind]')).toHaveLength(0)
+    const header = section?.querySelector('[data-turn-process]')
+    expect(header?.getAttribute('aria-expanded')).toBe('false')
+    act(() => { (header as HTMLElement).click() })
+    expect(header?.getAttribute('aria-expanded')).toBe('true')
     expect(section?.textContent).toContain('先查列表。')
     expect([...container.querySelectorAll('[data-run-trace] [data-activity-kind]')]
       .map(row => row.getAttribute('data-activity-tool')))
@@ -431,21 +438,18 @@ describe('the result page', () => {
     expect(container.querySelector('[data-run-workspace-invalid]')).toBeNull()
   })
 
-  it('states the permission mode the card runs under, as the last line of the page', async () => {
-    // The mode is a safety fact about the run, so it is a footnote beneath everything rather
-    // than part of the document. A card that stores none runs under the default, which is
-    // what this case pins: the line states the mode that will be applied, not that none is
-    // set.
+  it('leaves the permission mode to the configuration page', async () => {
+    // The page used to close with a footnote restating the mode. It is one of the fields at
+    // the top of the card's configuration page, so the run page was repeating a setting
+    // nobody changes from here — and a line under every run that never differs is a line
+    // readers stop seeing, which is worse for a safety fact than putting it where it is
+    // edited.
     const { container } = render(
       <SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />,
     )
     await loaded(container)
-    const note = container.firstElementChild?.lastElementChild
-    expect(note?.getAttribute('data-run-permission')).toBe('workspace-write')
-    expect(note?.textContent).toBe(t('skillCardRunsWithPermission', { mode: zh.skillCardPermissionWorkspaceWrite }))
-    // Not repeated inside the frame, where the document lives.
-    expect(container.querySelector('[data-result-surface]')?.textContent)
-      .not.toContain(zh.skillCardPermissionWorkspaceWrite)
+    expect(container.querySelector('[data-run-permission]')).toBeNull()
+    expect(container.textContent).not.toContain(zh.skillCardPermissionWorkspaceWrite)
   })
 
   it('clears the settled record and the dialog while a run holds the card', async () => {

@@ -160,12 +160,12 @@ describe('skill card body', () => {
     expect(container.textContent).toContain('skillCardResultFailedTitle')
   })
 
-  it('leaves the permission note to the page that owns it', () => {
-    // The note states the mode this card's runs use, so it is a footnote beneath the result
-    // page's content rather than part of the document this body renders. The page spec pins
-    // it in every state.
+  it('does not restate the card’s permission mode on its face', () => {
+    // The mode is a field of the card's configuration, and the face is a title, a summary
+    // and a control: a sentence about permissions here would push the summary out.
     const { container } = render(<SkillCardBody view={view({ template: TEMPLATE, result: RESULT })} t={t} />)
-    expect(container.textContent).not.toContain('skillCardRunsWithPermission')
+    expect(container.textContent).not.toContain('运行时权限')
+    expect(container.textContent).not.toContain('Runs with')
   })
 
   it('keeps a record a history row opened as the subject while another run is in flight', () => {

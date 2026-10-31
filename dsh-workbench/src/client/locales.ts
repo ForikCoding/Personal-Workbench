@@ -130,7 +130,6 @@ export const zh = {
   skillCardPermissionWorkspaceWrite: '工作区内修改',
   skillCardPermissionFullAccess: '完全权限',
   skillCardPermissionWarning: '完全权限：工作目录不再限制写入，这个 skill 可以修改工作目录以外的文件。',
-  skillCardRunsWithPermission: '运行时权限：{mode}',
   skillCardProblemPermissionUnavailable: '这张卡要求的权限模式无法应用，运行已拒绝',
   // The per-card instruction mode. The three labels are the choice itself, and the note
   // states what the mode governs so the setting is not mistaken for a stored prompt.
@@ -402,7 +401,6 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardPermissionWorkspaceWrite: 'Workspace Write',
   skillCardPermissionFullAccess: 'Full access',
   skillCardPermissionWarning: 'Full access: the workspace no longer limits writes, so this skill can change files outside it.',
-  skillCardRunsWithPermission: 'Runs with {mode} permission',
   skillCardProblemPermissionUnavailable: 'This card’s permission mode could not be applied, so the run was refused',
   // The per-card instruction mode. The note states what the mode governs, so the setting is
   // not mistaken for a stored prompt.

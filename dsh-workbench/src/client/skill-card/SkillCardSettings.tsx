@@ -598,32 +598,6 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               )}
           </div>
         </div>
-        {/* One line, three facts, in the order a writer needs them: where the region
-            is, what the template declares, and how much of the budget it uses. */}
-        <div
-          className={classes(css.editorStatus, regionLines === undefined ? css.editorStatusMissing : undefined)}
-          data-template-status=""
-        >
-          {regionLines === undefined
-            ? <span>{t('skillCardRegionMissing')}</span>
-            : (
-              <span>
-                {t('skillCardRegionRange', { start: String(regionLines.start), end: String(regionLines.end) })}
-              </span>
-            )}
-          {' · '}
-          <span>{t('skillCardActionsCount', { count: String(analysis.actions.length) })}</span>
-          {' · '}
-          <span className={overBudget ? css.editorStatusWarn : undefined}>
-            {COUNT_FORMAT.format(bytes)}
-            {' / '}
-            {COUNT_FORMAT.format(WORKBENCH_TEMPLATE_MAX_BYTES)}
-            {' '}
-            {t('skillCardTemplateSizeUnit')}
-          </span>
-          {dirty ? ` · ${t('skillCardTemplateDirty')}` : ''}
-        </div>
-
         {missingTargets.length === 0 ? null : (
           // Violation-shaped, deliberately not a violation: the card this names may
           // exist later, so saving stays possible and this line is not in the save gate.
@@ -681,6 +655,9 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
             className={css.editor}
             value={draft}
             spellCheck={false}
+            // No soft wrapping: the gutter numbers one stored line, so a wrapped line would
+            // label the wrong rows from there down.
+            wrap="off"
             aria-label={t('skillCardTemplateLabel')}
             placeholder={t('skillCardTemplatePlaceholder')}
             onChange={(event) => { setDraft(event.target.value) }}
@@ -691,6 +668,31 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
               if (gutter.current !== null) gutter.current.scrollTop = event.currentTarget.scrollTop
             }}
           />
+          {/* The editor's status rail, at its foot rather than above it: where the region
+              is, what the template declares, and how much of the size budget it takes are
+              facts about the text below them, and a line of facts above a code block reads
+              as a caption for the section instead of a reading of the file. */}
+          <div
+            className={classes(css.editorStatus, regionLines === undefined ? css.editorStatusMissing : undefined)}
+            data-template-status=""
+          >
+            {regionLines === undefined
+              ? <span>{t('skillCardRegionMissing')}</span>
+              : (
+                <span>
+                  {t('skillCardRegionRange', { start: String(regionLines.start), end: String(regionLines.end) })}
+                </span>
+              )}
+            <span>{t('skillCardActionsCount', { count: String(analysis.actions.length) })}</span>
+            <span className={overBudget ? css.editorStatusWarn : undefined}>
+              {COUNT_FORMAT.format(bytes)}
+              {' / '}
+              {COUNT_FORMAT.format(WORKBENCH_TEMPLATE_MAX_BYTES)}
+              {' '}
+              {t('skillCardTemplateSizeUnit')}
+            </span>
+            {dirty ? <span className={css.editorStatusDirty}>{t('skillCardTemplateDirty')}</span> : null}
+          </div>
         </div>
 
         {analysis.violations.length === 0 ? null : (

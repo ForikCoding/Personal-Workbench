@@ -168,7 +168,12 @@
   color: var(--dsw-alias-label-caption);
 }
 
-/* The skill a card runs: a chip, because it is a name rather than part of a sentence. */
+/* The skill a card runs: a chip, because it is a name rather than part of a sentence.
+
+   The separator above is drawn by a pseudo element on the item, and on a chip that lands
+   *inside* the box: the dot sat against the chip's own left padding, with the box starting
+   flush against the word before it. A box is its own separator, so it takes a margin on
+   that side instead. */
 .pageHeadChip {
   flex: none;
   padding: 1px 7px;
@@ -177,6 +182,14 @@
   color: var(--dsw-alias-label-secondary);
   font-size: 11px;
   line-height: 16px;
+}
+
+.pageHeadMeta > .pageHeadChip::before {
+  content: none;
+}
+
+.pageHeadMeta > .pageHeadChip:not(:first-child) {
+  margin-left: 10px;
 }
 
 .runProblem {
@@ -961,13 +974,29 @@
   resize: vertical;
 }
 
-/* The editor is the page's main work surface, so one line above it carries the three
-   facts a writer needs while typing: where the region is, what the template declares,
-   and how much of the size budget it uses. */
+/* The editor's status rail, at the foot of the pane: where the region is, what the
+   template declares, and how much of the size budget it uses. These are readings of the
+   text above them, so they belong under it — a line of facts above a code block reads as
+   a caption for the section, and it took a whole row away from the editor. */
 .editorStatus {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  box-sizing: border-box;
+  padding: 5px 10px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* Pushed to the rail's far end: it is about the whole file, not about the region's range. */
+.editorStatusDirty {
+  margin-left: auto;
+  color: var(--dsw-alias-label-secondary);
 }
 
 /* A template with no region cannot run at all, so the whole line turns into the
@@ -982,11 +1011,13 @@
 }
 
 
-/* Gutter plus text area in one row. The two must share font, size, line height and
-   vertical padding, or the numbers stop lining up with the lines they label. */
+/* Gutter and text on the first row, the status rail under both of them. The gutter and
+   the text must share font, size, line height and vertical padding, or the numbers stop
+   lining up with the lines they label. */
 .editorPane {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
@@ -1057,6 +1088,17 @@
   font-size: 12px;
   line-height: 18px;
   padding: 6px 8px;
+  /* A number labels a row only while one line of the file is one row on screen: a wrapped
+     line pushed every number under it onto its neighbour's line, and indentation read as
+     ragged because the glyphs were not on a grid. Long lines scroll sideways instead, in a
+     stack that is monospaced on every Windows without the shell's default font deciding. */
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  tab-size: 2;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  /* The scrollbar that appears with a long file must not narrow the text mid-edit. */
+  scrollbar-gutter: stable;
 }
 
 .editorPane .editor:focus-visible {
@@ -1253,19 +1295,6 @@
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
   line-height: 18px;
-}
-
-/* The permission note, demoted to a footnote: it is a statement about the page, not
-   part of the document the card renders, and it stands beneath everything. */
-.permission {
-  margin: 0;
-  /* Its own hairline: the sentence is about the page, and with nothing above it, it read
-     as the last line of the trace block. */
-  padding-top: 10px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
 }
 
 /* The in-place confirmation panel, which takes the card's display area the way the

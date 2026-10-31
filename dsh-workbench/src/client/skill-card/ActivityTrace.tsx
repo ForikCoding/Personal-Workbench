@@ -168,7 +168,10 @@ function firstLine(text: string): string {
  * @returns the list.
  */
 export function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactNode {
-  const [folded, setFolded] = useState(false)
+  // A settled trace opens folded: the header already says how the run ended and how many
+  // steps it took, and the page's subject is the document below it. A live trace opens
+  // expanded — watching it work is the reason the page is open.
+  const [folded, setFolded] = useState(settled !== undefined)
   const open = !folded
   // The schema-emission call is not a step of the visible work (see
   // WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL). It is skipped on read as well as on record,
