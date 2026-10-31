@@ -191,6 +191,64 @@ function shadowText(container: HTMLElement): string {
   return ''
 }
 
+/** A viewport the page can be scrolled in, and where the act block sits in it. */
+interface FakeViewport {
+  /** The document's offset, and the act block's distance from the top of the window. */
+  readonly state: { scrollTop: number; blockTop: number }
+  /** Put the document's own metrics and rectangles back. */
+  dispose: () => void
+}
+
+/**
+ * State a page at a scroll offset, with the act block at a place on screen.
+ *
+ * jsdom lays nothing out: every box is zero tall, every rectangle sits at zero, and nothing
+ * clamps. A page that holds and restores a scroll position therefore cannot be watched in it
+ * at all — there is no scroller to find and no position to keep. The two numbers the page
+ * reads are supplied here instead: the document's content and window heights, its offset, and
+ * the act block's top.
+ * @param start - the document's offset and the block's distance from the top of the window.
+ * @returns the shared state, to move between acts, and the way to put the document back.
+ */
+function fakeViewport(start: FakeViewport['state']): FakeViewport {
+  const root = document.documentElement
+  const state = { ...start }
+  Object.defineProperty(root, 'scrollHeight', { configurable: true, value: 9000 })
+  Object.defineProperty(root, 'clientHeight', { configurable: true, value: 600 })
+  Object.defineProperty(root, 'scrollTop', {
+    configurable: true,
+    get: () => state.scrollTop,
+    set: (next: number) => { state.scrollTop = next },
+  })
+  const prototype = Element.prototype
+  const original = prototype.getBoundingClientRect
+  prototype.getBoundingClientRect = function (this: Element): DOMRect {
+    // Only the act block has a stated place; everything else stays where jsdom puts it.
+    if (!this.hasAttribute?.('data-result-composer')) return original.call(this)
+    return {
+      top: state.blockTop,
+      y: state.blockTop,
+      bottom: state.blockTop,
+      height: 0,
+      left: 0,
+      right: 0,
+      width: 0,
+      x: 0,
+      toJSON: () => ({}),
+    }
+  }
+  return {
+    state,
+    dispose: () => {
+      prototype.getBoundingClientRect = original
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete (root as unknown as Record<string, unknown>).scrollHeight
+      delete (root as unknown as Record<string, unknown>).clientHeight
+      delete (root as unknown as Record<string, unknown>).scrollTop
+    },
+  }
+}
+
 /**
  * Render the page and wait for the stored result to be on screen.
  * @param props - page props.
@@ -457,6 +515,59 @@ describe('saving and leaving', () => {
     expect(recorded.saves).toEqual([])
     expect(recorded.writes).toEqual([])
     expect(shadowText(container)).toContain('旧')
+  })
+
+  it('comes back to the act block when the edit is cancelled, not to the top of the page', async () => {
+    // The document is thousands of pixels of template output and the editor is one pane, so
+    // opening the edit collapses the page and the browser clamps the offset to what is left.
+    // Putting the document back at its full height with the reader still up there left them a
+    // page away from 运行: cancelling an edit cost a scroll through the whole document.
+    const { props } = fixture()
+    const container = await show(props)
+    const viewport = fakeViewport({ scrollTop: 2400, blockTop: 60 })
+    try {
+      openEditor()
+      // The collapse, and the document laid out again at the offset the browser clamped to.
+      viewport.state.scrollTop = 0
+      viewport.state.blockTop = 2460
+      fireEvent.click(cancelButton())
+      await waitFor(() => { expect(container.querySelector('[data-result-editor]')).toBeNull() })
+      expect(viewport.state.scrollTop).toBe(2400)
+    } finally {
+      viewport.dispose()
+    }
+  })
+
+  it('returns to the way of changing the result the reader had chosen', async () => {
+    // Leaving the editor dropped the block back to 在上一版上改 whatever had been chosen, so a
+    // reader who had 从头跑 open and looked at 编辑 came back to a different action.
+    const { props } = fixture()
+    const container = await show(props)
+    fireEvent.click(screen.getByRole('button', { name: zh.resultFreshMode }))
+    openEditor()
+    fireEvent.click(cancelButton())
+    await waitFor(() => { expect(container.querySelector('[data-result-editor]')).toBeNull() })
+    expect(container.querySelector('[data-result-composer]')?.getAttribute('data-compose-mode')).toBe('fresh')
+  })
+
+  it('keeps the act block in the same place after saving a taller document', async () => {
+    // The anchor is the block, not the offset: an edit that made the document 400px taller
+    // has to be scrolled 400px further, or the block the reader was using ends up below the
+    // window even though the number was restored.
+    const { props } = fixture()
+    const container = await show(props)
+    const viewport = fakeViewport({ scrollTop: 2400, blockTop: 60 })
+    try {
+      const field = openEditor()
+      fireEvent.change(field, { target: { value: '<b>新</b>' } })
+      viewport.state.scrollTop = 0
+      viewport.state.blockTop = 2860
+      fireEvent.click(saveButton())
+      await waitFor(() => { expect(container.querySelector('[data-result-editor]')).toBeNull() })
+      expect(viewport.state.scrollTop).toBe(2800)
+    } finally {
+      viewport.dispose()
+    }
   })
 
   it('saves from the keyboard and suppresses the browser’s own save', async () => {

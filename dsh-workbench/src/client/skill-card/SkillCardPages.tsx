@@ -39,6 +39,7 @@ import { ActivityTrace } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
+import { holdScroll, releaseScroll, type ScrollHold } from './scroll-hold.ts'
 import type { WorkbenchScriptBinder } from './render.ts'
 import { clockText, dayKey, latestRunText, runClockText } from './clock.ts'
 import css from './skill-card.module.css'
@@ -1064,11 +1065,6 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // the template's document with the fragment spliced into it, and its text is not the
   // value the splice needs.
   const editable = view.result !== undefined && !busy
-  // Editing the stored result by hand. The editor replaces the rendered document in place
-  // rather than opening a dialog: there is no dialog primitive in this product, and the
-  // configuration page already works this way.
-  const editing = change === 'edit' && editable
-  const setEditing = (next: boolean): void => { setChange(next ? 'edit' : 'revise') }
   // The ways this result can be changed, in the order they are offered. A card with nothing
   // stored can only be run; one whose record has no region fragment can only be run too.
   const changes: readonly ResultChange[] = [
@@ -1081,13 +1077,70 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // has nothing to revise, so a block left on 在上一版上改 would show a selector with
   // nothing chosen and a composer that is not the one under it.
   const selectable: ResultChange = changes.includes(change) ? change : changes[0] as ResultChange
+  // Editing the stored result by hand. The editor replaces the rendered document in place
+  // rather than opening a dialog: there is no dialog primitive in this product, and the
+  // configuration page already works this way.
+  const editing = change === 'edit' && editable
+  // Where the reader stood when the document was swapped for the editor.
+  //
+  // The document is thousands of pixels of template output and the editor is one bounded
+  // pane, so opening the edit collapses the page and the browser clamps the scroll position
+  // to what still exists — the top. The document then comes back at its full height with the
+  // reader still up there, a page away from the act block they were using: cancelling an edit
+  // to go and press 运行 meant scrolling the whole document again.
+  //
+  // What is kept is the act block's place on screen, not a pixel offset, because an edit may
+  // change the document's own height: a taller document has to be scrolled further to put the
+  // same block in the same spot.
+  const pageRoot = useRef<HTMLElement>(null)
+  const actBlock = useRef<HTMLElement>(null)
+  const heldScroll = useRef<ScrollHold | undefined>(undefined)
+  // The way of changing the result the reader was on when they opened the editor. Leaving it
+  // returns to that one: someone who had 从头跑 open and looked at 编辑 came back to 在上一版
+  // 上改, which is a different action under the same block.
+  const modeBeforeEdit = useRef<ResultChange>('revise')
+  const setEditing = (next: boolean): void => {
+    if (next) {
+      // Measured before the swap, while the block being anchored to is still on screen: the
+      // editor takes the document's place and the block goes with it.
+      heldScroll.current = holdScroll(pageRoot.current, actBlock.current)
+      modeBeforeEdit.current = selectable
+    }
+    setChange(next ? 'edit' : modeBeforeEdit.current)
+  }
+  const wasEditing = useRef(editing)
+  const restoreFrame = useRef<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    const exited = !editing && wasEditing.current
+    wasEditing.current = editing
+    if (!exited) return
+    const held = heldScroll.current
+    heldScroll.current = undefined
+    if (held === undefined) return
+    // Restored on this commit, before the browser paints the taller page: reading the block's
+    // position forces the layout that the offset must be measured against. The frame after
+    // covers content that renders once the swap has already been painted — the offset it was
+    // found at is the one this commit read, so the second pass corrects the same distance
+    // rather than adding to the first.
+    const clamped = held.box.scrollTop
+    const restore = (): void => { releaseScroll(held, actBlock.current, clamped) }
+    restore()
+    if (typeof requestAnimationFrame === 'function') restoreFrame.current = requestAnimationFrame(restore)
+  }, [editing])
+  // The second pass is cancelled as soon as the page changes again: a reader who has started
+  // scrolling away must not be pulled back by a frame that was queued before they moved.
+  useLayoutEffect(() => () => {
+    if (restoreFrame.current === undefined || typeof cancelAnimationFrame !== 'function') return
+    cancelAnimationFrame(restoreFrame.current)
+    restoreFrame.current = undefined
+  }, [editing])
   // Which composer the block under the document shows. A run in flight owns the block: the
   // control in it is that run's stop, and the field would offer a start the Host refuses.
   const composeMode: 'revise' | 'fresh' = refining || (!busy && selectable === 'revise')
     ? 'revise'
     : 'fresh'
   return (
-    <section className={css.pageView}>
+    <section className={css.pageView} ref={pageRoot}>
       <PageHead
         onBack={onBack}
         title={view.name ?? fallbackTitle}
@@ -1166,7 +1219,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
       {editing
         ? null
         : (
-          <section className={css.composer} data-result-composer="" data-compose-mode={composeMode}>
+          <section className={css.composer} ref={actBlock} data-result-composer="" data-compose-mode={composeMode}>
             {changes.length > 1 && !busy
               ? (
                 <div className={css.segments} role="group" aria-label={t('resultChangeLabel')}>
@@ -1178,7 +1231,13 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                       data-change-mode={option}
                       data-active={option === selectable || undefined}
                       aria-pressed={option === selectable}
-                      onClick={() => { setChange(option) }}
+                      // The hand edit goes through the setter that holds the reader's place:
+                      // choosing it collapses the page, and leaving it must not put the reader
+                      // back at the top of a document they had scrolled to the end of.
+                      onClick={() => {
+                        if (option === 'edit') setEditing(true)
+                        else setChange(option)
+                      }}
                       data-result-edit-start={option === 'edit' ? '' : undefined}
                     >
                       {t(CHANGE_LABELS[option])}
