@@ -215,9 +215,15 @@ export const zh = {
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
   // bug rather than as the accepted cost.
-  // The block's own name. The page shows two composers, and this is the one sentence that
-  // says which of them revises the version above rather than starting a run.
-  refineBlockTitle: '改这一版',
+  // The selector that states the three ways this result can change, plus the group's own
+  // name for a screen reader. The labels are short because they sit side by side in one
+  // control, and they are verbs because each one is what happens when it is chosen.
+  resultChangeLabel: '怎么改这份结果',
+  resultReviseMode: '在上一版上改',
+  resultFreshMode: '从头跑',
+  // Why the block is a bare control for a card whose skill takes no instruction: the field
+  // is absent because there is nothing it could say, not because something failed to load.
+  resultFreshNoInstruction: '这张卡不需要说明，直接按当前工作区重新跑一遍。',
   refinePlaceholder: '说明要改哪里，例如「按时间倒序」',
   refineAction: '重新生成',
   refineStop: '停止',
@@ -467,7 +473,10 @@ export const en: Record<keyof typeof zh, string> = {
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
   // bug rather than as the accepted cost.
-  refineBlockTitle: 'Revise this version',
+  resultChangeLabel: 'How to change this result',
+  resultReviseMode: 'Revise this version',
+  resultFreshMode: 'Run from scratch',
+  resultFreshNoInstruction: 'This skill takes no instruction — running it again uses the workspace as it is.',
   refinePlaceholder: 'Say what to change, e.g. “newest first”',
   refineAction: 'Regenerate',
   refineStop: 'Stop',

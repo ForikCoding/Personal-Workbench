@@ -223,6 +223,19 @@ function editorRoot(container: HTMLElement): HTMLElement {
   return root as HTMLElement
 }
 
+/**
+ * The run control in the page's act block.
+ *
+ * A card holding a result opens its block on the revision, so running it again is one
+ * press away: choosing 从头跑 is what puts that control, and its field, on screen.
+ * @returns the run button.
+ */
+function runControl(): HTMLButtonElement {
+  const freshMode = screen.queryByRole('button', { name: zh.resultFreshMode })
+  if (freshMode !== null) fireEvent.click(freshMode)
+  return screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement
+}
+
 /** The save control inside the editor. */
 function saveButton(): HTMLElement {
   return screen.getByRole('button', { name: zh.skillCardSave })
@@ -234,18 +247,18 @@ function cancelButton(): HTMLElement {
 }
 
 describe('offering the result editor', () => {
-  it('offers 编辑 in the result head once a result exists', async () => {
-    // Criterion 61. The control is offered by the page's own head, beside the run control,
-    // and only when there is a result: nothing else on the page can start an edit.
+  it('offers 编辑 in the block, beside the other ways of changing the result', async () => {
+    // Criterion 61. The control is offered only when there is a result — nothing else on the
+    // page can start an edit — and it sits with the other ways of changing that result
+    // rather than in the head, where it was one of three controls doing similar things.
     const { props } = fixture()
-    await show(props)
-    const head = screen.getByRole('button', { name: zh.skillCardResultEdit })
-    // Secondary to running: a ghost control beside the primary run control, and to its left.
-    expect(head.getAttribute('variant')).toBe('ghost')
-    const buttons = [...(document.querySelector('header')?.querySelectorAll('button') ?? [])]
-    const labels = buttons.map(button => button.textContent)
-    expect(labels.indexOf(zh.skillCardResultEdit)).toBe(labels.length - 2)
-    expect(labels[labels.length - 1]).toBe(zh.skillCardRun)
+    const container = await show(props)
+    const block = container.querySelector('[data-result-composer]') as HTMLElement
+    const edit = block.querySelector('[data-result-edit-start]') as HTMLElement
+    expect(edit.textContent).toBe(zh.skillCardResultEdit)
+    expect(edit.getAttribute('data-change-mode')).toBe('edit')
+    // The head is the way back and the card's name: nothing in it acts on the result.
+    expect(document.querySelector('header')?.querySelectorAll('button')).toHaveLength(1)
   })
 
   it('offers nothing to edit when the card holds no result', async () => {
@@ -263,8 +276,7 @@ describe('offering the result editor', () => {
     const { props, recorded } = fixture({ workspace: null })
     await show(props)
     // The run control waits, and says why.
-    const run = screen.getByRole('button', { name: zh.skillCardRun })
-    expect(run).toHaveProperty('disabled', true)
+    expect(runControl()).toHaveProperty('disabled', true)
     expect(document.querySelector('[data-run-workspace-missing]')).not.toBeNull()
 
     const field = openEditor()
@@ -298,7 +310,7 @@ describe('offering the result editor', () => {
       },
     })
     await show(props)
-    fireEvent.click(screen.getByRole('button', { name: zh.skillCardRun }))
+    fireEvent.click(runControl())
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: zh.skillCardResultEdit })).toBeNull()
     })
@@ -344,11 +356,11 @@ describe('offering the result editor', () => {
     await show(props)
     openEditor()
     expect(saveButton()).toBeTruthy()
-    // The run control is still there but out of reach: pressing it would replace the result
-    // the draft is being kept against, and no confirmation would undo that.
-    expect(screen.getByRole('button', { name: zh.skillCardRun })).toHaveProperty('disabled', true)
-    // And the composer that asks a model for a revision is not on screen: two writers to
-    // one result cannot both be open.
+    // Every way of changing the result is off screen while the draft is open: a run or a
+    // revision would replace the very result the draft is being kept against, and nothing
+    // on the page would undo that. The editor's own two controls are how this mode ends.
+    expect(document.querySelector('[data-result-composer]')).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.skillCardRun })).toBeNull()
     expect(document.querySelector('[data-refine-composer]')).toBeNull()
   })
 })

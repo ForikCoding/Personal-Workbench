@@ -559,6 +559,10 @@ describe('action confirmation panel', () => {
     const { renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    // A run is one of the ways of changing the result, so it is behind the block's selector
+    // once a result exists.
+    const freshMode = screen.queryByRole('button', { name: en.resultFreshMode })
+    if (freshMode !== null) fireEvent.click(freshMode)
     const run = screen.getByRole('button', { name: en.skillCardRun })
     await act(async () => { fireEvent.click(run) })
     // The in-flight notice is what states this now: the status-line row that used to
@@ -574,6 +578,8 @@ describe('action confirmation panel', () => {
     const { recorded, renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    const freshMode = screen.queryByRole('button', { name: en.resultFreshMode })
+    if (freshMode !== null) fireEvent.click(freshMode)
     const run = screen.getByRole('button', { name: en.skillCardRun })
     await act(async () => { fireEvent.click(run) })
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })

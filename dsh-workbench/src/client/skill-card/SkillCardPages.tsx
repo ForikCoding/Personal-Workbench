@@ -383,6 +383,21 @@ export interface SkillCardPageProps {
 /** Rows the revision field grows to before it scrolls instead. */
 const COMPOSER_MAX_ROWS = 4
 
+/** The three ways the result page lets a user change what it shows. */
+type ResultChange = 'revise' | 'fresh' | 'edit'
+
+/**
+ * The selector's label for each way of changing the result.
+ *
+ * A record rather than a chain of comparisons, so a fourth way fails compilation here
+ * until it has copy in both dictionaries.
+ */
+const CHANGE_LABELS: Record<ResultChange, WorkbenchLocaleKey> = {
+  revise: 'resultReviseMode',
+  fresh: 'resultFreshMode',
+  edit: 'skillCardResultEdit',
+}
+
 /**
  * Render the composer that revises the result, and this session's revision log.
  *
@@ -433,14 +448,9 @@ function RefinePanel({
     setInstruction('')
   }
   return (
-    <div className={css.composer} data-refine-composer="">
-      {/* The block says what it changes. Without a name the two composers on this page —
-          the run's at the top, this one at the bottom — were the same field with the same
-          dark pill, and nothing on screen said which of them starts a run and which
-          revises the version above. */}
-      <div className={css.composerHead}>
-        <p className={css.composerTitle}>{t('refineBlockTitle')}</p>
-      </div>
+    // The block around this — the selector and the shared surface — belongs to the page:
+    // the composer is one of the three ways of changing the result, not a page of its own.
+    <div className={css.composerBody} data-refine-composer="">
       <div className={css.composerRow}>
         <textarea
           ref={field}
@@ -1044,15 +1054,38 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // The composer needs something to revise: a card that has never run, or a stored
   // result from before the region language, has no HTML to start from.
   const refinable = resultHtml(view.result?.structured) !== undefined
-  // Editing the stored result by hand. The editor replaces the rendered document in place
-  // rather than opening a dialog: there is no dialog primitive in this product, and the
-  // configuration page already works this way.
-  const [editing, setEditing] = useState(false)
-  // The control is offered while a result exists and no run holds the card. The fragment
+  // How the user chose to change this result. The page used to offer the same three things
+  // in three places — a run pill in the head, a run bar under it, a revision composer under
+  // the document — and two of them were the same control to look at. One choice now selects
+  // one composer, and the block that holds it is the page's only place to act.
+  const [change, setChange] = useState<ResultChange>('revise')
+  // The hand edit is offered while a result exists and no run holds the card. The fragment
   // itself is read from the record the page shows, never from the rendered DOM: the DOM is
   // the template's document with the fragment spliced into it, and its text is not the
   // value the splice needs.
   const editable = view.result !== undefined && !busy
+  // Editing the stored result by hand. The editor replaces the rendered document in place
+  // rather than opening a dialog: there is no dialog primitive in this product, and the
+  // configuration page already works this way.
+  const editing = change === 'edit' && editable
+  const setEditing = (next: boolean): void => { setChange(next ? 'edit' : 'revise') }
+  // The ways this result can be changed, in the order they are offered. A card with nothing
+  // stored can only be run; one whose record has no region fragment can only be run too.
+  const changes: readonly ResultChange[] = [
+    ...refinable ? ['revise' as const] : [],
+    'fresh' as const,
+    ...editable ? ['edit' as const] : [],
+  ]
+  // What the block is actually set to: the user's choice while it is still one of the ways
+  // offered, and the first that is otherwise. A stored run from before the region language
+  // has nothing to revise, so a block left on 在上一版上改 would show a selector with
+  // nothing chosen and a composer that is not the one under it.
+  const selectable: ResultChange = changes.includes(change) ? change : changes[0] as ResultChange
+  // Which composer the block under the document shows. A run in flight owns the block: the
+  // control in it is that run's stop, and the field would offer a start the Host refuses.
+  const composeMode: 'revise' | 'fresh' = refining || (!busy && selectable === 'revise')
+    ? 'revise'
+    : 'fresh'
   return (
     <section className={css.pageView}>
       <PageHead
@@ -1060,90 +1093,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         title={view.name ?? fallbackTitle}
         t={t}
         meta={view.skill === undefined ? undefined : <span className={css.pageHeadChip}>{view.skill}</span>}
-        actions={(
-          <>
-            {/* Editing is secondary to running, so it sits to the left of the run control and
-                only while there is a result to edit. While the editor is open it is gone: its
-                own two controls are how this mode ends. */}
-            {editable && !editing
-              ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setEditing(true) }}
-                  data-result-edit-start=""
-                >
-                  {t('skillCardResultEdit')}
-                </Button>
-              )
-              : null}
-            {/* The run control lives here: this is the page that shows what a run produces.
-                A bare run holds this card's run slot, so pressing Run during one would only
-                be refused; the control waits instead. It also waits while the editor is open,
-                because a run replaces the very result the draft is being kept against.
-                A card that takes an instruction has no control here — the bar below owns the
-                one control, so pressing Run always spends the ask in the field. */}
-            {view.instructionMode === 'none'
-              ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={cardRunning ? undefined : <IconPlayOutlineRegular />}
-                  disabled={bareRunning || editing || (!cardRunning && !view.runnable)}
-                  onClick={() => { if (cardRunning) actions.cancel(); else actions.run() }}
-                >
-                  {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
-                </Button>
-              )
-              : null}
-          </>
-        )}
       />
-      {/* While a run holds the card the bar keeps only its control, which stops that run:
-          the field would offer a second start that the Host would refuse. */}
-      <RunBar
-        cardId={cardId}
-        mode={view.instructionMode}
-        recent={view.recentInstructions}
-        t={t}
-        running={cardRunning}
-        disabled={cardRunning ? false : bareRunning || editing || !view.runnable}
-        onRun={(instruction) => { actions.run(instruction) }}
-        onCancel={() => { actions.cancel() }}
-      />
-      {/* A disabled run control with no sentence beside it is the same defect the catalog
-          notice fixes on the configuration page: the user cannot tell what is missing. */}
-      {view.modelField.kind === 'unavailable'
-        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
-        : null}
-      {/* Where the card would run, when it cannot. Its own line rather than part of the
-          model one: the two are separate configuration, and a user fixing one should not
-          read a sentence about the other. */}
-      {view.workspaceField.kind === 'missing'
-        ? (
-          <p className={css.runProblem} data-run-workspace-missing="">
-            {t(problemKey('workspace-missing'))}
-          </p>
-        )
-        : null}
-      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
-        ? (
-          <p className={css.runProblem} data-run-workspace-invalid="">
-            {t(problemKey('workspace-invalid'))}
-            {` · ${view.workspaceField.path}`}
-          </p>
-        )
-        : null}
-      {/* The run control is disabled because this harness has no activation seam. The
-          sentence names what is missing and which harness provides it, so the state is
-          readable before the control is pressed rather than after it fails. */}
-      {view.runUnavailable === undefined
-        ? null
-        : (
-          <p className={css.runProblem} data-run-unavailable="">
-            {t(problemKey(view.runUnavailable.code))}
-          </p>
-        )}
       {/* A refinement's failure is stated under the composer, which sits on this same page:
           saying it here as well put the same sentence on screen twice. What the page itself
           owed the user was a panel that named the run instead of reading "not run yet", and
@@ -1198,11 +1148,46 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                   </div>
                 )}
             </section>
-            {/* Revising with a sentence and revising by hand are two modes of the same
-                paragraph, and only one can be on screen: while the editor is open, the
-                composer would be asking a model to replace the draft being written. A
-                refinement keeps it, because that run's stop control lives in it. */}
-            {refinable && !editing && (refining || !busy)
+          </>
+        )
+        : (
+          <ActionPanel
+            pending={view.pendingAction}
+            t={t}
+            onConfirm={actions.confirmAction}
+            onCancel={actions.cancelAction}
+          />
+        )}
+      {/* The page's one place to act. Three ways to change the result — revise what is on
+          screen, run the card again from scratch, edit the fragment by hand — behind one
+          selector and one composer, in the spot where the document it changes ends. The
+          editor keeps the block off screen: its own two controls are how that mode ends, and
+          a switch beside a half-written draft would leave the draft without a question. */}
+      {editing
+        ? null
+        : (
+          <section className={css.composer} data-result-composer="" data-compose-mode={composeMode}>
+            {changes.length > 1 && !busy
+              ? (
+                <div className={css.segments} role="group" aria-label={t('resultChangeLabel')}>
+                  {changes.map(option => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={css.segment}
+                      data-change-mode={option}
+                      data-active={option === selectable || undefined}
+                      aria-pressed={option === selectable}
+                      onClick={() => { setChange(option) }}
+                      data-result-edit-start={option === 'edit' ? '' : undefined}
+                    >
+                      {t(CHANGE_LABELS[option])}
+                    </button>
+                  ))}
+                </div>
+              )
+              : null}
+            {composeMode === 'revise'
               ? (
                 <RefinePanel
                   view={view}
@@ -1213,16 +1198,71 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                   onStop={actions.cancel}
                 />
               )
-              : null}
-          </>
+              : view.instructionMode === 'none'
+                ? (
+                  // A card whose skill takes no instruction has nothing to write in, so the
+                  // block shows the one control and says why the rest is empty. It is also
+                  // this run's stop while the card is in flight: the same button, because
+                  // there is nothing else on the page that could act on that run.
+                  <div className={css.composerRow}>
+                    <p className={css.composerNote}>{t('resultFreshNoInstruction')}</p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={cardRunning ? undefined : <IconPlayOutlineRegular />}
+                      disabled={cardRunning ? false : bareRunning || !view.runnable}
+                      onClick={() => { if (cardRunning) actions.cancel(); else actions.run() }}
+                    >
+                      {cardRunning ? t('skillCardCancel') : t('skillCardRun')}
+                    </Button>
+                  </div>
+                )
+                : (
+                  <RunBar
+                    cardId={cardId}
+                    mode={view.instructionMode}
+                    recent={view.recentInstructions}
+                    t={t}
+                    running={cardRunning}
+                    disabled={cardRunning ? false : bareRunning || editing || !view.runnable}
+                    onRun={(instruction) => { actions.run(instruction) }}
+                    onCancel={() => { actions.cancel() }}
+                  />
+                )}
+          </section>
+        )}
+      {/* Why the control just above cannot be pressed, stated under it rather than at the top
+          of the page: the sentence belongs to the button it explains. */}
+      {view.modelField.kind === 'unavailable'
+        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+        : null}
+      {/* Where the card would run, when it cannot. Its own line rather than part of the
+          model one: the two are separate configuration, and a user fixing one should not
+          read a sentence about the other. */}
+      {view.workspaceField.kind === 'missing'
+        ? (
+          <p className={css.runProblem} data-run-workspace-missing="">
+            {t(problemKey('workspace-missing'))}
+          </p>
         )
+        : null}
+      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
+        ? (
+          <p className={css.runProblem} data-run-workspace-invalid="">
+            {t(problemKey('workspace-invalid'))}
+            {` · ${view.workspaceField.path}`}
+          </p>
+        )
+        : null}
+      {/* The run control is disabled because this harness has no activation seam. The
+          sentence names what is missing and which harness provides it, so the state is
+          readable before the control is pressed rather than after it fails. */}
+      {view.runUnavailable === undefined
+        ? null
         : (
-          <ActionPanel
-            pending={view.pendingAction}
-            t={t}
-            onConfirm={actions.confirmAction}
-            onCancel={actions.cancelAction}
-          />
+          <p className={css.runProblem} data-run-unavailable="">
+            {t(problemKey(view.runUnavailable.code))}
+          </p>
         )}
       {/* The settled trace belongs to the record the page shows. While the run in flight
           is the page's subject the live stream above is it, and a 「已完成」 header under it

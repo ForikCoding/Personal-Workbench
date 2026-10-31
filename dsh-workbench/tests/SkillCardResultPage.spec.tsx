@@ -162,6 +162,23 @@ async function loaded(container: HTMLElement): Promise<void> {
 }
 
 /**
+ * The result page's run control.
+ *
+ * Every way of changing a result now sits behind the block's selector, and a run is one of
+ * them: the button exists once 从头跑 is the chosen way.
+ * @param container - the render container.
+ * @returns the run button.
+ */
+function runControl(container: HTMLElement): HTMLButtonElement {
+  const segment = container.querySelector('[data-change-mode="fresh"]')
+  if (segment instanceof HTMLElement) fireEvent.click(segment)
+  const button = [...container.querySelectorAll('button')]
+    .find(element => element.textContent === zh.skillCardRun)
+  if (button === undefined) throw new Error('the run control did not render')
+  return button as HTMLButtonElement
+}
+
+/**
  * Read what one body rendered into a shadow root.
  * @param container - the render container.
  * @returns the shadow root's text, or undefined when no shadow host rendered.
@@ -330,9 +347,7 @@ describe('the result page', () => {
     expect(notice.textContent).toContain('0.2.1-alpha.2')
     expect(notice.textContent).toContain('0.2.0-rc.2')
 
-    const run = [...container.querySelectorAll('button')]
-      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
-    expect(run?.disabled).toBe(true)
+    expect(runControl(container).disabled).toBe(true)
 
     // Nothing else closed: the stored result is still rendered, and editing it by hand is
     // still offered. Only running is unavailable.
@@ -357,9 +372,7 @@ describe('the result page', () => {
     await loaded(container)
     await waitFor(() => {
       expect(container.querySelector('[data-run-unavailable]')).toBeNull()
-      const run = [...container.querySelectorAll('button')]
-        .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
-      expect(run?.disabled).toBe(false)
+      expect(runControl(container).disabled).toBe(false)
     })
   })
 
@@ -374,9 +387,7 @@ describe('the result page', () => {
       return element as HTMLElement
     })
     expect(notice.textContent).toBe(zh.skillCardProblemWorkspaceMissing)
-    const run = [...container.querySelectorAll('button')]
-      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
-    expect(run?.disabled).toBe(true)
+    expect(runControl(container).disabled).toBe(true)
   })
 
   it('disables the run control when the stored directory is gone, naming the path', async () => {
@@ -401,9 +412,7 @@ describe('the result page', () => {
     })
     expect(notice.textContent).toContain(zh.skillCardProblemWorkspaceInvalid)
     expect(notice.textContent).toContain('D:\\Git\\Gone')
-    const run = [...container.querySelectorAll('button')]
-      .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
-    expect(run?.disabled).toBe(true)
+    expect(runControl(container).disabled).toBe(true)
   })
 
   it('enables the run control once the directory is confirmed', async () => {
@@ -416,9 +425,7 @@ describe('the result page', () => {
     )
     await loaded(container)
     await waitFor(() => {
-      const run = [...container.querySelectorAll('button')]
-        .find(button => button.textContent === zh.skillCardRun) as HTMLButtonElement | undefined
-      expect(run?.disabled).toBe(false)
+      expect(runControl(container).disabled).toBe(false)
     })
     expect(container.querySelector('[data-run-workspace-missing]')).toBeNull()
     expect(container.querySelector('[data-run-workspace-invalid]')).toBeNull()
@@ -476,9 +483,10 @@ describe('the result page', () => {
     expect(screen.getByRole('button', { name: zh.skillCardCancel })).toBeTruthy()
   })
 
-  it('gives a card that takes an instruction one control, in the bar with its field', async () => {
-    // Two run controls on one page would be two answers to the same question, and the header
-    // one could not spend what the field holds. The bar owns the only control instead.
+  it('gives a card that takes an instruction one control, in the block that asks for it', async () => {
+    // Two run controls on one page would be two answers to the same question, and a header
+    // one could not spend what the field holds. The block owns the only control: choosing
+    // 从头跑 is what puts the field that control reads on screen.
     const started: { readonly instruction?: string }[] = []
     const api: WorkbenchSkillCardApi = {
       // A card ready to run in every other respect, so the refusal under test is the ask.
@@ -494,14 +502,16 @@ describe('the result page', () => {
     }
     const { container } = render(<SkillCardResultPage {...props({ api })} />)
     await loaded(container)
-    // The header keeps its 编辑 control and loses its run control; the bar carries the field.
-    expect(container.querySelector('header')?.querySelectorAll('button')).toHaveLength(2)
+    // The head is the way back and the card's name: neither a run nor an edit waits in it.
+    expect(container.querySelector('header')?.querySelectorAll('button')).toHaveLength(1)
+    // A stored result opens on the revision, so the run's field is not the one on screen —
+    // and it is one press away, which is what makes it the same single control.
+    expect(container.querySelector('[data-run-bar] textarea')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: zh.resultFreshMode }))
     const field = container.querySelector<HTMLTextAreaElement>('[data-run-bar] textarea')
     expect(field).not.toBeNull()
-    // Pressing the bar's control with nothing written refuses in place rather than sending.
-    const control = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === zh.skillCardRun)
-    if (control === undefined) throw new Error('the run control did not render')
+    // Pressing the block's control with nothing written refuses in place rather than sending.
+    const control = screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement
     // The card becomes runnable once its directory and its route have answered, so the
     // control opens a moment after the read lands.
     await waitFor(() => { expect(control.disabled).toBe(false) })

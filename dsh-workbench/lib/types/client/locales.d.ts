@@ -160,7 +160,10 @@ export declare const zh: {
     runInstructionRecent: string;
     runInstructionField: string;
     skillCardRunningBody: string;
-    refineBlockTitle: string;
+    resultChangeLabel: string;
+    resultReviseMode: string;
+    resultFreshMode: string;
+    resultFreshNoInstruction: string;
     refinePlaceholder: string;
     refineAction: string;
     refineStop: string;

@@ -213,18 +213,37 @@ function ask(instruction: string): void {
 }
 
 describe('refining a result', () => {
-  it('names the block, so it cannot be read as the page’s run bar', async () => {
-    // The page carries two composers: the run's at the top, this one at the bottom. With the
-    // same chat-style field and the same dark pill, nothing on screen said which one starts a
-    // run and which revises the version above — so the revision says so in its own header.
+  it('offers the ways of changing the result as one selector over one composer', async () => {
+    // The page used to show three ways in three places: a run pill in the head, a run bar
+    // under it, and a revision composer under the document — two of which were the same
+    // control to look at. The selector states all three side by side, and only the chosen
+    // one has a composer.
     const { api } = pageApi()
     const container = await show(api)
-    const block = container.querySelector('[data-refine-composer]') as HTMLElement
-    expect(block.textContent).toContain(zh.refineBlockTitle)
-    // Above the field, as a block's own heading, rather than a placeholder inside it.
-    expect(block.firstElementChild?.textContent).toBe(zh.refineBlockTitle)
-    // One block, one field: the name is a heading and not a second composer.
+    const block = container.querySelector('[data-result-composer]') as HTMLElement
+    expect(block).not.toBeNull()
+    const segments = [...block.querySelectorAll('[data-change-mode]')]
+    expect(segments.map(segment => segment.getAttribute('data-change-mode'))).toEqual(['revise', 'fresh', 'edit'])
+    expect(segments.map(segment => segment.textContent))
+      .toEqual([zh.resultReviseMode, zh.resultFreshMode, zh.skillCardResultEdit])
+    // It opens on the revision, so the field and its control are the ones on screen, and
+    // the block holds one of them rather than both.
+    expect(block.getAttribute('data-compose-mode')).toBe('revise')
     expect(block.querySelectorAll('textarea')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: zh.refineAction })).toBeTruthy()
+  })
+
+  it('swaps the composer when another way of changing the result is chosen', async () => {
+    // Choosing 从头跑 must not leave the revision field behind: one block, one composer, so
+    // what is on screen is always the way that was chosen.
+    const { api } = pageApi()
+    const container = await show(api)
+    fireEvent.click(screen.getByRole('button', { name: zh.resultFreshMode }))
+    const block = container.querySelector('[data-result-composer]') as HTMLElement
+    expect(block.getAttribute('data-compose-mode')).toBe('fresh')
+    expect(block.querySelector('[data-refine-composer]')).toBeNull()
+    expect(block.querySelector('textarea')).toBeNull()
+    expect(screen.getByRole('button', { name: zh.skillCardRun })).toBeTruthy()
   })
 
   it('disables the regenerate control while the instruction is empty', async () => {
