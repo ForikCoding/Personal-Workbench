@@ -284,7 +284,7 @@ function editorRoot(container: HTMLElement): HTMLElement {
 /**
  * The run control in the page's act block.
  *
- * 从头跑 is the run control on this page: it starts the run itself for a card that takes no
+ * 运行 is the run control on this page: it starts the run itself for a card that takes no
  * instruction, which is this fixture's card, and opens the run's dialog for one that does.
  * @returns the run button.
  */

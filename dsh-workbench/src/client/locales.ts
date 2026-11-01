@@ -222,17 +222,18 @@ export const zh = {
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
   // bug rather than as the accepted cost.
-  // The selector that states the three ways this result can change, plus the group's own
-  // name for a screen reader. The labels are short because they sit side by side in one
-  // control, and they are verbs because each one is what happens when it is chosen.
-  resultChangeLabel: '怎么改这份结果',
-  resultReviseMode: '在上一版上改',
-  resultFreshMode: '从头跑',
+  // The line of controls under a result — the ways it can change, and the fold that says how
+  // the run behind it went — plus the group's own name for a screen reader. The labels are
+  // short because they sit side by side, and they are verbs because each one is what happens
+  // when it is pressed.
+  resultChangeLabel: '这份结果的操作',
+  resultReviseMode: '修改',
+  resultFreshMode: '运行',
   // The two dialogs those controls open: one line saying what submitting will do, and the
   // corner control's name for a screen reader.
   promptReviseHint: '只改这一份结果，源文件不动。写完按 Enter 提交。',
   promptFreshHint: '按当前工作区从头跑一遍，会新增一次运行记录。',
-  // The card's own run dialog is not the result page's 从头跑: it starts this card rather than
+  // The card's own run dialog is not the result page's 运行: it starts this card rather than
   // re-running a result, so it names the card rather than the old result.
   runPromptTitle: '运行这张卡',
   promptClose: '关闭',
@@ -492,9 +493,9 @@ export const en: Record<keyof typeof zh, string> = {
   // The composer that revises the result. Both the log and the kept version live in
   // memory, and the note says so — otherwise their disappearance on reload reads as a
   // bug rather than as the accepted cost.
-  resultChangeLabel: 'How to change this result',
-  resultReviseMode: 'Revise this version',
-  resultFreshMode: 'Run from scratch',
+  resultChangeLabel: 'What you can do with this result',
+  resultReviseMode: 'Modify',
+  resultFreshMode: 'Run',
   promptReviseHint: 'Changes only this result; the source files stay as they are. Enter submits.',
   promptFreshHint: 'Runs the card again on the current workspace, as a new run in its history.',
   runPromptTitle: 'Run this card',

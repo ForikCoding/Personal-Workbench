@@ -285,7 +285,7 @@ describe('refining a result', () => {
     expect(dialog()).toBeNull()
   })
 
-  it('asks 从头跑 in its own dialog when the card takes an instruction', async () => {
+  it('asks in its own dialog when the card takes an instruction', async () => {
     // Two sentences, two forms: the run's asks what the run should do, the revision's asks
     // what to change in what is on screen.
     const { api } = pageApi({ instructionMode: 'optional' })
@@ -301,7 +301,7 @@ describe('refining a result', () => {
     expect(container.querySelector('[data-result-composer] textarea')).toBeNull()
   })
 
-  it('runs 从头跑 without a dialog when the card takes no instruction', async () => {
+  it('runs without a dialog when the card takes no instruction', async () => {
     // A dialog over a form with nothing in it is a question with no answer: the run starts.
     const { api, requests } = pageApi({
       start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),

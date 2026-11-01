@@ -165,7 +165,7 @@ async function loaded(container: HTMLElement): Promise<void> {
  * The result page's run control.
  *
  * Every way of changing a result now sits behind the block's selector, and a run is one of
- * them: the button exists once 从头跑 is the chosen way.
+ * them: the button exists once 运行 is the chosen way.
  * @param container - the render container.
  * @returns the run button.
  */
@@ -198,11 +198,12 @@ function shadowText(container: HTMLElement): string | undefined {
 }
 
 describe('the result page', () => {
-  it('files the run’s trace under its own header, one press away', async () => {
+  it('files the run’s trace on the block’s own line, one press away', async () => {
     // The card's output after a run is what the run did, but the page's subject is the
     // document: a finished run's trace starts folded, so nineteen steps do not push the
-    // result off the first screen. The header still states the outcome and the count, and
-    // the rows are one press away.
+    // result off the first screen. Its fold sits on the line of controls under the result —
+    // after the ways of changing it — and still states the outcome and the count, with the
+    // rows one press away.
     const { container } = render(
       <SkillCardResultPage
         {...props({
@@ -219,20 +220,24 @@ describe('the result page', () => {
       />,
     )
     await loaded(container)
-    const section = container.querySelector('[data-run-trace]')
-    expect(section).not.toBeNull()
-    // The header is on the page itself, not behind a disclosure of its own.
-    expect(section?.closest('details')).toBeNull()
-    expect(section?.textContent).toContain(zh.runActivityCompleted)
+    const header = container.querySelector('[data-run-trace]')
+    expect(header).not.toBeNull()
+    // It is one of the controls on the block's line, after the last of them: 修改 / 运行 /
+    // 编辑 / 已完成.
+    const row = container.querySelector('[data-result-composer] [role="group"]')
+    expect([...row?.querySelectorAll('button') ?? []].at(-1)).toBe(header)
+    expect(header?.textContent).toContain(zh.runActivityCompleted)
     // Folded on arrival: the rows are not in the page yet.
-    expect(container.querySelectorAll('[data-run-trace] [data-activity-kind]')).toHaveLength(0)
-    const header = section?.querySelector('[data-turn-process]')
+    expect(container.querySelectorAll('[data-activity-kind]')).toHaveLength(0)
     expect(header?.getAttribute('aria-expanded')).toBe('false')
     act(() => { (header as HTMLElement).click() })
     expect(header?.getAttribute('aria-expanded')).toBe('true')
-    expect(section?.textContent).toContain('先查列表。')
-    expect([...container.querySelectorAll('[data-run-trace] [data-activity-kind]')]
-      .map(row => row.getAttribute('data-activity-tool')))
+    // The steps open under that line, not inside it.
+    const body = container.querySelector('[data-run-trace-body]')
+    expect(body?.textContent).toContain('先查列表。')
+    expect(body?.closest('[role="group"]')).toBeNull()
+    expect([...container.querySelectorAll('[data-activity-kind]')]
+      .map(node => node.getAttribute('data-activity-tool')))
       .toEqual([null, 'pwsh', 'read'])
   })
 
@@ -522,15 +527,17 @@ describe('the result page', () => {
     const field = dialog()?.querySelector('textarea')
     expect(field).not.toBeNull()
     // Pressing the dialog's control with nothing written refuses in place rather than sending.
-    const control = screen.getByRole('button', { name: zh.skillCardRun }) as HTMLButtonElement
+    // Read inside the panel: the row's own 运行 is behind it, and both are named 运行.
+    const control = (): HTMLButtonElement | undefined => [...(dialog()?.querySelectorAll('button') ?? [])]
+      .find(button => button.textContent === zh.skillCardRun)
     // The card becomes runnable once its directory and its route have answered, so the
     // control opens a moment after the read lands.
-    await waitFor(() => { expect(control.disabled).toBe(false) })
-    await act(async () => { control.click() })
+    await waitFor(() => { expect(control()?.disabled).toBe(false) })
+    await act(async () => { control()?.click() })
     expect(started).toEqual([])
     expect(dialog()?.querySelector('[data-prompt-problem]')?.textContent).toBe(zh.runInstructionRequired)
     fireEvent.change(field as HTMLTextAreaElement, { target: { value: '分析任务' } })
-    await act(async () => { control.click() })
+    await act(async () => { control()?.click() })
     expect(started).toEqual([{ instruction: '分析任务' }])
     // Sent, so the dialog is gone rather than left holding what it sent.
     expect(dialog()).toBeNull()

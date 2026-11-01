@@ -38,7 +38,7 @@ import type { WorkbenchModelSeat } from './model.ts'
 import { permissionLabelKey } from './permission.ts'
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
 import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
-import { ActivityTrace } from './ActivityTrace.tsx'
+import { RunTraceList, RunTraceToggle } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
 import { resultHeadline, resultHtml } from './render.ts'
@@ -258,41 +258,6 @@ function ActionPanel({
           {t('actionCancel')}
         </Button>
       </div>
-    </section>
-  )
-}
-
-/**
- * Where the card's output ends: the run's activity trace.
- *
- * The card's output is what the run did — the model's own words and the tool calls it
- * made, in the order they happened. The trace opens under the settled turn-process header
- * (已完成 / 已停止 / 已失败), which folds the whole stream like the conversation's Turn
- * process row. The technical record that used to sit beside it (model, start time,
- * structured value, raw output, diagnostic) is gone by the product owner's decision: the
- * result above is the content, and the failure line above the surface already says why a
- * run produced none. Absent for a run that recorded no entry, and then the section is not
- * drawn at all — an empty list would say the run did nothing rather than that nothing was
- * recorded.
- * @param props - the card view and the translator.
- * @returns the trace section, or null when the run left no trace.
- */
-function RunTrace({
-  view,
-  t,
-}: {
-  readonly view: WorkbenchCardView
-  readonly t: (key: WorkbenchLocaleKey) => string
-}): ReactNode {
-  const result = view.result
-  if (result === undefined || result.activity === undefined || result.activity.length === 0) return null
-  return (
-    <section className={css.runTrace} data-run-trace="">
-      <ActivityTrace
-        trace={result.activity}
-        settled={{ stopReason: result.stopReason, ...result.failure === undefined ? {} : { failure: result.failure } }}
-        t={t}
-      />
     </section>
   )
 }
@@ -810,6 +775,18 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   // before the region language, has no HTML to start from.
   const refinable = resultHtml(view.result?.structured) !== undefined
 
+  // The steps the record the page shows actually took. Its fold control is one more thing on
+  // the block's own line — beside the ways of changing the result, because a reader deciding
+  // what to do next is exactly who wants to see how the last run went — and the steps open
+  // under that line. While a run is in flight the live stream in the body is the run, so the
+  // settled record's steps stay out of the way.
+  const trace = view.result?.activity ?? []
+  const traceable = !busy && trace.length > 0
+  // Which record's fold is open, by run id: opening another run's record starts folded again
+  // without an effect to reset it.
+  const [openTraceOf, setOpenTraceOf] = useState<string | undefined>(undefined)
+  const traceOpen = traceable && view.result !== undefined && openTraceOf === view.result.runId
+
   // Which of the two sentences is being written, if either. The block's third way — the hand
   // edit — needs no dialog: the editor replaces the document in place, where the fragment is
   // already readable.
@@ -1029,7 +1006,24 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                   </button>
                 )
                 : null}
+              {/* Last on the line, because it is the one control here that changes nothing:
+                  it says how the run behind this result went, and opens its steps. */}
+              {traceable && view.result !== undefined
+                ? (
+                  <RunTraceToggle
+                    trace={trace}
+                    settled={{
+                      stopReason: view.result.stopReason,
+                      ...view.result.failure === undefined ? {} : { failure: view.result.failure },
+                    }}
+                    open={traceOpen}
+                    onToggle={() => { setOpenTraceOf(traceOpen ? undefined : view.result?.runId) }}
+                    t={t}
+                  />
+                )
+                : null}
             </div>
+            {traceOpen ? <RunTraceList trace={trace} t={t} /> : null}
             <RefineHistory view={view} t={t} onUndo={actions.undoRefine} />
           </section>
         )}
@@ -1099,12 +1093,6 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             {t(problemKey(view.runUnavailable.code))}
           </p>
         )}
-      {/* The settled trace belongs to the record the page shows. While the run in flight
-          is the page's subject the live stream above is it, and a 「已完成」 header under it
-          would label a record nobody is reading; a record a history row opened has its own
-          trace, and hiding it because the card is busy with a different run would repeat
-          the defect this page just fixed for the body. */}
-      {running ? null : <RunTrace view={view} t={t} />}
     </section>
   )
 }

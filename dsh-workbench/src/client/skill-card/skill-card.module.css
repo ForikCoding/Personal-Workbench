@@ -196,13 +196,6 @@
  * neither the place to write nor the record of how the document was made stood out. The
  * dock took the surface for writing; this keeps none and is what it is: one line of history
  * under the place that acts, with the trace folded behind it. */
-.runTrace {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  min-width: 0;
-}
 
 /* The run's activity stream: one row per entry — a tool call, a span of the model's own
    words, or the marker — read top to bottom. The rows wear the conversation's run-record
@@ -453,6 +446,14 @@
   gap: 2px;
   margin-left: -8px;
   min-width: 0;
+}
+
+/* The run's fold sits on the same line as the ways of changing the result, and it is not one
+   of them: it says how the run behind the result ended and opens its steps. So it keeps the
+   gap the actions have between them on its left and its own padding on its right, rather
+   than hanging off the row at the page's edge the way it did when it headed a section. */
+.actRow .turnProcess {
+  margin-left: 6px;
 }
 
 .actAction {

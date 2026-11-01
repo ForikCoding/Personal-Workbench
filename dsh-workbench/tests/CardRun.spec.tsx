@@ -188,7 +188,7 @@ describe('the card face run control', () => {
 
 describe('the run dialog', () => {
   it('is the same dialog the result page opens, so it names the card it runs', () => {
-    // One panel for both places: the result page's 从头跑 and the card's own 运行 ask the same
+    // One panel for both places: the result page's 运行 and the card's own control ask the same
     // question, and only the heading differs.
     const { container } = control({ instructionMode: 'optional' })
     fireEvent.click(startControl(container))

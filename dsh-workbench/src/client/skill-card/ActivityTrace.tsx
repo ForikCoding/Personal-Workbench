@@ -156,6 +156,76 @@ function firstLine(text: string): string {
 }
 
 /**
+ * The entries the fold shows and counts.
+ *
+ * The schema-emission call is not a step of the visible work (see
+ * {@link WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL}). It is skipped on read as well as on
+ * record, so a trace stored before the builder filtered it stops showing — and stops
+ * counting, which is why the fold is counted from this list rather than from the stored one.
+ * @param trace - entries as the Host recorded them.
+ * @returns the entries a reader is meant to see.
+ */
+export function visibleTrace(trace: readonly WorkbenchActivityEntry[]): readonly WorkbenchActivityEntry[] {
+  return trace.filter(
+    entry => !(entry.kind === 'tool' && entry.tool === WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL),
+  )
+}
+
+/** Props of the fold's own control. */
+export interface RunTraceToggleProps {
+  /** Entries as the Host recorded them, oldest first. */
+  readonly trace: readonly WorkbenchActivityEntry[]
+  /** How the run ended; the control states it before anything is opened. */
+  readonly settled: { readonly stopReason: string; readonly failure?: string | undefined }
+  /** Whether the steps below are unfolded. */
+  readonly open: boolean
+  /** Fold or unfold the steps. */
+  readonly onToggle: () => void
+  /**
+   * Translate one workbench string.
+   * @param key - dictionary key.
+   * @param params - optional template parameters.
+   * @returns the localized text.
+   */
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+}
+
+/**
+ * The control that folds a settled run's steps.
+ *
+ * Separate from the list it folds because the two sit in different places: the control is
+ * one more thing on the line of controls under the result, where the reader is deciding what
+ * to do next, and the steps open under that line when asked for.
+ * @param props - the entries, the verdict, the fold state, the toggle, and the translator.
+ * @returns the control.
+ */
+export function RunTraceToggle({ trace, settled, open, onToggle, t }: RunTraceToggleProps): ReactNode {
+  return (
+    <TurnProcessHeader
+      stopReason={settled.stopReason}
+      failed={settled.failure !== undefined}
+      steps={visibleTrace(trace).length}
+      open={open}
+      onToggle={onToggle}
+      t={t}
+    />
+  )
+}
+
+/** Props of the steps themselves. */
+export interface RunTraceListProps {
+  /** Entries as the Host recorded them, oldest first. */
+  readonly trace: readonly WorkbenchActivityEntry[]
+  /**
+   * Translate one workbench string.
+   * @param key - dictionary key.
+   * @param params - optional template parameters.
+   * @returns the localized text.
+   */
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+}
+
+/**
  * Render one activity trace as an ordered list of disclosure rows.
  *
  * One row per entry, oldest first, in the order the child produced them: a tool call
@@ -164,75 +234,82 @@ function firstLine(text: string): string {
  * reasoning (think icon, one-line summary, full text on expand), its reply text as a plain
  * body, and the truncation marker as a row of its own, because a bounded trace that stayed
  * silent would read as a complete one.
+ * @param props - the entries and the translator.
+ * @returns the list.
+ */
+export function RunTraceList({ trace, t }: RunTraceListProps): ReactNode {
+  const visible = visibleTrace(trace)
+  return (
+    <ol className={css.activityList} data-run-trace-body="">
+      {visible.map((entry, index) => {
+        if (entry.kind === 'tool') {
+          return (
+            <li
+              // Entries carry no identity of their own: the trace is append-only and bounded
+              // at its front, so position within it is the stable name a row needs.
+              key={`${String(index)}-tool`}
+              className={css.activityItem}
+              data-activity-kind="tool"
+              data-activity-tool={entry.tool}
+            >
+              <ToolRow entry={entry} t={t} />
+            </li>
+          )
+        }
+        if (entry.kind === 'truncated') {
+          return (
+            <li
+              key={`${String(index)}-truncated`}
+              className={css.activityItem}
+              data-activity-kind="truncated"
+              data-activity-dropped={String(entry.dropped)}
+            >
+              <span className={css.activityTruncated}>{t('runActivityTruncated', { dropped: entry.dropped })}</span>
+            </li>
+          )
+        }
+        return (
+          <li
+            key={`${String(index)}-${entry.kind}`}
+            className={css.activityItem}
+            data-activity-kind={entry.kind}
+          >
+            <NarrationRow entry={entry} t={t} />
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/**
+ * Render a trace with its fold: the control, and the steps under it when it is open.
+ *
+ * The running notice's shape, and the one the result page used before its control moved onto
+ * the line of controls under the result.
  * @param props - the entries, the optional settled header, and the translator.
  * @returns the list.
  */
 export function ActivityTrace({ trace, settled, t }: ActivityTraceProps): ReactNode {
-  // A settled trace opens folded: the header already says how the run ended and how many
+  // A settled trace opens folded: the control already says how the run ended and how many
   // steps it took, and the page's subject is the document below it. A live trace opens
   // expanded — watching it work is the reason the page is open.
   const [folded, setFolded] = useState(settled !== undefined)
   const open = !folded
-  // The schema-emission call is not a step of the visible work (see
-  // WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL). It is skipped on read as well as on record,
-  // so a trace stored before the builder filtered it stops showing — and stops counting,
-  // which is why the fold is counted from this list rather than from the stored one.
-  const visible = trace.filter(
-    entry => !(entry.kind === 'tool' && entry.tool === WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL),
-  )
   return (
     <div className={css.runTraceList} data-run-activity="">
-      {settled !== undefined && (
-        <TurnProcessHeader
-          stopReason={settled.stopReason}
-          failed={settled.failure !== undefined}
-          steps={visible.length}
-          open={open}
-          onToggle={() => { setFolded(value => !value) }}
-          t={t}
-        />
-      )}
-      {open && (
-        <ol className={css.activityList}>
-          {visible.map((entry, index) => {
-            if (entry.kind === 'tool') {
-              return (
-                <li
-                  // Entries carry no identity of their own: the trace is append-only and bounded
-                  // at its front, so position within it is the stable name a row needs.
-                  key={`${String(index)}-tool`}
-                  className={css.activityItem}
-                  data-activity-kind="tool"
-                  data-activity-tool={entry.tool}
-                >
-                  <ToolRow entry={entry} t={t} />
-                </li>
-              )
-            }
-            if (entry.kind === 'truncated') {
-              return (
-                <li
-                  key={`${String(index)}-truncated`}
-                  className={css.activityItem}
-                  data-activity-kind="truncated"
-                  data-activity-dropped={String(entry.dropped)}
-                >
-                  <span className={css.activityTruncated}>{t('runActivityTruncated', { dropped: entry.dropped })}</span>
-                </li>
-              )
-            }
-            return (
-              <li
-                key={`${String(index)}-${entry.kind}`}
-                className={css.activityItem}
-                data-activity-kind={entry.kind}
-              >
-                <NarrationRow entry={entry} t={t} />
-              </li>
-            )
-          })}
-        </ol>
-      )}
+      {settled === undefined
+        ? null
+        : (
+          <RunTraceToggle
+            trace={trace}
+            settled={settled}
+            open={open}
+            onToggle={() => { setFolded(value => !value) }}
+            t={t}
+          />
+        )}
+      {open ? <RunTraceList trace={trace} t={t} /> : null}
     </div>
   )
 }
@@ -280,6 +357,7 @@ function TurnProcessHeader({ stopReason, failed, steps, open, onToggle, t }: Tur
     <button
       type="button"
       className={css.turnProcess}
+      data-run-trace=""
       data-turn-process={failed ? 'failed' : stopReason}
       data-open={open || undefined}
       aria-expanded={open}

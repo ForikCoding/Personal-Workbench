@@ -62,6 +62,60 @@ export interface ActivityTraceProps {
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
 }
 /**
+ * The entries the fold shows and counts.
+ *
+ * The schema-emission call is not a step of the visible work (see
+ * {@link WORKBENCH_ACTIVITY_STRUCTURED_OUTPUT_TOOL}). It is skipped on read as well as on
+ * record, so a trace stored before the builder filtered it stops showing — and stops
+ * counting, which is why the fold is counted from this list rather than from the stored one.
+ * @param trace - entries as the Host recorded them.
+ * @returns the entries a reader is meant to see.
+ */
+export declare function visibleTrace(trace: readonly WorkbenchActivityEntry[]): readonly WorkbenchActivityEntry[];
+/** Props of the fold's own control. */
+export interface RunTraceToggleProps {
+    /** Entries as the Host recorded them, oldest first. */
+    readonly trace: readonly WorkbenchActivityEntry[];
+    /** How the run ended; the control states it before anything is opened. */
+    readonly settled: {
+        readonly stopReason: string;
+        readonly failure?: string | undefined;
+    };
+    /** Whether the steps below are unfolded. */
+    readonly open: boolean;
+    /** Fold or unfold the steps. */
+    readonly onToggle: () => void;
+    /**
+     * Translate one workbench string.
+     * @param key - dictionary key.
+     * @param params - optional template parameters.
+     * @returns the localized text.
+     */
+    readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
+}
+/**
+ * The control that folds a settled run's steps.
+ *
+ * Separate from the list it folds because the two sit in different places: the control is
+ * one more thing on the line of controls under the result, where the reader is deciding what
+ * to do next, and the steps open under that line when asked for.
+ * @param props - the entries, the verdict, the fold state, the toggle, and the translator.
+ * @returns the control.
+ */
+export declare function RunTraceToggle({ trace, settled, open, onToggle, t }: RunTraceToggleProps): ReactNode;
+/** Props of the steps themselves. */
+export interface RunTraceListProps {
+    /** Entries as the Host recorded them, oldest first. */
+    readonly trace: readonly WorkbenchActivityEntry[];
+    /**
+     * Translate one workbench string.
+     * @param key - dictionary key.
+     * @param params - optional template parameters.
+     * @returns the localized text.
+     */
+    readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
+}
+/**
  * Render one activity trace as an ordered list of disclosure rows.
  *
  * One row per entry, oldest first, in the order the child produced them: a tool call
@@ -70,6 +124,15 @@ export interface ActivityTraceProps {
  * reasoning (think icon, one-line summary, full text on expand), its reply text as a plain
  * body, and the truncation marker as a row of its own, because a bounded trace that stayed
  * silent would read as a complete one.
+ * @param props - the entries and the translator.
+ * @returns the list.
+ */
+export declare function RunTraceList({ trace, t }: RunTraceListProps): ReactNode;
+/**
+ * Render a trace with its fold: the control, and the steps under it when it is open.
+ *
+ * The running notice's shape, and the one the result page used before its control moved onto
+ * the line of controls under the result.
  * @param props - the entries, the optional settled header, and the translator.
  * @returns the list.
  */
