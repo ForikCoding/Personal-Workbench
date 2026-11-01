@@ -529,6 +529,16 @@
   outline: none;
 }
 
+/* The window that holds a document instead of a form: as wide as the window allows and as
+   tall as the viewport does, because what is inside was laid out for a screen rather than
+   for a column. The height is stated rather than left to the content so that a short
+   document does not shrink the panel and a long one scrolls inside the well. */
+.dialogPanel[data-dialog-size='wide'] {
+  width: min(1040px, 100%);
+  height: min(84vh, 900px);
+  max-height: calc(100vh - 48px);
+}
+
 .dialogHead {
   display: flex;
   align-items: flex-start;
@@ -1252,33 +1262,25 @@
   text-decoration-style: solid;
 }
 
-/* The preview's own surface, inset from the page. What is inside is the user's
-   document in a shadow root, so only this frame is styled here. */
-.previewSurface {
+/* The frame the document is drawn in, inside the preview window: tinted, inset, and the one
+   thing in the panel that scrolls, so a document taller than the window scrolls inside it
+   rather than pushing the head and the footer out of view. */
+.previewFrame {
   display: flex;
   flex-direction: column;
   gap: 8px;
   box-sizing: border-box;
-  min-width: 0;
-  /* As tall as the editor opposite, so the two panes end on one line instead of one
-     stopping halfway down the other. */
   flex: 1 1 auto;
-  min-height: 240px;
+  min-width: 0;
+  min-height: 0;
   padding: 10px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-md);
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);
 }
 
-.previewLabel {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-}
-
 /* The well the document is drawn in: white on the tinted frame, so the user's own card
-   reads as the document and the frame reads as the page around it. Dashed while there is
-   nothing in it to look at. */
+   reads as the document and the frame reads as the page around it. */
 .preview {
   flex: 1 1 auto;
   box-sizing: border-box;
@@ -1290,33 +1292,6 @@
   overflow: auto;
 }
 
-/* Before the preview is asked for: the same well, empty and centred, saying what the button
-   in it will do. The dashed frame is the one the document is drawn in, so the well reads as
-   "this is where it goes" rather than as a panel that failed to load. */
-.previewIdle {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 24px;
-  text-align: center;
-}
-
-.previewIdleText {
-  margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.previewIdleHint {
-  margin: 0;
-  max-width: 30em;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-}
 
 .settingsActions {
   display: flex;
@@ -1384,7 +1359,7 @@
   padding: 12px 0 14px;
   border-top: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-base);
-  /* A hairline alone left the panes' last lines looking cut rather than covered: the bar
+  /* A hairline alone left the editor's last lines looking cut rather than covered: the bar
      and the page are the same white, so the bar has to cast something to read as a bar. */
   box-shadow: 0 -12px 20px -18px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);
 }
@@ -1493,94 +1468,6 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Editing and previewing are one task seen twice. Wide enough, both fit and the tabs are
-   pointless; narrower, stacking them pushes whichever is second below the fold, so the
-   tabs choose. The breakpoint is where two readable panes stop fitting, not a device. */
-.panes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  /* Stretch, so the preview column takes its height from the editor beside it instead of
-     from a number that had to be kept in step with the editor's. */
-  align-items: stretch;
-  /* The document is a different kind of thing from the facts above it, and whitespace
-     alone did not say so — the same hairline the head uses separates the two. */
-  padding-top: 20px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
-}
-
-/* A grid child defaults to min-width auto, which lets the editor's content widen the
-   column instead of scrolling inside it. */
-.panes > .section {
-  min-width: 0;
-  /* The row carries the space above it now. */
-  padding-top: 0;
-}
-
-/* Two panes are two columns of one row, not a stack: the hairline that separates a
-   section from the one above it left a stray line across the preview column alone and
-   pushed its heading down by a pixel. */
-.panes > .section + .section {
-  border-top: 0;
-}
-
-/* Tinted, like the result page's own selector: both layer tokens are the same white in
-   this theme, so a strip drawn in one of them had no strip in it at all. */
-.paneTabs {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--dsw-radius-sm);
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
-}
-
-.paneTab {
-  flex: 1 1 auto;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.paneTab[aria-selected='true'] {
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-  font-weight: 500;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);
-}
-
-.paneTab:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
-}
-
-@media (min-width: 1100px) {
-  .panes {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 24px;
-  }
-
-  /* Both panes are visible, so a tab strip would only repeat their headings. */
-  .paneTabs {
-    display: none;
-  }
-}
-
-@media (max-width: 1099px) {
-  /* The selected tab already names the pane, so the heading would say it twice. */
-  .panes .sectionTitle {
-    display: none;
-  }
-
-  .panes[data-pane='edit'] > .section:nth-of-type(2),
-  .panes[data-pane='preview'] > .section:nth-of-type(1) {
-    display: none;
-  }
-}
 
 /* The run-history page: its heading, the count line, the empty state, and the runs.
 

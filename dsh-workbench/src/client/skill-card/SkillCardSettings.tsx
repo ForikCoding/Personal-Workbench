@@ -43,7 +43,7 @@ import type { WorkbenchTemplateViolation, WorkbenchTemplateViolationCode } from 
 import { indentBlock, lineBounds, lineIndexAt, LINE_HEIGHT } from './text-editing.ts'
 import { CONTENT_VIOLATION_KEYS } from './violation-copy.ts'
 import { problemKey } from './SkillCard.tsx'
-import { ShadowHtml } from './ShadowHtml.tsx'
+import { TemplatePreviewDialog } from './TemplatePreview.tsx'
 import css from './skill-card.module.css'
 
 /** The marker pair the insert control writes, each on its own line. */
@@ -187,7 +187,6 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const permissionId = `${base}-permission`
   const instructionId = `${base}-instruction`
   const templateId = `${base}-template`
-  const previewId = `${base}-preview`
 
   const analysis = useMemo(() => analyzeTemplate(draft), [draft])
   const gutter = useRef<HTMLPreElement>(null)
@@ -200,14 +199,12 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   // Both fields are edited here, so either one being different from what is stored means
   // the page holds a change the user has not committed.
   const dirty = draft !== (view.template ?? '') || name !== (view.name ?? '')
-  // Which pane the narrow layout shows. Wide layouts ignore it and show both.
-  const [pane, setPane] = useState<'edit' | 'preview'>('edit')
-  // Whether the preview is drawn at all. A template is a document with a script of its own,
+  // Whether the preview window is open. A template is a document with a script of its own,
   // and drawing one for a card the user opened to edit was work nobody asked for: it cost a
   // shadow root per keystroke, and a template that reads the workspace started reading it
-  // before the page was even read. Off until pressed, and off again on 收起预览 — nothing is
-  // rendered while it is off, which is what makes it cheap.
-  const [previewing, setPreviewing] = useState(false)
+  // before the page was even read. Nothing is drawn while it is closed, which is what makes
+  // asking the only way it ever costs anything.
+  const [previewOpen, setPreviewOpen] = useState(false)
   // Which presentation the template shows: the field, or the same text with its blocks
   // folded. Both read one document, and only the field can change it.
   const [folded, setFolded] = useState(false)
@@ -617,37 +614,9 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         {catalogNotice(view, options.length, t)}
       </section>
 
-      {/* Editing and previewing are the same task seen twice, so on a wide window they
-          sit side by side and the tabs disappear. Narrower than that, one would push the
-          other below the fold, so the tabs take over — they carry the same two names as
-          the headings they replace. */}
-      <div className={css.panes} data-pane={pane}>
-        <div className={css.paneTabs} role="tablist">
-          <button
-            type="button"
-            role="tab"
-            className={css.paneTab}
-            aria-selected={pane === 'edit'}
-            onClick={() => { setPane('edit') }}
-          >
-            {t('skillCardTemplateLabel')}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={css.paneTab}
-            aria-selected={pane === 'preview'}
-            // Asking for the preview's pane is asking to preview: the tab that shows an
-            // empty well and a button would be a second press for the same question.
-            onClick={() => {
-              setPane('preview')
-              setPreviewing(true)
-            }}
-          >
-            {t('skillCardPreview')}
-          </button>
-        </div>
-
+      {/* One column: the template. Its preview is a window over the page rather than a pane
+          beside it — a second column halved the editor for a document nobody had asked to
+          see, and the two never needed reading side by side to be useful. */}
       <section className={css.section} aria-labelledby={templateId}>
         {/* The group's own line. Its actions used to be underscores inside the sentence
             about the region and the byte count, so "添加动作" read as one more fact about the
@@ -682,6 +651,17 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
                     onClick={() => { setFolded(value => !value) }}
                   >
                     {folded ? t('skillCardTemplateEditView') : t('skillCardTemplateFoldView')}
+                  </Button>
+                  {/* Beside the other ways of looking at the same text: fold it, or see what it
+                      draws. The window is opened here because this is the line the user is on
+                      when they want to know what the document looks like. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-template-preview=""
+                    onClick={() => { setPreviewOpen(true) }}
+                  >
+                    {t('skillCardPreview')}
                   </Button>
                 </>
               )}
@@ -840,55 +820,19 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         )}
       </section>
 
-      <section className={css.section} aria-labelledby={previewId}>
-        <div className={css.sectionHead}>
-          <h2 className={css.sectionTitle} id={previewId}>{t('skillCardPreview')}</h2>
-          {/* What this pane is showing, said at the group's own level: inside the surface
-              it competed with the document it describes. Absent while nothing is drawn, so
-              the empty well is not captioned with a fact about a document it does not hold. */}
-          <div className={css.sectionTools}>
-            {previewing
-              ? (
-                <>
-                  <span className={css.previewLabel}>
-                    {regionEmpty ? t('skillCardPreviewSample') : t('skillCardPreviewLive')}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-preview-stop=""
-                    onClick={() => { setPreviewing(false) }}
-                  >
-                    {t('skillCardPreviewStop')}
-                  </Button>
-                </>
-              )
-              : null}
-          </div>
-        </div>
-        {/* Its own surface, inset from the page: what is inside is the user's document
-            in a shadow root and is left exactly as they wrote it. The well it sits in is
-            tinted and as tall as the editor opposite, so the two panes end together. */}
-        <div className={css.previewSurface}>
-          {previewing
-            ? <ShadowHtml html={draft} className={css.preview} />
-            : (
-              <div className={classes(css.preview, css.previewIdle)} data-preview-idle="">
-                <p className={css.previewIdleText}>{t('skillCardPreviewOff')}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  data-template-preview=""
-                  onClick={() => { setPreviewing(true) }}
-                >
-                  {t('skillCardPreview')}
-                </Button>
-                <p className={css.previewIdleHint}>{t('skillCardPreviewOffHint')}</p>
-              </div>
-            )}
-        </div>
-      </section>
-      </div>
+      {/* The document, when it is asked for, over the editor rather than beside it. Drawn
+          from the draft: a user previewing a change wants the change, and nothing here
+          saves it. */}
+      {previewOpen
+        ? (
+          <TemplatePreviewDialog
+            html={draft}
+            caption={regionEmpty ? t('skillCardPreviewSample') : t('skillCardPreviewLive')}
+            t={t}
+            onClose={() => { setPreviewOpen(false) }}
+          />
+        )
+        : null}
 
       {/* Pinned to the bottom of the page's scroll container: saving must not depend on
           scrolling past a preview that can be arbitrarily tall. */}

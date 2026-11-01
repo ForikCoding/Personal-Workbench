@@ -106,12 +106,7 @@ export const zh = {
   skillCardSectionBasics: '基本信息',
   skillCardPreviewSample: '骨架预览，区间尚未填充',
   skillCardPreviewLive: '按当前模板渲染',
-  // The preview renders on request rather than on arrival: a template is a document with
-  // its own script, and drawing one for a card the user only came to edit is work nobody
-  // asked for. The empty well says what a press of the button will do.
-  skillCardPreviewOff: '还没有渲染预览',
-  skillCardPreviewOffHint: '点「预览」按当前模板渲染一次。不会保存，也不会运行卡片。',
-  skillCardPreviewStop: '收起预览',
+
   // Removing a card is not a partial edit, so it is confirmed in place rather than
   // carried out on the first press.
   skillCardDeleteConfirm: '确认删除',
@@ -398,9 +393,7 @@ export const en: Record<keyof typeof zh, string> = {
   skillCardSectionBasics: 'Basics',
   skillCardPreviewSample: 'Skeleton preview, the region is not filled yet',
   skillCardPreviewLive: 'Rendered from the current template',
-  skillCardPreviewOff: 'Not rendered yet',
-  skillCardPreviewOffHint: 'Press 预览 to render the current template once. Nothing is saved and the card does not run.',
-  skillCardPreviewStop: 'Hide preview',
+
   // Removing a card is not a partial edit, so it is confirmed in place rather than
   // carried out on the first press.
   skillCardDeleteConfirm: 'Confirm delete',

@@ -90,9 +90,6 @@ export declare const zh: {
     skillCardSectionBasics: string;
     skillCardPreviewSample: string;
     skillCardPreviewLive: string;
-    skillCardPreviewOff: string;
-    skillCardPreviewOffHint: string;
-    skillCardPreviewStop: string;
     skillCardDeleteConfirm: string;
     skillCardDeleteConfirmPrompt: string;
     skillCardTemplatePlaceholder: string;

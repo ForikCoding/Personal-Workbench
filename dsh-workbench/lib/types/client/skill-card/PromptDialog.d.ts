@@ -1,20 +1,13 @@
 /**
- * A modal form, over the whole window, for the sentences a result is changed with.
+ * A modal form, over the whole window, for the sentences a card or a result is changed with:
+ * one line saying what submitting will do, the field, and the two ways out.
  *
- * The product has no dialog primitive, so the one this page needs is here: a panel portalled
- * to `document.body` rather than rendered in place, because the page lives inside whatever
- * scroll container and stacking context the shell gave its slot, and a `position: fixed`
- * element inside a transformed ancestor is positioned against that ancestor instead of the
- * window.
- *
- * What a dialog owes the keyboard is not decoration: Escape closes it, Tab stays inside it,
- * opening it puts the caret where the writing goes, and closing it returns focus to the
- * control that opened it. The backdrop closes on a click, and only on the backdrop itself —
- * a mousedown that started inside the panel and ended on the overlay is a select-drag, not a
- * dismissal.
+ * The shell — the portal, the overlay, Escape, the Tab trap, and focus going back to the
+ * control that opened it — is {@link Dialog}'s. This file is the form: the two buttons, and
+ * the refusal that appears under the field when the Host would not take what was written.
  * @module dsh-workbench/client/skill-card/PromptDialog
  */
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 /** What the dialog is made of: its copy, its two ways out, and the form between them. */
 export interface PromptDialogProps {
     /** The panel's heading, which is also its accessible name. */

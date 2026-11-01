@@ -275,26 +275,36 @@ describe('skill card editor', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
-  it('previews the draft skeleton, since only a run fills the region', () => {
+  it('previews the draft skeleton in a window of its own, since only a run fills the region', () => {
     const { container } = setup({ skill: 'git-repo', template: '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->' })
-    const host = (): Element | undefined => [...container.querySelectorAll('div')].find(element => element.shadowRoot !== null)
-    // Nothing is drawn until it is asked for: a template carries its own script, and
-    // rendering one for a card the user came to edit was work nobody asked for.
+    // Portal content lives in the document body, not in the render container.
+    const host = (): Element | undefined => [...document.querySelectorAll('div')].find(element => element.shadowRoot !== null)
+    // The page draws no document of its own: a template carries its own script, and
+    // rendering one beside the editor was work nobody asked for.
     expect(host()).toBeUndefined()
-    expect(container.querySelector('[data-preview-idle]')).not.toBeNull()
+    expect(document.querySelector('[data-prompt-dialog]')).toBeNull()
     fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
+    const dialog = document.querySelector('[data-prompt-dialog]')
+    expect(dialog).not.toBeNull()
+    // Drawn inside the window, not on the page behind it.
     expect(host()?.shadowRoot?.querySelector('h1')?.textContent).toBe('Tasks')
-    expect(container.querySelector('[data-preview-idle]')).toBeNull()
+    expect(host()?.closest('[data-prompt-dialog]')).toBe(dialog)
+    expect(container.querySelector('[data-template-preview-body]')).toBeNull()
   })
 
-  it('puts the preview away again, and draws nothing while it is away', () => {
-    const { container } = setup({ skill: 'git-repo', template: '<h1>Tasks</h1>' })
-    const hosts = (): Element[] => [...container.querySelectorAll('div')].filter(element => element.shadowRoot !== null)
+  it('closes the window without touching the template', () => {
+    const { container, onSave } = setup({ skill: 'git-repo', template: '<h1>Tasks</h1>' })
+    const hosts = (): Element[] => [...document.querySelectorAll('div')].filter(element => element.shadowRoot !== null)
     fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
     expect(hosts()).toHaveLength(1)
-    fireEvent.click(container.querySelector('[data-preview-stop]') as HTMLElement)
+    // The footer's own 关闭, read inside the panel: the page's footer has one by that name too.
+    const close = [...(document.querySelector('[data-prompt-dialog]')?.querySelectorAll('button') ?? [])]
+      .find(button => button.textContent === 'skillCardClose')
+    fireEvent.click(close as HTMLElement)
     expect(hosts()).toHaveLength(0)
-    expect(container.querySelector('[data-preview-idle]')).not.toBeNull()
+    expect(document.querySelector('[data-prompt-dialog]')).toBeNull()
+    // Nothing was written: a preview is a look, and closing it is not a save.
+    expect(onSave).not.toHaveBeenCalled()
   })
 
   it('indents with Tab instead of leaving the field', () => {
@@ -390,20 +400,17 @@ describe('skill card editor', () => {
       expect(status.querySelector('.editorStatusWarn')).toBeNull()
     })
 
-    it('switches panes with the tabs, which the wide layout hides', () => {
-      // Writing and previewing are one task seen twice: wide enough both are visible and
-      // the tabs are pointless, narrower the tabs decide which one is on screen. jsdom
-      // computes no media queries, so the state the CSS keys on is what is asserted.
+    it('has one column, so there is no pane to pick between', () => {
+      // The preview was a second column that halved the editor and, narrower still, a pair
+      // of tabs choosing between the halves. It is a window over the page now: the editor
+      // is the whole page, and nothing on it claims to switch panes.
       const { container } = setup({ skill: 'git-repo', template: CUED }, zhT)
-      const panes = container.querySelector('.panes') as HTMLElement
-      expect(panes.getAttribute('data-pane')).toBe('edit')
-      const tabs = [...container.querySelectorAll('[role="tab"]')]
-      expect(tabs).toHaveLength(2)
-      expect(tabs[0]?.getAttribute('aria-selected')).toBe('true')
-      fireEvent.click(tabs[1] as HTMLElement)
-      expect(panes.getAttribute('data-pane')).toBe('preview')
-      expect(tabs[1]?.getAttribute('aria-selected')).toBe('true')
-      expect(tabs[0]?.getAttribute('aria-selected')).toBe('false')
+      expect(container.querySelector('.panes')).toBeNull()
+      expect(container.querySelector('[role="tab"]')).toBeNull()
+      expect(container.querySelector('[data-preview-idle]')).toBeNull()
+      // The way in is a control on the template's own line.
+      const tools = container.querySelector('[data-template-preview]')
+      expect(tools?.textContent).toBe(zh.skillCardPreview)
     })
 
     it('warns instead of naming lines when the region is missing', () => {
@@ -785,15 +792,20 @@ describe('a write that failed', () => {
 })
 
 describe('the page groups', () => {
-  it('heads the card’s facts, the template, and the preview', () => {
+  it('heads the card’s facts and the template, and nothing else', () => {
+    // The preview's own group is gone with the column it headed: its heading is the window's
+    // own title now, and a page cannot head something that is not on it.
     const { container } = setup({ skill: 'git-repo', template: REGION }, zhT)
     expect([...container.querySelectorAll('h2')].map(heading => heading.textContent))
-      .toEqual([zh.skillCardSectionBasics, zh.skillCardTemplateLabel, zh.skillCardPreview])
-    // The group is on the page before anything is drawn in it, and says so.
-    expect(container.querySelector('[data-preview-idle]')?.textContent).toContain(zh.skillCardPreviewOff)
+      .toEqual([zh.skillCardSectionBasics, zh.skillCardTemplateLabel])
+  })
+
+  it('says in the window which data it is showing', () => {
+    const { container } = setup({ skill: 'git-repo', template: REGION }, zhT)
     fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
-    // Once drawn, the preview states which data it is showing on its own surface.
-    expect(container.textContent).toContain(zh.skillCardPreviewSample)
+    const dialog = document.querySelector('[data-prompt-dialog]') as HTMLElement
+    expect(dialog.querySelector('h2')?.textContent).toBe(zh.skillCardPreview)
+    expect(dialog.textContent).toContain(zh.skillCardPreviewSample)
   })
 
   it('stops calling the preview a skeleton once the region has something in it', () => {
@@ -802,8 +814,8 @@ describe('the page groups', () => {
     const filled = ['<h1>Tasks</h1>', '<!-- template-begin -->', '<p>One task</p>', '<!-- template-end -->'].join('\n')
     const { container } = setup({ skill: 'git-repo', template: filled }, zhT)
     fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
-    expect(container.textContent).toContain(zh.skillCardPreviewLive)
-    expect(container.textContent).not.toContain(zh.skillCardPreviewSample)
+    expect(document.querySelector('[data-prompt-dialog]')?.textContent).toContain(zh.skillCardPreviewLive)
+    expect(document.querySelector('[data-prompt-dialog]')?.textContent).not.toContain(zh.skillCardPreviewSample)
   })
 
   it('pairs every label with its control', () => {
