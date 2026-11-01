@@ -277,8 +277,24 @@ describe('skill card editor', () => {
 
   it('previews the draft skeleton, since only a run fills the region', () => {
     const { container } = setup({ skill: 'git-repo', template: '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->' })
-    const host = [...container.querySelectorAll('div')].find(element => element.shadowRoot !== null)
-    expect(host?.shadowRoot?.querySelector('h1')?.textContent).toBe('Tasks')
+    const host = (): Element | undefined => [...container.querySelectorAll('div')].find(element => element.shadowRoot !== null)
+    // Nothing is drawn until it is asked for: a template carries its own script, and
+    // rendering one for a card the user came to edit was work nobody asked for.
+    expect(host()).toBeUndefined()
+    expect(container.querySelector('[data-preview-idle]')).not.toBeNull()
+    fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
+    expect(host()?.shadowRoot?.querySelector('h1')?.textContent).toBe('Tasks')
+    expect(container.querySelector('[data-preview-idle]')).toBeNull()
+  })
+
+  it('puts the preview away again, and draws nothing while it is away', () => {
+    const { container } = setup({ skill: 'git-repo', template: '<h1>Tasks</h1>' })
+    const hosts = (): Element[] => [...container.querySelectorAll('div')].filter(element => element.shadowRoot !== null)
+    fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
+    expect(hosts()).toHaveLength(1)
+    fireEvent.click(container.querySelector('[data-preview-stop]') as HTMLElement)
+    expect(hosts()).toHaveLength(0)
+    expect(container.querySelector('[data-preview-idle]')).not.toBeNull()
   })
 
   it('indents with Tab instead of leaving the field', () => {
@@ -773,7 +789,10 @@ describe('the page groups', () => {
     const { container } = setup({ skill: 'git-repo', template: REGION }, zhT)
     expect([...container.querySelectorAll('h2')].map(heading => heading.textContent))
       .toEqual([zh.skillCardSectionBasics, zh.skillCardTemplateLabel, zh.skillCardPreview])
-    // The preview states which data it is showing on its own surface.
+    // The group is on the page before anything is drawn in it, and says so.
+    expect(container.querySelector('[data-preview-idle]')?.textContent).toContain(zh.skillCardPreviewOff)
+    fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
+    // Once drawn, the preview states which data it is showing on its own surface.
     expect(container.textContent).toContain(zh.skillCardPreviewSample)
   })
 
@@ -782,6 +801,7 @@ describe('the page groups', () => {
     // "the region is not filled yet" over a rendered document.
     const filled = ['<h1>Tasks</h1>', '<!-- template-begin -->', '<p>One task</p>', '<!-- template-end -->'].join('\n')
     const { container } = setup({ skill: 'git-repo', template: filled }, zhT)
+    fireEvent.click(container.querySelector('[data-template-preview]') as HTMLElement)
     expect(container.textContent).toContain(zh.skillCardPreviewLive)
     expect(container.textContent).not.toContain(zh.skillCardPreviewSample)
   })

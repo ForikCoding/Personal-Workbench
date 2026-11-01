@@ -1290,6 +1290,34 @@
   overflow: auto;
 }
 
+/* Before the preview is asked for: the same well, empty and centred, saying what the button
+   in it will do. The dashed frame is the one the document is drawn in, so the well reads as
+   "this is where it goes" rather than as a panel that failed to load. */
+.previewIdle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.previewIdleText {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.previewIdleHint {
+  margin: 0;
+  max-width: 30em;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .settingsActions {
   display: flex;
   gap: 6px;

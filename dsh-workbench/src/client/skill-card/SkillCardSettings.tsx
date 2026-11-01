@@ -202,6 +202,12 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
   const dirty = draft !== (view.template ?? '') || name !== (view.name ?? '')
   // Which pane the narrow layout shows. Wide layouts ignore it and show both.
   const [pane, setPane] = useState<'edit' | 'preview'>('edit')
+  // Whether the preview is drawn at all. A template is a document with a script of its own,
+  // and drawing one for a card the user opened to edit was work nobody asked for: it cost a
+  // shadow root per keystroke, and a template that reads the workspace started reading it
+  // before the page was even read. Off until pressed, and off again on 收起预览 — nothing is
+  // rendered while it is off, which is what makes it cheap.
+  const [previewing, setPreviewing] = useState(false)
   // Which presentation the template shows: the field, or the same text with its blocks
   // folded. Both read one document, and only the field can change it.
   const [folded, setFolded] = useState(false)
@@ -631,7 +637,12 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
             role="tab"
             className={css.paneTab}
             aria-selected={pane === 'preview'}
-            onClick={() => { setPane('preview') }}
+            // Asking for the preview's pane is asking to preview: the tab that shows an
+            // empty well and a button would be a second press for the same question.
+            onClick={() => {
+              setPane('preview')
+              setPreviewing(true)
+            }}
           >
             {t('skillCardPreview')}
           </button>
@@ -833,18 +844,48 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
         <div className={css.sectionHead}>
           <h2 className={css.sectionTitle} id={previewId}>{t('skillCardPreview')}</h2>
           {/* What this pane is showing, said at the group's own level: inside the surface
-              it competed with the document it describes. */}
+              it competed with the document it describes. Absent while nothing is drawn, so
+              the empty well is not captioned with a fact about a document it does not hold. */}
           <div className={css.sectionTools}>
-            <span className={css.previewLabel}>
-              {regionEmpty ? t('skillCardPreviewSample') : t('skillCardPreviewLive')}
-            </span>
+            {previewing
+              ? (
+                <>
+                  <span className={css.previewLabel}>
+                    {regionEmpty ? t('skillCardPreviewSample') : t('skillCardPreviewLive')}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-preview-stop=""
+                    onClick={() => { setPreviewing(false) }}
+                  >
+                    {t('skillCardPreviewStop')}
+                  </Button>
+                </>
+              )
+              : null}
           </div>
         </div>
         {/* Its own surface, inset from the page: what is inside is the user's document
             in a shadow root and is left exactly as they wrote it. The well it sits in is
             tinted and as tall as the editor opposite, so the two panes end together. */}
         <div className={css.previewSurface}>
-          <ShadowHtml html={draft} className={css.preview} />
+          {previewing
+            ? <ShadowHtml html={draft} className={css.preview} />
+            : (
+              <div className={classes(css.preview, css.previewIdle)} data-preview-idle="">
+                <p className={css.previewIdleText}>{t('skillCardPreviewOff')}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-template-preview=""
+                  onClick={() => { setPreviewing(true) }}
+                >
+                  {t('skillCardPreview')}
+                </Button>
+                <p className={css.previewIdleHint}>{t('skillCardPreviewOffHint')}</p>
+              </div>
+            )}
         </div>
       </section>
       </div>
