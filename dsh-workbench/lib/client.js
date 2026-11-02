@@ -2361,9 +2361,24 @@ window.__ModuleLoader__.load({
 			const html = value.html;
 			return typeof html === "string" && html.trim() !== "" ? html : void 0;
 		}
-		/** A line that is only an identifier — a task number, a defect key, a bare number. */
-		var IDENTIFIER_LINE = /^(?:[A-Za-z]{1,4}[-_]?)?\d{5,}$/;
-		var BLOCK_BOUNDARY = /<\/(p|h[1-6]|div|li|tr|blockquote|pre|ul|ol|table|section|article|header|footer)>/gi;
+		/**
+		* A line that is only an identifier — a task number, a defect key, a bare number.
+		*
+		* The suffix is part of the identifier: this backlog numbers sub-tasks `T202611024092-1`, and
+		* the pattern used to accept only the prefix, so the very rows the rule exists to skip came
+		* back. Four digits or fewer stay prose: `2026-10-27` is a date, not an identifier.
+		*/
+		var IDENTIFIER_LINE = /^(?:[A-Za-z]{1,4}[-_]?)?\d{5,}(?:[-_]\d{1,3})?$/;
+		/**
+		* The same identifier where a line *starts* with one and then says something.
+		*
+		* A table cell order puts the number and the name on one line — `<td>T202611024092-1</td>
+		* <td>「开发」…</td>` reads as `T202611024092-1「开发」…` — so the number is a prefix of the
+		* prose rather than a line of its own, and a rule about whole lines could not see it. The
+		* separator is optional because the cells run together with no space between them.
+		*/
+		var IDENTIFIER_PREFIX = /^(?:[A-Za-z]{1,4}[-_]?)?\d{5,}(?:[-_]\d{1,3})?[\s:：]*/u;
+		var BLOCK_BOUNDARY = /<\/(p|h[1-6]|div|li|td|th|tr|blockquote|pre|ul|ol|table|section|article|header|footer)>/gi;
 		/**
 		* The visible text of one document, block boundaries as line breaks.
 		*
@@ -2422,7 +2437,9 @@ window.__ModuleLoader__.load({
 			}
 			for (const line of documentText(html).split("\n")) {
 				const part = singleLine(line);
-				if (part !== "") candidates.push(part);
+				const said = part.replace(IDENTIFIER_PREFIX, "");
+				if (said !== "") candidates.push(said);
+				else if (part !== "") candidates.push(part);
 			}
 			const line = candidates.find((part) => !IDENTIFIER_LINE.test(part.replace(/[\s:：]/g, ""))) ?? candidates[0];
 			if (line === void 0) return void 0;

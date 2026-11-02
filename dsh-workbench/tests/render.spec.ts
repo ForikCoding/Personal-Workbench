@@ -84,6 +84,23 @@ describe('workbench skill card render', () => {
       expect(resultHeadline('<p>T202610223746</p><h2>质押回购委托</h2>')).toBe('质押回购委托')
     })
 
+    it('skips a sub-task number, suffix and all', () => {
+      // The suffix is part of the identifier. Reading `T202611024092-1` as prose put the
+      // number back in front of every row of a sub-task, which is the bug the rule exists
+      // to prevent — one task's nine runs each captioned by its number.
+      const html = '<table><tbody><tr>'
+        + '<td><span>T202611024092-1</span></td>'
+        + '<td>「开发」【东方】【交易】集中度校验口径调整</td>'
+        + '<td>待启动</td>'
+        + '</tr></tbody></table>'
+      expect(resultHeadline(html)).toBe('「开发」【东方】【交易】集中度校验口径调整')
+    })
+
+    it('keeps a dated line as prose rather than reading it as an identifier', () => {
+      // Four digits are not a task number: a date is something the reader wants to see.
+      expect(resultHeadline('<p>2026-10-27</p><p>当日复核</p>')).toBe('2026-10-27')
+    })
+
     it('still says something for a document that is only an identifier', () => {
       // Nothing better exists, and the row needs a line: the number is the run's content.
       expect(resultHeadline('<p>T202610223746</p>')).toBe('T202610223746')
