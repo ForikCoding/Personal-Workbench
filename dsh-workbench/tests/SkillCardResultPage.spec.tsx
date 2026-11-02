@@ -444,7 +444,7 @@ describe('the result page', () => {
     await waitFor(() => { expect(runControl(container).disabled).toBe(false) })
     fireEvent.click(runControl(container))
     const panel = dialog()
-    expect(panel?.querySelector('[data-dialog-workspace-invalid]')?.textContent)
+    expect(panel?.querySelector('[data-workspace-invalid]')?.textContent)
       .toBe(zh.skillCardProblemWorkspaceInvalid)
     expect(panel?.querySelector('[data-workspace-path]')?.textContent).toBe('D:\\Git\\Gone')
     expect(panel?.querySelector('[data-prompt-submit]')).toHaveProperty('disabled', true)

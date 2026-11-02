@@ -48,6 +48,10 @@ export declare const zh: {
     skillCardWorkspaceNotSet: string;
     skillCardChooseDirectory: string;
     skillCardWorkspacePickerUnavailable: string;
+    skillCardWorkspacePathPlaceholder: string;
+    skillCardWorkspaceApply: string;
+    skillCardWorkspaceTypedInvalid: string;
+    skillCardWorkspaceTypedMissing: string;
     skillCardProblemTooLarge: string;
     skillCardProblemUnavailable: string;
     skillCardProblemGeneric: string;

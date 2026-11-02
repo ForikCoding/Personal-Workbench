@@ -32,6 +32,7 @@ import type {
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import { ActionDeclarationPanel } from './ActionDeclarationPanel.tsx'
 import { classes } from './class-names.ts'
+import { WorkspaceField } from './WorkspaceField.tsx'
 import type { WorkbenchCardView } from './controller.ts'
 import { declarationLine, insertDeclaration } from './declarations.ts'
 import { modelKey, parseModelKey } from './model.ts'
@@ -94,6 +95,8 @@ export interface SkillCardSettingsProps {
    * leaves the stored directory exactly as it was.
    */
   readonly onChooseWorkspace: () => void
+  /** Store a directory typed into the field a build without a picker offers. */
+  readonly onSetWorkspace: (path: string) => void
   /** Store the template. */
   readonly onSave: (template: string, name: string) => void
   /** Store the card's name; an empty value clears it back to the registered label. */
@@ -155,6 +158,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     onChoosePermission,
     onChooseInstructionMode,
     onChooseWorkspace,
+    onSetWorkspace,
     onSave,
     onRename,
     onClose,
@@ -545,7 +549,12 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
           {/* Where the card runs. Its own control rather than a text field: a typed path is
               a directory nothing confirmed, which the product owner rejected outright. */}
           <div className={css.field}>
-            <WorkspaceField view={view} t={t} onChooseWorkspace={onChooseWorkspace} />
+            <WorkspaceField
+          view={view}
+          t={t}
+          onChooseWorkspace={onChooseWorkspace}
+          onSetWorkspace={onSetWorkspace}
+        />
           </div>
           {/* What the run may write, and the third row of the grid. Its own row rather than a
               second control beside the directory: the two are separate configuration, and a
@@ -963,75 +972,6 @@ function ModelField({
     <>
       {label}
       <p className={css.fieldValue} data-model-unavailable="">{t('skillCardModelUnavailable')}</p>
-    </>
-  )
-}
-
-/**
- * Render the directory control for one card.
- *
- * Three states, and the label is never a `for` pointing at a control that does not exist.
- * The leaf name is the primary value because a path is a poor label to scan — except on a
- * drive root, which has no last segment. The full path sits beneath it in tertiary type so
- * the user can always see exactly which directory the card runs in, and a path that is no
- * longer a directory says so in place, beside the control that would fix it.
- * @param props - the card view, the translator, and the picker action.
- * @returns the field.
- */
-function WorkspaceField({
-  view,
-  t,
-  onChooseWorkspace,
-}: {
-  readonly view: WorkbenchCardView
-  readonly t: (key: WorkbenchLocaleKey) => string
-  readonly onChooseWorkspace: () => void
-}): ReactNode {
-  const field = view.workspaceField
-  return (
-    <>
-      {/* Text rather than a `label`: the only control here is a button that opens a
-          chooser, and a label pointing at it would name the button, not the value. */}
-      <p className={css.fieldLabel}>{t('skillCardWorkspace')}</p>
-      <div className={css.workspaceRow}>
-        <div
-          className={classes(
-            css.workspaceValue,
-            field.kind === 'invalid' ? css.workspaceValueInvalid : undefined,
-          )}
-          data-workspace-field={field.kind}
-        >
-          <span className={css.workspaceLeaf} data-workspace-leaf="">
-            {field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.leaf}
-          </span>
-          {/* The full path is never truncated away in favour of the leaf: the leaf is a
-              display convenience, and the directory that runs is the whole path. */}
-          {field.kind === 'missing' ? null : (
-            <span className={css.workspacePath} data-workspace-path="" title={field.path}>
-              {field.path}
-            </span>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={!view.canChooseWorkspace}
-          onClick={onChooseWorkspace}
-          data-workspace-pick=""
-        >
-          {t('skillCardChooseDirectory')}
-        </Button>
-      </div>
-      {field.kind === 'invalid' && field.checked ? (
-        <p className={css.fieldNote} data-workspace-invalid="">{t('skillCardProblemWorkspaceInvalid')}</p>
-      ) : null}
-      {/* A page whose composition has no picker says so, rather than offering a control
-          that cannot do anything or — worse — a text field to type a path into. */}
-      {view.canChooseWorkspace ? null : (
-        <p className={css.fieldNote} data-workspace-picker-unavailable="">
-          {t('skillCardWorkspacePickerUnavailable')}
-        </p>
-      )}
     </>
   )
 }

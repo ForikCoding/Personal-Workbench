@@ -280,6 +280,82 @@ describe('skill card configuration page', () => {
     })
   })
 
+  it('stores a typed path once the Host confirms there is a directory there', async () => {
+    // The typed fallback keeps the rule the picker was introduced for: nothing is stored that
+    // the Host has not confirmed. The confirmation is the run gate's own check, so a path that
+    // passes here is one a run will accept.
+    const writes: WorkbenchSkillCardPatch[] = []
+    const asked: string[] = []
+    const { container } = render(<SkillCardConfigPage {...props({
+      workspacePicker: fakeWorkspacePicker({ available: false }).picker,
+      api: {
+        ...props().api,
+        statDirectory: async (path) => {
+          asked.push(path)
+          return { status: 'ok', stat: { exists: true, isDirectory: true, writable: true } }
+        },
+        write: async (patch) => {
+          writes.push(patch)
+          return { status: 'ok', snapshot: { revision: '1:1', cards: [{ cardId: 'skill-card', templateSkills: [] }], results: [] } }
+        },
+      },
+    })} />)
+    const input = container.querySelector('[data-workspace-input]') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '  F:\\git\\typed  ' } })
+    fireEvent.click(container.querySelector('[data-workspace-apply]') as HTMLElement)
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    // The path is checked and stored without the whitespace a paste brings with it.
+    expect(asked).toEqual(['F:\\git\\typed'])
+    expect(writes[0]).toMatchObject({ workspace: { path: 'F:\\git\\typed' } })
+  })
+
+  it('stores nothing when the typed path names no directory', async () => {
+    // A typo must not point the card at nothing: the field says what is wrong and the card
+    // keeps the directory it had.
+    const writes: WorkbenchSkillCardPatch[] = []
+    const { container } = render(<SkillCardConfigPage {...props({
+      workspacePicker: fakeWorkspacePicker({ available: false }).picker,
+      api: {
+        ...props().api,
+        statDirectory: async () => ({ status: 'ok', stat: { exists: false, isDirectory: false, writable: false } }),
+        write: async (patch) => {
+          writes.push(patch)
+          return { status: 'ok', snapshot: { revision: '1:1', cards: [{ cardId: 'skill-card', templateSkills: [] }], results: [] } }
+        },
+      },
+    })} />)
+    const input = container.querySelector('[data-workspace-input]') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'D:\\Git\\nope' } })
+    fireEvent.click(container.querySelector('[data-workspace-apply]') as HTMLElement)
+    await waitFor(() => {
+      expect(container.querySelector('[data-workspace-typed-problem="not-directory"]')).not.toBeNull()
+    })
+    expect(writes).toEqual([])
+  })
+
+  it('answers a path that is not absolute without a request', async () => {
+    // The contract's rule settles this one: a relative path names a different directory to
+    // whoever resolves it, so it never reaches the Host.
+    const asked: string[] = []
+    const { container } = render(<SkillCardConfigPage {...props({
+      workspacePicker: fakeWorkspacePicker({ available: false }).picker,
+      api: {
+        ...props().api,
+        statDirectory: async (path) => {
+          asked.push(path)
+          return { status: 'ok', stat: { exists: true, isDirectory: true, writable: true } }
+        },
+      },
+    })} />)
+    const input = container.querySelector('[data-workspace-input]') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'repo' } })
+    fireEvent.click(container.querySelector('[data-workspace-apply]') as HTMLElement)
+    await waitFor(() => {
+      expect(container.querySelector('[data-workspace-typed-problem="invalid-path"]')).not.toBeNull()
+    })
+    expect(asked).toEqual([])
+  })
+
   it('changes nothing when the chooser is cancelled', async () => {
     // Closing the chooser is an answer, not a failure: the stored directory stays exactly as
     // it was, and no write is issued for a decision the user did not make.
@@ -302,9 +378,10 @@ describe('skill card configuration page', () => {
     expect(container.querySelector('[data-workspace-leaf]')?.textContent).toBe('skillCardWorkspaceNotSet')
   })
 
-  it('degrades a refused picker to a stated unavailable control', async () => {
-    // A route that is not there must not throw into the page: the button stops working and
-    // the field says there is no picker, which is the honest answer for this composition.
+  it('degrades a refused picker to the field that takes a path', async () => {
+    // A route that is not there must not throw into the page. The picker stops being offered
+    // and the field takes over: a composition with no chooser is a property of the build, and
+    // the user still has to be able to name the directory.
     const picker = fakeWorkspacePicker({
       answer: { status: 'unavailable', reason: 'DSH Desktop could not open the system folder picker' },
     })
@@ -315,7 +392,8 @@ describe('skill card configuration page', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-workspace-picker-unavailable]')).not.toBeNull()
     })
-    expect((container.querySelector('[data-workspace-pick]') as HTMLButtonElement).disabled).toBe(true)
+    expect(container.querySelector('[data-workspace-pick]')).toBeNull()
+    expect(container.querySelector('[data-workspace-input]')).not.toBeNull()
   })
 
   it('checks a declared card target against the title the grid shows', async () => {    // A nameless card is titled by its registered label on the face, and that is the

@@ -62,6 +62,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     instructionMode: 'none',
     recentInstructions: [],
     canChooseWorkspace: true,
+    workspaceTypedProblem: undefined,
     catalog: [],
     catalogStatus: 'ready',
     catalogFailure: undefined,
@@ -89,6 +90,7 @@ function setup(
   onChoosePermission: ReturnType<typeof vi.fn>
   onChooseInstructionMode: ReturnType<typeof vi.fn>
   onChooseWorkspace: ReturnType<typeof vi.fn>
+  onSetWorkspace: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
   onDelete: ReturnType<typeof vi.fn>
@@ -99,6 +101,7 @@ function setup(
   const onChoosePermission = vi.fn()
   const onChooseInstructionMode = vi.fn()
   const onChooseWorkspace = vi.fn()
+  const onSetWorkspace = vi.fn()
   const onRename = vi.fn()
   const onClose = vi.fn()
   const onDelete = vi.fn()
@@ -112,6 +115,7 @@ function setup(
       onChoosePermission={onChoosePermission}
       onChooseInstructionMode={onChooseInstructionMode}
       onChooseWorkspace={onChooseWorkspace}
+      onSetWorkspace={onSetWorkspace}
       onRename={onRename}
       onClose={onClose}
       onDelete={onDelete}
@@ -125,6 +129,7 @@ function setup(
     onChoosePermission,
     onChooseInstructionMode,
     onChooseWorkspace,
+    onSetWorkspace,
     onRename,
     onClose,
     onDelete,
@@ -948,18 +953,35 @@ describe('the workspace field', () => {
     expect(container.querySelector('[data-workspace-invalid]')).toBeNull()
   })
 
-  it('offers no picker at all rather than a text field, and says why', () => {
-    // The product owner rejected free-text paths: a typed path is a directory nothing
-    // confirmed. So a page without a picker states that instead of inventing an input.
-    const { container } = setup({ skill: 'git-repo', canChooseWorkspace: false }, zhT)
-    const pick = container.querySelector('[data-workspace-pick]') as HTMLButtonElement
-    expect(pick.disabled).toBe(true)
+  it('asks for the path when the build offers no picker, and says why', () => {
+    // Typing used to be refused on principle: a typed path is a directory nobody confirmed.
+    // The Host confirms it now — the same check a run is gated on — so a page without a
+    // chooser asks for the path rather than stating that the card cannot be pointed anywhere.
+    const { container, onSetWorkspace } = setup({
+      skill: 'git-repo',
+      canChooseWorkspace: false,
+      workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' },
+    }, zhT)
+    expect(container.querySelector('[data-workspace-pick]')).toBeNull()
     expect(container.querySelector('[data-workspace-picker-unavailable]')?.textContent)
       .toBe(zh.skillCardWorkspacePickerUnavailable)
-    // One text input, and it is the card's name.
-    expect(container.querySelectorAll('input[type="text"]')).toHaveLength(1)
-    expect((container.querySelector('input[type="text"]') as HTMLInputElement).placeholder)
-      .toBe(zh.skillCardNamePlaceholder)
+    const input = container.querySelector('[data-workspace-input]') as HTMLInputElement
+    expect(input).not.toBeNull()
+    // It opens on the directory the card already has, so "nothing to change" is one press.
+    expect(input.value).toBe(WORKSPACE.path)
+    fireEvent.change(input, { target: { value: 'D:\\Git\\other' } })
+    fireEvent.click(container.querySelector('[data-workspace-apply]') as HTMLButtonElement)
+    expect(onSetWorkspace).toHaveBeenCalledWith('D:\\Git\\other')
+  })
+
+  it('says why a typed path was not taken', () => {
+    const { container } = setup({
+      skill: 'git-repo',
+      canChooseWorkspace: false,
+      workspaceTypedProblem: 'not-directory',
+    }, zhT)
+    expect(container.querySelector('[data-workspace-typed-problem="not-directory"]')?.textContent)
+      .toBe(zh.skillCardWorkspaceTypedMissing)
   })
 
   it('lays the six fields out two to a row, in the order the card is configured', () => {

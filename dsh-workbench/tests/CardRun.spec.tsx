@@ -43,7 +43,10 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     permission: 'workspace-write',
     instructionMode: 'none',
     recentInstructions: [],
-    canChooseWorkspace: false,
+    // A build that ships a chooser is the default case: the typed field is the fallback, and
+    // it gets its own cases below.
+    canChooseWorkspace: true,
+    workspaceTypedProblem: undefined,
     catalog: [],
     catalogStatus: 'idle',
     catalogFailure: undefined,
@@ -54,13 +57,14 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   }
 }
 
-/** The card's actions, with only the three this control calls recorded. */
+/** The card's actions, with only the four this control calls recorded. */
 function actions(): {
   run: ReturnType<typeof vi.fn>
   cancel: ReturnType<typeof vi.fn>
   chooseWorkspace: ReturnType<typeof vi.fn>
+  setWorkspace: ReturnType<typeof vi.fn>
 } {
-  return { run: vi.fn(), cancel: vi.fn(), chooseWorkspace: vi.fn() }
+  return { run: vi.fn(), cancel: vi.fn(), chooseWorkspace: vi.fn(), setWorkspace: vi.fn() }
 }
 
 /**
@@ -243,6 +247,7 @@ describe('the run dialog', () => {
     const { container, recorded } = control({
       instructionMode: 'none',
       canChooseWorkspace: true,
+      workspaceTypedProblem: undefined,
       workspaceField: { kind: 'missing' },
     })
     expect(startControl(container).disabled).toBe(false)
@@ -265,23 +270,26 @@ describe('the run dialog', () => {
     const { container } = control({
       instructionMode: 'optional',
       canChooseWorkspace: true,
+      workspaceTypedProblem: undefined,
       workspaceField: { kind: 'invalid', path: 'D:\\Git\\Gone', leaf: 'Gone', checked: true },
     })
     fireEvent.click(startControl(container))
     const panel = dialog()
     if (panel === null) throw new Error('the run dialog did not open')
     expect(panel.querySelector('[data-workspace-path]')?.textContent).toBe('D:\\Git\\Gone')
-    expect(panel.querySelector('[data-dialog-workspace-invalid]')?.textContent)
+    expect(panel.querySelector('[data-workspace-invalid]')?.textContent)
       .toBe(zh.skillCardProblemWorkspaceInvalid)
     expect(submitOf(panel)).toHaveProperty('disabled', true)
   })
 
-  it('says so when the environment has no picker at all', () => {
-    // Without a picker there is nothing the dialog could do about a missing directory, so it
-    // says that instead of offering a button that cannot work.
-    const { container } = control({
+  it('asks for the path when the build ships no picker at all', () => {
+    // The native chooser belongs to the desktop plugin, and the upstream workspace UI's own
+    // picker is absent from a web-only profile. A card on such a build is not stuck: the field
+    // takes the path, and the Host confirms it before anything is stored.
+    const { container, recorded } = control({
       instructionMode: 'none',
       canChooseWorkspace: false,
+      workspaceTypedProblem: undefined,
       workspaceField: { kind: 'missing' },
     })
     fireEvent.click(startControl(container))
@@ -289,6 +297,48 @@ describe('the run dialog', () => {
     if (panel === null) throw new Error('the run dialog did not open')
     expect(panel.querySelector('[data-workspace-picker-unavailable]')?.textContent)
       .toBe(zh.skillCardWorkspacePickerUnavailable)
-    expect(panel.querySelector<HTMLButtonElement>('[data-workspace-pick]')?.disabled).toBe(true)
+    // No button that cannot work, and an input that can.
+    expect(panel.querySelector('[data-workspace-pick]')).toBeNull()
+    const input = panel.querySelector<HTMLInputElement>('[data-workspace-input]')
+    if (input === null) throw new Error('the dialog offered no path field')
+    expect(input.value).toBe('')
+
+    fireEvent.change(input, { target: { value: 'F:\\git\\repo' } })
+    // Enter is the whole gesture: the field and the button beside it are one control.
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(recorded.setWorkspace).toHaveBeenCalledWith('F:\\git\\repo')
+    // The path was asked for; the run still waits for the card to actually hold it.
+    expect(recorded.run).not.toHaveBeenCalled()
+  })
+
+  it('states why a path that is not a path was refused', () => {
+    // The card keeps the directory it had: a typo is answered, not stored.
+    const { container } = control({
+      instructionMode: 'none',
+      canChooseWorkspace: false,
+      workspaceTypedProblem: 'invalid-path',
+      workspaceField: { kind: 'missing' },
+    })
+    fireEvent.click(startControl(container))
+    const panel = dialog()
+    if (panel === null) throw new Error('the run dialog did not open')
+    expect(panel.querySelector('[data-workspace-typed-problem="invalid-path"]')?.textContent)
+      .toBe(zh.skillCardWorkspaceTypedInvalid)
+    expect(submitOf(panel)).toHaveProperty('disabled', true)
+  })
+
+  it('states why a path with no directory behind it was refused', () => {
+    const { container } = control({
+      instructionMode: 'none',
+      canChooseWorkspace: false,
+      workspaceTypedProblem: 'not-directory',
+      workspaceField: { kind: 'missing' },
+    })
+    fireEvent.click(startControl(container))
+    const panel = dialog()
+    if (panel === null) throw new Error('the run dialog did not open')
+    expect(panel.querySelector('[data-workspace-typed-problem="not-directory"]')?.textContent)
+      .toBe(zh.skillCardWorkspaceTypedMissing)
+    expect(submitOf(panel)).toHaveProperty('disabled', true)
   })
 })

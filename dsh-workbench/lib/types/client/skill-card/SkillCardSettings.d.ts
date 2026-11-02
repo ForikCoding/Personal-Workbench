@@ -53,6 +53,8 @@ export interface SkillCardSettingsProps {
      * leaves the stored directory exactly as it was.
      */
     readonly onChooseWorkspace: () => void;
+    /** Store a directory typed into the field a build without a picker offers. */
+    readonly onSetWorkspace: (path: string) => void;
     /** Store the template. */
     readonly onSave: (template: string, name: string) => void;
     /** Store the card's name; an empty value clears it back to the registered label. */

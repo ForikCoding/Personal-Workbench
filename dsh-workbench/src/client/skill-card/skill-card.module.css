@@ -998,6 +998,37 @@
   border-color: var(--dsw-alias-state-warn-label);
 }
 
+/* The same row, with a field to type into instead of a value to read. It matches the value
+   control's height and border so a card on a build without a chooser does not look like a
+   different kind of card, and it takes the space the button beside it does not. */
+.workspaceInput {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.workspaceInput:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.workspaceInputInvalid {
+  border-color: var(--dsw-alias-state-warn-label);
+}
+
+.workspaceInput::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .workspaceLeaf {
   flex: none;
   max-width: 62%;

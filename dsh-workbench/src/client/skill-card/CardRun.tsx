@@ -22,7 +22,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkbenchCardActions, WorkbenchCardView } from './controller.ts'
 import type { WorkbenchInstructionMode } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
-import { classes } from './class-names.ts'
+import { WorkspaceField } from './WorkspaceField.tsx'
 import { PromptDialog } from './PromptDialog.tsx'
 import css from './skill-card.module.css'
 
@@ -210,6 +210,7 @@ export function RunPrompt({
   recent,
   t,
   onChooseWorkspace,
+  onSetWorkspace,
   onRun,
   onCancel,
 }: {
@@ -224,6 +225,8 @@ export function RunPrompt({
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   /** Ask for a directory and store it as this card's workspace. */
   readonly onChooseWorkspace: () => void
+  /** Store a directory typed into the field this build offers instead of a chooser. */
+  readonly onSetWorkspace: (path: string) => void
   readonly onRun: (instruction?: string) => void
   readonly onCancel: () => void
 }): ReactNode {
@@ -271,38 +274,16 @@ export function RunPrompt({
       onCancel={onCancel}
       onSubmit={submit}
     >
-      <div className={css.runWorkspace}>
-        <p className={css.fieldLabel}>{t('skillCardWorkspace')}</p>
-        <div className={css.workspaceRow}>
-          <div
-            className={classes(
-              css.workspaceValue,
-              field.kind === 'invalid' ? css.workspaceValueInvalid : undefined,
-            )}
-            data-workspace-field={field.kind}
-          >
-            <span className={css.workspaceLeaf} data-workspace-leaf="">
-              {field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.leaf}
-            </span>
-            {field.kind === 'missing' ? null : (
-              <span className={css.workspacePath} data-workspace-path="" title={field.path}>
-                {field.path}
-              </span>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!view.canChooseWorkspace}
-            data-workspace-pick=""
-            onClick={onChooseWorkspace}
-          >
-            {t('skillCardChooseDirectory')}
-          </Button>
-        </div>
-        {/* Why the run cannot be sent, under the value it is about. The picker above is the
-            answer to both of them, which is why the sentence sits beside it and not at the
-            top of the dialog. */}
+      {/* The dialog asks the one question a run needs answered, with the same field the
+          配置 page uses — including its typed fallback, which is the only way in on a build
+          that ships no chooser. */}
+      <div className={css.runWorkspace} data-dialog-workspace="">
+        <WorkspaceField
+          view={view}
+          t={t}
+          onChooseWorkspace={onChooseWorkspace}
+          onSetWorkspace={onSetWorkspace}
+        />
         {field.kind === 'missing' && view.canChooseWorkspace
           ? (
             <p className={css.fieldNote} data-dialog-workspace-missing="">
@@ -310,16 +291,9 @@ export function RunPrompt({
             </p>
           )
           : null}
-        {field.kind === 'invalid' && field.checked
-          ? (
-            <p className={css.fieldNote} data-dialog-workspace-invalid="">
-              {t('skillCardProblemWorkspaceInvalid')}
-            </p>
-          )
-          : null}
-        {view.canChooseWorkspace
-          ? null
-          : <p className={css.fieldNote} data-workspace-picker-unavailable="">{t('skillCardWorkspacePickerUnavailable')}</p>}
+        {/* A stale directory is stated once, by the field itself. What the field cannot say
+            is that a card with no directory at all may not start, which is this dialog's
+            question and not the field's. */}
       </div>
       {asks
         ? (
@@ -421,6 +395,7 @@ export function CardRunButton({
             recent={view.recentInstructions}
             t={t}
             onChooseWorkspace={() => { actions.chooseWorkspace() }}
+            onSetWorkspace={(path) => { actions.setWorkspace(path) }}
             onRun={(instruction) => {
               setAsking(false)
               actions.run(instruction)

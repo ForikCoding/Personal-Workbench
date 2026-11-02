@@ -126,6 +126,14 @@ export interface WorkbenchPreviousResult {
     /** When that result was executed, in milliseconds since the epoch. */
     readonly at: number;
 }
+/**
+ * Why a typed directory was refused.
+ *
+ * Codes rather than sentences: the page localizes, and the Host's check is the only thing
+ * that decides between them — "not a path" is the contract's rule, "not a directory" is the
+ * filesystem's answer.
+ */
+export type WorkbenchWorkspaceTypedProblem = 'invalid-path' | 'not-directory';
 /** What one card renders. */
 export interface WorkbenchCardView {
     /** Whether the stored configuration has been read yet. */
@@ -239,9 +247,20 @@ export interface WorkbenchCardView {
      * Whether a directory picker can be offered at all.
      *
      * False on a page whose composition has no picker, and after one refused: the field then
-     * states that instead of offering a button that cannot do anything.
+     * asks for the path instead of offering a button that cannot do anything. That is not a
+     * degraded mode — the Host confirms a typed path with the same check a picked one passes
+     * — it is the only way in on a build that ships no chooser, which is every plain web
+     * composition: the native chooser belongs to the desktop plugin, and the upstream
+     * workspace UI's `pickDirectory()` is not in a web-only profile.
      */
     readonly canChooseWorkspace: boolean;
+    /**
+     * Why a typed directory was not stored, when one was not.
+     *
+     * A typed path is checked against the Host before it is written, so this is the answer to
+     * that check rather than a storage failure: the card keeps the directory it had.
+     */
+    readonly workspaceTypedProblem: WorkbenchWorkspaceTypedProblem | undefined;
     /** Skills the session's agent can invoke. */
     readonly catalog: readonly WorkbenchSkillCatalogEntry[];
     /** Whether the catalog has been read. */
@@ -320,10 +339,21 @@ export interface WorkbenchCardActions {
     /**
      * Ask the user for a directory, and store it as this card's workspace.
      *
-     * The picker is the only way in: there is no field to type a path into, because a typed
-     * path is a directory nobody confirmed. A cancelled pick writes nothing.
+     * A cancelled pick writes nothing. When the composition has no picker there is nothing to
+     * ask: the page offers {@link setWorkspace} instead, and this reports the refusal.
      */
     chooseWorkspace(): void;
+    /**
+     * Store a directory the user typed, once the Host has confirmed it is one.
+     *
+     * The picker's absence is a property of the build, not of the card, so a card on a
+     * composition without one must still be able to name where it runs. Typing is not the
+     * unconfirmed path this feature refused before: the Host is asked whether the path is a
+     * directory — the same check a run is gated on — and nothing is written unless it answers
+     * yes. A refused path stores nothing and reports {@link WorkbenchCardView.workspaceTypedProblem}.
+     * @param path - the path as typed; surrounding whitespace is not part of it.
+     */
+    setWorkspace(path: string): void;
     /**
      * Store the permission mode this card's runs use.
      *

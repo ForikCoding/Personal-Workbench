@@ -31,6 +31,7 @@ import type {
 import {
   effectiveWorkbenchInstructionMode,
   effectiveWorkbenchSandboxMode,
+  isWorkbenchWorkspacePath,
   WORKBENCH_ACTION_KEY_PATTERN,
   WORKBENCH_RECENT_INSTRUCTIONS,
 } from '../../skill-card-contract.ts'
@@ -189,6 +190,15 @@ interface RefinementIntent {
   readonly runId?: string
 }
 
+/**
+ * Why a typed directory was refused.
+ *
+ * Codes rather than sentences: the page localizes, and the Host's check is the only thing
+ * that decides between them — "not a path" is the contract's rule, "not a directory" is the
+ * filesystem's answer.
+ */
+export type WorkbenchWorkspaceTypedProblem = 'invalid-path' | 'not-directory'
+
 /** What one card renders. */
 export interface WorkbenchCardView {
   /** Whether the stored configuration has been read yet. */
@@ -302,9 +312,20 @@ export interface WorkbenchCardView {
    * Whether a directory picker can be offered at all.
    *
    * False on a page whose composition has no picker, and after one refused: the field then
-   * states that instead of offering a button that cannot do anything.
+   * asks for the path instead of offering a button that cannot do anything. That is not a
+   * degraded mode — the Host confirms a typed path with the same check a picked one passes
+   * — it is the only way in on a build that ships no chooser, which is every plain web
+   * composition: the native chooser belongs to the desktop plugin, and the upstream
+   * workspace UI's `pickDirectory()` is not in a web-only profile.
    */
   readonly canChooseWorkspace: boolean
+  /**
+   * Why a typed directory was not stored, when one was not.
+   *
+   * A typed path is checked against the Host before it is written, so this is the answer to
+   * that check rather than a storage failure: the card keeps the directory it had.
+   */
+  readonly workspaceTypedProblem: WorkbenchWorkspaceTypedProblem | undefined
   /** Skills the session's agent can invoke. */
   readonly catalog: readonly WorkbenchSkillCatalogEntry[]
   /** Whether the catalog has been read. */
@@ -384,10 +405,21 @@ export interface WorkbenchCardActions {
   /**
    * Ask the user for a directory, and store it as this card's workspace.
    *
-   * The picker is the only way in: there is no field to type a path into, because a typed
-   * path is a directory nobody confirmed. A cancelled pick writes nothing.
+   * A cancelled pick writes nothing. When the composition has no picker there is nothing to
+   * ask: the page offers {@link setWorkspace} instead, and this reports the refusal.
    */
   chooseWorkspace(): void
+  /**
+   * Store a directory the user typed, once the Host has confirmed it is one.
+   *
+   * The picker's absence is a property of the build, not of the card, so a card on a
+   * composition without one must still be able to name where it runs. Typing is not the
+   * unconfirmed path this feature refused before: the Host is asked whether the path is a
+   * directory — the same check a run is gated on — and nothing is written unless it answers
+   * yes. A refused path stores nothing and reports {@link WorkbenchCardView.workspaceTypedProblem}.
+   * @param path - the path as typed; surrounding whitespace is not part of it.
+   */
+  setWorkspace(path: string): void
   /**
    * Store the permission mode this card's runs use.
    *
@@ -619,6 +651,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // composition cannot change under a mounted page, and a button that keeps failing reads
   // as a broken control rather than as a platform without one.
   const [pickerRefused, setPickerRefused] = useState(false)
+  // The answer to the last typed directory, so the field can say why a path was not taken
+  // without turning a typo into a stored value.
+  const [workspaceTypedProblem, setWorkspaceTypedProblem] = useState<WorkbenchWorkspaceTypedProblem | undefined>(undefined)
 
   // The directory is an outside store, so it is read into state and watched rather than
   // read during render: it loads after the page mounts, and a field that never re-rendered
@@ -1089,11 +1124,35 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     void api.write({ baseRevision: revision, cardId, model }).then(applyWrite)
   }, [api, applyWrite, cardId, revision])
 
+  /**
+   * Store one confirmed directory as this card's workspace.
+   * @param path - the directory, already checked.
+   */
+  const writeWorkspace = useCallback((path: string): void => {
+    setWorkspaceTypedProblem(undefined)
+    const send = (baseRevision: string): void => {
+      void api.write({ baseRevision, cardId, workspace: { path } }).then(applyWrite)
+    }
+    if (revision !== undefined) {
+      send(revision)
+      return
+    }
+    // A page opened a moment ago may not hold a revision yet. Reading the missing one is
+    // what keeps the choice from being dropped on the floor, which is the bug the rename
+    // path had before it read the revision it needed.
+    void api.read().then((outcome) => {
+      if (outcome.status !== 'ok') {
+        setProblem({ code: 'unavailable', detail: outcome.reason })
+        return
+      }
+      send(outcome.snapshot.revision)
+    })
+  }, [api, applyWrite, cardId, revision])
+
   const chooseWorkspace = useCallback(() => {
     if (workspacePicker === undefined) {
-      // No picker means no way to name a directory. Saying so is the whole answer: there is
-      // deliberately no text field to fall back to, because a typed path is a directory
-      // nothing confirmed.
+      // Nothing to ask with. The page shows the typed field instead, so this is a refusal of
+      // one control rather than of the whole question.
       setPickerRefused(true)
       return
     }
@@ -1105,25 +1164,36 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         setPickerRefused(true)
         return
       }
-      const send = (baseRevision: string): void => {
-        void api.write({ baseRevision, cardId, workspace: { path: picked.path } }).then(applyWrite)
-      }
-      if (revision !== undefined) {
-        send(revision)
+      writeWorkspace(picked.path)
+    })
+  }, [workspacePicker, writeWorkspace])
+
+  const setWorkspace = useCallback((path: string) => {
+    const trimmed = path.trim()
+    // The contract's own rule first, so a typo is answered without a request: a relative path
+    // would name a different directory to whoever resolved it.
+    if (!isWorkbenchWorkspacePath(trimmed)) {
+      setWorkspaceTypedProblem('invalid-path')
+      return
+    }
+    setWorkspaceTypedProblem(undefined)
+    // Then the filesystem's answer, from the Host — the same check a run is gated on. A path
+    // that fails it is not written at all: the card keeps the directory it had, which is the
+    // difference between a typo and a card pointed at nothing.
+    void api.statDirectory(trimmed).then((outcome) => {
+      if (outcome.status !== 'ok') {
+        // The check itself could not be made, which is a different sentence from "there is no
+        // directory there" — and the card is equally unchanged by both.
+        setProblem({ code: 'unavailable', detail: outcome.reason })
         return
       }
-      // A page opened a moment ago may not hold a revision yet. Reading the missing one is
-      // what keeps the choice from being dropped on the floor, which is the bug the rename
-      // path had before it read the revision it needed.
-      void api.read().then((outcome) => {
-        if (outcome.status !== 'ok') {
-          setProblem({ code: 'unavailable', detail: outcome.reason })
-          return
-        }
-        send(outcome.snapshot.revision)
-      })
+      if (!outcome.stat.exists || !outcome.stat.isDirectory) {
+        setWorkspaceTypedProblem('not-directory')
+        return
+      }
+      writeWorkspace(trimmed)
     })
-  }, [api, applyWrite, cardId, revision, workspacePicker])
+  }, [api, writeWorkspace])
 
   const choosePermission = useCallback((mode: WorkbenchSandboxMode) => {
     if (revision === undefined) return
@@ -1412,6 +1482,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseSkill,
       chooseModel,
       chooseWorkspace,
+      setWorkspace,
       choosePermission,
       chooseInstructionMode,
       saveTemplate,
@@ -1432,6 +1503,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseSkill,
       chooseModel,
       chooseWorkspace,
+      setWorkspace,
       choosePermission,
       chooseInstructionMode,
       saveTemplate,
@@ -1507,6 +1579,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     instructionMode: effectiveWorkbenchInstructionMode(card?.instructionMode),
     recentInstructions,
     canChooseWorkspace,
+    workspaceTypedProblem,
     catalog,
     catalogStatus,
     catalogFailure,
@@ -1528,6 +1601,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     card?.instructionMode,
     recentInstructions,
     canChooseWorkspace,
+    workspaceTypedProblem,
     result,
     runs,
     options.runId,
