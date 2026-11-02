@@ -68,6 +68,30 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+/* A card that cannot run has three things to say in a cell sized for two: the result it
+   last produced, why 运行 is closed, and how many runs there have been. The summary gives up
+   a line, because the reason is the part the user can act on. */
+.faceBody[data-face-blocked] .faceSummary {
+  -webkit-line-clamp: 1;
+}
+
+/* Why the card's run control is closed. Two lines at most, clamped: the face is an index
+   entry, and a card that shouted the whole sentence would out-shout the result under it.
+   Tinted like the run pages' version, so the two read as one statement in two sizes. */
+.faceProblem {
+  display: -webkit-box;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-radius: var(--dsw-radius-sm);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 /* Tabular figures keep the times in one column across the grid. */
 .faceFoot {
   margin: auto 0 0;

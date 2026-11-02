@@ -153,15 +153,29 @@ export function SkillCard(props: SkillCardProps): ReactNode {
     () => (result === undefined ? undefined : resultHeadline(resultHtml(result) ?? '')),
     [result],
   )
+  // Why 运行 is grey, on the face itself. The button was a closed control with no sentence
+  // anywhere near it: the reasons lived on the run pages, which is one card too far away when
+  // the question is asked by looking at the grid.
+  const runProblem = runProblemOf(view)
   const bodySlot = useMemo(
     () => () => (
-      <div className={css.faceBody}>
+      <div className={css.faceBody} data-face-blocked={runProblem === undefined ? undefined : ''}>
         <p
           className={css.faceSummary}
           data-face-summary={headline === undefined ? 'empty' : 'text'}
         >
           {headline ?? t('skillCardNotRunBody')}
         </p>
+        {/* The first reason only: a grid cell names the fact the user has to fix, and the
+            card's own page lists the rest. */}
+        {runProblem === undefined
+          ? null
+          : (
+            <p className={css.faceProblem} data-face-problem={runProblem.code}>
+              {t(problemKey(runProblem.code))}
+              {runProblem.detail === undefined ? '' : ` · ${runProblem.detail}`}
+            </p>
+          )}
         {/* Only the count: the status beside the title already says when the last run
             finished, and printing the same moment twice on one card is noise. */}
         {latest === undefined ? null : (
@@ -169,7 +183,7 @@ export function SkillCard(props: SkillCardProps): ReactNode {
         )}
       </div>
     ),
-    [headline, latest, t, view.runs.length],
+    [headline, latest, runProblem, t, view.runs.length],
   )
 
   // The face's own verdict: what a glance at the grid has to answer — is this card
@@ -357,6 +371,99 @@ function Notice({ title, body }: { readonly title: string; readonly body: string
  */
 export function problemKey(code: WorkbenchCardProblem['code']): WorkbenchLocaleKey {
   return PROBLEM_KEYS[code]
+}
+
+/** One reason a card's run control is closed, and the fact the user has to change. */
+export interface WorkbenchRunProblem {
+  /** Which of the four answers this is. */
+  readonly code: WorkbenchCardProblem['code']
+  /** The directory the answer is about, for the workspace's own sentence. */
+  readonly detail?: string | undefined
+}
+
+/**
+ * Every reason this card cannot start a run, in the order a user fixes them.
+ *
+ * The list is the single answer to "why is 运行 grey": the run pages print all of it, and a
+ * card face has room for the first line only. Written once because the two places used to
+ * carry their own copies of the four conditions, and a face that named a different reason
+ * from the page under it would be worse than no sentence at all.
+ *
+ * The precedence is deliberate and it is the reason the list is written once: the directory
+ * is this card's own fact and the one a sentence can point at ("that path is not there"), so
+ * it is named first; a card with no model at all is the broader fact and is named after it;
+ * and a harness without an activation seam is the one thing the user cannot fix from this
+ * page, so it comes last. A face that said "no model is available" over a card whose folder
+ * had been copied from another machine would send its reader to the wrong setting.
+ * @param view - what the card currently shows.
+ * @returns the reasons, most important first; empty when the control is open.
+ */
+export function runProblemsOf(view: WorkbenchCardView): readonly WorkbenchRunProblem[] {
+  const problems: WorkbenchRunProblem[] = []
+  if (view.workspaceField.kind === 'missing') problems.push({ code: 'workspace-missing' })
+  // An unanswered check is not a refusal yet: the Host has not said the directory is gone,
+  // and a card that flashed "the directory is missing" while the answer was in flight would
+  // be wrong for one frame on every load.
+  if (view.workspaceField.kind === 'invalid' && view.workspaceField.checked) {
+    problems.push({ code: 'workspace-invalid', detail: view.workspaceField.path })
+  }
+  if (view.modelField.kind === 'unavailable') problems.push({ code: 'model-unavailable' })
+  if (view.runUnavailable !== undefined) problems.push({ code: view.runUnavailable.code })
+  return problems
+}
+
+/**
+ * The first of {@link runProblemsOf}, for a face with room for one line.
+ * @param view - what the card currently shows.
+ * @returns the reason to name, or undefined when the card can run.
+ */
+export function runProblemOf(view: WorkbenchCardView): WorkbenchRunProblem | undefined {
+  return runProblemsOf(view)[0]
+}
+
+/**
+ * Render the reasons a run cannot start, each under the control it explains.
+ * @param props - the card's view and the translator.
+ * @param props.view - what the card currently shows.
+ * @param props.t - translator.
+ * @returns the sentences, or nothing when the control is open.
+ */
+export function RunProblemLines({
+  view,
+  t,
+}: {
+  readonly view: WorkbenchCardView
+  readonly t: (key: WorkbenchLocaleKey) => string
+}): ReactNode {
+  return (
+    <>
+      {view.workspaceField.kind === 'missing'
+        ? (
+          <p className={css.runProblem} data-run-workspace-missing="">
+            {t(problemKey('workspace-missing'))}
+          </p>
+        )
+        : null}
+      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
+        ? (
+          <p className={css.runProblem} data-run-workspace-invalid="">
+            {t(problemKey('workspace-invalid'))}
+            {` · ${view.workspaceField.path}`}
+          </p>
+        )
+        : null}
+      {view.modelField.kind === 'unavailable'
+        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
+        : null}
+      {view.runUnavailable === undefined
+        ? null
+        : (
+          <p className={css.runProblem} data-run-unavailable="">
+            {t(problemKey(view.runUnavailable.code))}
+          </p>
+        )}
+    </>
+  )
 }
 
 /**

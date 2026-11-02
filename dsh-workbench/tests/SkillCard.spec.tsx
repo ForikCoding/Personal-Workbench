@@ -4,7 +4,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { primitivesMock } from './support/primitives-mock.tsx'
-import { SkillCardBody, cardFaceStanding } from '../src/client/skill-card/SkillCard.tsx'
+import {
+  RunProblemLines,
+  SkillCardBody,
+  cardFaceStanding,
+  runProblemOf,
+  runProblemsOf,
+} from '../src/client/skill-card/SkillCard.tsx'
 import type { WorkbenchCardView } from '../src/client/skill-card/controller.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
@@ -59,6 +65,72 @@ const RESULT = { runId: 'run-1', skill: 'git-repo', executedAt: 1, stopReason: '
 
 /** A template whose region is the only part a run fills. */
 const TEMPLATE = '<h1>Tasks</h1><!-- template-begin --><!-- template-end -->'
+
+describe('why the run control is closed', () => {
+  /** A card that can run: a route stored and a directory the Host confirmed. */
+  const ok = {
+    modelField: { kind: 'fixed', model: { provider: 'lightcode', model: 'GLM-FLASH-LATEST' } },
+    workspaceField: { kind: 'ready', path: 'D:\\repo', leaf: 'repo' },
+  } as const
+
+  it('names nothing for a card that can run', () => {
+    expect(runProblemsOf(view(ok))).toEqual([])
+    expect(runProblemOf(view(ok))).toBeUndefined()
+  })
+
+  it('names the directory that is gone, with the path, before anything broader', () => {
+    // The card was copied from a machine where that folder existed. The face gets one line,
+    // and "no model is available" would send its reader to the wrong setting.
+    const problems = runProblemsOf(view({
+      modelField: { kind: 'unavailable' },
+      workspaceField: { kind: 'invalid', path: 'D:\\Git\\deepseek-harness', leaf: 'deepseek-harness', checked: true },
+    }))
+    expect(problems).toEqual([
+      { code: 'workspace-invalid', detail: 'D:\\Git\\deepseek-harness' },
+      { code: 'model-unavailable' },
+    ])
+    expect(runProblemOf(view({
+      modelField: { kind: 'unavailable' },
+      workspaceField: { kind: 'invalid', path: 'D:\\Git\\deepseek-harness', leaf: 'deepseek-harness', checked: true },
+    }))).toEqual({ code: 'workspace-invalid', detail: 'D:\\Git\\deepseek-harness' })
+  })
+
+  it('stays quiet about a directory whose check has not answered yet', () => {
+    // One frame of "that folder is missing" on every page load would be a lie, and the
+    // control is closed for that frame anyway.
+    expect(runProblemsOf(view({
+      modelField: ok.modelField,
+      workspaceField: { kind: 'invalid', path: 'D:\\repo', leaf: 'repo', checked: false },
+    }))).toEqual([])
+  })
+
+  it('names a missing workspace, and a harness with no run seam, in that order', () => {
+    const problems = runProblemsOf(view({
+      modelField: ok.modelField,
+      workspaceField: { kind: 'missing' },
+      runUnavailable: { code: 'run-unavailable' },
+    }))
+    expect(problems.map(problem => problem.code)).toEqual(['workspace-missing', 'run-unavailable'])
+  })
+
+  it('renders one sentence per reason, each under the control it closes', () => {
+    const { container } = render(
+      <RunProblemLines
+        view={view({
+          modelField: { kind: 'unavailable' },
+          workspaceField: { kind: 'invalid', path: 'D:\\repo', leaf: 'repo', checked: true },
+          runUnavailable: { code: 'run-unavailable' },
+        })}
+        t={t}
+      />,
+    )
+    const codes = [...container.querySelectorAll('[data-run-workspace-invalid], [data-run-model-unavailable], [data-run-unavailable]')]
+      .map(element => element.getAttributeNames().find(name => name.startsWith('data-run-')))
+    expect(codes).toEqual(['data-run-workspace-invalid', 'data-run-model-unavailable', 'data-run-unavailable'])
+    // The directory's sentence carries the path: the reason a user can act on is which one.
+    expect(container.querySelector('[data-run-workspace-invalid]')?.textContent).toContain('D:\\repo')
+  })
+})
 
 describe('card face standing', () => {
   it('reads as idle until the card has run', () => {

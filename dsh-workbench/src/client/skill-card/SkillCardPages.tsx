@@ -37,7 +37,7 @@ import type {
 import type { WorkbenchModelSeat } from './model.ts'
 import { permissionLabelKey } from './permission.ts'
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
-import { SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
+import { RunProblemLines, SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
 import { RunTraceList, RunTraceToggle } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
@@ -547,31 +547,7 @@ export function SkillCardRunsPage(props: SkillCardPageProps): ReactNode {
       />
       {/* The same sentences the result page states, so a card whose face cannot start a run
           says why here too: this page is where the user comes to find out why it has not. */}
-      {view.modelField.kind === 'unavailable'
-        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
-        : null}
-      {view.workspaceField.kind === 'missing'
-        ? (
-          <p className={css.runProblem} data-run-workspace-missing="">
-            {t(problemKey('workspace-missing'))}
-          </p>
-        )
-        : null}
-      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
-        ? (
-          <p className={css.runProblem} data-run-workspace-invalid="">
-            {t(problemKey('workspace-invalid'))}
-            {` · ${view.workspaceField.path}`}
-          </p>
-        )
-        : null}
-      {view.runUnavailable === undefined
-        ? null
-        : (
-          <p className={css.runProblem} data-run-unavailable="">
-            {t(problemKey(view.runUnavailable.code))}
-          </p>
-        )}
+      <RunProblemLines view={view} t={t} />
       {/* Stated here whenever there is one, including after a failed refinement: the
           refinement's own sentence lives under its composer, and this page is where the
           user lands when they come back — a page that showed nothing at all left them
@@ -1062,37 +1038,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         : null}
       {/* Why the control just above cannot be pressed, stated under it rather than at the top
           of the page: the sentence belongs to the button it explains. */}
-      {view.modelField.kind === 'unavailable'
-        ? <p className={css.runProblem} data-run-model-unavailable="">{t('skillCardModelUnavailable')}</p>
-        : null}
-      {/* Where the card would run, when it cannot. Its own line rather than part of the
-          model one: the two are separate configuration, and a user fixing one should not
-          read a sentence about the other. */}
-      {view.workspaceField.kind === 'missing'
-        ? (
-          <p className={css.runProblem} data-run-workspace-missing="">
-            {t(problemKey('workspace-missing'))}
-          </p>
-        )
-        : null}
-      {view.workspaceField.kind === 'invalid' && view.workspaceField.checked
-        ? (
-          <p className={css.runProblem} data-run-workspace-invalid="">
-            {t(problemKey('workspace-invalid'))}
-            {` · ${view.workspaceField.path}`}
-          </p>
-        )
-        : null}
-      {/* The run control is disabled because this harness has no activation seam. The
-          sentence names what is missing and which harness provides it, so the state is
-          readable before the control is pressed rather than after it fails. */}
-      {view.runUnavailable === undefined
-        ? null
-        : (
-          <p className={css.runProblem} data-run-unavailable="">
-            {t(problemKey(view.runUnavailable.code))}
-          </p>
-        )}
+      <RunProblemLines view={view} t={t} />
     </section>
   )
 }

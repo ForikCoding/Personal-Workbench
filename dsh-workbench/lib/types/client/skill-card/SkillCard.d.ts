@@ -127,3 +127,45 @@ export declare function SkillCardBody({ view, cardId, t, onAction, documents }: 
  * @returns the locale key. Exhaustive over the code union.
  */
 export declare function problemKey(code: WorkbenchCardProblem['code']): WorkbenchLocaleKey;
+/** One reason a card's run control is closed, and the fact the user has to change. */
+export interface WorkbenchRunProblem {
+    /** Which of the four answers this is. */
+    readonly code: WorkbenchCardProblem['code'];
+    /** The directory the answer is about, for the workspace's own sentence. */
+    readonly detail?: string | undefined;
+}
+/**
+ * Every reason this card cannot start a run, in the order a user fixes them.
+ *
+ * The list is the single answer to "why is 运行 grey": the run pages print all of it, and a
+ * card face has room for the first line only. Written once because the two places used to
+ * carry their own copies of the four conditions, and a face that named a different reason
+ * from the page under it would be worse than no sentence at all.
+ *
+ * The precedence is deliberate and it is the reason the list is written once: the directory
+ * is this card's own fact and the one a sentence can point at ("that path is not there"), so
+ * it is named first; a card with no model at all is the broader fact and is named after it;
+ * and a harness without an activation seam is the one thing the user cannot fix from this
+ * page, so it comes last. A face that said "no model is available" over a card whose folder
+ * had been copied from another machine would send its reader to the wrong setting.
+ * @param view - what the card currently shows.
+ * @returns the reasons, most important first; empty when the control is open.
+ */
+export declare function runProblemsOf(view: WorkbenchCardView): readonly WorkbenchRunProblem[];
+/**
+ * The first of {@link runProblemsOf}, for a face with room for one line.
+ * @param view - what the card currently shows.
+ * @returns the reason to name, or undefined when the card can run.
+ */
+export declare function runProblemOf(view: WorkbenchCardView): WorkbenchRunProblem | undefined;
+/**
+ * Render the reasons a run cannot start, each under the control it explains.
+ * @param props - the card's view and the translator.
+ * @param props.view - what the card currently shows.
+ * @param props.t - translator.
+ * @returns the sentences, or nothing when the control is open.
+ */
+export declare function RunProblemLines({ view, t, }: {
+    readonly view: WorkbenchCardView;
+    readonly t: (key: WorkbenchLocaleKey) => string;
+}): ReactNode;
