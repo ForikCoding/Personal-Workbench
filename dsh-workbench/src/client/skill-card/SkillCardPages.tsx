@@ -634,6 +634,9 @@ function RunHistoryRow({
   readonly onStop?: () => void
 }): ReactNode {
   const headline = resultHeadline(resultHtml(run.structured) ?? '')
+  // The row of the run in flight is the synthetic record the controller builds, and its stop
+  // reason is the word that says so.
+  const running = run.stopReason === 'running'
   return (
     <li className={css.runHistoryItem}>
       <div className={css.runHistoryRow}>
@@ -647,12 +650,24 @@ function RunHistoryRow({
           <span className={css.runHistoryBody}>
             {/* A run that stored nothing still states that in the row's first line. Left
                 empty, the row was a lone grey meta line, indistinguishable from a row that
-                had failed to load. */}
+                had failed to load.
+
+                A run still going is the other case, and not the same one: it has no content
+                *yet*, so the row said the run was over and empty while its own outcome
+                column said 运行中. */}
             {headline === undefined
               ? (
-                <span className={css.runHistoryTitle} data-empty="true" data-run-history-nothing="">
-                  {t('runHistoryNoContent')}
-                </span>
+                running
+                  ? (
+                    <span className={css.runHistoryTitle} data-run-history-pending="">
+                      {t('runHistoryRunningTitle')}
+                    </span>
+                  )
+                  : (
+                    <span className={css.runHistoryTitle} data-empty="true" data-run-history-nothing="">
+                      {t('runHistoryNoContent')}
+                    </span>
+                  )
               )
               : <span className={css.runHistoryTitle} data-run-history-summary="">{headline}</span>}
             <span className={css.runHistoryMeta}>
@@ -858,7 +873,16 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         onBack={onBack}
         title={view.name ?? fallbackTitle}
         t={t}
-        meta={view.skill === undefined ? undefined : <span className={css.pageHeadChip}>{view.skill}</span>}
+        meta={(
+          <>
+            {view.skill === undefined ? null : <span className={css.pageHeadChip}>{view.skill}</span>}
+            {/* Where this result came out, in the head rather than under the document: it is
+                one of the facts that name the result, alongside the skill that made it, and a
+                line after the document put it below whatever length that document happened to
+                have. */}
+            <RunWorkspaceLine view={view} t={t} />
+          </>
+        )}
       />
       {/* A refinement's failure is stated under the composer, which sits on this same page:
           saying it here as well put the same sentence on screen twice. What the page itself
@@ -1005,10 +1029,6 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                 )
                 : null}
             </div>
-            {/* Where this result was produced, under the controls that can change it: the
-                运行 dialog writes a new directory back to the card, so this line is the one
-                place the page can answer "which folder was that about". */}
-            <RunWorkspaceLine view={view} t={t} />
             {traceOpen ? <RunTraceList trace={trace} t={t} /> : null}
             <RefineHistory view={view} t={t} onUndo={actions.undoRefine} />
           </section>

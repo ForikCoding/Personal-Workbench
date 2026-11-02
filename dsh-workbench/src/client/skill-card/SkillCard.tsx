@@ -489,14 +489,16 @@ export function RunWorkspaceLine({
   const field = view.workspaceField
   const text = field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.path
   return (
-    <p
+    // A span, not a paragraph: this sits in the head's own row of facts, beside the skill
+    // chip and the count, so it is one item in a line rather than a block of its own.
+    <span
       className={css.runWorkspaceLine}
       data-run-workspace-line={field.kind}
       title={field.kind === 'missing' ? undefined : field.path}
     >
       <span className={css.runWorkspaceLineLabel}>{t('skillCardWorkspace')}</span>
       <span className={css.runWorkspaceLinePath}>{text}</span>
-    </p>
+    </span>
   )
 }
 

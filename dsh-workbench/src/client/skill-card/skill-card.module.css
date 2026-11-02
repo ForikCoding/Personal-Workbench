@@ -684,18 +684,16 @@
   white-space: nowrap;
 }
 
-/* Where a result happened, under the row of controls that can change it. One line, the exact
-   path, quiet enough to read as a fact rather than a warning — unless the directory is gone,
-   which the value's own colour says. */
+/* Where a result happened: one item in the head's row of facts, beside the skill that made it.
+   The path is the exact one and never the folder's name, because the name is a display
+   convenience and the directory that ran is the whole path. Quiet enough to read as a fact
+   rather than a warning — unless the directory is gone, which the path's own colour says. */
 .runWorkspaceLine {
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  margin: 0;
+  gap: 4px;
   min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
+  max-width: 100%;
 }
 
 .runWorkspaceLineLabel {

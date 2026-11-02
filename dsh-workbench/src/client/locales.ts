@@ -201,6 +201,10 @@ export const zh = {
   // headline. Said in the row's first line rather than left blank, because a row with only
   // its clock reads as a row that failed to load rather than a run with nothing to say.
   runHistoryNoContent: '本次没有产出内容',
+  // The row of a run still going has no content yet, which is not the same fact as a run
+  // that finished with none. It says which of the two it is, so the row's own clock and
+  // 「运行中」 are not arguing with a sentence that claims the run is over.
+  runHistoryRunningTitle: '正在运行，结果出来后显示在这里',
   // The list is grouped by the day a run completed on, so the day is stated once per
   // group and the rows below it carry only the clock: two runs six days apart are not
   // distinguishable by two identical clock readings.
@@ -483,6 +487,7 @@ export const en: Record<keyof typeof zh, string> = {
   runHistoryEmpty: 'This card has not run yet. Go back to the cards and run it from its own control.',
   runHistoryEdited: 'Edited',
   runHistoryNoContent: 'This run produced nothing',
+  runHistoryRunningTitle: 'Running — the result appears here when it finishes',
   runHistoryDayToday: 'Today',
   runHistoryDayYesterday: 'Yesterday',
   runHistoryOrdinal: 'Run {n}',

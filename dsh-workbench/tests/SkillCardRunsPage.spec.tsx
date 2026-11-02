@@ -406,6 +406,12 @@ describe('the run-history page', () => {
       expect(container.querySelector('[data-run-history-time]')?.textContent).toBe('14:28')
       expect(container.querySelector('[data-run-history-outcome]')?.textContent).toBe(zh.runHistoryRunning)
       expect(container.querySelector('[data-run-history-summary]')).toBeNull()
+      // A run in flight has no content *yet*, which is not the same fact as a run that
+      // finished with none: the row must not claim the run is over and empty while its own
+      // outcome says 运行中.
+      expect(container.querySelector('[data-run-history-nothing]')).toBeNull()
+      expect(container.querySelector('[data-run-history-pending]')?.textContent)
+        .toBe(zh.runHistoryRunningTitle)
       // The row is the way in to the run in flight: its live result page is what the
       // click shows, so it is a live control from the first moment.
       expect(container.querySelector<HTMLButtonElement>('[data-run-history-row]')?.disabled).toBe(false)
