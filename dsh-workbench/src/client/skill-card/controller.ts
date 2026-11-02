@@ -1484,15 +1484,19 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     // The deciding question is whether there is a model the run could name, never whether
     // the picker loaded: a known route keeps a card runnable with no catalog at all. A
     // harness without either run seam is the one answer that closes this off for every
-    // card, and the view states it beside the disabled control. The directory is the same
-    // kind of answer: a card only runs where the user put it. The live session is not one
+    // card, and the view states it beside the disabled control. The live session is not one
     // of these answers: a run gets a session of its own, so a card is runnable with none
     // open.
+    //
+    // The directory is deliberately not one of them any more. It is the one precondition a
+    // user can answer at the moment of pressing 运行 — the run dialog names the directory and
+    // offers the picker — so a card whose folder was copied from another machine must not
+    // present a dead control. The Host still refuses a run with nowhere to happen, and the
+    // dialog refuses to send one.
     runnable: runUnavailable === undefined
       && card?.skill !== undefined
       && card.template !== undefined
-      && modelField.kind !== 'unavailable'
-      && workspaceField.kind === 'ready',
+      && modelField.kind !== 'unavailable',
     modelField,
     workspaceField,
     // Never absent: a card that stores no mode runs under the default, and the page shows

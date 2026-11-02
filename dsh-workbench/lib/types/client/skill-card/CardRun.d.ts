@@ -14,6 +14,7 @@
  */
 import { type ReactNode } from 'react';
 import type { WorkbenchCardActions, WorkbenchCardView } from './controller.ts';
+import type { WorkbenchInstructionMode } from '../../skill-card-contract.ts';
 import type { WorkbenchLocaleKey } from '../locales.ts';
 /** Rows the revision field grows to before it scrolls instead. */
 export declare const COMPOSER_MAX_ROWS = 4;
@@ -72,23 +73,34 @@ export declare function InstructionChips({ recent, t, onPick, }: {
     readonly onPick: (instruction: string) => void;
 }): ReactNode;
 /**
- * The dialog a run's instruction is written in, for a card that takes one.
+ * The dialog a run is started from.
  *
- * A card whose skill takes no instruction never opens this: the run starts from its face, and
- * a dialog over a form with nothing in it would be a question with no answer.
- * @param props - the card, the mode, the recent asks, and the two ways out.
+ * Every run opens it now, whatever the card's instruction mode: the sentence was the reason
+ * it existed, and the directory is the second — where a run happens is the one precondition a
+ * user can answer at the moment of pressing 运行, so it is asked here rather than being a
+ * check that closes the control from a distance. A card that needs no instruction gets the
+ * same dialog without a field: the directory, then 运行.
+ *
+ * The directory shown is the card's own, so a user who is happy with it presses 运行 without
+ * touching anything. Picking another one writes it to the card's configuration through the
+ * same path the 配置 page uses — a run in a directory the card does not name would leave the
+ * result's own reading of "where this happened" wrong.
+ * @param props - the card, its view, the mode, the recent asks, and the two ways out.
  * @returns the dialog.
  */
-export declare function RunPrompt({ cardId, title, mode, recent, t, disabled, onRun, onCancel, }: {
+export declare function RunPrompt({ cardId, title, view, mode, recent, t, onChooseWorkspace, onRun, onCancel, }: {
     readonly cardId: string;
     /** The panel's heading: what this particular run is, in the words of the control that opened it. */
     readonly title: string;
-    /** The card's instruction mode; `none` never reaches this dialog. */
-    readonly mode: 'optional' | 'required';
+    /** What the card currently shows, for the directory it names. */
+    readonly view: WorkbenchCardView;
+    /** The card's instruction mode; a `none` card gets the dialog without a field. */
+    readonly mode: WorkbenchInstructionMode;
     readonly recent: readonly string[];
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
-    readonly disabled: boolean;
-    readonly onRun: (instruction: string) => void;
+    /** Ask for a directory and store it as this card's workspace. */
+    readonly onChooseWorkspace: () => void;
+    readonly onRun: (instruction?: string) => void;
     readonly onCancel: () => void;
 }): ReactNode;
 /**

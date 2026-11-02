@@ -37,7 +37,13 @@ import type {
 import type { WorkbenchModelSeat } from './model.ts'
 import { permissionLabelKey } from './permission.ts'
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
-import { RunProblemLines, SkillCardBody, cardFaceTitle, problemKey } from './SkillCard.tsx'
+import {
+  RunProblemLines,
+  RunWorkspaceLine,
+  SkillCardBody,
+  cardFaceTitle,
+  problemKey,
+} from './SkillCard.tsx'
 import { RunTraceList, RunTraceToggle } from './ActivityTrace.tsx'
 import { SkillCardResultEditor } from './SkillCardResultEditor.tsx'
 import { SkillCardSettings } from './SkillCardSettings.tsx'
@@ -956,10 +962,10 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                     actions.cancel()
                     return
                   }
-                  // A card whose skill takes no instruction has nothing a dialog could ask,
-                  // so 从头跑 starts the run itself.
-                  if (view.instructionMode === 'none') actions.run()
-                  else setPrompt('fresh')
+                  // Every run asks first: the dialog confirms or changes the directory this
+                  // run happens in, and that question is put whether or not the card's skill
+                  // takes an instruction.
+                  setPrompt('fresh')
                 }}
               >
                 {busy ? <IconCloseOutlineMedium size={14} /> : <IconPlayOutlineRegular size={14} />}
@@ -999,6 +1005,10 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                 )
                 : null}
             </div>
+            {/* Where this result was produced, under the controls that can change it: the
+                运行 dialog writes a new directory back to the card, so this line is the one
+                place the page can answer "which folder was that about". */}
+            <RunWorkspaceLine view={view} t={t} />
             {traceOpen ? <RunTraceList trace={trace} t={t} /> : null}
             <RefineHistory view={view} t={t} onUndo={actions.undoRefine} />
           </section>
@@ -1019,15 +1029,16 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
           />
         )
         : null}
-      {prompt === 'fresh' && view.instructionMode !== 'none'
+      {prompt === 'fresh'
         ? (
           <RunPrompt
             cardId={cardId}
             title={t('resultFreshMode')}
+            view={view}
             mode={view.instructionMode}
             recent={view.recentInstructions}
             t={t}
-            disabled={bareRunning || !view.runnable}
+            onChooseWorkspace={actions.chooseWorkspace}
             onRun={(instruction) => {
               actions.run(instruction)
               setPrompt(undefined)

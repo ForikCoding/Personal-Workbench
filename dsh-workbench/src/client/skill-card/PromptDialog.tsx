@@ -31,6 +31,13 @@ export interface PromptDialogProps {
   readonly problem?: string | undefined
   /** Whether the dialog covers a form that cannot be submitted at all. */
   readonly busy?: boolean | undefined
+  /**
+   * Whether the caret starts on the submit control rather than in the form.
+   *
+   * A dialog with nothing to type — a card whose skill takes no instruction, where the run is
+   * confirmed rather than written — is a dialog to press Enter in.
+   */
+  readonly focusSubmit?: boolean | undefined
   readonly onCancel: () => void
   readonly onSubmit: () => void
   /** The form: a field, and whatever else belongs beside it. */
@@ -51,6 +58,7 @@ export function PromptDialog({
   closeLabel,
   problem,
   busy = false,
+  focusSubmit = false,
   onCancel,
   onSubmit,
   children,
@@ -65,7 +73,14 @@ export function PromptDialog({
       footer={(
         <>
           <Button variant="ghost" size="md" onClick={onCancel}>{cancelLabel}</Button>
-          <Button variant="primary" size="md" disabled={submitDisabled || busy} onClick={onSubmit}>
+          <Button
+            variant="primary"
+            size="md"
+            disabled={submitDisabled || busy}
+            data-prompt-submit=""
+            {...focusSubmit ? { 'data-prompt-focus': '' } : {}}
+            onClick={onSubmit}
+          >
             {submitLabel}
           </Button>
         </>

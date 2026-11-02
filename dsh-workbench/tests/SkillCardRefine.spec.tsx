@@ -301,14 +301,22 @@ describe('refining a result', () => {
     expect(container.querySelector('[data-result-composer] textarea')).toBeNull()
   })
 
-  it('runs without a dialog when the card takes no instruction', async () => {
-    // A dialog over a form with nothing in it is a question with no answer: the run starts.
+  it('asks where the run happens even when the card takes no instruction', async () => {
+    // The dialog is not only about the sentence: it names the directory and lets it be
+    // changed, which is a question every run has an answer to. A card whose skill takes no
+    // instruction therefore gets the same dialog without a field.
     const { api, requests } = pageApi({
       start: async () => ({ status: 'ok', state: settled('<b>新</b>') }),
     })
     await show(api)
     choose('fresh')
-    expect(dialog()).toBeNull()
+    const panel = dialog()
+    expect(panel).not.toBeNull()
+    expect(panel?.querySelector('textarea')).toBeNull()
+    expect(panel?.querySelector('[data-workspace-field]')?.textContent).toContain('repo')
+    const submit = document.querySelector('[data-prompt-submit]')
+    if (submit === null) throw new Error('the run dialog has no run control')
+    fireEvent.click(submit)
     await waitFor(() => { expect(requests).toHaveLength(1) })
     expect(requests[0]?.mode).toEqual({ kind: 'card' })
   })
@@ -588,8 +596,12 @@ describe('refining a result', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-change-mode="fresh"]')).toHaveProperty('disabled', false)
     })
-    // Produce a result with a run; nothing is stored, so `stored` stays empty.
+    // Produce a result with a run; nothing is stored, so `stored` stays empty. The run
+    // dialog is opened and sent, because every run asks where it happens first.
     choose('fresh', container)
+    const submit = document.querySelector('[data-prompt-submit]')
+    if (submit === null) throw new Error('the run dialog has no run control')
+    fireEvent.click(submit)
     await waitFor(() => { expect(shadowText(container)).toContain('旧') })
 
     ask('按时间倒序')

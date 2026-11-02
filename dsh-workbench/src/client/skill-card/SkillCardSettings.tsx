@@ -31,6 +31,7 @@ import type {
 } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import { ActionDeclarationPanel } from './ActionDeclarationPanel.tsx'
+import { classes } from './class-names.ts'
 import type { WorkbenchCardView } from './controller.ts'
 import { declarationLine, insertDeclaration } from './declarations.ts'
 import { modelKey, parseModelKey } from './model.ts'
@@ -125,17 +126,6 @@ interface MissingTarget {
   readonly name: string
 }
 
-/**
- * Join the class names of one element.
- *
- * The CSS module is typed as an index signature, so every lookup may be undefined;
- * dropping the absent ones keeps a literal `undefined` out of the DOM.
- * @param names - candidate class names.
- * @returns the class attribute value.
- */
-function classes(...names: readonly (string | undefined)[]): string {
-  return names.filter((name): name is string => name !== undefined).join(' ')
-}
 
 /**
  * Choose the classes of one gutter line.

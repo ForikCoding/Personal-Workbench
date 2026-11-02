@@ -169,3 +169,20 @@ export declare function RunProblemLines({ view, t, }: {
     readonly view: WorkbenchCardView;
     readonly t: (key: WorkbenchLocaleKey) => string;
 }): ReactNode;
+/**
+ * State the directory a result was produced in.
+ *
+ * The one run fact that is neither in the document nor in the run record: a result says what
+ * the skill produced, the history says when and for how long, and neither says *where*. It
+ * matters most exactly when it is least obvious — a card whose folder was changed, or copied
+ * from another machine — so it is printed as the full path rather than the folder's name, and
+ * it is printed from the card, which is where the run dialog writes the answer.
+ * @param props - the card's view and the translator.
+ * @param props.view - what the card currently shows.
+ * @param props.t - translator.
+ * @returns the line, or nothing for a card that has no directory to name.
+ */
+export declare function RunWorkspaceLine({ view, t, }: {
+    readonly view: WorkbenchCardView;
+    readonly t: (key: WorkbenchLocaleKey) => string;
+}): ReactNode;

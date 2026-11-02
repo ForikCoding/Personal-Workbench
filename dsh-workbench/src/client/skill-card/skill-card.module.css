@@ -667,6 +667,52 @@
   padding-top: 2px;
 }
 
+/* The directory this run happens in, at the top of the run dialog: a label, the value, and the
+   picker beside it. The same three pieces the configuration page's workspace field draws, so
+   the dialog and the page it writes to cannot describe one directory two ways. */
+.runWorkspace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The picker keeps its own width whatever the path beside it is: two characters of a button
+   wrapping onto a second line is the one thing that makes the row look broken. */
+.runWorkspace button {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Where a result happened, under the row of controls that can change it. One line, the exact
+   path, quiet enough to read as a fact rather than a warning — unless the directory is gone,
+   which the value's own colour says. */
+.runWorkspaceLine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.runWorkspaceLineLabel {
+  flex: none;
+}
+
+.runWorkspaceLinePath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runWorkspaceLine[data-run-workspace-line='invalid'] .runWorkspaceLinePath {
+  color: var(--dsw-alias-state-warn-label);
+}
+
 /* The instructions this card was recently given, offered back as chips in the run dialog.
    A shortcut for the common case — the same ask again, with a small edit — so a click refills
    the field rather than starting a run. */

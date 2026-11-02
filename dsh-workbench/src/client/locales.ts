@@ -233,7 +233,7 @@ export const zh = {
   // The two dialogs those controls open: one line saying what submitting will do, and the
   // corner control's name for a screen reader.
   promptReviseHint: '只改这一份结果，源文件不动。写完按 Enter 提交。',
-  promptFreshHint: '按当前工作区从头跑一遍，会新增一次运行记录。',
+  promptFreshHint: '这次在哪个目录下运行。改目录会更新这张卡的配置，不改就直接运行。',
   // The card's own run dialog is not the result page's 运行: it starts this card rather than
   // re-running a result, so it names the card rather than the old result.
   runPromptTitle: '运行这张卡',
@@ -499,7 +499,7 @@ export const en: Record<keyof typeof zh, string> = {
   resultReviseMode: 'Modify',
   resultFreshMode: 'Run',
   promptReviseHint: 'Changes only this result; the source files stay as they are. Enter submits.',
-  promptFreshHint: 'Runs the card again on the current workspace, as a new run in its history.',
+  promptFreshHint: 'Where this run happens. Changing the directory updates the card; leaving it runs as configured.',
   runPromptTitle: 'Run this card',
   promptClose: 'Close',
   refinePlaceholder: 'Say what to change, e.g. “newest first”',

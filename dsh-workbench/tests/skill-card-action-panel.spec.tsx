@@ -265,6 +265,19 @@ function panel(): HTMLElement {
 }
 
 /**
+ * The run dialog's own run control.
+ *
+ * Every run asks where it happens before it starts, so the block's 运行 opens a dialog and the
+ * run leaves from there.
+ * @returns the control that sends the run.
+ */
+function runDialogSubmit(): HTMLElement {
+  const submit = document.querySelector<HTMLElement>('[data-prompt-submit]')
+  if (submit === null) throw new Error('the run dialog did not open')
+  return submit
+}
+
+/**
  * Read the action problem alert.
  * @returns its code and text.
  */
@@ -559,8 +572,10 @@ describe('action confirmation panel', () => {
     const { renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
-    // A run is one of the ways of changing the result, so it is the block's own control.
+    // A run is one of the ways of changing the result, so it is the block's own control —
+    // and it asks where the run happens before it starts, so the dialog is sent too.
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.resultFreshMode })) })
+    await act(async () => { fireEvent.click(runDialogSubmit()) })
     // The in-flight notice is what states this now: the status-line row that used to
     // carry `data-run-status` is gone, so the notice is the wait target.
     await waitFor(() => { expect(screen.getByText(en.skillCardRunningBody)).toBeTruthy() })
@@ -575,6 +590,7 @@ describe('action confirmation panel', () => {
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.resultFreshMode })) })
+    await act(async () => { fireEvent.click(runDialogSubmit()) })
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
     expect(recorded.starts[0]).toEqual({
       cardId: 'clicker',

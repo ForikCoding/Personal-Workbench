@@ -31,6 +31,19 @@ const t = (key: string): string => key
  * @param overrides - fields to replace.
  * @returns complete props.
  */
+/**
+ * Click the block's run control and send the dialog it opens.
+ *
+ * Every run asks where it happens before it starts, so a spec that only clicks the control
+ * never reaches the transport.
+ * @param control - the block's run control.
+ */
+function sendRun(control: HTMLElement): void {
+  fireEvent.click(control)
+  const submit = document.querySelector('[data-prompt-submit]')
+  if (submit === null) throw new Error('the run dialog did not open')
+  fireEvent.click(submit)
+}
 function props(overrides: Partial<PageProps> = {}): PageProps {
   return {
     api: {
@@ -383,7 +396,7 @@ describe('skill card result page', () => {
     )
     const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
-    fireEvent.click(run)
+    sendRun(run)
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('the child crashed')
     expect(alert.textContent).toContain('skillCardProblemRunFailed')
@@ -407,7 +420,7 @@ describe('skill card result page', () => {
     )
     const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
-    fireEvent.click(run)
+    sendRun(run)
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('skillCardProblemRunUnavailable')
     expect(alert.textContent).toContain('startActivation')
@@ -440,7 +453,7 @@ describe('skill card result page', () => {
     )
     const run = await screen.findByRole('button', { name: 'resultFreshMode' })
     await waitFor(() => { expect(run).toHaveProperty('disabled', false) })
-    fireEvent.click(run)
+    sendRun(run)
     // The in-flight notice replaces the document, so a page that just started a run is
     // never inert. The status line that used to name the phase as well was removed as
     // noise, so the notice is now the one place this state is stated.

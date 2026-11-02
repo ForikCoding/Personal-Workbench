@@ -3,9 +3,10 @@
  * The run control on a card's face.
  *
  * The card in the grid is where a run starts — the card's own page has no run control at
- * all — so these cases pin the three readings of one small control: a card that takes no
- * instruction starts on the press, a card that takes one asks in a dialog first, and a card
- * whose own run is in flight offers that run's stop instead. Nothing here renders the page.
+ * all — so these cases pin the readings of one small control: the press always opens the run
+ * dialog, which asks where the run happens (and, for a card that takes one, what to do), and
+ * a card whose own run is in flight offers that run's stop instead. Nothing here renders the
+ * page.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,9 +54,13 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
   }
 }
 
-/** The card's actions, with only the two this control calls recorded. */
-function actions(): { run: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn> } {
-  return { run: vi.fn(), cancel: vi.fn() }
+/** The card's actions, with only the three this control calls recorded. */
+function actions(): {
+  run: ReturnType<typeof vi.fn>
+  cancel: ReturnType<typeof vi.fn>
+  chooseWorkspace: ReturnType<typeof vi.fn>
+} {
+  return { run: vi.fn(), cancel: vi.fn(), chooseWorkspace: vi.fn() }
 }
 
 /**
@@ -66,7 +71,7 @@ function actions(): { run: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof v
 function control(
   overrides: Partial<WorkbenchCardView> = {},
   recorded = actions(),
-): { container: HTMLElement; recorded: { run: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn> } } {
+): { container: HTMLElement; recorded: ReturnType<typeof actions> } {
   const { container } = render(
     <CardRunButton
       cardId="skill-card"
@@ -97,15 +102,40 @@ function dialog(): HTMLElement | null {
   return document.querySelector('[data-prompt-panel]')
 }
 
+/**
+ * The dialog's own run control.
+ * @param panel - the open dialog.
+ * @returns the control that sends the run.
+ */
+function submitOf(panel: HTMLElement): HTMLElement {
+  const submit = panel.querySelector<HTMLElement>('[data-prompt-submit]')
+  if (submit === null) throw new Error('the run dialog has no run control')
+  return submit
+}
+
 describe('the card face run control', () => {
-  it('starts a card that takes no instruction on the press, with no dialog in the way', () => {
-    // A dialog over a form with nothing in it would be a question with no answer.
+  it('asks where a card that takes no instruction runs, then sends the run', () => {
+    // The dialog is not only about the sentence: it names the directory and lets it be
+    // changed, and a card that needs no instruction still runs somewhere.
     const { container, recorded } = control({ instructionMode: 'none' })
     expect(startControl(container).textContent).toBe(zh.skillCardRun)
     fireEvent.click(startControl(container))
+    // The press asked where, not for a run.
+    expect(recorded.run).not.toHaveBeenCalled()
+    const panel = dialog()
+    if (panel === null) throw new Error('the run dialog did not open')
+    expect(panel.textContent).toContain(zh.runPromptTitle)
+    expect(panel.textContent).toContain(zh.promptFreshHint)
+    // No field: there is no sentence to write.
+    expect(panel.querySelector('textarea')).toBeNull()
+    const workspace = panel.querySelector('[data-workspace-field]')
+    expect(workspace?.textContent).toContain('repo')
+    expect(panel.querySelector('[data-workspace-path]')?.textContent).toBe('F:\\git\\repo')
+
+    fireEvent.click(submitOf(panel))
     expect(recorded.run).toHaveBeenCalledTimes(1)
-    expect(recorded.run.mock.calls[0]).toEqual([])
-    expect(dialog()).toBeNull()
+    // No instruction, not an empty one: the card has no field to send one from.
+    expect(recorded.run.mock.calls[0]?.[0]).toBeUndefined()
   })
 
   it('asks a card that takes an instruction, and sends what was written', () => {
@@ -204,5 +234,61 @@ describe('the run dialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(dialog()).toBeNull()
     expect(recorded.run).not.toHaveBeenCalled()
+  })
+
+  it('is where a card with no directory is fixed, rather than a dead control', () => {
+    // A card copied from another machine still has a skill, a template and a model; the
+    // folder is the one thing that did not come with it. The press is the moment the user
+    // can answer that, so it must still work.
+    const { container, recorded } = control({
+      instructionMode: 'none',
+      canChooseWorkspace: true,
+      workspaceField: { kind: 'missing' },
+    })
+    expect(startControl(container).disabled).toBe(false)
+    fireEvent.click(startControl(container))
+    const panel = dialog()
+    if (panel === null) throw new Error('the run dialog did not open')
+    expect(panel.querySelector('[data-dialog-workspace-missing]')?.textContent)
+      .toBe(zh.skillCardProblemWorkspaceMissing)
+    // Nothing to run in yet: the dialog's own run control waits for a directory.
+    expect(submitOf(panel)).toHaveProperty('disabled', true)
+    expect(recorded.run).not.toHaveBeenCalled()
+
+    const pick = panel.querySelector<HTMLElement>('[data-workspace-pick]')
+    if (pick === null) throw new Error('the dialog offered no directory picker')
+    fireEvent.click(pick)
+    expect(recorded.chooseWorkspace).toHaveBeenCalledTimes(1)
+  })
+
+  it('names a directory that is gone and the picker that replaces it', () => {
+    const { container } = control({
+      instructionMode: 'optional',
+      canChooseWorkspace: true,
+      workspaceField: { kind: 'invalid', path: 'D:\\Git\\Gone', leaf: 'Gone', checked: true },
+    })
+    fireEvent.click(startControl(container))
+    const panel = dialog()
+    if (panel === null) throw new Error('the run dialog did not open')
+    expect(panel.querySelector('[data-workspace-path]')?.textContent).toBe('D:\\Git\\Gone')
+    expect(panel.querySelector('[data-dialog-workspace-invalid]')?.textContent)
+      .toBe(zh.skillCardProblemWorkspaceInvalid)
+    expect(submitOf(panel)).toHaveProperty('disabled', true)
+  })
+
+  it('says so when the environment has no picker at all', () => {
+    // Without a picker there is nothing the dialog could do about a missing directory, so it
+    // says that instead of offering a button that cannot work.
+    const { container } = control({
+      instructionMode: 'none',
+      canChooseWorkspace: false,
+      workspaceField: { kind: 'missing' },
+    })
+    fireEvent.click(startControl(container))
+    const panel = dialog()
+    if (panel === null) throw new Error('the run dialog did not open')
+    expect(panel.querySelector('[data-workspace-picker-unavailable]')?.textContent)
+      .toBe(zh.skillCardWorkspacePickerUnavailable)
+    expect(panel.querySelector<HTMLButtonElement>('[data-workspace-pick]')?.disabled).toBe(true)
   })
 })

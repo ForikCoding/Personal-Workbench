@@ -20,7 +20,9 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkbenchCardActions, WorkbenchCardView } from './controller.ts'
+import type { WorkbenchInstructionMode } from '../../skill-card-contract.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
+import { classes } from './class-names.ts'
 import { PromptDialog } from './PromptDialog.tsx'
 import css from './skill-card.module.css'
 
@@ -185,32 +187,44 @@ export function InstructionChips({
 }
 
 /**
- * The dialog a run's instruction is written in, for a card that takes one.
+ * The dialog a run is started from.
  *
- * A card whose skill takes no instruction never opens this: the run starts from its face, and
- * a dialog over a form with nothing in it would be a question with no answer.
- * @param props - the card, the mode, the recent asks, and the two ways out.
+ * Every run opens it now, whatever the card's instruction mode: the sentence was the reason
+ * it existed, and the directory is the second — where a run happens is the one precondition a
+ * user can answer at the moment of pressing 运行, so it is asked here rather than being a
+ * check that closes the control from a distance. A card that needs no instruction gets the
+ * same dialog without a field: the directory, then 运行.
+ *
+ * The directory shown is the card's own, so a user who is happy with it presses 运行 without
+ * touching anything. Picking another one writes it to the card's configuration through the
+ * same path the 配置 page uses — a run in a directory the card does not name would leave the
+ * result's own reading of "where this happened" wrong.
+ * @param props - the card, its view, the mode, the recent asks, and the two ways out.
  * @returns the dialog.
  */
 export function RunPrompt({
   cardId,
   title,
+  view,
   mode,
   recent,
   t,
-  disabled,
+  onChooseWorkspace,
   onRun,
   onCancel,
 }: {
   readonly cardId: string
   /** The panel's heading: what this particular run is, in the words of the control that opened it. */
   readonly title: string
-  /** The card's instruction mode; `none` never reaches this dialog. */
-  readonly mode: 'optional' | 'required'
+  /** What the card currently shows, for the directory it names. */
+  readonly view: WorkbenchCardView
+  /** The card's instruction mode; a `none` card gets the dialog without a field. */
+  readonly mode: WorkbenchInstructionMode
   readonly recent: readonly string[]
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  readonly disabled: boolean
-  readonly onRun: (instruction: string) => void
+  /** Ask for a directory and store it as this card's workspace. */
+  readonly onChooseWorkspace: () => void
+  readonly onRun: (instruction?: string) => void
   readonly onCancel: () => void
 }): ReactNode {
   const [text, setText] = useState(() => readDraft(cardId))
@@ -218,8 +232,13 @@ export function RunPrompt({
   // sentence disappears the moment it stops being true.
   const [refused, setRefused] = useState(false)
   const empty = text.trim() === ''
+  const asks = mode !== 'none'
+  // A run happens somewhere. The check is the same one the Host makes, so a start this dialog
+  // allows cannot be refused for a missing directory: the picker is the way out of it, and it
+  // is right here under the sentence that says it is needed.
+  const ready = view.workspaceField.kind === 'ready'
   const submit = (): void => {
-    if (disabled) return
+    if (!ready) return
     if (empty && mode === 'required') {
       // Required, and nothing was written. The run is not sent: the refusal happens here,
       // in view, with the field focused — the one thing a disabled control could not do.
@@ -228,8 +247,15 @@ export function RunPrompt({
     }
     setText('')
     writeDraft(cardId, '')
+    // A card with no field sends no instruction at all, rather than an empty one: the two are
+    // the same run, and the difference is what the run's own record would say about it.
+    if (!asks) {
+      onRun()
+      return
+    }
     onRun(empty ? '' : text)
   }
+  const field = view.workspaceField
   return (
     <PromptDialog
       title={title}
@@ -238,34 +264,93 @@ export function RunPrompt({
       cancelLabel={t('skillCardCancel')}
       closeLabel={t('promptClose')}
       problem={refused ? t('runInstructionRequired') : undefined}
-      busy={disabled}
+      busy={!ready}
+      // A card with nothing to ask is a card to press 运行 on: the dialog's own action takes
+      // the caret, so one Enter is one run.
+      focusSubmit={!asks}
       onCancel={onCancel}
       onSubmit={submit}
     >
-      <InstructionField
-        className={css.dialogField}
-        value={text}
-        onChange={(next) => {
-          setText(next)
-          writeDraft(cardId, next)
-          if (refused && next.trim() !== '') setRefused(false)
-        }}
-        rows={Math.min(RUN_FIELD_MAX_ROWS, Math.max(2, text.split('\n').length))}
-        placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
-        ariaLabel={t('runInstructionField')}
-        submitOn="enter"
-        onSubmit={submit}
-        focus
-      />
-      <InstructionChips
-        recent={recent}
-        t={t}
-        onPick={(instruction) => {
-          setText(instruction)
-          writeDraft(cardId, instruction)
-          setRefused(false)
-        }}
-      />
+      <div className={css.runWorkspace}>
+        <p className={css.fieldLabel}>{t('skillCardWorkspace')}</p>
+        <div className={css.workspaceRow}>
+          <div
+            className={classes(
+              css.workspaceValue,
+              field.kind === 'invalid' ? css.workspaceValueInvalid : undefined,
+            )}
+            data-workspace-field={field.kind}
+          >
+            <span className={css.workspaceLeaf} data-workspace-leaf="">
+              {field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.leaf}
+            </span>
+            {field.kind === 'missing' ? null : (
+              <span className={css.workspacePath} data-workspace-path="" title={field.path}>
+                {field.path}
+              </span>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!view.canChooseWorkspace}
+            data-workspace-pick=""
+            onClick={onChooseWorkspace}
+          >
+            {t('skillCardChooseDirectory')}
+          </Button>
+        </div>
+        {/* Why the run cannot be sent, under the value it is about. The picker above is the
+            answer to both of them, which is why the sentence sits beside it and not at the
+            top of the dialog. */}
+        {field.kind === 'missing' && view.canChooseWorkspace
+          ? (
+            <p className={css.fieldNote} data-dialog-workspace-missing="">
+              {t('skillCardProblemWorkspaceMissing')}
+            </p>
+          )
+          : null}
+        {field.kind === 'invalid' && field.checked
+          ? (
+            <p className={css.fieldNote} data-dialog-workspace-invalid="">
+              {t('skillCardProblemWorkspaceInvalid')}
+            </p>
+          )
+          : null}
+        {view.canChooseWorkspace
+          ? null
+          : <p className={css.fieldNote} data-workspace-picker-unavailable="">{t('skillCardWorkspacePickerUnavailable')}</p>}
+      </div>
+      {asks
+        ? (
+          <>
+            <InstructionField
+              className={css.dialogField}
+              value={text}
+              onChange={(next) => {
+                setText(next)
+                writeDraft(cardId, next)
+                if (refused && next.trim() !== '') setRefused(false)
+              }}
+              rows={Math.min(RUN_FIELD_MAX_ROWS, Math.max(2, text.split('\n').length))}
+              placeholder={t(mode === 'required' ? 'runInstructionPlaceholderRequired' : 'runInstructionPlaceholderOptional')}
+              ariaLabel={t('runInstructionField')}
+              submitOn="enter"
+              onSubmit={submit}
+              focus
+            />
+            <InstructionChips
+              recent={recent}
+              t={t}
+              onPick={(instruction) => {
+                setText(instruction)
+                writeDraft(cardId, instruction)
+                setRefused(false)
+              }}
+            />
+          </>
+        )
+        : null}
     </PromptDialog>
   )
 }
@@ -311,13 +396,6 @@ export function CardRunButton({
       </Button>
     )
   }
-  const press = (): void => {
-    if (disabled) return
-    // No instruction to ask for: the run starts, and a dialog would only stand between the
-    // press and the thing it asked for.
-    if (view.instructionMode === 'none') actions.run()
-    else setAsking(true)
-  }
   return (
     <>
       <Button
@@ -325,20 +403,24 @@ export function CardRunButton({
         size="sm"
         data-card-run="start"
         disabled={disabled}
-        onClick={press}
+        // Every run asks first, a card that needs no instruction included: the dialog is
+        // where this run's directory is confirmed or changed, and that question is not
+        // about the instruction at all.
+        onClick={() => { setAsking(true) }}
       >
         <IconPlayOutlineRegular size={14} />
         <span>{t('skillCardRun')}</span>
       </Button>
-      {asking && view.instructionMode !== 'none'
+      {asking
         ? (
           <RunPrompt
             cardId={cardId}
             title={t('runPromptTitle')}
+            view={view}
             mode={view.instructionMode}
             recent={view.recentInstructions}
             t={t}
-            disabled={disabled}
+            onChooseWorkspace={() => { actions.chooseWorkspace() }}
             onRun={(instruction) => {
               setAsking(false)
               actions.run(instruction)

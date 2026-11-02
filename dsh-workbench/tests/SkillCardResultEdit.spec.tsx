@@ -331,8 +331,10 @@ describe('offering the result editor', () => {
     // a much larger change than "the run control waits for a directory".
     const { props, recorded } = fixture({ workspace: null })
     await show(props)
-    // The run control waits, and says why.
-    expect(runControl()).toHaveProperty('disabled', true)
+    // Running is the only thing the directory gates, and it does so inside the run dialog:
+    // the control opens, the sentence under it says what is missing, and the dialog is where
+    // the missing thing can be chosen.
+    expect(runControl()).toHaveProperty('disabled', false)
     expect(document.querySelector('[data-run-workspace-missing]')).not.toBeNull()
 
     const field = openEditor()
@@ -366,7 +368,11 @@ describe('offering the result editor', () => {
       },
     })
     await show(props)
+    // Every run asks where it happens first, so the run is sent from the dialog it opens.
     fireEvent.click(runControl())
+    const submit = document.querySelector('[data-prompt-submit]')
+    if (submit === null) throw new Error('the run dialog did not open')
+    fireEvent.click(submit)
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: zh.skillCardResultEdit })).toBeNull()
     })

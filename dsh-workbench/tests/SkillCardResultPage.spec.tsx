@@ -395,9 +395,10 @@ describe('the result page', () => {
     })
   })
 
-  it('disables the run control when no workspace is chosen, and says so', async () => {
+  it('says no workspace is chosen, and opens the dialog that can choose one', async () => {
     // The card is otherwise completely ready: a skill, a template, a model, a live session.
-    // The one missing fact is where the run would happen, and there is no default for it.
+    // The one missing fact is where the run would happen — and that is exactly the fact the
+    // run dialog asks about, so the control stays openable and the sentence sits under it.
     const { container } = render(<SkillCardResultPage {...props({ api: pageApi({ result: result() }) })} />)
     await loaded(container)
     const notice = await waitFor(() => {
@@ -406,12 +407,21 @@ describe('the result page', () => {
       return element as HTMLElement
     })
     expect(notice.textContent).toBe(zh.skillCardProblemWorkspaceMissing)
-    expect(runControl(container).disabled).toBe(true)
+    await waitFor(() => { expect(runControl(container).disabled).toBe(false) })
+    fireEvent.click(runControl(container))
+    const panel = dialog()
+    expect(panel).not.toBeNull()
+    expect(panel?.querySelector('[data-workspace-field]')?.getAttribute('data-workspace-field'))
+      .toBe('missing')
+    // Nothing to run in, so the dialog's own run control waits for a directory.
+    expect(panel?.querySelector('[data-prompt-submit]')).toHaveProperty('disabled', true)
   })
 
-  it('disables the run control when the stored directory is gone, naming the path', async () => {
+  it('names a directory that is gone, and offers to replace it in the run dialog', async () => {
     // The path is part of the message: "that directory is gone" is only actionable when it
-    // says which one, and the user needs to know which folder to restore or replace.
+    // says which one, and the user needs to know which folder to restore or replace. The
+    // picker beside that sentence is how they replace it, which is why the control is not
+    // dead.
     const { container } = render(
       <SkillCardResultPage
         {...props({
@@ -431,12 +441,18 @@ describe('the result page', () => {
     })
     expect(notice.textContent).toContain(zh.skillCardProblemWorkspaceInvalid)
     expect(notice.textContent).toContain('D:\\Git\\Gone')
-    expect(runControl(container).disabled).toBe(true)
+    await waitFor(() => { expect(runControl(container).disabled).toBe(false) })
+    fireEvent.click(runControl(container))
+    const panel = dialog()
+    expect(panel?.querySelector('[data-dialog-workspace-invalid]')?.textContent)
+      .toBe(zh.skillCardProblemWorkspaceInvalid)
+    expect(panel?.querySelector('[data-workspace-path]')?.textContent).toBe('D:\\Git\\Gone')
+    expect(panel?.querySelector('[data-prompt-submit]')).toHaveProperty('disabled', true)
   })
 
-  it('enables the run control once the directory is confirmed', async () => {
-    // The third state, and the only one where a run may start. Without this case "disabled"
-    // could be a page that never enables anything.
+  it('leaves the run control openable once the directory is confirmed', async () => {
+    // The third state, and the only one where the dialog can send a run. Without this case a
+    // page that never enables anything would pass the two above.
     const { container } = render(
       <SkillCardResultPage
         {...props({ api: pageApi({ result: result(), workspace: { path: WORKSPACE_PATH } }) })}
