@@ -47,6 +47,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     // it gets its own cases below.
     canChooseWorkspace: true,
     workspaceTypedProblem: undefined,
+    actionWorkspaceProblem: undefined,
     catalog: [],
     catalogStatus: 'idle',
     catalogFailure: undefined,
@@ -248,6 +249,7 @@ describe('the run dialog', () => {
       instructionMode: 'none',
       canChooseWorkspace: true,
       workspaceTypedProblem: undefined,
+      actionWorkspaceProblem: undefined,
       workspaceField: { kind: 'missing' },
     })
     expect(startControl(container).disabled).toBe(false)
@@ -271,6 +273,7 @@ describe('the run dialog', () => {
       instructionMode: 'optional',
       canChooseWorkspace: true,
       workspaceTypedProblem: undefined,
+      actionWorkspaceProblem: undefined,
       workspaceField: { kind: 'invalid', path: 'D:\\Git\\Gone', leaf: 'Gone', checked: true },
     })
     fireEvent.click(startControl(container))
@@ -290,6 +293,7 @@ describe('the run dialog', () => {
       instructionMode: 'none',
       canChooseWorkspace: false,
       workspaceTypedProblem: undefined,
+      actionWorkspaceProblem: undefined,
       workspaceField: { kind: 'missing' },
     })
     fireEvent.click(startControl(container))

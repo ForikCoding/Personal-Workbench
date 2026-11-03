@@ -259,6 +259,11 @@ export const zh = {
   actionPanelTitle: '确认这次执行',
   actionFieldTarget: '目标',
   actionFieldSkill: '将运行的 skill',
+  // Where this invocation happens. A fact of the run like the skill, and changeable for the
+  // same reason the skill is not: the row was read in one folder and the target may need
+  // another. Said as the run's own directory, because the target card keeps its own.
+  actionFieldWorkspace: '工作目录',
+  actionWorkspaceNote: '只用于这一次调用，目标卡片自己的目录不变',
   actionFieldPayload: '参数',
   actionTargetCard: '卡片：{name}',
   actionTargetSkill: 'skill：{name}',
@@ -528,6 +533,8 @@ export const en: Record<keyof typeof zh, string> = {
   actionPanelTitle: 'Confirm this run',
   actionFieldTarget: 'Target',
   actionFieldSkill: 'Skill that will run',
+  actionFieldWorkspace: 'Working directory',
+  actionWorkspaceNote: 'This invocation only — the target card keeps its own directory',
   actionFieldPayload: 'Parameters',
   actionTargetCard: 'Card: {name}',
   actionTargetSkill: 'Skill: {name}',

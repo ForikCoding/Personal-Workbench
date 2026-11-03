@@ -809,6 +809,17 @@ export interface WorkbenchResultRecord {
   readonly instruction?: string
   /** The child's final assistant output, kept for "view raw output". */
   readonly outputText?: string
+  /**
+   * Directory this run happened in.
+   *
+   * Kept on the record because the card's directory is not the run's: an invocation of this
+   * card from another card proposes *that* card's directory, so the card's own stored
+   * directory can be one the result was never produced in — and a page that answered "which
+   * folder was this about" with the card's answer would name a directory the run never
+   * touched. Absent for every record written before a run could be given a directory, and a
+   * reader then falls back to the card's own.
+   */
+  readonly workspace?: string
   /** Provider-authored failure detail, if any. */
   readonly diagnostic?: string
   /**
@@ -1094,6 +1105,19 @@ export interface WorkbenchRunRequest {
    * answers, whose chain carries only the global and project layers.
    */
   readonly scopeSessionId?: string
+  /**
+   * Directory this one run happens in, when it is not the card's stored one.
+   *
+   * A card that invokes another card happens *somewhere*, and the invoking card — the one
+   * whose document the user is looking at — is the better default: the material a run was
+   * triggered from lives in the folder the reader is in, not in whatever folder the target
+   * card was configured with last. The value is per-run: it roots this run's session and
+   * lands on its result record, and the target card's own stored directory is untouched.
+   *
+   * Absent means the card's own directory, which is every run a person starts from the card
+   * itself. A refinement carries none: it continues a session, and a session has one root.
+   */
+  readonly workspace?: string
   /** What this run is asked to do. */
   readonly mode: WorkbenchRunMode
   /**

@@ -466,6 +466,50 @@ describe('the result page', () => {
     expect(container.querySelector('[data-run-workspace-invalid]')).toBeNull()
   })
 
+  it('names the directory the run happened in, not the one the card stores now', async () => {
+    // A card invoked from another card runs in *that* card's folder, so the record's own
+    // answer is the true one. Naming the card's stored directory would tell the reader a
+    // folder this result never came from — and the two often differ precisely when it matters.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({
+          api: pageApi({
+            result: result({ workspace: 'D:\\Git\\clicker' }),
+            workspace: { path: WORKSPACE_PATH },
+          }),
+        })}
+      />,
+    )
+    await loaded(container)
+    const line = await waitFor(() => {
+      const element = container.querySelector('[data-run-workspace-line]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(line.getAttribute('data-run-workspace-own')).toBe('true')
+    expect(line.textContent).toContain('D:\\Git\\clicker')
+    expect(line.textContent).not.toContain(WORKSPACE_PATH)
+  })
+
+  it('falls back to the card’s directory for a record that carries none', async () => {
+    // Every record written before a run could be given a directory says nothing about where it
+    // happened. The card's stored one is the only answer those records have, and it is what
+    // they were always shown with.
+    const { container } = render(
+      <SkillCardResultPage
+        {...props({ api: pageApi({ result: result(), workspace: { path: WORKSPACE_PATH } }) })}
+      />,
+    )
+    await loaded(container)
+    const line = await waitFor(() => {
+      const element = container.querySelector('[data-run-workspace-line]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(line.getAttribute('data-run-workspace-own')).toBeNull()
+    expect(line.textContent).toContain(WORKSPACE_PATH)
+  })
+
   it('leaves the permission mode to the configuration page', async () => {
     // The page used to close with a footnote restating the mode. It is one of the fields at
     // the top of the card's configuration page, so the run page was repeating a setting

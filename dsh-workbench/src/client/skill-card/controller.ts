@@ -122,6 +122,14 @@ export interface WorkbenchPendingAction {
   readonly skill: string
   /** That row's raw fields, unchanged. */
   readonly payload: Record<string, unknown>
+  /**
+   * Directory this invocation happens in.
+   *
+   * Resolved when the panel opened — the invoking card's own directory when it has one,
+   * otherwise the target card's — and changeable until the run is confirmed. It answers for
+   * this run alone: the target card keeps the directory it stored.
+   */
+  readonly workspace: string
 }
 
 /**
@@ -326,6 +334,13 @@ export interface WorkbenchCardView {
    * that check rather than a storage failure: the card keeps the directory it had.
    */
   readonly workspaceTypedProblem: WorkbenchWorkspaceTypedProblem | undefined
+  /**
+   * Why the directory typed into the confirmation panel was not taken.
+   *
+   * The panel's own answer rather than the card's: a path refused there leaves the card's
+   * stored directory exactly as it was, because this directory was never the card's to keep.
+   */
+  readonly actionWorkspaceProblem: WorkbenchWorkspaceTypedProblem | undefined
   /** Skills the session's agent can invoke. */
   readonly catalog: readonly WorkbenchSkillCatalogEntry[]
   /** Whether the catalog has been read. */
@@ -460,6 +475,15 @@ export interface WorkbenchCardActions {
   click(event: WorkbenchActionEvent): void
   /** Carry out the pending action; the panel is one-shot. */
   confirmAction(): void
+  /**
+   * Change the directory this one invocation will happen in.
+   *
+   * Checked before it is taken — the contract's shape rule, then the Host's answer — and
+   * never written to any card: it answers for this run, which is why a refused path leaves
+   * everything as it was.
+   * @param path - the directory as typed into the confirmation panel.
+   */
+  setActionWorkspace(path: string): void
   /** Drop the pending action. Nothing else happens: no run, no write, no navigation. */
   cancelAction(): void
 }
@@ -654,6 +678,9 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   // The answer to the last typed directory, so the field can say why a path was not taken
   // without turning a typo into a stored value.
   const [workspaceTypedProblem, setWorkspaceTypedProblem] = useState<WorkbenchWorkspaceTypedProblem | undefined>(undefined)
+  // Kept apart from the card's own answer: this one is about a directory that will not be
+  // stored anywhere, only used once.
+  const [actionWorkspaceProblem, setActionWorkspaceProblem] = useState<WorkbenchWorkspaceTypedProblem | undefined>(undefined)
 
   // The directory is an outside store, so it is read into state and watched rather than
   // read during render: it loads after the page mounts, and a field that never re-rendered
@@ -1355,34 +1382,45 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       setActionProblem({ code: 'target-unavailable', candidates: [] })
       return
     }
-    // Where the run will happen, resolved for the card that will actually run: a card
-    // target runs on its own stored directory, not on the directory of the card whose
-    // button was pressed. Confirming a run the Host is certain to refuse wastes the one
-    // thing the panel exists to protect — the user's attention.
+    // Where the run will happen. This card's own directory first: the button that was
+    // pressed sits in a document about material this card read, so the folder that material
+    // came from is the better guess than whatever directory the target card was configured
+    // with last. A target card's stored directory is the fallback, for a card whose own
+    // directory is unset — the panel then still opens on something editable rather than
+    // refusing a run the user could have made possible.
+    //
+    // Whichever it is, the Host is asked whether it is a directory now: confirming a run the
+    // Host is certain to refuse wastes the one thing the panel exists to protect.
     const runnerCardId = resolution.target.kind === 'card' ? resolution.reference : cardId
     const runnerCard = snapshot.cards.find(entry => entry.cardId === runnerCardId)
-    const stat = runnerCard?.workspace === undefined
-      ? undefined
-      : await api.statDirectory(runnerCard.workspace.path)
+    const proposed = workspaceField.kind === 'ready'
+      ? workspaceField.path
+      : runnerCard?.workspace?.path
+    if (proposed === undefined) {
+      setPendingAction(undefined)
+      setActionProblem({ code: 'target-workspace-missing', candidates: [] })
+      return
+    }
+    const stat = await api.statDirectory(proposed)
     const field = resolveWorkspaceField(
-      runnerCard?.workspace,
-      stat === undefined ? undefined : stat.status === 'ok' ? stat.stat : NO_DIRECTORY_STAT,
+      { path: proposed },
+      stat.status === 'ok' ? stat.stat : NO_DIRECTORY_STAT,
     )
     if (field.kind !== 'ready') {
       setPendingAction(undefined)
-      setActionProblem(field.kind === 'missing'
-        ? { code: 'target-workspace-missing', candidates: [] }
-        : { code: 'target-workspace-invalid', candidates: [], detail: field.path })
+      setActionProblem({ code: 'target-workspace-invalid', candidates: [], detail: proposed })
       return
     }
+    setActionWorkspaceProblem(undefined)
     setPendingAction({
       key: resolution.key,
       target: resolution.target,
       reference: resolution.reference,
       skill,
       payload: resolution.payload,
+      workspace: field.path,
     })
-  }, [api, cardId, cardTitle, session])
+  }, [api, cardId, cardTitle, session, workspaceField])
 
   const click = useCallback((event: WorkbenchActionEvent): void => {
     setPendingAction(undefined)
@@ -1421,13 +1459,18 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       // user saw rather than a run with no idea which row it was for. The live session is
       // named as the skill definition's scope — the run still executes in a fresh session.
       //
-      // The target card's directory was resolved when the panel opened. A run that still
-      // arrives without one is refused by the route, which reads that card's own record —
-      // this page holds no stat for another card to re-check at confirm time.
+      // The directory the panel showed travels with the run, so the invocation happens
+      // where the user confirmed it happens — not on the target card's stored directory,
+      // which the panel did not display and this run does not change. The Host checks the
+      // path again as every run is gated on it, so a directory deleted between the panel
+      // opening and this click is refused there, by name.
       // No instruction travels with a declared action: the ask is a button in a document a
       // run produced, and the row it carries is its input. A card that requires an
       // instruction is refused here, and the panel says so, rather than running on nothing.
-      void startCardRun(api, pending.reference, session(), { payload: pending.payload }).then((outcome) => {
+      void startCardRun(api, pending.reference, session(), {
+        payload: pending.payload,
+        workspace: pending.workspace,
+      }).then((outcome) => {
         if (outcome.status !== 'ok') {
           setActionProblem(startProblem(outcome))
           return
@@ -1436,21 +1479,13 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       })
       return
     }
-    // A skill target runs on this card, so this card's directory decides whether it can.
-    const refused = workspaceRefusal(workspaceField)
-    if (refused !== undefined) {
-      setActionProblem({
-        code: refused.code === 'workspace-missing' ? 'target-workspace-missing' : 'target-workspace-invalid',
-        candidates: [],
-        ...refused.detail === undefined || refused.detail === '' ? {} : { detail: refused.detail },
-      })
-      return
-    }
     void api.start({
       cardId,
       mode: { kind: 'bare', skill: pending.skill },
-      // Same rule for a skill target: the row it was triggered from is its input.
+      // Same rule for a skill target: the row it was triggered from is its input, and the
+      // directory is the one the panel showed.
       payload: pending.payload,
+      workspace: pending.workspace,
     }).then((outcome) => {
       if (outcome.status !== 'ok') {
         setActionProblem(startProblem(outcome))
@@ -1464,10 +1499,40 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     })
   }, [api, cardId, openCard, pendingAction, workspaceField, session])
 
+  /**
+   * Change the directory this one invocation will happen in.
+   *
+   * The same two checks the card's own field makes, for the same reason and with one
+   * difference: this path is not stored anywhere. A refused one therefore leaves the card
+   * exactly as it was and the panel still open on what it showed, which is all a directory
+   * that belongs to no record can be refused with.
+   * @param path - the directory as typed into the panel.
+   */
+  const setActionWorkspace = useCallback((path: string) => {
+    const trimmed = path.trim()
+    if (!isWorkbenchWorkspacePath(trimmed)) {
+      setActionWorkspaceProblem('invalid-path')
+      return
+    }
+    setActionWorkspaceProblem(undefined)
+    void api.statDirectory(trimmed).then((outcome) => {
+      if (outcome.status !== 'ok') {
+        setProblem({ code: 'unavailable', detail: outcome.reason })
+        return
+      }
+      if (!outcome.stat.exists || !outcome.stat.isDirectory) {
+        setActionWorkspaceProblem('not-directory')
+        return
+      }
+      setPendingAction(current => current === undefined ? current : { ...current, workspace: trimmed })
+    })
+  }, [api])
+
   const cancelAction = useCallback(() => {
     // Deliberately nothing else: no run, no write, no navigation. Cancelling is only
     // ever the removal of the question.
     setPendingAction(undefined)
+    setActionWorkspaceProblem(undefined)
   }, [])
 
   const actions = useMemo<WorkbenchCardActions>(
@@ -1491,6 +1556,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       click,
       confirmAction,
       cancelAction,
+      setActionWorkspace,
     }),
     [
       start,
@@ -1580,6 +1646,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     recentInstructions,
     canChooseWorkspace,
     workspaceTypedProblem,
+    actionWorkspaceProblem,
     catalog,
     catalogStatus,
     catalogFailure,
@@ -1602,6 +1669,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
     recentInstructions,
     canChooseWorkspace,
     workspaceTypedProblem,
+    actionWorkspaceProblem,
     result,
     runs,
     options.runId,

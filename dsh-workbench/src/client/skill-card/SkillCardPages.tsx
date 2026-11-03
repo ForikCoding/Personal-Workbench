@@ -33,7 +33,9 @@ import type {
   WorkbenchBareRunState,
   WorkbenchCardView,
   WorkbenchPendingAction,
+  WorkbenchWorkspaceTypedProblem,
 } from './controller.ts'
+import { WorkspacePathField } from './WorkspaceField.tsx'
 import type { WorkbenchModelSeat } from './model.ts'
 import { permissionLabelKey } from './permission.ts'
 import type { WorkbenchWorkspacePicker } from './workspace-picker.ts'
@@ -228,12 +230,17 @@ function ActionProblemLine({
  */
 function ActionPanel({
   pending,
+  workspaceProblem,
   t,
+  onSetWorkspace,
   onConfirm,
   onCancel,
 }: {
   readonly pending: WorkbenchPendingAction
+  readonly workspaceProblem: WorkbenchWorkspaceTypedProblem | undefined
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  /** Change the directory this one invocation happens in. */
+  readonly onSetWorkspace: (path: string) => void
   readonly onConfirm: () => void
   readonly onCancel: () => void
 }): ReactNode {
@@ -250,6 +257,25 @@ function ActionPanel({
             showing the clicked card's skill would have the user confirm the wrong run. */}
         <dt>{t('actionFieldSkill')}</dt>
         <dd data-action-field="skill">{pending.skill}</dd>
+        {/* Where this invocation happens. Stated as a fact of the run, like the skill: the
+            card whose button was pressed supplies the value, because the material the run
+            was triggered from is in that card's folder — and it is changeable here, because
+            the same row is often read in a folder the reader had to go and find. */}
+        <dt>{t('actionFieldWorkspace')}</dt>
+        <dd data-action-field="workspace">
+          <div data-action-workspace="">
+            <WorkspacePathField
+              value={pending.workspace}
+              fieldKind="ready"
+              problem={workspaceProblem}
+              t={t}
+              onCommit={onSetWorkspace}
+            />
+          </div>
+          <p className={css.fieldNote} data-action-workspace-note="">
+            {t('actionWorkspaceNote')}
+          </p>
+        </dd>
         <dt>{t('actionFieldPayload')}</dt>
         <dd data-action-field="payload">
           {/* Text, never HTML; scrollable, never truncated or collapsed. */}
@@ -943,7 +969,9 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
         : (
           <ActionPanel
             pending={view.pendingAction}
+            workspaceProblem={view.actionWorkspaceProblem}
             t={t}
+            onSetWorkspace={actions.setActionWorkspace}
             onConfirm={actions.confirmAction}
             onCancel={actions.cancelAction}
           />

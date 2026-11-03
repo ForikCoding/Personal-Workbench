@@ -234,6 +234,39 @@ describe('workbench skill card runner', () => {
       expect(fake.activations).toEqual([])
     })
 
+    it('runs in the directory an invocation named, and stores where it ran', async () => {
+      // A card invoked from another card happens in *that* card's folder, so the run's own
+      // directory wins over the card's stored one — and the record states the one it used,
+      // because a result page that named the card's directory would name a folder this run
+      // never touched.
+      const { runner, fake, saved } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: '/card/repo' } },
+        directory: { exists: true, isDirectory: true, writable: true },
+        outcomes: [{ output: [{ type: 'text', text: 'done' }], stopReason: 'completed', structured: { branch: 'main' } }],
+      })
+      const started = await runner.start(request({ workspace: '/clicker/repo' }))
+      expect(started).toMatchObject({ status: 'started' })
+      const state = await settle(runner)
+      // The session the run executed in was rooted there, which is what fences it.
+      expect(fake.createdAgents[0]?.session?.header?.cwd).toBe('/clicker/repo')
+      expect(state?.result?.workspace).toBe('/clicker/repo')
+      expect(saved[0]?.record.workspace).toBe('/clicker/repo')
+    })
+
+    it('refuses an invocation whose directory is gone, naming the directory it named', async () => {
+      // The card's own directory is fine here; the one the invocation asked for is not. The
+      // refusal has to be about the requested path, or the user would go looking at a folder
+      // that is exactly where it belongs.
+      const { runner, fake } = setup({
+        selection: { skill: 'git-repo', template: '<b>{{a}}</b>', workspace: { path: '/card/repo' } },
+        directory: { exists: false, isDirectory: false, writable: false },
+      })
+      const outcome = await runner.start(request({ workspace: '/clicker/gone' }))
+      expect(outcome).toMatchObject({ status: 'rejected', code: 'workspace-invalid' })
+      expect(outcome.status === 'rejected' ? outcome.detail : '').toContain('/clicker/gone')
+      expect(fake.activations).toEqual([])
+    })
+
     it('refuses a bare run the same way, which is the template-button path', async () => {
       // A template button runs on the card that owns the button, so it has to have a
       // directory too — the check cannot live only on the "Run" control.
@@ -565,6 +598,8 @@ describe('workbench skill card runner', () => {
           stopReason: 'completed',
           structured: { branch: 'main' },
           outputText: 'done',
+          // The run's own directory, kept on the state as well as the record.
+          workspace: '/repo',
         },
       })
       expect(saved).toEqual([{
@@ -577,6 +612,7 @@ describe('workbench skill card runner', () => {
           stopReason: 'completed',
           structured: { branch: 'main' },
           outputText: 'done',
+          workspace: '/repo',
         },
       }])
       expect(fake.disposed.count).toBe(1)
@@ -615,6 +651,7 @@ describe('workbench skill card runner', () => {
           stopReason: 'completed',
           structured: { branch: 'main' },
           outputText: 'done',
+          workspace: '/repo',
         },
       }])
 

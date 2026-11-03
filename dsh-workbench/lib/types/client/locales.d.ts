@@ -187,6 +187,8 @@ export declare const zh: {
     actionPanelTitle: string;
     actionFieldTarget: string;
     actionFieldSkill: string;
+    actionFieldWorkspace: string;
+    actionWorkspaceNote: string;
     actionFieldPayload: string;
     actionTargetCard: string;
     actionTargetSkill: string;

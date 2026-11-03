@@ -839,6 +839,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     cardId?: unknown
     sessionId?: unknown
     scopeSessionId?: unknown
+    workspace?: unknown
     mode?: unknown
     payload?: unknown
     instruction?: unknown
@@ -861,6 +862,17 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
   const scopeSessionId = body.scopeSessionId
   if (scopeSessionId !== undefined && (typeof scopeSessionId !== 'string' || scopeSessionId.length === 0)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'scopeSessionId must be a non-empty string when present')
+  }
+  // The one directory this run happens in. Checked for the shape a directory can have — the
+  // same rule the run dialog applies before it asks anyone — because a relative path is not a
+  // directory the user saw: resolved against the Host it would be a folder nobody named. That
+  // it *exists* is the runner's precondition, answered as `workspace-invalid` there.
+  let workspace: string | undefined
+  if (body.workspace !== undefined) {
+    if (typeof body.workspace !== 'string' || !isWorkbenchWorkspacePath(body.workspace)) {
+      throw new SkillCardRequestError(400, 'invalid-request', 'workspace must be an absolute path when present')
+    }
+    workspace = body.workspace
   }
   // The row is only checked for shape. Its byte budget belongs to the button attribute
   // that produced it: this value is re-serialized on the way here, so counting bytes
@@ -893,6 +905,7 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     cardId: body.cardId,
     ...sessionId === undefined ? {} : { sessionId },
     ...scopeSessionId === undefined ? {} : { scopeSessionId },
+    ...workspace === undefined ? {} : { workspace },
     mode: parseRunMode(body.mode),
     ...payload === undefined ? {} : { payload },
     ...instruction === undefined ? {} : { instruction },

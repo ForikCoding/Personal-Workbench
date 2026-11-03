@@ -51,6 +51,15 @@ const ROW = { task_number: 'CP-2025-001', task_name: '登录模块联调', task_
 /** The page card's own skill; deliberately different from the target card's. */
 const CLICKER_SKILL = 'daily-report'
 
+/** The clicking card's folder — where a run triggered from it belongs. */
+const CLICKER_PATH = 'D:\\Git\\clicker'
+
+/** The target card's own folder: the fallback, and deliberately somewhere else. */
+const TARGET_PATH = 'D:\\Git\\target'
+
+/** A folder typed into the panel, below the clicking card's. */
+const TYPED_PATH = 'D:\\Git\\clicker\\sub'
+
 /**
  * One card's template: a declaration block outside the region, plus a region the run
  * would fill. The block has to live outside the region because the region is rewritten.
@@ -151,6 +160,8 @@ function fixture(options: {
   readonly openCard?: (cardId: string, view: string) => void
   /** Read the run session; a case can change it after the page rendered. */
   readonly runSessionId?: () => string | undefined
+  /** Further directories that exist, beside the default one. */
+  readonly present?: readonly string[]
 } = {}): Fixture {
   const cards = options.cards ?? [
     {
@@ -202,11 +213,14 @@ function fixture(options: {
     },
     cancel: async () => {},
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
-    // The default directory is there; any other path is not. A click refused for where it
-    // would run is its own case, and the rest of these cases must not trip over it.
+    // The default directory is there; any other path is not, unless a case names more. A click
+    // refused for where it would run is its own case, and the rest of these cases must not
+    // trip over it.
     statDirectory: async (path) => ({
       status: 'ok',
-      stat: path === WORKSPACE_PATH ? PRESENT_DIRECTORY : { exists: false, isDirectory: false, writable: false },
+      stat: path === WORKSPACE_PATH || (options.present ?? []).includes(path)
+        ? PRESENT_DIRECTORY
+        : { exists: false, isDirectory: false, writable: false },
     }),
   }
   const props = (cardId: string): PageProps => ({
@@ -288,6 +302,11 @@ function problem(): { readonly code: string | null; readonly text: string } | un
     : { code: found.getAttribute('data-action-problem'), text: found.textContent ?? '' }
 }
 
+/** The directory the panel proposes, as the value in its own field. */
+function panelWorkspace(): HTMLInputElement | null {
+  return panel().querySelector<HTMLInputElement>('[data-action-field="workspace"] [data-workspace-input]')
+}
+
 /**
  * Read the four facts the panel shows, in document order.
  * @returns one entry per field.
@@ -310,7 +329,7 @@ describe('the title a card target must be declared with', () => {
 })
 
 describe('action confirmation panel', () => {
-  it('opens on a click and states the three facts, in order', async () => {
+  it('opens on a click and states the four facts, in order', async () => {
     const { recorded, renderPage } = fixture()
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
@@ -318,12 +337,16 @@ describe('action confirmation panel', () => {
     await waitFor(() => { expect(panel()).toBeTruthy() })
 
     const fields = panelFields()
-    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'payload'])
+    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'workspace', 'payload'])
     // The target as the user reads it, not as the template spells it.
     expect(fields[0]?.text).toBe('Card: 启动任务')
     expect(fields[1]?.text).toBe('task-finish')
+    // Where this invocation happens: the clicking card's own directory, shown as the editable
+    // value it is rather than as a sentence.
+    expect(panel().querySelector<HTMLInputElement>('[data-action-field="workspace"] [data-workspace-input]')?.value)
+      .toBe(WORKSPACE_PATH)
     // The parameters whole, exactly as the button carried them.
-    expect(fields[2]?.text).toBe(JSON.stringify(ROW, null, 2))
+    expect(fields[3]?.text).toBe(JSON.stringify(ROW, null, 2))
     // Nothing has run yet: the panel is a question.
     expect(recorded.starts).toEqual([])
   })
@@ -411,12 +434,12 @@ describe('action confirmation panel', () => {
     await clickAction('start')
     await waitFor(() => { expect(panel()).toBeTruthy() })
     const fields = panelFields()
-    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'payload'])
+    expect(fields.map(field => field.name)).toEqual(['target', 'skill', 'workspace', 'payload'])
     expect(fields[0]?.text).toBe('Card: 启动任务')
     expect(fields[1]?.text).toBe('task-finish')
     // The region is spliced into the template and the assembled document reduced to its
     // text: the payload is the content the user read, not the markup behind it.
-    expect(fields[2]?.text).toBe(JSON.stringify({
+    expect(fields[3]?.text).toBe(JSON.stringify({
       content: documentText(filledTemplate(CLICKER_TEMPLATE, raw)),
     }, null, 2))
   })
@@ -429,7 +452,7 @@ describe('action confirmation panel', () => {
     renderPage()
     await waitFor(() => { expect(cardDocument()).toBeDefined() })
     await clickAction('finish')
-    await waitFor(() => { expect(panelFields()).toHaveLength(3) })
+    await waitFor(() => { expect(panelFields()).toHaveLength(4) })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
     await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
     expect(recorded.starts[0]?.scopeSessionId).toBeUndefined()
@@ -618,6 +641,9 @@ describe('a confirmed card target', () => {
       mode: { kind: 'card' },
       // The row the user confirmed travels with the run.
       payload: ROW,
+      // And so does the directory the panel showed: this invocation happens in the clicking
+      // card's folder, which is where the row it carries was read from.
+      workspace: WORKSPACE_PATH,
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     })
     // The session travels as the skill definition's scope, not as the run's home: the
@@ -664,6 +690,7 @@ describe('a confirmed card target', () => {
       scopeSessionId: 'session-1',
       mode: { kind: 'card' },
       payload: { content: documentText(filledTemplate(CLICKER_TEMPLATE, raw)) },
+      workspace: WORKSPACE_PATH,
       outputSchema: WORKBENCH_OUTPUT_SCHEMA,
     })
   })
@@ -683,10 +710,10 @@ describe('a confirmed card target', () => {
     expect(problem()?.text).toContain('another run is already in flight')
     expect(recorded.steps).toEqual(['start:target-card'])
   })
-  it('refuses a click whose target card has no directory, before asking to confirm', async () => {
-    // The card that would run is the target, and where it runs is its own stored fact. Opening
-    // the panel for a run the Host is certain to refuse spends the one thing the panel exists
-    // to protect: the user's attention.
+  it('refuses a click when neither card has a directory, before asking to confirm', async () => {
+    // Where the run would happen has no answer at all here — not from the clicking card, and
+    // not from the target as fallback. Opening the panel for a run the Host is certain to
+    // refuse spends the one thing the panel exists to protect: the user's attention.
     const { recorded, renderPage } = fixture({
       cards: [
         { cardId: 'clicker', name: '每日任务', skill: CLICKER_SKILL, template: CLICKER_TEMPLATE, templateSkills: [CLICKER_SKILL] },
@@ -729,6 +756,111 @@ describe('a confirmed card target', () => {
     expect(problem()?.text).toContain('D:\\Git\\Gone')
     expect(recorded.starts).toEqual([])
   })
+
+  it('proposes the clicking card’s directory, not the target card’s', async () => {
+    // The button sits in a document about material the clicking card read, so that card's
+    // folder is where the run belongs. The target card's stored directory is only the
+    // fallback — a card may well have been configured in a folder this row never came from.
+    const { recorded, renderPage } = fixture({
+      present: [CLICKER_PATH, TARGET_PATH],
+      cards: [
+        {
+          cardId: 'clicker',
+          name: '每日任务',
+          skill: CLICKER_SKILL,
+          template: CLICKER_TEMPLATE,
+          templateSkills: [CLICKER_SKILL],
+          workspace: { path: CLICKER_PATH },
+        },
+        {
+          cardId: 'target-card',
+          name: '启动任务',
+          skill: 'task-finish',
+          template: TARGET_TEMPLATE,
+          templateSkills: ['task-finish'],
+          workspace: { path: TARGET_PATH },
+        },
+      ],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(panel()).toBeTruthy() })
+    expect(panelWorkspace()?.value).toBe(CLICKER_PATH)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]?.workspace).toBe(CLICKER_PATH)
+  })
+
+  it('runs in a directory typed into the panel, and stores it on no card', async () => {
+    // The one thing the panel may not do is change the target card: another card's button is
+    // not consent to reconfigure it. So the path travels with this run and nowhere else.
+    const { recorded, renderPage } = fixture({
+      present: [CLICKER_PATH, TYPED_PATH],
+      cards: [
+        {
+          cardId: 'clicker',
+          name: '每日任务',
+          skill: CLICKER_SKILL,
+          template: CLICKER_TEMPLATE,
+          templateSkills: [CLICKER_SKILL],
+          workspace: { path: CLICKER_PATH },
+        },
+        { cardId: 'target-card', name: '启动任务', skill: 'task-finish', template: TARGET_TEMPLATE, templateSkills: ['task-finish'] },
+      ],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(panel()).toBeTruthy() })
+    await act(async () => {
+      fireEvent.change(panelWorkspace()!, { target: { value: TYPED_PATH } })
+      fireEvent.click(panel().querySelector('[data-workspace-apply]')!)
+    })
+    await waitFor(() => { expect(panelWorkspace()?.value).toBe(TYPED_PATH) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]?.workspace).toBe(TYPED_PATH)
+    expect(recorded.writes).toEqual([])
+  })
+
+  it('refuses a typed directory that is not there, and starts nothing with it', async () => {
+    // Checked before it is taken, exactly as the card's own field is: a typo must be answered
+    // in the panel, not turned into a run the Host refuses a second later.
+    const { recorded, renderPage } = fixture({
+      present: [CLICKER_PATH],
+      cards: [
+        {
+          cardId: 'clicker',
+          name: '每日任务',
+          skill: CLICKER_SKILL,
+          template: CLICKER_TEMPLATE,
+          templateSkills: [CLICKER_SKILL],
+          workspace: { path: CLICKER_PATH },
+        },
+        { cardId: 'target-card', name: '启动任务', skill: 'task-finish', template: TARGET_TEMPLATE, templateSkills: ['task-finish'] },
+      ],
+    })
+    renderPage()
+    await waitFor(() => { expect(cardDocument()).toBeDefined() })
+    await clickAction('start')
+    await waitFor(() => { expect(panel()).toBeTruthy() })
+    await act(async () => {
+      fireEvent.change(panelWorkspace()!, { target: { value: 'D:\\Git\\Nope' } })
+      fireEvent.click(panel().querySelector('[data-workspace-apply]')!)
+    })
+    await waitFor(() => {
+      expect(panel().querySelector('[data-workspace-typed-problem]')?.getAttribute('data-workspace-typed-problem'))
+        .toBe('not-directory')
+    })
+    expect(panel().textContent).toContain(en.skillCardWorkspaceTypedMissing)
+    // The box keeps what was typed, so a typo can be fixed rather than retyped — but the panel
+    // still stands on the directory that was there, and confirming runs there.
+    expect(panelWorkspace()?.value).toBe('D:\\Git\\Nope')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.actionConfirm })) })
+    await waitFor(() => { expect(recorded.starts).toHaveLength(1) })
+    expect(recorded.starts[0]?.workspace).toBe(CLICKER_PATH)
+  })
 })
 
 describe('a confirmed skill target', () => {
@@ -747,6 +879,8 @@ describe('a confirmed skill target', () => {
       cardId: 'clicker',
       mode: { kind: 'bare', skill: 'task-finish' },
       payload: ROW,
+      // A skill target runs on this card, in the directory the panel showed.
+      workspace: WORKSPACE_PATH,
     })
     expect(recorded.starts[0]).not.toHaveProperty('sessionId')
     expect(recorded.starts[0]).not.toHaveProperty('outputSchema')

@@ -130,6 +130,8 @@ describe('a bare skill run', () => {
       skill: 'git-repo',
       executedAt: 42,
       stopReason: 'completed',
+      // Where the run happened is a fact of every run, bare or not.
+      workspace: '/repo',
     })
     expect(saved).toEqual([])
   })

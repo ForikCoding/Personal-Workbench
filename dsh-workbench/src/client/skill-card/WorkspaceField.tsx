@@ -1,11 +1,11 @@
 /**
- * The directory a card runs in, and the two ways of naming it.
+ * The directory something runs in, and the two ways of naming it.
  *
  * A picker when the build ships one, a field when it does not. Both are in one component
- * because the question is one question: the configuration page and the run dialog ask it, and
- * a card that could pick a directory on one screen and only read it on the other would be the
- * bug this file exists to prevent — a card whose folder is wrong, and no way to say otherwise
- * on the screen where the run is pressed.
+ * because the question is one question: the configuration page, the run dialog and the
+ * confirmation panel all ask it, and a card that could pick a directory on one screen and
+ * only read it on the other would be the bug this file exists to prevent — a card whose
+ * folder is wrong, and no way to say otherwise on the screen where the run is pressed.
  *
  * A typed path is not the unconfirmed path this feature refused earlier: the Host is asked
  * whether it is a directory before anything is stored, the same check a run is gated on, so a
@@ -15,16 +15,90 @@
 
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { WorkbenchCardView } from './controller.ts'
+import type { WorkbenchCardView, WorkbenchWorkspaceTypedProblem } from './controller.ts'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import { classes } from './class-names.ts'
 import css from './skill-card.module.css'
 
-/** The sentence for a typed path the card did not take. */
+/** The sentence for a typed path that was not taken. */
 const TYPED_PROBLEMS = {
   'invalid-path': 'skillCardWorkspaceTypedInvalid',
   'not-directory': 'skillCardWorkspaceTypedMissing',
 } as const satisfies Record<string, WorkbenchLocaleKey>
+
+/**
+ * The field that takes a typed path, with its own answer to a path it did not take.
+ *
+ * Shared rather than written twice: the card's own directory and an invocation's directory are
+ * asked the same way, refused for the same reasons, and should say so in the same words. What
+ * differs is only where a confirmed path goes — the card's record, or this one run.
+ * @param props - the resting value, the field's state, the note to show, and the commit.
+ * @returns the input, its button, and the sentence explaining a refusal.
+ */
+export function WorkspacePathField({
+  value,
+  fieldKind,
+  problem,
+  t,
+  onCommit,
+}: {
+  /** The path the field rests on; a keystroke is the user's edit, not this component's. */
+  readonly value: string
+  /** Which state of the question this field is showing, carried for the layout's styling. */
+  readonly fieldKind: 'ready' | 'missing' | 'invalid'
+  /** Why the last typed path was not taken, if it was not. */
+  readonly problem: WorkbenchWorkspaceTypedProblem | undefined
+  readonly t: (key: WorkbenchLocaleKey) => string
+  readonly onCommit: (path: string) => void
+}): ReactNode {
+  const [typed, setTyped] = useState(value)
+  // The resting value is the field's own: a pick, or a page that finally read the card, must
+  // not leave yesterday's typo in the box.
+  useEffect(() => { setTyped(value) }, [value])
+  return (
+    <>
+      <div className={css.workspaceRow}>
+        <input
+          type="text"
+          className={classes(
+            css.workspaceInput,
+            fieldKind === 'invalid' || problem !== undefined ? css.workspaceInputInvalid : undefined,
+          )}
+          value={typed}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder={t('skillCardWorkspacePathPlaceholder')}
+          aria-label={t('skillCardWorkspace')}
+          data-workspace-field={fieldKind}
+          data-workspace-input=""
+          onChange={(event) => { setTyped(event.target.value) }}
+          // Enter is the whole gesture: the field and the button beside it are one control,
+          // and a run dialog behind it must not take the key as its own.
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            onCommit(typed)
+          }}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          data-workspace-apply=""
+          onClick={() => { onCommit(typed) }}
+        >
+          {t('skillCardWorkspaceApply')}
+        </Button>
+      </div>
+      {problem === undefined
+        ? null
+        : (
+          <p className={css.fieldNote} data-workspace-typed-problem={problem}>
+            {t(TYPED_PROBLEMS[problem])}
+          </p>
+        )}
+    </>
+  )
+}
 
 /**
  * Render the card's directory field.
@@ -44,10 +118,6 @@ export function WorkspaceField({
 }): ReactNode {
   const field = view.workspaceField
   const stored = field.kind === 'missing' ? '' : field.path
-  const [typed, setTyped] = useState(stored)
-  // The stored path is the field's resting value: a pick, or a run page that finally read the
-  // card, must not leave yesterday's typo in the box.
-  useEffect(() => { setTyped(stored) }, [stored])
   const problem = view.workspaceTypedProblem
   return (
     <>
@@ -79,45 +149,13 @@ export function WorkspaceField({
           </div>
         )
         : (
-          <div className={css.workspaceRow}>
-            <input
-              type="text"
-              className={classes(
-                css.workspaceInput,
-                field.kind === 'invalid' || problem !== undefined ? css.workspaceInputInvalid : undefined,
-              )}
-              value={typed}
-              spellCheck={false}
-              autoComplete="off"
-              placeholder={t('skillCardWorkspacePathPlaceholder')}
-              aria-label={t('skillCardWorkspace')}
-              data-workspace-field={field.kind}
-              data-workspace-input=""
-              onChange={(event) => { setTyped(event.target.value) }}
-              // Enter is the whole gesture: the field and the button beside it are one
-              // control, and a run dialog behind it must not take the key as its own.
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return
-                event.preventDefault()
-                onSetWorkspace(typed)
-              }}
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              data-workspace-apply=""
-              onClick={() => { onSetWorkspace(typed) }}
-            >
-              {t('skillCardWorkspaceApply')}
-            </Button>
-          </div>
-        )}
-      {problem === undefined
-        ? null
-        : (
-          <p className={css.fieldNote} data-workspace-typed-problem={problem}>
-            {t(TYPED_PROBLEMS[problem])}
-          </p>
+          <WorkspacePathField
+            value={stored}
+            fieldKind={field.kind}
+            problem={problem}
+            t={t}
+            onCommit={onSetWorkspace}
+          />
         )}
       {field.kind === 'invalid' && field.checked ? (
         <p className={css.fieldNote} data-workspace-invalid="">{t('skillCardProblemWorkspaceInvalid')}</p>

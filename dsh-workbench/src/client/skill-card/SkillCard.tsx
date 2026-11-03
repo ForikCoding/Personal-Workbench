@@ -487,14 +487,22 @@ export function RunWorkspaceLine({
   readonly t: (key: WorkbenchLocaleKey) => string
 }): ReactNode {
   const field = view.workspaceField
-  const text = field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.path
+  // The record's own answer wins when it has one. A card invoked from another card happens in
+  // *that* card's directory, so the card's stored directory can be somewhere this result was
+  // never produced — and a page that answered "which folder was this about" with the card's
+  // answer would name a directory the run never touched. Records written before a run could be
+  // given a directory carry none, and fall back to the card's exactly as they always did.
+  const own = view.result?.workspace
+  const kind = own === undefined ? field.kind : 'ready'
+  const text = own ?? (field.kind === 'missing' ? t('skillCardWorkspaceNotSet') : field.path)
   return (
     // A span, not a paragraph: this sits in the head's own row of facts, beside the skill
     // chip and the count, so it is one item in a line rather than a block of its own.
     <span
       className={css.runWorkspaceLine}
-      data-run-workspace-line={field.kind}
-      title={field.kind === 'missing' ? undefined : field.path}
+      data-run-workspace-line={kind}
+      data-run-workspace-own={own === undefined ? undefined : 'true'}
+      title={kind === 'missing' ? undefined : text}
     >
       <span className={css.runWorkspaceLineLabel}>{t('skillCardWorkspace')}</span>
       <span className={css.runWorkspaceLinePath}>{text}</span>

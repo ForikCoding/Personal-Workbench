@@ -606,6 +606,26 @@ describe('workbench skill card run route', () => {
     runner.cancel('skill-card')
   })
 
+  it('carries the directory an invocation named through the wire, and refuses one that is not a path', async () => {
+    // The directory a card-to-card invocation happens in is a fact of that run, so it travels
+    // on the run request rather than in the card's record. Checked like every other path in
+    // this contract: one absolute path, or nothing — a relative one would name a different
+    // folder to whoever resolved it.
+    const accepted = runtime({ outcomes: ['hang'] })
+    const ok = await run(accepted.run, at(RUN_PATH, 'POST', runBody({ workspace: 'D:\\Git\\clicker' })))
+    expect(ok.statusCode).toBe(202)
+    expect(accepted.fake.createdAgents[0]?.session?.header?.cwd).toBe('D:\\Git\\clicker')
+    accepted.runner.cancel('skill-card')
+
+    const refused = runtime({ outcomes: ['hang'] })
+    const bad = await run(refused.run, at(RUN_PATH, 'POST', runBody({ workspace: 'clicker' })))
+    expect(bad.statusCode).toBe(400)
+    expect(JSON.parse(bad.body)).toMatchObject({
+      error: { code: 'invalid-request', message: 'workspace must be an absolute path when present' },
+    })
+    expect(refused.fake.createdAgents).toHaveLength(0)
+  })
+
   it('accepts a card run naming the session its skill scope comes from', async () => {
     // The run still executes in a fresh session; the named session only supplies the
     // scope the skill definition is resolved through, which is what makes a custom

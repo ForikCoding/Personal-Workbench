@@ -83,6 +83,14 @@ export interface WorkbenchPendingAction {
     readonly skill: string;
     /** That row's raw fields, unchanged. */
     readonly payload: Record<string, unknown>;
+    /**
+     * Directory this invocation happens in.
+     *
+     * Resolved when the panel opened — the invoking card's own directory when it has one,
+     * otherwise the target card's — and changeable until the run is confirmed. It answers for
+     * this run alone: the target card keeps the directory it stored.
+     */
+    readonly workspace: string;
 }
 /**
  * One bare run's state.
@@ -261,6 +269,13 @@ export interface WorkbenchCardView {
      * that check rather than a storage failure: the card keeps the directory it had.
      */
     readonly workspaceTypedProblem: WorkbenchWorkspaceTypedProblem | undefined;
+    /**
+     * Why the directory typed into the confirmation panel was not taken.
+     *
+     * The panel's own answer rather than the card's: a path refused there leaves the card's
+     * stored directory exactly as it was, because this directory was never the card's to keep.
+     */
+    readonly actionWorkspaceProblem: WorkbenchWorkspaceTypedProblem | undefined;
     /** Skills the session's agent can invoke. */
     readonly catalog: readonly WorkbenchSkillCatalogEntry[];
     /** Whether the catalog has been read. */
@@ -394,6 +409,15 @@ export interface WorkbenchCardActions {
     click(event: WorkbenchActionEvent): void;
     /** Carry out the pending action; the panel is one-shot. */
     confirmAction(): void;
+    /**
+     * Change the directory this one invocation will happen in.
+     *
+     * Checked before it is taken — the contract's shape rule, then the Host's answer — and
+     * never written to any card: it answers for this run, which is why a refused path leaves
+     * everything as it was.
+     * @param path - the directory as typed into the confirmation panel.
+     */
+    setActionWorkspace(path: string): void;
     /** Drop the pending action. Nothing else happens: no run, no write, no navigation. */
     cancelAction(): void;
 }

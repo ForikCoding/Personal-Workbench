@@ -2025,10 +2025,10 @@ var WorkbenchSkillCardRunner = class {
 			const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model);
 			if (refusal !== void 0) return refusal;
 		}
-		const workspace = selection.workspace;
-		if (workspace === void 0) return reject("workspace-missing", `no workspace directory is configured for card "${request.cardId}"`);
-		const found = await this.options.statDirectory(workspace.path);
-		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspace.path}" does not exist or is not a directory`);
+		const workspacePath = (mode.kind === "refine" ? void 0 : request.workspace) ?? selection.workspace?.path;
+		if (workspacePath === void 0) return reject("workspace-missing", `no workspace directory is configured for card "${request.cardId}"`);
+		const found = await this.options.statDirectory(workspacePath);
+		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspacePath}" does not exist or is not a directory`);
 		if (this.congested()) return reject("run-in-progress", "the concurrency limit is reached");
 		if (refineSessionId !== void 0) {
 			if (this.sessionBusy(refineSessionId) !== void 0) return reject("run-in-progress", `session "${refineSessionId}" is already running`);
@@ -2043,7 +2043,7 @@ var WorkbenchSkillCardRunner = class {
 		const startedAt = this.now();
 		let session;
 		try {
-			const resolved = refineSessionId === void 0 ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute, runPreset) : await this.attachRunSession(refineSessionId, runRoute, runPreset);
+			const resolved = refineSessionId === void 0 ? await this.openRunSession(request.cardId, workspacePath, startedAt, runRoute, runPreset) : await this.attachRunSession(refineSessionId, runRoute, runPreset);
 			if (resolved.status === "rejected") return resolved;
 			session = resolved.session;
 		} catch (error) {
@@ -2063,6 +2063,7 @@ var WorkbenchSkillCardRunner = class {
 			controller: new AbortController(),
 			bare: mode.kind === "bare",
 			...carried === void 0 ? {} : { instruction: carried },
+			workspace: workspacePath,
 			session,
 			phase: "running",
 			retried: false,
@@ -2598,7 +2599,7 @@ var WorkbenchSkillCardRunner = class {
 			const result = await activation.result;
 			const runId = run.runId;
 			const sessionId = run.session.id;
-			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId, input.kind === "card" ? run.instruction : input.instruction);
+			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId, run.workspace) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId, input.kind === "card" ? run.instruction : input.instruction, run.workspace);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
 				...stored,
 				diagnostic: run.childError
@@ -2770,9 +2771,10 @@ function toCatalogEntry(skill) {
 * @param runId - the run identity, unique within the card.
 * @param sessionId - the session the run executed in.
 * @param instruction - what the user told the run to do, when the run carried one.
+* @param workspace - the directory this run happened in.
 * @returns the stored record.
 */
-function toResultRecord(skill, result, executedAt, model, runId, sessionId, instruction) {
+function toResultRecord(skill, result, executedAt, model, runId, sessionId, instruction, workspace) {
 	const text = textOf(result.output);
 	return {
 		runId,
@@ -2780,6 +2782,7 @@ function toResultRecord(skill, result, executedAt, model, runId, sessionId, inst
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
+		workspace,
 		...model === void 0 ? {} : { model },
 		...instruction === void 0 ? {} : { instruction },
 		...result.structured === void 0 ? {} : { structured: result.structured },
@@ -2801,15 +2804,17 @@ function toResultRecord(skill, result, executedAt, model, runId, sessionId, inst
 * @param model - the route the run was pinned to, when the card named one.
 * @param runId - the run identity, unique within the card.
 * @param sessionId - the session the run executed in.
+* @param workspace - the directory this run happened in.
 * @returns the in-memory record.
 */
-function toBareRecord(skill, result, executedAt, model, runId, sessionId) {
+function toBareRecord(skill, result, executedAt, model, runId, sessionId, workspace) {
 	return {
 		runId,
 		sessionId,
 		skill,
 		executedAt,
 		stopReason: result.stopReason,
+		workspace,
 		...model === void 0 ? {} : { model },
 		...result.diagnostic === void 0 ? {} : { diagnostic: result.diagnostic }
 	};
@@ -3393,6 +3398,11 @@ function parseRunRequest(value) {
 	if (sessionId !== void 0 && (typeof sessionId !== "string" || sessionId.length === 0)) throw new SkillCardRequestError(400, "invalid-request", "sessionId must be a non-empty string when present");
 	const scopeSessionId = body.scopeSessionId;
 	if (scopeSessionId !== void 0 && (typeof scopeSessionId !== "string" || scopeSessionId.length === 0)) throw new SkillCardRequestError(400, "invalid-request", "scopeSessionId must be a non-empty string when present");
+	let workspace;
+	if (body.workspace !== void 0) {
+		if (typeof body.workspace !== "string" || !isWorkbenchWorkspacePath(body.workspace)) throw new SkillCardRequestError(400, "invalid-request", "workspace must be an absolute path when present");
+		workspace = body.workspace;
+	}
 	let payload;
 	if (body.payload !== void 0) {
 		if (typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload)) throw new SkillCardRequestError(400, "invalid-request", "payload must be an object");
@@ -3407,6 +3417,7 @@ function parseRunRequest(value) {
 		cardId: body.cardId,
 		...sessionId === void 0 ? {} : { sessionId },
 		...scopeSessionId === void 0 ? {} : { scopeSessionId },
+		...workspace === void 0 ? {} : { workspace },
 		mode: parseRunMode(body.mode),
 		...payload === void 0 ? {} : { payload },
 		...instruction === void 0 ? {} : { instruction },

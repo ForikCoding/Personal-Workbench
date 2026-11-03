@@ -180,6 +180,9 @@ describe('a refine run', () => {
         // The revision request is kept too: a refined run's row has to say which request it
         // answered, exactly as a first run's row says what it was asked for.
         instruction: INSTRUCTION,
+        // A refinement continues a session, and a session has one root: the directory it was
+        // started in, which no refinement argument can move.
+        workspace: '/repo',
       },
     }])
   })

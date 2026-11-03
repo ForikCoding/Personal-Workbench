@@ -26,14 +26,17 @@ import type { WorkbenchRunStart, WorkbenchSkillCardApi } from './api.ts';
  * @param cardId - the card to run.
  * @param scopeSessionId - the session whose scope resolves the skill definition; undefined
  * resolves through the run's own fresh agent (the global and project layers).
- * @param ask - what else travels with the run: the clicked row, and the instruction the user
- * wrote for it. Both optional and independent — a run may act on a row, on a sentence, on
- * both, or on neither.
+ * @param ask - what else travels with the run: the clicked row, the instruction the user
+ * wrote for it, and the directory this one invocation happens in. All optional and
+ * independent — a run may act on a row, on a sentence, on both, or on neither, and it
+ * happens in the card's own directory unless one is named.
  * @returns the accepted run state, or the Host's own refusal.
  */
 export declare function startCardRun(api: WorkbenchSkillCardApi, cardId: string, scopeSessionId: string | undefined, ask?: {
     readonly payload?: Record<string, unknown>;
     readonly instruction?: string;
+    /** Directory this invocation happens in; absent means the card's own. */
+    readonly workspace?: string;
 }): Promise<WorkbenchRunStart>;
 /**
  * Ask any stored card to revise a result it already produced.

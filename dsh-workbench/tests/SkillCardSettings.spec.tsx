@@ -63,6 +63,7 @@ function view(overrides: Partial<WorkbenchCardView> = {}): WorkbenchCardView {
     recentInstructions: [],
     canChooseWorkspace: true,
     workspaceTypedProblem: undefined,
+    actionWorkspaceProblem: undefined,
     catalog: [],
     catalogStatus: 'ready',
     catalogFailure: undefined,

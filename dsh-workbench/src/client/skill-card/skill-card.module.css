@@ -1537,6 +1537,12 @@
   overflow-wrap: anywhere;
 }
 
+/* The directory the panel proposes, and the sentence saying what it is for: the field is the
+   same one the card's own page uses, so only the breathing room under it is set here. */
+.actionFacts [data-action-workspace-note] {
+  margin-top: 4px;
+}
+
 /* The payload whole: scrollable, never truncated, never collapsed. It is the one thing
    standing between a model-authored row and the run that receives it. */
 .actionPayload {

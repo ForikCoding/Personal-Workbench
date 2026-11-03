@@ -246,6 +246,8 @@ interface RunRecord {
    * stored result. The flag is what keeps that promise in the paths that persist.
    */
   readonly bare: boolean
+  /** Directory this run happens in: its own, or the card's stored one. */
+  readonly workspace: string
   /**
    * What the user told this run to do, verbatim; absent when it carried none.
    *
@@ -613,24 +615,30 @@ export class WorkbenchSkillCardRunner {
       const refusal = await this.modelRefusal(providerName, provider.capabilities.agentOptions, model)
       if (refusal !== undefined) return refusal
     }
-    // Where the run happens is the card's own answer, checked before anything is started.
-    // Refusing rather than falling back to the session's directory is the whole point: a
-    // card whose folder was moved must stop, not quietly run somewhere the user never
-    // picked and stamp a result that does not say so.
-    const workspace = selection.workspace
-    if (workspace === undefined) {
+    // Where the run happens, checked before anything is started. Two answers are possible and
+    // this run's own comes first: a card invoked from another card happens in the directory
+    // the invocation named, which is usually the invoking card's — the folder the material
+    // was read from. Absent, the card's stored directory answers, as every run started from
+    // the card itself does.
+    //
+    // A refinement has no say here: it continues a session, and a session is rooted once.
+    const requested = mode.kind === 'refine' ? undefined : request.workspace
+    const workspacePath = requested ?? selection.workspace?.path
+    if (workspacePath === undefined) {
       return reject(
         'workspace-missing',
         `no workspace directory is configured for card "${request.cardId}"`,
       )
     }
-    const found = await this.options.statDirectory(workspace.path)
+    const found = await this.options.statDirectory(workspacePath)
     if (!found.exists || !found.isDirectory) {
       // The refusal names the full path, because "the directory is gone" is only actionable
-      // when it says which directory.
+      // when it says which directory. Refusing rather than falling back is the whole point:
+      // a run must not quietly happen somewhere the user never picked and stamp a result
+      // that does not say so.
       return reject(
         'workspace-invalid',
-        `the workspace directory "${workspace.path}" does not exist or is not a directory`,
+        `the workspace directory "${workspacePath}" does not exist or is not a directory`,
       )
     }
     // Checked here as well as below, and the earlier check is load-bearing: resolving a
@@ -683,7 +691,7 @@ export class WorkbenchSkillCardRunner {
     let session: RunSession
     try {
       const resolved = refineSessionId === undefined
-        ? await this.openRunSession(request.cardId, workspace.path, startedAt, runRoute, runPreset)
+        ? await this.openRunSession(request.cardId, workspacePath, startedAt, runRoute, runPreset)
         : await this.attachRunSession(refineSessionId, runRoute, runPreset)
       if (resolved.status === 'rejected') return resolved
       session = resolved.session
@@ -724,6 +732,9 @@ export class WorkbenchSkillCardRunner {
       controller: new AbortController(),
       bare: mode.kind === 'bare',
       ...carried === undefined ? {} : { instruction: carried },
+      // Where this run happens, kept on the run so its record states it rather than the
+      // card's directory — which for an invocation from another card is another folder.
+      workspace: workspacePath,
       session,
       phase: 'running',
       retried: false,
@@ -1391,7 +1402,7 @@ await this.finish(run, outcome)
       const runId = run.runId
       const sessionId = run.session.id
       const stored = input.kind === 'bare'
-        ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId)
+        ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId, run.workspace)
         : toResultRecord(
             input.skill,
             result,
@@ -1400,6 +1411,7 @@ await this.finish(run, outcome)
             runId,
             sessionId,
             input.kind === 'card' ? run.instruction : input.instruction,
+            run.workspace,
           )
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
@@ -1602,6 +1614,7 @@ function toCatalogEntry(skill: {
  * @param runId - the run identity, unique within the card.
  * @param sessionId - the session the run executed in.
  * @param instruction - what the user told the run to do, when the run carried one.
+ * @param workspace - the directory this run happened in.
  * @returns the stored record.
  */
 function toResultRecord(
@@ -1612,6 +1625,7 @@ function toResultRecord(
   runId: string,
   sessionId: string,
   instruction: string | undefined,
+  workspace: string,
 ): WorkbenchResultRecord {
   const text = textOf(result.output)
   return {
@@ -1620,6 +1634,7 @@ function toResultRecord(
     skill,
     executedAt,
     stopReason: result.stopReason,
+    workspace,
     ...model === undefined ? {} : { model },
     ...instruction === undefined ? {} : { instruction },
     ...result.structured === undefined ? {} : { structured: result.structured },
@@ -1642,6 +1657,7 @@ function toResultRecord(
  * @param model - the route the run was pinned to, when the card named one.
  * @param runId - the run identity, unique within the card.
  * @param sessionId - the session the run executed in.
+ * @param workspace - the directory this run happened in.
  * @returns the in-memory record.
  */
 function toBareRecord(
@@ -1651,6 +1667,7 @@ function toBareRecord(
   model: WorkbenchCardModel | undefined,
   runId: string,
   sessionId: string,
+  workspace: string,
 ): WorkbenchResultRecord {
   return {
     runId,
@@ -1658,6 +1675,7 @@ function toBareRecord(
     skill,
     executedAt,
     stopReason: result.stopReason,
+    workspace,
     ...model === undefined ? {} : { model },
     ...result.diagnostic === undefined ? {} : { diagnostic: result.diagnostic },
   }
