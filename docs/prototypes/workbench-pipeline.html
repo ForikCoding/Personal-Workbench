@@ -1,0 +1,2423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>工作台 · 流水线重构原型 · DSH Desktop</title>
+<style>
+/* ============================================================
+   工作台 · 流水线重构原型
+   配色与排版完全取自 DSH Desktop 的 design-platform 令牌：
+   alias-label-* / alias-border-l1..l4 / alias-bg-layer-* /
+   alias-state-business-primary / specific-sidebar-fill …
+   颜色只在两套主题各声明一次，组件一律引用语义变量。
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* display:inline-flex 会盖掉 hidden，这里统一兜住 */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  display: grid;
+  place-items: center;
+  padding: 44px 28px 28px;
+  background: #e7e9ed;
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system,
+    'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  color: #151517;
+  transition: background .2s ease;
+}
+body[data-theme='dark'] { background: #111113; color: #f9fafb; }
+
+/* ---------- 原型壳（不属于应用本身） ---------- */
+
+.protoBar {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 28px;
+  padding: 0 6px 0 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .08);
+  backdrop-filter: blur(12px);
+  font-size: 11.5px;
+  color: #61666b;
+  transform: translateX(-50%);
+}
+body[data-theme='dark'] .protoBar {
+  background: rgba(44, 44, 46, .82);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .5);
+  color: #adB2b8;
+}
+.protoBar .pbTitle { white-space: nowrap; letter-spacing: .01em; }
+.protoSeg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: rgba(38, 49, 72, .06);
+}
+body[data-theme='dark'] .protoSeg { background: rgba(255, 255, 255, .08); }
+.protoSeg button {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.protoSeg button[aria-pressed='true'] {
+  background: #fff;
+  color: #151517;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .1);
+}
+body[data-theme='dark'] .protoSeg button[aria-pressed='true'] {
+  background: #52525a;
+  color: #f9fafb;
+}
+
+/* ---------- 应用外壳 ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  width: min(1400px, 100%);
+  height: min(900px, calc(100vh - 72px));
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--panel-bg);
+  box-shadow: 0 18px 60px -18px rgba(15, 17, 21, .34), 0 0 0 1px rgba(0, 0, 0, .06);
+  --panel-bg: #ffffff;
+  --pane-bg: #f9fafb;
+  --card-bg: #ffffff;
+  --card-border: rgba(0, 0, 0, .1);
+  --hairline: rgba(0, 0, 0, .06);
+  --divider: rgba(0, 0, 0, .12);
+  --hover: rgba(38, 49, 72, .06);
+  --hover-strong: rgba(38, 49, 72, .1);
+  --ink: #0f1115;
+  --ink2: #61666b;
+  --ink3: #81858c;
+  --ink4: #adb2b8;
+  --accent: rgb(65, 118, 230);
+  --accent-soft: rgba(65, 118, 230, .1);
+  --success: rgb(34, 197, 94);
+  --success-soft: rgba(34, 197, 94, .12);
+  --warn: rgb(245, 158, 11);
+  --warn-soft: rgba(245, 158, 11, .14);
+  --danger: rgb(236, 19, 19);
+  --danger-soft: rgba(236, 19, 19, .1);
+  --idle: rgb(212, 212, 212);
+  --solid: #151517;
+  --solid-ink: #ffffff;
+  --sb-thumb: rgb(220, 220, 220);
+  --node-shadow: 0 1px 2px rgba(15, 17, 21, .04);
+  --lift: 0 6px 18px -8px rgba(15, 17, 21, .28);
+}
+.app[data-theme='dark'] {
+  --panel-bg: #151517;
+  --pane-bg: #1b1b1c;
+  --card-bg: #2c2c2e;
+  --card-border: rgba(255, 255, 255, .12);
+  --hairline: rgba(255, 255, 255, .07);
+  --divider: rgba(255, 255, 255, .16);
+  --hover: rgba(255, 255, 255, .08);
+  --hover-strong: rgba(255, 255, 255, .13);
+  --ink: #f9fafb;
+  --ink2: #cfd3d6;
+  --ink3: #adb2b8;
+  --ink4: #81858c;
+  --accent: rgb(122, 170, 255);
+  --accent-soft: rgba(122, 170, 255, .16);
+  --success: rgb(34, 197, 94);
+  --success-soft: rgba(34, 197, 94, .18);
+  --warn: rgb(247, 173, 49);
+  --warn-soft: rgba(247, 173, 49, .16);
+  --danger: rgb(242, 90, 90);
+  --danger-soft: rgba(242, 90, 90, .16);
+  --idle: rgb(84, 85, 87);
+  --solid: #f9fafb;
+  --solid-ink: #0f1115;
+  --sb-thumb: rgb(67, 69, 74);
+  --node-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  --lift: 0 8px 22px -10px rgba(0, 0, 0, .8);
+  box-shadow: 0 18px 60px -18px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .08);
+}
+
+/* 标题栏 */
+.titlebar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding-left: 14px;
+  background: var(--pane-bg);
+  -webkit-app-region: drag;
+}
+.tbLeft { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.tbMark {
+  width: 15px; height: 15px; border-radius: 4px;
+  background: linear-gradient(140deg, var(--ink) 40%, var(--ink2));
+  opacity: .82;
+}
+.tbTitle { font-size: 12px; color: var(--ink2); }
+.tbSep { width: 1px; height: 11px; background: var(--divider); }
+.tbSub { font-size: 12px; color: var(--ink3); }
+.tbRight { display: flex; height: 100%; }
+.winBtn {
+  width: 46px; height: 100%;
+  border: 0; background: transparent;
+  color: var(--ink2);
+  font: inherit; font-size: 11px;
+  cursor: pointer;
+}
+.winBtn:hover { background: var(--hover); }
+.winBtn.close:hover { background: #e81123; color: #fff; }
+
+.shell { display: flex; flex: 1; min-height: 0; }
+
+/* 应用左侧图标栏 */
+.appRail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 52px;
+  padding: 8px 0 10px;
+  background: var(--pane-bg);
+}
+.railBtn {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border: 0; border-radius: 8px;
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.railBtn:hover { background: var(--hover); color: var(--ink); }
+.railBtn[aria-current='page'] { background: var(--hover); color: var(--ink); }
+.railBtn svg { width: 16px; height: 16px; }
+.railSpacer { flex: 1; }
+.railAvatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--accent), #7c5cff);
+  color: #fff;
+  display: grid; place-items: center;
+  font-size: 11px;
+}
+
+/* ---------- 面板 ---------- */
+
+.panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel-bg);
+}
+
+.panelHead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 18px 12px;
+}
+.panelTitle {
+  flex: none;
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -.01em;
+}
+
+.viewTabs { display: flex; gap: 2px; }
+.viewTab {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 22px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.viewTab:hover { background: var(--hover); }
+.viewTab[aria-selected='true'] { background: var(--hover); color: var(--ink); }
+.headSpacer { flex: 1; }
+
+.panelBody { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.view { display: flex; flex: 1; min-height: 0; }
+.view[hidden] { display: none; }
+/* 两个视图都是纵向：上面是可滚动的三栏/画廊，下面是固定的运行条 */
+.viewColumn { flex-direction: column; }
+/* 三栏：任务库 | 编排画布 | 检查器 */
+.panes { display: flex; flex: 1; min-height: 0; min-width: 0; }
+
+/* ---------- 通用控件 ---------- */
+
+.btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0.5px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, opacity .15s;
+}
+.btn:hover { background: var(--hover); }
+.btn svg { width: 13px; height: 13px; flex: none; }
+.btnGhost { border-color: var(--card-border); }
+.btnGhost:hover { border-color: var(--divider); }
+.btnSolid { background: var(--solid); color: var(--solid-ink); }
+.btnSolid:hover { background: var(--solid); opacity: .86; }
+.btnSolid:disabled { opacity: .34; cursor: default; background: var(--solid); }
+.btnSm { height: 26px; padding: 0 10px; border-radius: 13px; font-size: 12px; }
+.btnDanger { color: var(--danger); }
+.btnDanger:hover { background: var(--danger-soft); }
+
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  border: 0; border-radius: 7px;
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.iconBtn:hover { background: var(--hover); color: var(--ink); }
+.iconBtn svg { width: 14px; height: 14px; }
+
+.linkBtn {
+  border: 0; padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.linkBtn:hover { text-decoration: underline; }
+
+:where(button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink4); }
+.dot[data-s='done'] { background: var(--success); }
+.dot[data-s='running'] { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dot[data-s='failed'] { background: var(--danger); }
+.dot[data-s='queued'],
+.dot[data-s='idle'] { background: var(--idle); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--ink2);
+  font-size: 11px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.chipCode {
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: -.01em;
+}
+.chipTag[data-s='done'] { background: var(--success-soft); color: var(--success); }
+.chipTag[data-s='running'] { background: var(--accent-soft); color: var(--accent); }
+.chipTag[data-s='failed'] { background: var(--danger-soft); color: var(--danger); }
+.chipTag[data-s='queued'],
+.chipTag[data-s='idle'] { background: var(--hover); color: var(--ink3); }
+
+code, .mono {
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  letter-spacing: -.01em;
+}
+
+/* 滚动区：细轨滑块，内缩 2px */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb-thumb) transparent;
+}
+.scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+.scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--sb-thumb);
+  background-clip: content-box;
+}
+
+/* ---------- 左：任务库 ---------- */
+
+.library {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 238px;
+  min-height: 0;
+  border-right: 0.5px solid var(--divider);
+  background: var(--pane-bg);
+}
+.libSearchWrap { flex: none; padding: 2px 12px 10px; }
+.libSearch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 9px;
+  border: 0.5px solid var(--divider);
+  border-radius: 10px;
+  color: var(--ink3);
+  transition: border-color .15s;
+}
+.libSearch:focus-within { border-color: var(--accent); }
+.libSearch svg { width: 13px; height: 13px; flex: none; }
+.libSearch input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+.libSearch input::placeholder { color: var(--ink4); }
+
+.libScroll { padding: 0 8px 14px; }
+.libSection + .libSection { margin-top: 4px; }
+.libSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px 5px;
+  color: var(--ink3);
+  font-size: 12px;
+}
+.libSectionHead .count { color: var(--ink4); font-size: 11px; font-variant-numeric: tabular-nums; }
+.libSectionHead .grow { flex: 1; }
+.libSectionHead .iconBtn { width: 20px; height: 20px; }
+.libSectionHead .iconBtn svg { width: 12px; height: 12px; }
+
+.libRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s;
+}
+.libRow:hover { background: var(--hover); }
+.libRow[aria-current='true'] { background: var(--hover-strong); }
+.libRowMain { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+.libRowTitle {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.libRow[aria-current='true'] .libRowTitle { color: var(--ink); }
+.libRowSub {
+  overflow: hidden;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.libRowTail { display: flex; flex: none; align-items: center; gap: 4px; }
+.libRun {
+  display: grid;
+  place-items: center;
+  width: 22px; height: 22px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, background .15s, color .15s;
+}
+.libRun svg { width: 11px; height: 11px; }
+.libRow:hover .libRun,
+.libRow[aria-current='true'] .libRun { opacity: 1; }
+.libRun:hover { background: var(--hover-strong); color: var(--accent); }
+.libRow:hover .libRowState { opacity: 0; }
+.libRowState { transition: opacity .15s; }
+
+.libEmpty {
+  padding: 14px 8px;
+  color: var(--ink4);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+.libFoot {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 12px;
+  border-top: 0.5px solid var(--hairline);
+}
+.libFoot .btn { flex: 1; justify-content: center; }
+
+/* ---------- 中：编排画布 ---------- */
+
+.canvas {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel-bg);
+}
+.canvasHead {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 4px 22px 14px;
+}
+.canvasHeadMain { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.canvasTitleRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.canvasTitle {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvasMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--ink3);
+  font-size: 12px;
+  line-height: 18px;
+}
+.canvasMeta .sep { color: var(--ink4); }
+.canvasActions { display: flex; flex: none; align-items: center; gap: 2px; }
+
+.canvasScroll { padding: 0 22px 20px; }
+
+/* 流 */
+.flow { display: flex; flex-direction: column; }
+
+.node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 14px 11px 16px;
+  border: 0.5px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  box-shadow: var(--node-shadow);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.node:hover { border-color: var(--divider); box-shadow: var(--lift); }
+.node::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 13px;
+  bottom: 13px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--st, var(--ink4));
+  transition: background .15s;
+}
+.node[data-s='done'] { --st: var(--success); }
+.node[data-s='running'] { --st: var(--accent); }
+.node[data-s='failed'] { --st: var(--danger); }
+.node[data-s='queued'] { --st: var(--idle); }
+.node[data-s='idle'] { --st: var(--idle); }
+.node[aria-current='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent-soft), var(--node-shadow);
+}
+.node[data-s='queued'] .nodeTitle,
+.node[data-s='idle'] .nodeTitle { color: var(--ink2); }
+.node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.nodeTop { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nodeIndex {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--ink3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.node[data-s='running'] .nodeIndex { background: var(--accent-soft); color: var(--accent); }
+.nodeTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nodeState {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink3);
+  font-size: 12px;
+  line-height: 18px;
+}
+.nodeState svg { width: 12px; height: 12px; }
+.nodeState[data-s='done'] { color: var(--success); }
+.nodeState[data-s='running'] { color: var(--accent); }
+.nodeState[data-s='failed'] { color: var(--danger); }
+.nodeDur {
+  flex: none;
+  min-width: 46px;
+  color: var(--ink4);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.nodeMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  min-width: 0;
+  color: var(--ink3);
+  font-size: 11.5px;
+  line-height: 17px;
+}
+.nodeMeta code { color: var(--ink3); font-size: 11px; }
+.nodeMeta .sep { color: var(--ink4); }
+
+.nodeFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 2px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--hover);
+  color: var(--ink2);
+  font-size: 11.5px;
+  line-height: 17px;
+}
+.nodeFoot .lab { flex: none; color: var(--ink4); }
+.nodeFoot .val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nodeFoot code { color: var(--ink2); font-size: 11px; }
+.nodeFoot[data-tone='running'] { background: var(--accent-soft); color: var(--accent); }
+.nodeFoot[data-tone='running'] .lab,
+.nodeFoot[data-tone='running'] code { color: var(--accent); }
+.nodeFoot[data-tone='failed'] { background: var(--danger-soft); color: var(--danger); }
+.nodeFoot[data-tone='failed'] .lab { color: var(--danger); opacity: .75; }
+.nodeFoot[data-tone='empty'] { background: transparent; padding-left: 0; color: var(--ink4); }
+
+.nodeProg {
+  flex: none;
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  overflow: hidden;
+}
+.nodeProg i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+.nodeHandle {
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 14px; height: 20px;
+  margin-top: -10px;
+  border-radius: 4px;
+  color: var(--ink4);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.node:hover .nodeHandle { opacity: 1; }
+.nodeHandle svg { width: 9px; height: 12px; }
+
+/* 连接线与插入点 */
+.connector {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 26px;
+}
+/* 末节点到「添加步骤」只用一小段，别在结尾留出第二个节点位 */
+.connectorShort { height: 16px; }
+.connector::before {
+  content: '';
+  width: 1px;
+  height: 100%;
+  background: var(--divider);
+}
+.insertBtn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  border: 0.5px solid var(--card-border);
+  border-radius: 50%;
+  background: var(--panel-bg);
+  color: var(--ink4);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, color .15s, border-color .15s, transform .15s;
+}
+.insertBtn svg { width: 9px; height: 9px; }
+.connector:hover .insertBtn { opacity: 1; }
+.insertBtn:hover { color: var(--accent); border-color: var(--accent); transform: scale(1.1); }
+.insertBtn:focus-visible { opacity: 1; }
+
+.addStep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 46px;
+  width: 100%;
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.addStep:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.addStep svg { width: 12px; height: 12px; }
+
+.canvasEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 56px 20px;
+  color: var(--ink3);
+  text-align: center;
+}
+.canvasEmpty p { margin: 0; font-size: 13px; line-height: 20px; }
+.canvasEmpty .t { color: var(--ink); font-size: 13.5px; }
+
+/* ---------- 右：检查器 ---------- */
+
+.inspector {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 372px;
+  min-height: 0;
+  border-left: 0.5px solid var(--divider);
+  background: var(--pane-bg);
+}
+.inspHead { flex: none; padding: 12px 18px 10px; }
+.inspKicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink3);
+  font-size: 11.5px;
+  line-height: 17px;
+}
+.inspTitleRow { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.inspTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  margin-top: 3px;
+  color: var(--ink3);
+  font-size: 11.5px;
+  line-height: 17px;
+}
+.inspMeta code { font-size: 11px; color: var(--ink3); }
+.inspMeta .sep { color: var(--ink4); }
+
+.inspTabs {
+  display: flex;
+  flex: none;
+  gap: 24px;
+  height: 40px;
+  padding: 0 18px;
+  border-bottom: 0.5px solid var(--divider);
+}
+.inspTab {
+  position: relative;
+  padding: 0 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.inspTab::after {
+  content: '';
+  position: absolute;
+  right: 0; bottom: -1px; left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+.inspTab[aria-selected='true'] { color: var(--accent); }
+.inspTab[aria-selected='true']::after { background: var(--accent); }
+.inspTab .n { margin-left: 5px; color: var(--ink4); font-size: 11px; font-weight: 400; }
+
+.inspScroll { padding: 14px 18px 22px; }
+.inspPanel[hidden] { display: none; }
+
+/* 结果面板 */
+.resToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--ink3);
+  font-size: 11.5px;
+}
+.resToolbar .grow { flex: 1; }
+.resSeg { display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: var(--hover); }
+.resSeg button {
+  height: 20px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.resSeg button[aria-pressed='true'] { background: var(--pane-bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+.docFrame {
+  border: 0.5px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+.docFrameBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-bottom: 0.5px solid var(--hairline);
+  background: var(--hover);
+  color: var(--ink3);
+  font-size: 11px;
+}
+.docFrameBar .dots { display: flex; gap: 4px; }
+.docFrameBar .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink4); opacity: .5; }
+.docFrameBar .file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docPad { padding: 14px 15px 16px; }
+
+/* 结果文档（同时用于缩略图，故宽高自适应） */
+.doc { color: var(--ink); font-size: 12.5px; line-height: 20px; }
+.doc > *:first-child { margin-top: 0; }
+.doc > *:last-child { margin-bottom: 0; }
+.doc h5 {
+  margin: 0 0 5px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.doc h6 {
+  margin: 14px 0 5px;
+  color: var(--ink3);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: .04em;
+}
+.doc p { margin: 0 0 9px; color: var(--ink2); }
+.doc ul, .doc ol { margin: 0 0 9px; padding-left: 15px; }
+.doc li { margin: 2px 0; color: var(--ink2); }
+.doc li::marker { color: var(--ink4); }
+.doc strong { font-weight: 500; color: var(--ink); }
+.doc code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--ink);
+  font-size: 11px;
+}
+/* 固定列宽的比例，检查器宽窄变化时三列按同一比例缩放，
+   不会出现「中间列只剩一个字宽」或「文件名被腰斩」 */
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0 0 9px;
+  font-size: 12px;
+}
+.doc th:nth-child(1), .doc td:nth-child(1) { width: 44%; }
+.doc th:nth-child(2), .doc td:nth-child(2) { width: 34%; }
+.doc th:nth-child(3), .doc td:nth-child(3) { width: 22%; }
+.doc td { overflow-wrap: anywhere; }
+.doc th {
+  padding: 5px 7px;
+  border-bottom: 0.5px solid var(--divider);
+  color: var(--ink3);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-align: left;
+  letter-spacing: .03em;
+}
+.doc td {
+  padding: 5px 7px;
+  border-bottom: 0.5px solid var(--hairline);
+  color: var(--ink2);
+  vertical-align: top;
+}
+.doc tr:last-child td { border-bottom: 0; }
+.doc td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.doc .add { color: var(--success); }
+.doc .del { color: var(--danger); }
+.doc .callout {
+  margin: 0 0 9px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--ink2);
+  font-size: 12px;
+  line-height: 18px;
+}
+.doc .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 9px; }
+.doc .metric {
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--hover);
+}
+.doc .metric .k { display: block; color: var(--ink3); font-size: 10.5px; line-height: 15px; }
+.doc .metric .v { display: block; margin-top: 1px; font-size: 15px; line-height: 21px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.doc .metric .v small { color: var(--ink3); font-size: 10.5px; font-weight: 400; }
+.doc .checks { display: flex; flex-direction: column; gap: 0; }
+.doc .check {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 4px 0;
+  border-bottom: 0.5px solid var(--hairline);
+}
+.doc .check:last-child { border-bottom: 0; }
+.doc .check i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--success); transform: translateY(-2px); }
+.doc .check[data-s='fail'] i { background: var(--danger); }
+.doc .check[data-s='todo'] i { background: var(--ink4); }
+.doc .check span { flex: 1; min-width: 0; }
+.doc .check em { flex: none; color: var(--ink4); font-size: 10.5px; font-style: normal; }
+
+.resFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--ink4);
+  font-size: 11px;
+}
+.resFoot .grow { flex: 1; }
+
+/* 正在运行 / 排队 / 失败的占位 */
+.resState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 30px 16px;
+  border: 0.5px dashed var(--card-border);
+  border-radius: 12px;
+  color: var(--ink3);
+  text-align: center;
+}
+.resState svg { width: 18px; height: 18px; color: var(--ink4); }
+.resState .t { color: var(--ink); font-size: 12.5px; }
+.resState p { margin: 0; font-size: 11.5px; line-height: 18px; }
+.skel { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 4px; }
+.skel i {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--hover) 0%, var(--hover-strong) 40%, var(--hover) 80%);
+  background-size: 300% 100%;
+  animation: sweep 1.8s linear infinite;
+}
+@keyframes sweep { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.skel i:nth-child(2) { width: 88%; }
+.skel i:nth-child(3) { width: 72%; }
+.skel i:nth-child(4) { width: 94%; }
+
+/* 结构化输出 */
+.subHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 18px 0 7px;
+  color: var(--ink3);
+  font-size: 11.5px;
+}
+.subHead .grow { flex: 1; }
+.kvList {
+  display: flex;
+  flex-direction: column;
+  border: 0.5px solid var(--divider);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.kv {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border-bottom: 0.5px solid var(--hairline);
+  font-size: 12px;
+  line-height: 18px;
+}
+.kv:last-child { border-bottom: 0; }
+.kv .k { flex: none; width: 76px; color: var(--ink3); font-size: 11.5px; }
+.kv .v { flex: 1; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+
+/* 活动时间线 */
+.acts { display: flex; flex-direction: column; }
+.act {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+}
+.act::before, .act::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  width: 1px;
+  background: var(--divider);
+}
+.act:not(:first-child)::before { top: 0; height: 7px; }
+.act:not(:last-child)::after { top: 25px; bottom: 0; }
+.actGlyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 13px; height: 13px;
+  margin-top: 2px;
+  color: var(--ink3);
+}
+.actGlyph svg { width: 12px; height: 12px; }
+.actBody { flex: 1; min-width: 0; }
+.actLine {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink);
+}
+.actLine code {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink2);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actMeta {
+  display: flex;
+  gap: 6px;
+  margin-top: 1px;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 16px;
+}
+.actTime {
+  flex: none;
+  color: var(--ink4);
+  font-size: 10.5px;
+  line-height: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.actThought .actLine { color: var(--ink2); font-style: normal; }
+.actThought .actLine .say { color: var(--ink3); }
+
+/* 配置行 */
+.ruleRows {
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px;
+  border: 0.5px solid var(--divider);
+  border-radius: 14px;
+}
+.ruleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  border-bottom: 0.5px solid var(--hairline);
+}
+.ruleRow:last-child { border-bottom: 0; }
+.ruleLabel { flex: none; font-size: 12.5px; color: var(--ink2); }
+.ruleValue {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px 6px;
+  margin-right: -6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: right;
+  cursor: pointer;
+}
+.ruleValue:hover { background: var(--hover); }
+.ruleValue .val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ruleValue svg { flex: none; width: 11px; height: 11px; color: var(--ink4); }
+.ruleValue code { color: var(--ink2); font-size: 11px; }
+.ruleNote {
+  margin: 9px 0 0 2px;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+/* ---------- 运行条 ---------- */
+
+.runbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  height: 46px;
+  padding: 0 18px;
+  border-top: 0.5px solid var(--divider);
+  background: var(--pane-bg);
+}
+.runSegs { display: flex; flex: none; gap: 3px; width: 168px; }
+.runSegs i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--idle);
+  opacity: .5;
+}
+.runSegs i[data-s='done'] { background: var(--success); opacity: 1; }
+.runSegs i[data-s='running'] { background: var(--accent); opacity: 1; animation: pulse 1.6s ease-in-out infinite; }
+.runSegs i[data-s='failed'] { background: var(--danger); opacity: 1; }
+.runText {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  color: var(--ink3);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.runText .k { color: var(--ink); font-size: 12.5px; }
+.runText .sep { color: var(--ink4); }
+.runText .num { font-variant-numeric: tabular-nums; }
+.runbar .grow { flex: 1; }
+.runbar .btn { height: 28px; font-size: 12.5px; }
+
+/* ---------- 结果视图 ---------- */
+
+.resultsView { flex-direction: column; }
+.resultsHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 18px 12px;
+}
+.filterChips { display: flex; gap: 4px; }
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.filterChip:hover { background: var(--hover); }
+.filterChip[aria-pressed='true'] { background: var(--hover-strong); color: var(--ink); }
+.filterChip .n { color: var(--ink4); font-size: 11px; font-variant-numeric: tabular-nums; }
+.resultsHead .grow { flex: 1; }
+.resultsScroll { padding: 0 18px 24px; }
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 14px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border: 0.5px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.tile:hover { border-color: var(--divider); box-shadow: var(--lift); transform: translateY(-1px); }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.thumbViewport {
+  position: relative;
+  height: 148px;
+  overflow: hidden;
+  border-bottom: 0.5px solid var(--hairline);
+  background: var(--hover);
+}
+/* 200% 宽再缩到一半，缩略图正好铺满瓦片且随列宽自适应 */
+.thumbDoc {
+  width: 200%;
+  padding: 24px 26px;
+  background: var(--card-bg);
+  transform: scale(.5);
+  transform-origin: top left;
+}
+.thumbFade {
+  position: absolute;
+  right: 0; bottom: 0; left: 0;
+  height: 40px;
+  background: linear-gradient(to top, var(--card-bg), transparent);
+}
+.thumbState {
+  position: absolute;
+  top: 8px; right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--card-bg) 86%, transparent);
+  color: var(--ink3);
+  font-size: 10.5px;
+  backdrop-filter: blur(6px);
+}
+.thumbState[data-s='done'] { color: var(--success); }
+.thumbState[data-s='running'] { color: var(--accent); }
+.thumbState[data-s='failed'] { color: var(--danger); }
+
+.thumbFailed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 24px;
+  /* 失败块压到很浅：它是「这里没有内容」的说明，不该盖过整块画面 */
+  background: color-mix(in srgb, var(--danger) 7%, var(--card-bg));
+  color: var(--danger);
+  text-align: center;
+}
+.thumbFailed svg { width: 16px; height: 16px; }
+.thumbFailed span { font-size: 11.5px; line-height: 17px; }
+.thumbFailed em { color: var(--ink3); font-size: 10.5px; font-style: normal; }
+.thumbSkel { display: flex; flex-direction: column; gap: 9px; padding: 18px 17px; }
+
+.tileBody { padding: 9px 11px 10px; }
+.tileTitleRow { display: flex; align-items: center; gap: 6px; }
+.tileTitle {
+  flex: 1;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 结果来自哪条流水线：一眼看出出处，而不是只有技能名 */
+.tileFrom {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  color: var(--ink4);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tileMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 16px;
+}
+.tileMeta code { color: var(--ink3); font-size: 10.5px; }
+
+/* ---------- 窄窗适配 ---------- */
+
+@media (max-width: 1180px) {
+  .library { width: 214px; }
+  .inspector { width: 336px; }
+}
+@media (max-width: 1040px) {
+  .library { display: none; }
+}
+@media (max-width: 840px) {
+  .inspector { width: 300px; }
+  .canvasScroll { padding-left: 16px; padding-right: 16px; }
+}
+</style>
+</head>
+<body data-theme="light">
+
+<div class="protoBar">
+  <span class="pbTitle">工作台 · 流水线重构原型</span>
+  <span class="protoSeg" role="group" aria-label="主题">
+    <button type="button" data-theme-btn="light" aria-pressed="true">浅色</button>
+    <button type="button" data-theme-btn="dark" aria-pressed="false">深色</button>
+  </span>
+</div>
+
+<div class="app" id="app" data-theme="light">
+
+  <!-- 标题栏 -->
+  <div class="titlebar">
+    <div class="tbLeft">
+      <span class="tbMark"></span>
+      <span class="tbTitle">DeepSeek Desktop</span>
+      <span class="tbSep"></span>
+      <span class="tbSub" id="tbSub">工作台</span>
+    </div>
+    <div class="tbRight">
+      <button class="winBtn" type="button" aria-label="最小化">&#8212;</button>
+      <button class="winBtn" type="button" aria-label="最大化">&#9723;</button>
+      <button class="winBtn close" type="button" aria-label="关闭">&#10005;</button>
+    </div>
+  </div>
+
+  <div class="shell">
+    <!-- 应用图标栏 -->
+    <nav class="appRail" aria-label="主导航">
+      <button class="railBtn" type="button" aria-current="page" aria-label="工作台">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="3" y="1.9" width="10" height="4.2" rx="1.4"/>
+          <rect x="3" y="9.9" width="10" height="4.2" rx="1.4"/>
+          <path d="M8 6.1v3.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="railBtn" type="button" aria-label="会话">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M2.6 4.4a2 2 0 0 1 2-2h6.8a2 2 0 0 1 2 2v4.4a2 2 0 0 1-2 2H7.2l-2.9 2.4v-2.4h-.0a2 2 0 0 1-1.7-2z" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="railBtn" type="button" aria-label="定时任务">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="8" cy="8" r="6"/>
+          <path d="M8 4.6V8l2.4 1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="railBtn" type="button" aria-label="插件">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+          <path d="M2.6 6.2 8 3.1l5.4 3.1v5.4L8 14.9l-5.4-3.2z"/>
+          <path d="M2.6 6.2 8 9.4l5.4-3.2M8 9.4v5.5"/>
+        </svg>
+      </button>
+      <span class="railSpacer"></span>
+      <button class="railBtn" type="button" aria-label="设置">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="8" cy="8" r="2.1"/>
+          <path d="M8 1.9v1.5M8 12.6v1.5M2.35 8H3.9M12.1 8h1.55M4 4l1.1 1.1M10.9 10.9 12 12M12 4l-1.1 1.1M5.1 10.9 4 12" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <span class="railAvatar">HS</span>
+    </nav>
+
+    <!-- 面板 -->
+    <main class="panel">
+      <header class="panelHead">
+        <h1 class="panelTitle">工作台</h1>
+        <div class="viewTabs" role="tablist" aria-label="工作台视图">
+          <button class="viewTab" type="button" role="tab" aria-selected="true" data-view="pipeline">流水线</button>
+          <button class="viewTab" type="button" role="tab" aria-selected="false" data-view="results">结果</button>
+        </div>
+        <span class="headSpacer"></span>
+        <button class="btn btnGhost" type="button">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
+          新建流水线
+        </button>
+        <button class="btn btnSolid" type="button" id="runAllBtn">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 3.1a.75.75 0 0 1 1.13-.65l7.1 4.24a.75.75 0 0 1 0 1.29l-7.1 4.24A.75.75 0 0 1 4.6 11.6z"/></svg>
+          运行
+        </button>
+      </header>
+
+      <div class="panelBody">
+
+        <!-- ======== 视图一：流水线 ======== -->
+        <section class="view viewColumn" id="viewPipeline">
+
+          <div class="panes">
+
+          <!-- 左：任务库 -->
+          <aside class="library" aria-label="任务库">
+            <div class="libSearchWrap">
+              <label class="libSearch">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7.2" cy="7.2" r="4.2"/><path d="m10.4 10.4 3 3" stroke-linecap="round"/></svg>
+                <input type="search" placeholder="搜索流水线或任务" aria-label="搜索流水线或任务" />
+              </label>
+            </div>
+
+            <div class="libScroll scroll">
+              <div class="libSection">
+                <div class="libSectionHead">
+                  <span>流水线</span><span class="count" id="pipeCount">3</span>
+                  <span class="grow"></span>
+                  <button class="iconBtn" type="button" aria-label="新建流水线">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
+                  </button>
+                </div>
+                <div id="pipelineList"></div>
+              </div>
+
+              <div class="libSection">
+                <div class="libSectionHead">
+                  <span>任务 / 技能</span><span class="count" id="taskCount">8</span>
+                  <span class="grow"></span>
+                  <button class="iconBtn" type="button" aria-label="添加任务">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
+                  </button>
+                </div>
+                <div id="taskList"></div>
+              </div>
+            </div>
+
+            <div class="libFoot">
+              <button class="btn btnGhost btnSm" type="button">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
+                添加任务
+              </button>
+            </div>
+          </aside>
+
+          <!-- 中：编排画布 -->
+          <div class="canvas">
+            <div class="canvasHead">
+              <div class="canvasHeadMain">
+                <div class="canvasTitleRow">
+                  <h2 class="canvasTitle" id="canvasTitle">需求到交付</h2>
+                  <span class="chip chipTag" id="canvasState" data-s="running">运行中</span>
+                </div>
+                <div class="canvasMeta" id="canvasMeta"></div>
+              </div>
+              <div class="canvasActions">
+                <button class="iconBtn" type="button" aria-label="编辑流水线">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9.6 3.1l3.3 3.3-7.3 7.3H2.3v-3.3z" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="iconBtn" type="button" aria-label="更多操作">
+                  <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12.6" cy="8" r="1.2"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="canvasScroll scroll" id="canvasScroll">
+              <div class="flow" id="flow"></div>
+            </div>
+          </div>
+
+          <!-- 右：检查器 -->
+          <aside class="inspector" aria-label="步骤详情">
+            <div class="inspHead" id="inspHead"></div>
+            <div class="inspTabs" role="tablist" aria-label="步骤详情视图">
+              <button class="inspTab" type="button" role="tab" aria-selected="true" data-tab="result">结果</button>
+              <button class="inspTab" type="button" role="tab" aria-selected="false" data-tab="activity">活动<span class="n" id="actCount"></span></button>
+              <button class="inspTab" type="button" role="tab" aria-selected="false" data-tab="config">配置</button>
+            </div>
+            <div class="inspScroll scroll" id="inspScroll"></div>
+          </aside>
+
+          </div><!-- /panes -->
+
+          <!-- 运行条 -->
+          <div class="runbar" id="runbar"></div>
+        </section>
+
+        <!-- ======== 视图二：结果 ======== -->
+        <section class="view viewColumn resultsView" id="viewResults" hidden>
+          <div class="resultsHead">
+            <div class="filterChips" role="group" aria-label="筛选">
+              <button class="filterChip" type="button" aria-pressed="true">全部<span class="n">8</span></button>
+              <button class="filterChip" type="button" aria-pressed="false">成功<span class="n">6</span></button>
+              <button class="filterChip" type="button" aria-pressed="false">失败<span class="n">1</span></button>
+              <button class="filterChip" type="button" aria-pressed="false">进行中<span class="n">1</span></button>
+            </div>
+            <span class="grow"></span>
+            <button class="btn btnGhost btnSm" type="button">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3.4 5.4h9.2M3.4 8h9.2M3.4 10.6h5.6"/></svg>
+              按时间
+            </button>
+          </div>
+          <div class="resultsScroll scroll">
+            <div class="tiles" id="tiles"></div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ============================================================
+     演示数据。真实实现里这些来自 /api/workbench/skill-card 的
+     快照（cards / results / revision）与运行状态轮询。
+     ============================================================ */
+
+  const TASKS = [
+    { skill: 'requirements-scoping', name: '需求拆解', desc: '把一句诉求拆成可验收的子任务' },
+    { skill: 'design-doc', name: '详细设计', desc: '按模板产出实现级设计文档' },
+    { skill: 'codegen', name: '代码实现', desc: '按设计文档改代码并自测' },
+    { skill: 'unit-test', name: '单元测试', desc: '补测试用例并跑通' },
+    { skill: 'code-review', name: '变更审查', desc: '按团队规范审一遍 diff' },
+    { skill: 'doc-writer', name: '写文档', desc: '把结果整理成可交付文档' },
+    { skill: 'weekly-report', name: '周报汇总', desc: '汇总本周提交与缺陷' },
+    { skill: 'regression-check', name: '回归验证', desc: '按清单跑回归用例' },
+  ];
+
+  const DOC = {
+    scoping: `
+      <h5>会话续期 · 需求拆解</h5>
+      <p>把「登录过期后用户被直接踢回登录页」拆成 4 条可验收的子任务。原诉求来自现场反馈，影响 <code>web</code> 与 <code>app</code> 两端。</p>
+      <table>
+        <thead><tr><th>子任务</th><th>验收标准</th><th class="num">估时</th></tr></thead>
+        <tbody>
+          <tr><td>续期接口</td><td>过期后用 refreshToken 换新，旧 token 立即作废</td><td class="num">2h</td></tr>
+          <tr><td>请求重放</td><td>并发刷新只触发一次，其余请求等待后重放</td><td class="num">3h</td></tr>
+          <tr><td>失败回退</td><td>续期失败回登录页，并保留原目标路由</td><td class="num">1h</td></tr>
+          <tr><td>可观测</td><td>续期成功/失败各打一条事件</td><td class="num">0.5h</td></tr>
+        </tbody>
+      </table>
+      <h6>待确认</h6>
+      <ul>
+        <li>离线态是否也走续期，还是直接进入只读。</li>
+        <li>refreshToken 有效期是否需要与「记住我」联动。</li>
+      </ul>
+    `,
+
+    design: `
+      <h5>会话续期 · 详细设计</h5>
+      <p>在 <code>http/client</code> 与 <code>auth/session</code> 之间加一层续期闸门：401 只触发一次刷新，其余请求挂起等待，刷新完成后按原顺序重放。</p>
+      <h6>状态机</h6>
+      <ul>
+        <li><strong>idle</strong> — 正常放行。</li>
+        <li><strong>refreshing</strong> — 首个 401 触发；后续 401 进入等待队列。</li>
+        <li><strong>replaying</strong> — 新 token 落库，队列按序重放；任一请求再 401 则整队失败。</li>
+      </ul>
+      <h6>关键改动</h6>
+      <table>
+        <thead><tr><th>文件</th><th>改动</th><th class="num">行数</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/auth/session.ts</code></td><td>新增 <code>renew()</code> 与单飞锁</td><td class="num">+42 / −8</td></tr>
+          <tr><td><code>src/http/client.ts</code></td><td>401 拦截与重放队列</td><td class="num">+15 / −2</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">不改动既有 <code>Authorization</code> 头构造，续期只替换 token 来源，避免影响已接入的第三方适配。</div>
+    `,
+
+    codegen: `
+      <h5>变更摘要</h5>
+      <p>登录流程加上会话续期：过期后先用 <code>refreshToken</code> 换新，再重放原请求。改动集中在会话与 HTTP 客户端两处。</p>
+      <table>
+        <thead><tr><th>文件</th><th>变更</th><th class="num">行数</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/auth/session.ts</code></td><td>renew / 单飞锁 / 过期判定</td><td class="num"><span class="add">+42</span> <span class="del">−8</span></td></tr>
+          <tr><td><code>src/http/client.ts</code></td><td>401 拦截 + 重放队列</td><td class="num"><span class="add">+15</span> <span class="del">−2</span></td></tr>
+          <tr><td><code>src/auth/session.test.ts</code></td><td>新增 6 条用例</td><td class="num"><span class="add">+96</span></td></tr>
+        </tbody>
+      </table>
+      <h6>自测</h6>
+      <div class="checks">
+        <div class="check"><i></i><span>并发刷新只触发一次</span><em>通过</em></div>
+        <div class="check"><i></i><span>refreshToken 失效回退登录页</span><em>通过</em></div>
+        <div class="check"><i></i><span>重放顺序与原请求一致</span><em>通过</em></div>
+      </div>
+    `,
+
+    test: `
+      <h5>单元测试 · 会话续期</h5>
+      <p>为续期闸门补 6 条用例，覆盖单飞、重放、回退三条路径。</p>
+      <div class="metrics">
+        <div class="metric"><span class="k">用例</span><span class="v">6<small> / 6</small></span></div>
+        <div class="metric"><span class="k">耗时</span><span class="v">1.9<small>s</small></span></div>
+        <div class="metric"><span class="k">覆盖率</span><span class="v">94<small>%</small></span></div>
+      </div>
+      <div class="checks">
+        <div class="check"><i></i><span>单飞：10 个并发 401 只发一次刷新</span><em>pass</em></div>
+        <div class="check"><i></i><span>重放：挂起请求按原顺序重放</span><em>pass</em></div>
+        <div class="check"><i></i><span>回退：refreshToken 失效进登录页</span><em>pass</em></div>
+        <div class="check" data-s="todo"><i></i><span>离线态续期（尚未实现）</span><em>skip</em></div>
+      </div>
+    `,
+
+    review: `
+      <h5>变更审查</h5>
+      <p>按团队规范审 <code>+53 / −10</code>，2 条建议、0 条阻塞。</p>
+      <h6>发现</h6>
+      <ul>
+        <li>「续期失败时不清理等待队列」— 建议显式置空，避免下一次 401 重放旧请求。</li>
+        <li>「事件里带了完整 token 前缀」— 建议只留后四位。</li>
+      </ul>
+      <div class="callout">以上两条均不阻塞合入，随本次一起改更省一次回归。</div>
+    `,
+
+    weekly: `
+      <h5>本周汇总 · W45</h5>
+      <div class="metrics">
+        <div class="metric"><span class="k">提交</span><span class="v">37</span></div>
+        <div class="metric"><span class="k">缺陷</span><span class="v">4</span></div>
+        <div class="metric"><span class="k">任务</span><span class="v">9</span></div>
+      </div>
+      <h6>重点</h6>
+      <ul>
+        <li>会话续期上线灰度，10% 用户。</li>
+        <li>工作台流水线改造进入原型评审。</li>
+        <li>两处回归失败已归因为环境，非代码。</li>
+      </ul>
+    `,
+  };
+
+  const ACT = {
+    load: { icon: 'file', name: '读取文件', arg: 'src/auth/session.ts' },
+    search: { icon: 'search', name: '搜索', arg: '"refreshToken"' },
+    write: { icon: 'write', name: '写入文件', arg: 'src/auth/session.ts' },
+    shell: { icon: 'shell', name: '运行命令', arg: 'npm test -- auth' },
+  };
+
+  const PIPELINES = [
+    {
+      id: 'req-to-ship',
+      name: '需求到交付',
+      updated: '今天 14:07',
+      state: 'running',
+      stages: [
+        {
+          skill: 'requirements-scoping', status: 'done', dur: '12.4s',
+          summary: '4 条子任务 · 2 条待确认', doc: 'scoping',
+          structured: [['skill', 'requirements-scoping'], ['subtasks', '4'], ['open_questions', '2'], ['stopReason', 'end_turn']],
+          acts: [
+            { t: '14:02:11', k: 'load', m: '现场反馈.md · 41 行', d: '0.4s' },
+            { t: '14:02:14', k: 'search', m: '3 处引用', d: '0.9s' },
+            { t: '14:02:18', k: 'think', m: '拆成四条：续期接口、请求重放、失败回退、可观测。', d: '4.1s' },
+            { t: '14:02:23', k: 'done', m: '写入结果 4.2 KB', d: '—' },
+          ],
+        },
+        {
+          skill: 'design-doc', status: 'done', dur: '31.8s',
+          summary: '2 处关键改动 · 1 条约束', doc: 'design',
+          structured: [['skill', 'design-doc'], ['files', '2'], ['constraints', '1'], ['stopReason', 'end_turn']],
+          acts: [
+            { t: '14:02:26', k: 'load', m: '上一节点输出（只读）', d: '0.1s' },
+            { t: '14:02:29', k: 'search', m: 'http 拦截 6 处', d: '1.2s' },
+            { t: '14:02:44', k: 'think', m: '用单飞锁 + 等待队列，避免并发重复刷新。', d: '9.4s' },
+            { t: '14:02:57', k: 'done', m: '写入结果 6.8 KB', d: '—' },
+          ],
+        },
+        {
+          skill: 'codegen', status: 'done', dur: '1m 48s',
+          summary: '3 个文件 · +153 −10', doc: 'codegen',
+          structured: [['skill', 'codegen'], ['files', '3'], ['added', '153'], ['removed', '10'], ['stopReason', 'end_turn']],
+          acts: [
+            { t: '14:03:01', k: 'load', m: '会话续期详细设计', d: '0.2s' },
+            { t: '14:03:04', k: 'load', m: 'src/auth/session.ts · 218 行', d: '0.6s' },
+            { t: '14:03:11', k: 'write', m: 'session.ts · +42 −8', d: '2.4s' },
+            { t: '14:03:22', k: 'write', m: 'client.ts · +15 −2', d: '1.1s' },
+            { t: '14:03:26', k: 'shell', m: 'npm run typecheck', d: '38.2s' },
+            { t: '14:04:12', k: 'think', m: '类型通过；补一组用例再交测试。', d: '6.0s' },
+            { t: '14:04:21', k: 'write', m: 'session.test.ts · +96', d: '18.6s' },
+            { t: '14:04:44', k: 'done', m: '写入结果 9.1 KB', d: '—' },
+          ],
+        },
+        {
+          skill: 'unit-test', status: 'running', dur: '00:37',
+          summary: '正在写入 session.test.ts', doc: 'test',
+          structured: [['skill', 'unit-test'], ['cases', '6'], ['status', 'running']],
+          acts: [
+            { t: '14:05:02', k: 'load', m: '上一节点输出（只读）', d: '0.1s' },
+            { t: '14:05:05', k: 'load', m: 'session.test.ts · 96 行', d: '0.5s' },
+            { t: '14:05:12', k: 'shell', m: 'npm test -- auth', d: '运行中' },
+            { t: '14:05:31', k: 'think', m: '离线态那条还不该断言，先 skip。', d: '—' },
+          ],
+        },
+        {
+          skill: 'code-review', status: 'queued', dur: '—',
+          summary: '', doc: 'review',
+          structured: [],
+          acts: [],
+        },
+      ],
+    },
+    {
+      id: 'review-loop',
+      name: '代码评审闭环',
+      updated: '昨天 18:42',
+      state: 'failed',
+      stages: [
+        {
+          skill: 'doc-writer', status: 'done', dur: '22.1s',
+          summary: '1 份评审说明', doc: 'design',
+          structured: [['skill', 'doc-writer'], ['stopReason', 'end_turn']],
+          acts: [
+            { t: '18:40:02', k: 'load', m: 'diff 41 行', d: '0.3s' },
+            { t: '18:40:18', k: 'done', m: '写入结果 3.4 KB', d: '—' },
+          ],
+        },
+        {
+          skill: 'code-review', status: 'failed', dur: '3m 02s',
+          summary: '超时：provider 未在时限内返回', doc: 'review',
+          structured: [['skill', 'code-review'], ['failureCode', 'timeout']],
+          acts: [
+            { t: '18:40:25', k: 'load', m: '上一节点输出（只读）', d: '0.1s' },
+            { t: '18:40:41', k: 'think', m: '逐文件审 12 个 hunk。', d: '—' },
+            { t: '18:43:27', k: 'fail', m: '超时 180s，provider 无响应', d: '—' },
+          ],
+        },
+        {
+          skill: 'regression-check', status: 'queued', dur: '—', summary: '', doc: 'test',
+          structured: [], acts: [],
+        },
+      ],
+    },
+    {
+      id: 'weekly',
+      name: '周报生成',
+      updated: '3 天前',
+      state: 'done',
+      stages: [
+        {
+          skill: 'weekly-report', status: 'done', dur: '48.6s',
+          summary: '37 次提交 · 4 个缺陷', doc: 'weekly',
+          structured: [['skill', 'weekly-report'], ['commits', '37'], ['defects', '4']],
+          acts: [
+            { t: '09:00:04', k: 'shell', m: 'git log --since="7 days ago"', d: '1.2s' },
+            { t: '09:00:38', k: 'done', m: '写入结果 5.2 KB', d: '—' },
+          ],
+        },
+        {
+          skill: 'doc-writer', status: 'done', dur: '19.4s',
+          summary: '1 份周报正文', doc: 'weekly',
+          structured: [['skill', 'doc-writer'], ['stopReason', 'end_turn']],
+          acts: [
+            { t: '09:00:52', k: 'load', m: '上一节点输出（只读）', d: '0.1s' },
+            { t: '09:01:11', k: 'done', m: '写入结果 4.0 KB', d: '—' },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const STAGE_TEXT = { done: '完成', running: '运行中', failed: '失败', queued: '排队中', idle: '未运行' };
+
+  /* 状态脚本：每次切换演示对象时同步 */
+  const state = {
+    view: 'pipeline',
+    focus: { kind: 'pipeline', id: 'req-to-ship' },
+    selectedStage: 2,
+    inspTab: 'result',
+    theme: 'light',
+    q: '',
+    tick: { run: 189, stage: 37 },
+  };
+
+  /* ============================================================ 图标 */
+
+  const I = {
+    check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3.4 8.3 3 3 6.2-6.6"/></svg>',
+    clock: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.6"/><path d="M8 4.9V8l2.2 1.5" stroke-linecap="round"/></svg>',
+    warn: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.3 14.2 13H1.8z"/><path d="M8 6.4v3.1" stroke-linecap="round"/><circle cx="8" cy="11.3" r=".72" fill="currentColor" stroke="none"/></svg>',
+    dot: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.4" stroke-dasharray="2.2 2.4"/></svg>',
+    plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>',
+    play: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.4a.7.7 0 0 1 1.06-.6l6.3 3.78a.7.7 0 0 1 0 1.2L6.06 11.6A.7.7 0 0 1 5 11z"/></svg>',
+    grip: '<svg viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="4" r="1"/><circle cx="7" cy="4" r="1"/><circle cx="3" cy="8" r="1"/><circle cx="7" cy="8" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="7" cy="12" r="1"/></svg>',
+    chevron: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5.6 3.6 4.4 4.4-4.4 4.4"/></svg>',
+    expand: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 2.6h4v4M6.6 13.4h-4v-4M13.4 2.6 9 7M2.6 13.4 7 9"/></svg>',
+    file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M3.6 1.9h5.2l3.6 3.6v8.6H3.6z"/><path d="M8.6 1.9v3.8h3.8"/></svg>',
+    search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7.1" cy="7.1" r="4"/><path d="m10.1 10.1 3 3" stroke-linecap="round"/></svg>',
+    write: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M9.6 3.1 12.9 6.4 5.6 13.7H2.3v-3.3z"/></svg>',
+    shell: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.1" y="3.1" width="11.8" height="9.8" rx="2"/><path d="m5 6.4 2 1.8-2 1.8M8.8 10h2.4"/></svg>',
+    think: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2.6v3M8 10.4v3M2.6 8h3M10.4 8h3M4.2 4.2l2.1 2.1M9.7 9.7l2.1 2.1M11.8 4.2 9.7 6.3M6.3 9.7l-2.1 2.1"/></svg>',
+  };
+
+  const ACT_ICON = { load: I.file, search: I.search, write: I.write, shell: I.shell, think: I.think };
+  const ACT_KIND = { load: 'file', search: 'search', write: 'write', shell: 'shell', think: 'think', done: 'done', fail: 'fail' };
+
+  /* ============================================================ 工具 */
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const fmt = (s) => {
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+  };
+  const current = () => {
+    if (state.focus.kind === 'task') {
+      const task = TASKS.find(t => t.skill === state.focus.id);
+      return {
+        name: task.name, state: 'idle', isTask: true,
+        stages: [{
+          skill: task.skill, status: 'idle', dur: '—', summary: '', doc: 'scoping',
+          structured: [], acts: [],
+        }],
+      };
+    }
+    return PIPELINES.find(p => p.id === state.focus.id);
+  };
+  const stageOf = (i) => current().stages[i];
+
+  /* ============================================================ 左栏 */
+
+  function renderLibrary() {
+    const q = state.q;
+    const pipes = q
+      ? PIPELINES.filter(p => p.name.toLowerCase().includes(q) || p.stages.some(s => s.skill.includes(q)))
+      : PIPELINES;
+    const tasks = q
+      ? TASKS.filter(t => t.name.toLowerCase().includes(q) || t.skill.includes(q))
+      : TASKS;
+
+    $('#pipeCount').textContent = pipes.length;
+    $('#taskCount').textContent = tasks.length;
+
+    $('#pipelineList').innerHTML = pipes.length ? pipes.map(p => {
+      const active = state.focus.kind === 'pipeline' && state.focus.id === p.id;
+      return `
+        <button class="libRow" type="button" data-pipe="${p.id}" aria-current="${active}">
+          <div class="libRowMain">
+            <span class="libRowTitle">${p.name}</span>
+            <span class="libRowSub">${p.stages.length} 个步骤 · ${p.updated}</span>
+          </div>
+          <span class="libRowTail">
+            <span class="dot" data-s="${p.state}" title="${STAGE_TEXT[p.state]}"></span>
+          </span>
+        </button>`;
+    }).join('') : emptyRow('没有匹配的流水线');
+
+    $('#taskList').innerHTML = tasks.length ? tasks.map(t => {
+      const active = state.focus.kind === 'task' && state.focus.id === t.skill;
+      const st = t.skill === 'unit-test' ? 'running'
+        : t.skill === 'code-review' ? 'queued'
+        : t.skill === 'weekly-report' ? 'failed' : 'done';
+      return `
+        <div class="libRow" role="button" tabindex="0" data-task="${t.skill}" aria-current="${active}">
+          <div class="libRowMain">
+            <span class="libRowTitle">${t.name}</span>
+            <span class="libRowSub">${t.skill}</span>
+          </div>
+          <span class="libRowTail">
+            <span class="dot libRowState" data-s="${st}"></span>
+            <button class="libRun" type="button" data-run-task="${t.skill}" aria-label="单独运行 ${t.name}">${I.play}</button>
+          </span>
+        </div>`;
+    }).join('') : emptyRow('没有匹配的任务');
+  }
+
+  const emptyRow = (text) => `<div class="libEmpty">${text}</div>`;
+
+  /* ============================================================ 画布 */
+
+  function renderCanvas() {
+    const flow = current();
+    $('#canvasTitle').textContent = flow.name;
+    const badge = $('#canvasState');
+    if (flow.isTask) {
+      badge.textContent = '单任务';
+      badge.dataset.s = 'idle';
+    } else {
+      badge.textContent = STAGE_TEXT[flow.state] || '未运行';
+      badge.dataset.s = flow.state;
+    }
+    $('#canvasMeta').innerHTML = flow.isTask
+      ? `<span>不写入任何流水线</span><span class="sep">·</span><span>使用任务自己的模型与工作目录</span>`
+      : `<span>${flow.stages.length} 个步骤</span><span class="sep">·</span><span>串行执行，失败即停</span><span class="sep">·</span><span>${flow.updated} 更新</span>`;
+
+    const parts = [];
+    flow.stages.forEach((st, i) => {
+      if (i > 0) {
+        parts.push(`
+          <div class="connector">
+            <button class="insertBtn" type="button" aria-label="在第 ${i + 1} 步前插入步骤">${I.plus}</button>
+          </div>`);
+      }
+      parts.push(nodeHTML(st, i));
+    });
+    parts.push(`<div class="connector connectorShort"><span></span></div>`);
+    parts.push(flow.isTask
+      ? `<button class="addStep" type="button">${I.plus}<span>把它加成一条流水线的第一步</span></button>`
+      : `<button class="addStep" type="button">${I.plus}<span>添加步骤</span></button>`);
+    $('#flow').innerHTML = parts.join('');
+  }
+
+  function nodeHTML(st, i) {
+    const sel = i === state.selectedStage ? 'true' : 'false';
+    const num = String(i + 1).padStart(2, '0');
+    let stateIcon = '';
+    if (st.status === 'done') stateIcon = I.check;
+    else if (st.status === 'running') stateIcon = I.clock;
+    else if (st.status === 'failed') stateIcon = I.warn;
+    else stateIcon = I.dot;
+
+    let foot = '';
+    if (st.status === 'done') {
+      foot = `<div class="nodeFoot">
+        <span class="lab">产出</span>
+        <span class="val">${st.summary}</span>
+        <button class="linkBtn" type="button" data-open="${i}">查看</button>
+      </div>`;
+    } else if (st.status === 'running') {
+      foot = `<div class="nodeFoot" data-tone="running">
+        <span class="nodeProg"><i style="width:${38}%"></i></span>
+        <span class="val">${st.summary}</span>
+      </div>`;
+    } else if (st.status === 'failed') {
+      foot = `<div class="nodeFoot" data-tone="failed">
+        <span class="lab">失败</span>
+        <span class="val">${st.summary}</span>
+        <button class="linkBtn" type="button" data-open="${i}">详情</button>
+      </div>`;
+    } else {
+      const why = st.status === 'idle'
+        ? '还没运行过'
+        : i === 0 ? '等待运行' : `等待第 ${i} 步完成`;
+      foot = `<div class="nodeFoot" data-tone="empty">
+        <span class="val">${why}</span>
+      </div>`;
+    }
+
+    return `
+      <div class="node" data-s="${st.status}" aria-current="${sel}" tabindex="0" data-stage="${i}" role="button">
+        <span class="nodeHandle">${I.grip}</span>
+        <div class="nodeTop">
+          <span class="nodeIndex">${num}</span>
+          <span class="nodeTitle">${taskName(st.skill)}</span>
+          <span class="nodeState" data-s="${st.status}">${stateIcon}${STAGE_TEXT[st.status]}</span>
+          <span class="nodeDur" ${st.status === 'running' ? 'data-timer="stage"' : ''}>${st.status === 'running' ? fmt(state.tick.stage) : st.dur}</span>
+        </div>
+        <div class="nodeMeta">
+          <code>${st.skill}</code><span class="sep">·</span><span>deepseek-chat</span><span class="sep">·</span><span>工作区内修改</span>
+        </div>
+        ${foot}
+      </div>`;
+  }
+
+  function taskName(skill) {
+    const t = TASKS.find(x => x.skill === skill);
+    return t ? t.name : skill;
+  }
+
+  /* ============================================================ 检查器 */
+
+  function renderInspector() {
+    const st = stageOf(state.selectedStage);
+    const flow = current();
+    const n = state.selectedStage + 1;
+    const total = flow.stages.length;
+
+    $('#inspHead').innerHTML = `
+      <div class="inspKicker">
+        ${flow.isTask
+          ? '<span>单独运行</span><span class="sep">·</span><span>不属于任何流水线</span>'
+          : `<span>第 ${n} 步 / 共 ${total} 步</span><span class="sep">·</span><span>${flow.name}</span>`}
+      </div>
+      <div class="inspTitleRow">
+        <h3 class="inspTitle">${taskName(st.skill)}</h3>
+        <button class="btn btnGhost btnSm" type="button">${I.play}单独运行</button>
+      </div>
+      <div class="inspMeta">
+        <code>${st.skill}</code><span class="sep">·</span>
+        <span>deepseek-chat</span><span class="sep">·</span>
+        <span>${st.status === 'running' ? '已运行 ' + fmt(state.tick.stage) : st.dur}</span>
+        <span class="chip chipTag" data-s="${st.status}">${STAGE_TEXT[st.status]}</span>
+      </div>`;
+
+    $('#actCount').textContent = st.acts.length ? String(st.acts.length) : '';
+
+    const body = state.inspTab === 'result'
+      ? resultPanel(st)
+      : state.inspTab === 'activity' ? activityPanel(st) : configPanel(st);
+    $('#inspScroll').innerHTML = body;
+  }
+
+  function resultPanel(st) {
+    if (st.status === 'queued' || st.status === 'idle') {
+      const queued = st.status === 'queued';
+      return `
+        <div class="resState">
+          ${I.dot}
+          <span class="t">${queued ? '这一步还没有运行' : '这个任务还没有结果'}</span>
+          <p>${queued
+            ? '等上一步完成后会按顺序自动开始，<br>也可以现在单独运行它。'
+            : '单独运行一次，结果只属于这次运行，<br>不会写进任何流水线。'}</p>
+          <button class="btn btnGhost btnSm" type="button" style="margin-top:4px">${I.play}${queued ? '单独运行' : '运行一次'}</button>
+        </div>`;
+    }
+    if (st.status === 'failed') {
+      return `
+        <div class="resState">
+          ${I.warn}
+          <span class="t" style="color:var(--danger)">这一步失败了</span>
+          <p>${st.summary}<br>后续步骤没有启动；已经完成的步骤结果都保留。</p>
+          <button class="btn btnGhost btnSm" type="button" style="margin-top:4px">${I.play}从来一步重跑</button>
+        </div>`;
+    }
+    const running = st.status === 'running';
+    const doc = DOC[st.doc] || DOC.scoping;
+    return `
+      <div class="resToolbar">
+        <span>渲染结果</span>
+        <span class="grow"></span>
+        <div class="resSeg" role="group" aria-label="结果呈现">
+          <button type="button" aria-pressed="true">预览</button>
+          <button type="button" aria-pressed="false">源码</button>
+        </div>
+        <button class="iconBtn" type="button" aria-label="全屏查看">${I.expand}</button>
+      </div>
+      <div class="docFrame">
+        <div class="docFrameBar">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="file">${st.doc}.html</span>
+          ${running ? '<span class="chip chipTag" data-s="running">写入中</span>' : ''}
+        </div>
+        <div class="docPad">
+          <div class="doc">${doc}</div>
+          ${running
+            ? `<div class="skel" style="margin-top:12px"><i></i><i></i><i></i></div>`
+            : ''}
+        </div>
+      </div>
+      ${st.structured.length ? `
+        <div class="subHead"><span>结构化输出</span><span class="grow"></span><span>已校验</span></div>
+        <div class="kvList">
+          ${st.structured.map(([k, v]) => `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}
+        </div>` : ''}
+      <div class="resFoot">
+        <span>${running ? '运行中，内容会随结果落盘更新' : '来自这次运行的 HTML 片段，可手动编辑后保存'}</span>
+        <span class="grow"></span>
+      </div>`;
+  }
+
+  function activityPanel(st) {
+    if (!st.acts.length) {
+      return `
+        <div class="resState">
+          ${I.dot}
+          <span class="t">还没有活动</span>
+          <p>这一步尚未开始，运行后这里会显示它做了哪些事。</p>
+        </div>`;
+    }
+    return `
+      <div class="subHead"><span>活动</span><span class="grow"></span><span>${st.acts.length} 条</span></div>
+      <div class="acts">
+        ${st.acts.map(a => {
+          const kind = ACT_KIND[a.k] || 'think';
+          if (kind === 'think') {
+            return `<div class="act actThought">
+              <span class="actGlyph">${I.think}</span>
+              <div class="actBody">
+                <div class="actLine"><span class="say">${a.m}</span></div>
+                <div class="actMeta"><span>${a.t}</span></div>
+              </div>
+              <span class="actTime">${a.d}</span>
+            </div>`;
+          }
+          if (kind === 'done' || kind === 'fail') {
+            const good = kind === 'done';
+            return `<div class="act">
+              <span class="actGlyph" style="color:${good ? 'var(--success)' : 'var(--danger)'}">${good ? I.check : I.warn}</span>
+              <div class="actBody">
+                <div class="actLine">${good ? '已写入结果' : '中止'}</div>
+                <div class="actMeta"><span>${a.t}</span><span>·</span><span>${a.m}</span></div>
+              </div>
+              <span class="actTime">${a.d}</span>
+            </div>`;
+          }
+          return `<div class="act">
+            <span class="actGlyph">${ACT_ICON[a.k] || I.dot}</span>
+            <div class="actBody">
+              <div class="actLine"><span>${ACT[a.k]?.name || a.k}</span><code>${a.m}</code></div>
+              <div class="actMeta"><span>${a.t}</span></div>
+            </div>
+            <span class="actTime">${a.d}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function configPanel(st) {
+    return `
+      <div class="subHead"><span>这一步的执行参数</span></div>
+      <div class="ruleRows">
+        <div class="ruleRow">
+          <span class="ruleLabel">技能</span>
+          <button class="ruleValue" type="button"><code>${st.skill}</code>${I.chevron}</button>
+        </div>
+        <div class="ruleRow">
+          <span class="ruleLabel">模型</span>
+          <button class="ruleValue" type="button"><span class="val">deepseek-chat</span>${I.chevron}</button>
+        </div>
+        <div class="ruleRow">
+          <span class="ruleLabel">工作目录</span>
+          <button class="ruleValue" type="button"><span class="val">${'D:\\Git\\my-project'}</span>${I.chevron}</button>
+        </div>
+        <div class="ruleRow">
+          <span class="ruleLabel">权限模式</span>
+          <button class="ruleValue" type="button"><span class="val">工作区内修改</span>${I.chevron}</button>
+        </div>
+        <div class="ruleRow">
+          <span class="ruleLabel">运行指令</span>
+          <button class="ruleValue" type="button"><span class="val">可选</span>${I.chevron}</button>
+        </div>
+      </div>
+      <p class="ruleNote">这一步沿用任务自己的模型、目录与权限；流水线不覆盖它们。</p>`;
+  }
+
+  /* ============================================================ 运行条 */
+
+  function renderRunbar() {
+    const flow = current();
+    if (flow.isTask) {
+      $('#runbar').innerHTML = `
+        <div class="runSegs" style="width:48px"><i></i></div>
+        <div class="runText">
+          <span class="k">未运行</span><span class="sep">·</span>
+          <span>单独执行这个任务，不会改动任何流水线</span>
+        </div>
+        <span class="grow"></span>
+        <button class="btn btnSolid btnSm" type="button">${I.play}运行这一步</button>`;
+      return;
+    }
+    const segs = flow.stages.map(s => `<i data-s="${s.status}"></i>`).join('');
+    const done = flow.stages.filter(s => s.status === 'done').length;
+    const runIdx = flow.stages.findIndex(s => s.status === 'running');
+    const failed = flow.stages.findIndex(s => s.status === 'failed');
+    let label, k;
+    if (runIdx >= 0) { k = '运行中'; label = `第 ${runIdx + 1} 步 / 共 ${flow.stages.length} 步`; }
+    else if (failed >= 0) { k = '已停止'; label = `第 ${failed + 1} 步失败 · 完成 ${done} 步`; }
+    else { k = '已完成'; label = `${done} 步全部完成`; }
+    const timer = runIdx >= 0 ? `<span class="sep">·</span><span>已运行 <span class="num" data-timer="run">${fmt(state.tick.run)}</span></span>` : '';
+    const segW = Math.min(168, Math.max(60, flow.stages.length * 34));
+    $('#runbar').innerHTML = `
+      <div class="runSegs" style="width:${segW}px">${segs}</div>
+      <div class="runText"><span class="k">${k}</span><span class="sep">·</span><span>${label}</span>${timer}</div>
+      <span class="grow"></span>
+      ${runIdx >= 0 ? '<button class="btn btnGhost btnSm" type="button">停止</button>' : ''}
+      ${failed >= 0 ? '<button class="btn btnGhost btnSm" type="button">从来一步重跑</button>' : ''}
+      <button class="btn btnGhost btnSm" type="button">查看日志</button>`;
+  }
+
+  /* ============================================================ 结果画廊 */
+
+  const GALLERY = [
+    { skill: 'codegen', title: '代码实现', doc: 'codegen', state: 'done', at: '今天 14:05', dur: '1m 48s', pipe: '需求到交付' },
+    { skill: 'design-doc', title: '详细设计', doc: 'design', state: 'done', at: '今天 14:03', dur: '31.8s', pipe: '需求到交付' },
+    { skill: 'requirements-scoping', title: '需求拆解', doc: 'scoping', state: 'done', at: '今天 14:02', dur: '12.4s', pipe: '需求到交付' },
+    { skill: 'unit-test', title: '单元测试', doc: 'test', state: 'running', at: '今天 14:05', dur: '运行中', pipe: '需求到交付' },
+    { skill: 'doc-writer', title: '写文档', doc: 'weekly', state: 'done', at: '昨天 18:40', dur: '22.1s', pipe: '代码评审闭环' },
+    { skill: 'code-review', title: '变更审查', doc: 'review', state: 'failed', at: '昨天 18:43', dur: '3m 02s', pipe: '代码评审闭环' },
+    { skill: 'weekly-report', title: '周报汇总', doc: 'weekly', state: 'done', at: '3 天前 09:00', dur: '48.6s', pipe: '周报生成' },
+    { skill: 'doc-writer', title: '写文档', doc: 'weekly', state: 'done', at: '3 天前 09:01', dur: '19.4s', pipe: '周报生成' },
+  ];
+
+  function renderTiles() {
+    $('#tiles').innerHTML = GALLERY.map((g) => {
+      let thumb;
+      if (g.state === 'failed') {
+        thumb = `<div class="thumbFailed">
+          ${I.warn}
+          <span>超时：provider 未在时限内返回</span>
+          <em>后续步骤没有启动</em>
+        </div>`;
+      } else if (g.state === 'running') {
+        thumb = `<div class="thumbSkel">
+          <div class="skel"><i></i><i></i><i></i><i></i></div>
+          <div class="skel" style="margin-top:6px"><i style="width:64%"></i><i style="width:80%"></i></div>
+        </div>`;
+      } else {
+        thumb = `<div class="thumbDoc"><div class="doc">${DOC[g.doc]}</div></div><div class="thumbFade"></div>`;
+      }
+      return `
+        <button class="tile" type="button" data-tile="${g.skill}">
+          <div class="thumbViewport">
+            ${thumb}
+            <span class="thumbState" data-s="${g.state}">
+              <span class="dot" data-s="${g.state}"></span>${g.state === 'running' ? '运行中' : g.state === 'failed' ? '失败' : '完成'}
+            </span>
+          </div>
+          <div class="tileBody">
+            <div class="tileTitleRow">
+              <span class="tileTitle">${g.title}</span>
+              <span class="tileFrom">${g.pipe}</span>
+            </div>
+            <div class="tileMeta"><code>${g.skill}</code><span>·</span><span>${g.at}</span><span>·</span><span>${g.dur}</span></div>
+          </div>
+        </button>`;
+    }).join('');
+  }
+
+  /* ============================================================ 交互 */
+
+  function renderAll() {
+    renderLibrary();
+    renderCanvas();
+    renderInspector();
+    renderRunbar();
+  }
+
+  function selectTask(skill) {
+    if (!TASKS.some(t => t.skill === skill)) return;
+    state.focus = { kind: 'task', id: skill };
+    state.selectedStage = 0;
+    state.inspTab = 'result';
+    $$('.inspTab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === 'result')));
+    renderAll();
+  }
+
+  // 流水线 / 单任务切换
+  document.addEventListener('click', (e) => {
+    const pipe = e.target.closest('[data-pipe]');
+    if (pipe) {
+      state.focus = { kind: 'pipeline', id: pipe.dataset.pipe };
+      const p = PIPELINES.find(x => x.id === pipe.dataset.pipe);
+      const idx = p.stages.findIndex(s => s.status === 'running');
+      const failIdx = p.stages.findIndex(s => s.status === 'failed');
+      state.selectedStage = idx >= 0 ? Math.max(idx - 1, 0) : failIdx >= 0 ? failIdx : p.stages.length - 1;
+      state.inspTab = 'result';
+      // 计时从这条流水线自己的起点重新数
+      state.tick.run = p.id === 'req-to-ship' ? 189 : 0;
+      state.tick.stage = p.id === 'req-to-ship' ? 37 : 0;
+      $$('.inspTab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === 'result')));
+      renderAll();
+      return;
+    }
+
+    const runTask = e.target.closest('[data-run-task]');
+    if (runTask) {
+      e.stopPropagation();
+      selectTask(runTask.dataset.runTask);
+      return;
+    }
+
+    const task = e.target.closest('[data-task]');
+    if (task) {
+      selectTask(task.dataset.task);
+      return;
+    }
+
+    const open = e.target.closest('[data-open]');
+    if (open) {
+      state.selectedStage = Number(open.dataset.open);
+      state.inspTab = 'result';
+      $$('.inspTab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === 'result')));
+      renderCanvas();
+      renderInspector();
+      return;
+    }
+
+    const node = e.target.closest('[data-stage]');
+    if (node) {
+      state.selectedStage = Number(node.dataset.stage);
+      renderCanvas();
+      renderInspector();
+    }
+  });
+
+  // 键盘：节点 Enter/Space
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const node = e.target.closest('[data-stage]');
+    if (!node) return;
+    e.preventDefault();
+    state.selectedStage = Number(node.dataset.stage);
+    renderCanvas();
+    renderInspector();
+  });
+
+  // 任务库搜索
+  $('.libSearch input').addEventListener('input', (e) => {
+    state.q = e.target.value.trim().toLowerCase();
+    renderLibrary();
+  });
+
+  // 视图切换
+  $$('.viewTab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.view = btn.dataset.view;
+      $$('.viewTab').forEach(b => b.setAttribute('aria-selected', String(b === btn)));
+      $('#viewPipeline').hidden = state.view !== 'pipeline';
+      $('#viewResults').hidden = state.view !== 'results';
+      $('#tbSub').textContent = state.view === 'pipeline' ? '工作台' : '工作台 · 结果';
+      // 结果视图里没有「当前选中的流水线」，运行按钮不该留在页头上
+      $('#runAllBtn').hidden = state.view !== 'pipeline';
+      if (state.view === 'results') renderTiles();
+    });
+  });
+
+  // 检查器标签
+  $$('.inspTab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.inspTab = btn.dataset.tab;
+      $$('.inspTab').forEach(b => b.setAttribute('aria-selected', String(b === btn)));
+      renderInspector();
+    });
+  });
+
+  // 主题
+  function setTheme(theme) {
+    state.theme = theme;
+    document.body.dataset.theme = theme;
+    $('#app').dataset.theme = theme;
+    $$('[data-theme-btn]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeBtn === theme)));
+  }
+  $$('[data-theme-btn]').forEach(btn => {
+    btn.addEventListener('click', () => setTheme(btn.dataset.themeBtn));
+  });
+
+  // 计时器：让「运行中」是活的
+  setInterval(() => {
+    const flow = current();
+    if (state.focus.kind === 'task') return;
+    if (!flow.stages.some(s => s.status === 'running')) return;
+    state.tick.run += 1;
+    state.tick.stage += 1;
+    $$('[data-timer="run"]').forEach(el => { el.textContent = fmt(state.tick.run); });
+    $$('[data-timer="stage"]').forEach(el => { el.textContent = fmt(state.tick.stage); });
+  }, 1000);
+
+  /* 启动。原型支持 ?theme=dark、?view=results、?focus=task:codegen、
+     ?tab=activity|config 深链，方便评审时直接打开某一屏。 */
+  const params = new URLSearchParams(location.search);
+  setTheme(params.get('theme') === 'dark' ? 'dark' : 'light');
+
+  const focusParam = params.get('focus');
+  if (focusParam && focusParam.startsWith('task:')) selectTask(focusParam.slice(5));
+
+  const tabParam = params.get('tab');
+  if (tabParam && ['result', 'activity', 'config'].includes(tabParam)) {
+    state.inspTab = tabParam;
+    $$('.inspTab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tabParam)));
+  }
+
+  renderAll();
+
+  if (params.get('view') === 'results') {
+    $('.viewTab[data-view="results"]').click();
+  }
+})();
+</script>
+</body>
+</html>

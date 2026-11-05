@@ -1,0 +1,218 @@
+<!--
+  结果卡片模板：这一步的结果是一个目录，目录里的 markdown 由这里读出来渲染。
+
+  贴到卡片「配置 → 模板」。区域里只需要一个指向目录的元素，
+  其余（目录行、文件块、正文）全由下面的样式和脚本负责。
+
+  卡片对模板的硬性限制，违反任何一条就渲染不出来：
+  · 不能引用外部资源。img / iframe / link / object / embed / video / audio 会被整棵删掉，
+    样式块里只要引用了外部地址，整个 style 块会被丢掉。
+  · 区域里的 script 会被剥掉，行为只能写在模板自己的 script 里。
+  · 节点要用 dsh.root 找。文档渲染在影子根里，document.querySelector 会静默返回 null。
+  · 卡片本身不给内边距，留白得模板自己写。
+-->
+<style>
+  .root {
+    padding: 14px 16px 18px;
+    font-family: var(--dsw-font-family);
+    font-size: 13.5px;
+    line-height: 21px;
+    color: var(--dsw-alias-label-primary);
+  }
+
+  /* 目录行 */
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 9px;
+    font-size: 11px;
+    color: var(--dsw-alias-label-tertiary);
+  }
+  .head svg { flex: none; width: 12px; height: 12px; }
+  .head .dir {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    color: var(--dsw-alias-label-secondary);
+  }
+  .head .count { flex: none; margin-left: auto; }
+
+  /* 文件块：横向排，长名省略号 */
+  .files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  }
+  .files:empty { display: none; margin: 0; padding: 0; border: 0; }
+
+  .file {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 260px;
+    min-width: 0;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 11.5px;
+    color: var(--dsw-alias-label-secondary);
+    background: transparent;
+    border: 0.5px solid var(--dsw-alias-border-l2);
+    border-radius: var(--dsw-radius-md);
+    cursor: pointer;
+  }
+  .file svg { flex: none; width: 12px; height: 12px; }
+  .file:hover { background: var(--dsw-alias-bg-fill-hover); }
+  .file[aria-pressed='true'] {
+    background: var(--dsw-alias-bg-layer-2);
+    color: var(--dsw-alias-label-primary);
+  }
+  .file .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file .size { flex: none; color: var(--dsw-alias-label-tertiary); }
+
+  /* 正文容器。里面的排版由 dsh.markdown.render 负责，样式表进不去那一层 */
+  .body { min-height: 20px; }
+  .body .note { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+</style>
+
+<div class="root">
+  <div id="run-out">
+<!-- template-begin -->
+    <div data-dsh-files="docs/详细设计" hidden></div>
+<!-- template-end -->
+  </div>
+
+  <div class="head">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.4 5.2a1 1 0 0 1 1-1h2.6l1.2 1.6h5.4a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1z" />
+    </svg>
+    <span class="dir" id="dir"></span>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="files" id="files"></div>
+  <div class="body" id="body"></div>
+</div>
+
+<script>
+  (function () {
+    var root = dsh.root;
+
+    var dirEl = root.querySelector('[data-dsh-files]');
+    var filesEl = root.querySelector('#files');
+    var bodyEl = root.querySelector('#body');
+    var dirName = root.querySelector('#dir');
+    var countEl = root.querySelector('#count');
+
+    // 区域里没有目录指针，说明这次交的是表格或正文：它们自己会显示，模板不插手
+    if (!dirEl) {
+      filesEl.remove();
+      bodyEl.remove();
+      dirName.parentNode.remove();
+      return;
+    }
+
+    var dir = dirEl.getAttribute('data-dsh-files') || '';
+
+    // 文件块与正文都是脚本建出来的，图标也在这儿拼，省得模板里写一堆重复标签
+    var FILE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z" />' +
+      '<path d="M9.2 2.4v3.2h3.2" /></svg>';
+
+    function sizeLabel(bytes) {
+      if (typeof bytes !== 'number' || bytes <= 0) return '';
+      if (bytes < 1024) return bytes + ' B';
+      return (bytes / 1024).toFixed(1) + ' KB';
+    }
+
+    function reason(error) {
+      var code = error && (error.code || '');
+      var table = {
+        'no-workspace': '这张卡片还没有工作区目录',
+        'outside-workspace': '目录在卡片工作区之外',
+        'not-found': '目录或文件不存在',
+        'not-directory': '这个路径不是目录',
+        'not-file': '这个路径不是文件',
+        'not-text': '不是可显示的文本文件',
+        'too-large': '文件太大，超过 1 MB',
+        'invalid-request': '路径不合法',
+      };
+      return table[code] || (error && error.message) || '未知错误';
+    }
+
+    function note(text) {
+      var line = document.createElement('p');
+      line.className = 'note';
+      line.textContent = text;
+      bodyEl.replaceChildren(line);
+    }
+
+    function open(entry) {
+      var rows = filesEl.querySelectorAll('.file');
+      for (var i = 0; i < rows.length; i++) {
+        rows[i].setAttribute('aria-pressed',
+          String(rows[i].getAttribute('data-path') === entry.path));
+      }
+
+      dsh.files.read(entry.path).then(function (file) {
+        var target = document.createElement('div');
+        bodyEl.replaceChildren(target);
+        return dsh.markdown.render(target, file.text);
+      }).catch(function (error) {
+        note('打开失败：' + reason(error));
+      });
+    }
+
+    dirName.textContent = dir;
+
+    dsh.files.list(dir).then(function (listing) {
+      var docs = listing.entries.filter(function (entry) {
+        return entry.type === 'file' && /\.(md|markdown)$/i.test(entry.name);
+      });
+
+      countEl.textContent = docs.length + ' 个文件 · 点击切换';
+
+      if (docs.length === 0) {
+        note('这个目录里没有 markdown 文件。');
+        return;
+      }
+
+      docs.forEach(function (entry) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'file';
+        button.setAttribute('data-path', entry.path);
+
+        var name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = entry.name;
+
+        var size = document.createElement('span');
+        size.className = 'size';
+        size.textContent = sizeLabel(entry.size);
+
+        button.innerHTML = FILE_ICON;
+        button.append(name, size);
+        button.addEventListener('click', function () { open(entry); });
+        filesEl.append(button);
+      });
+
+      open(docs[0]);   // 没有点击时默认打开第一个
+    }).catch(function (error) {
+      countEl.textContent = '';
+      note('读不到 ' + dir + '：' + reason(error));
+    });
+  })();
+</script>

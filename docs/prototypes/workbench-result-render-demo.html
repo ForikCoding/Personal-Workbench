@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>详细设计 · markdown 渲染</title>
+<style>
+  /*
+    file:// 下浏览器不允许页面自己读磁盘，所以正文不内嵌、也不 fetch——
+    由你点一次「选择目录」，把 docs/详细设计 交进来。之后的行为和真卡片一致。
+
+    唯一和真卡片的差别是正文排版：真卡片里由 dsh.markdown.render() 用工作台的
+    markdown 样式表渲染，这里是本文件自带的迷你渲染器，仿的，不是承诺。
+  */
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; background: #f7f7f9; color-scheme: light; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", sans-serif;
+    padding: 28px 20px 56px;
+  }
+
+  /* ── 选目录那一栏 ─────────────────────────────────────── */
+  .pick {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 860px;
+    margin: 0 auto 14px;
+  }
+  .pickBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 12.5px;
+    color: #4338ca;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .pickBtn:hover { background: #e0e7ff; }
+  .pickHint { font-size: 12px; line-height: 17px; color: #8a8a94; }
+  .pickHint code {
+    padding: 1px 4px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11.5px;
+    background: #ededf1;
+    border-radius: 4px;
+  }
+
+  /* ── 卡片 ─────────────────────────────────────────────── */
+  .card {
+    max-width: 860px;
+    margin: 0 auto;
+    background: var(--dsw-alias-bg-base, #ffffff);
+    border: 0.5px solid var(--dsw-alias-border-l2, #e6e6ea);
+    border-radius: var(--dsw-radius-panel, 12px);
+    overflow: hidden;
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 13px 16px 9px;
+    font-size: 11px;
+    color: var(--dsw-alias-label-tertiary, #8a8a94);
+  }
+  .head svg { flex: none; width: 12px; height: 12px; }
+  .head .dir {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    color: var(--dsw-alias-label-secondary, #4a4a52);
+  }
+  .head .count { flex: none; margin-left: auto; }
+
+  .files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 0 16px 12px;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l2, #e6e6ea);
+  }
+  .files:empty { display: none; padding: 0; border: 0; }
+
+  .file {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 260px;
+    min-width: 0;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 11.5px;
+    color: var(--dsw-alias-label-secondary, #4a4a52);
+    background: transparent;
+    border: 0.5px solid var(--dsw-alias-border-l2, #e6e6ea);
+    border-radius: var(--dsw-radius-md, 8px);
+    cursor: pointer;
+  }
+  .file svg { flex: none; width: 12px; height: 12px; }
+  .file:hover { background: var(--dsw-alias-bg-fill-hover, #f2f2f5); }
+  .file[aria-pressed="true"] {
+    background: var(--dsw-alias-bg-layer-2, #f4f4f6);
+    color: var(--dsw-alias-label-primary, #1a1a1a);
+  }
+  .file .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file .size { flex: none; color: var(--dsw-alias-label-tertiary, #8a8a94); }
+
+  /* ── 正文：仿工作台 markdown 的观感 ─────────────────────── */
+  .body {
+    padding: 14px 16px 20px;
+    font-size: 13.5px;
+    line-height: 21px;
+    color: var(--dsw-alias-label-primary, #1a1a1a);
+  }
+  .body .note { color: var(--dsw-alias-label-tertiary, #8a8a94); font-size: 12.5px; }
+
+  .body > *:first-child { margin-top: 0; }
+  .body > *:last-child { margin-bottom: 0; }
+
+  .body h1, .body h2, .body h3, .body h4, .body h5, .body h6 {
+    margin: 18px 0 8px;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+  .body h1 { font-size: 15px; }
+  .body h2 { font-size: 14px; }
+  .body h3, .body h4, .body h5, .body h6 { font-size: 13px; }
+
+  .body p { margin: 0 0 10px; }
+  .body ul, .body ol { margin: 0 0 10px; padding-left: 20px; }
+  .body li { margin: 2px 0; }
+  .body li > ul, .body li > ol { margin: 2px 0; }
+  .body hr {
+    margin: 16px 0;
+    border: 0;
+    border-top: 0.5px solid var(--dsw-alias-border-l2, #e6e6ea);
+  }
+  .body blockquote {
+    margin: 0 0 12px;
+    padding: 2px 0 2px 12px;
+    color: var(--dsw-alias-label-secondary, #4a4a52);
+    border-left: 2px solid var(--dsw-alias-border-l2, #e6e6ea);
+  }
+
+  .body code {
+    padding: 1px 4px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--dsw-alias-label-secondary, #4a4a52);
+    background: var(--dsw-alias-bg-layer-1, #f6f6f8);
+    border-radius: 4px;
+  }
+  .body pre {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    overflow: auto;
+    background: var(--dsw-alias-bg-layer-1, #f6f6f8);
+    border-radius: var(--dsw-radius-md, 8px);
+  }
+  .body pre code { padding: 0; background: transparent; font-size: 11.5px; line-height: 18px; }
+
+  .body table {
+    width: 100%;
+    margin: 0 0 14px;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .body th {
+    padding: 0 8px 8px 0;
+    font-size: 11.5px;
+    font-weight: 400;
+    text-align: left;
+    color: var(--dsw-alias-label-tertiary, #8a8a94);
+    border-bottom: 0.5px solid var(--dsw-alias-border-l2, #e6e6ea);
+  }
+  .body td {
+    padding: 9px 8px 9px 0;
+    vertical-align: top;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l2, #e6e6ea);
+  }
+  .body th:last-child, .body td:last-child { padding-right: 0; }
+  .body tbody tr:last-child td { border-bottom: 0; }
+  .body table .ta-r { text-align: right; }
+  .body table .ta-c { text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="pick">
+  <button class="pickBtn" id="pick" type="button">选择目录</button>
+  <span class="pickHint">
+    选 <code>F:\git\Personal-Workbench\docs\详细设计</code>；选上一级的 <code>docs</code> 也行，会自己找 markdown 最多的那层
+  </span>
+</div>
+
+<main class="card">
+  <div class="head">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.4 5.2a1 1 0 0 1 1-1h2.6l1.2 1.6h5.4a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1z" />
+    </svg>
+    <span class="dir" id="dir">未选择目录</span>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="files" id="files"></div>
+  <div class="body" id="body"></div>
+</main>
+
+<input type="file" id="dirInput" webkitdirectory multiple hidden />
+
+<script>
+  /* ==========================================================
+     迷你 markdown 渲染器。
+     覆盖这几份文档实际用到的东西：ATX/setext 标题、段落、表格（含对齐）、
+     嵌套列表、引用、行内 code、粗体、斜体、链接、围栏代码块、分隔线。
+     ========================================================== */
+
+  const escapeHtml = (s) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /** 行内标记。入参必须已经过 escapeHtml。 */
+  function inline(s) {
+    return s
+      .replace(/`([^`]+)`/g, (_, c) => '<code>' + c + '</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>');
+  }
+
+  const LIST_ITEM = /^(\s*)([-*+]|\d+\.)\s+(.*)$/;
+  const isSeparator = (line) => /^\s*\|?[\s:|-]*-[\s:|-]*\|[\s:|-]*$/.test(line);
+
+  const cells = (line) =>
+    line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((cell) => cell.trim());
+
+  function alignOf(spec) {
+    const token = String(spec || '').trim();
+    if (/^:-+:$/.test(token)) return 'ta-c';
+    if (/^-+:$/.test(token)) return 'ta-r';
+    return '';
+  }
+
+  function cellHtml(tag, text, align) {
+    const cls = align ? ' class="' + align + '"' : '';
+    return '<' + tag + cls + '>' + inline(escapeHtml(text)) + '</' + tag + '>';
+  }
+
+  /** 表格。列数以表头为准，多退少补，真实文档里不齐的行不会把版式撑歪。 */
+  function renderTable(head, specs, rows) {
+    const aligns = head.map((_, i) => alignOf(specs[i]));
+    const width = head.length;
+
+    const pad = (row) => {
+      const copy = row.slice(0, width);
+      while (copy.length < width) copy.push('');
+      return copy;
+    };
+
+    return [
+      '<table>',
+      '<thead><tr>' + pad(head).map((t, i) => cellHtml('th', t, aligns[i])).join('') + '</tr></thead>',
+      '<tbody>',
+      rows.map((row) => '<tr>' + pad(row).map((t, i) => cellHtml('td', t, aligns[i])).join('') + '</tr>').join(''),
+      '</tbody>',
+      '</table>',
+    ].join('\n');
+  }
+
+  /** 按缩进还原嵌套列表。 */
+  function buildList(items) {
+    if (items.length === 0) return '';
+
+    const base = items[0].indent;
+    const tag = items[0].ordered ? 'ol' : 'ul';
+    let html = '<' + tag + '>';
+    let i = 0;
+
+    while (i < items.length) {
+      if (items[i].indent < base) break;
+      const item = items[i];
+      const children = [];
+      let j = i + 1;
+      while (j < items.length && items[j].indent > base) children.push(items[j++]);
+      html += '<li>' + inline(escapeHtml(item.text)) + buildList(children) + '</li>';
+      i = j;
+    }
+
+    return html + '</' + tag + '>';
+  }
+
+  function renderMarkdown(source) {
+    const lines = source.replace(/\r\n?/g, '\n').split('\n');
+    const out = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      if (!line.trim()) { i += 1; continue; }
+
+      // 围栏代码块
+      if (/^\s*```/.test(line)) {
+        const buffer = [];
+        i += 1;
+        while (i < lines.length && !/^\s*```/.test(lines[i])) buffer.push(lines[i++]);
+        i += 1;
+        out.push('<pre><code>' + escapeHtml(buffer.join('\n')) + '</code></pre>');
+        continue;
+      }
+
+      // setext 标题：文字下一行是 === 或 ---（要先于分隔线判断）
+      if (
+        i + 1 < lines.length &&
+        !LIST_ITEM.test(line) &&
+        !line.includes('|') &&
+        /^(=+|-{2,})\s*$/.test(lines[i + 1])
+      ) {
+        const level = lines[i + 1].trim().startsWith('=') ? 1 : 2;
+        out.push('<h' + level + '>' + inline(escapeHtml(line.trim())) + '</h' + level + '>');
+        i += 2;
+        continue;
+      }
+
+      // 分隔线
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push('<hr />'); i += 1; continue; }
+
+      // ATX 标题
+      const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (heading) {
+        const level = heading[1].length;
+        out.push('<h' + level + '>' + inline(escapeHtml(heading[2])) + '</h' + level + '>');
+        i += 1;
+        continue;
+      }
+
+      // 表格：本行含竖线，下一行是分隔行
+      if (line.includes('|') && i + 1 < lines.length && isSeparator(lines[i + 1])) {
+        const head = cells(line);
+        const specs = cells(lines[i + 1]);
+        i += 2;
+        const rows = [];
+        while (i < lines.length && lines[i].trim() && lines[i].includes('|')) {
+          rows.push(cells(lines[i++]));
+        }
+        out.push(renderTable(head, specs, rows));
+        continue;
+      }
+
+      // 引用
+      if (/^\s*>\s?/.test(line)) {
+        const buffer = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+          buffer.push(lines[i++].replace(/^\s*>\s?/, ''));
+        }
+        out.push('<blockquote>' + inline(escapeHtml(buffer.join(' '))) + '</blockquote>');
+        continue;
+      }
+
+      // 列表（含嵌套）
+      if (LIST_ITEM.test(line)) {
+        const items = [];
+        let match;
+        while (i < lines.length && (match = LIST_ITEM.exec(lines[i])) !== null) {
+          items.push({
+            indent: match[1].replace(/\t/g, '    ').length,
+            ordered: /\d/.test(match[2]),
+            text: match[3],
+          });
+          i += 1;
+        }
+        out.push(buildList(items));
+        continue;
+      }
+
+      // 段落：吃到空行或下一个块的开头
+      const buffer = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() &&
+        !/^\s*(#{1,6}\s|```|>)/.test(lines[i]) &&
+        !LIST_ITEM.test(lines[i]) &&
+        !(lines[i].includes('|') && i + 1 < lines.length && isSeparator(lines[i + 1]))
+      ) {
+        buffer.push(lines[i++]);
+      }
+      if (buffer.length === 0) buffer.push(lines[i++]);   // 兜底，别原地打转
+      out.push('<p>' + inline(escapeHtml(buffer.join(' '))) + '</p>');
+    }
+
+    return out.join('\n');
+  }
+
+  /* ==========================================================
+     选目录 → 建文件块 → 打开第一个
+     ========================================================== */
+
+  const FILE_ICON =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z" />' +
+    '<path d="M9.2 2.4v3.2h3.2" /></svg>';
+
+  const isMarkdown = (name) => /\.(md|markdown)$/i.test(name);
+
+  const filesEl = document.getElementById('files');
+  const bodyEl = document.getElementById('body');
+  const dirEl = document.getElementById('dir');
+  const countEl = document.getElementById('count');
+  const input = document.getElementById('dirInput');
+
+  const texts = new Map();   // path -> 文本，来回切时不重复读
+
+  function sizeLabel(bytes) {
+    if (typeof bytes !== 'number' || bytes <= 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    return (bytes / 1024).toFixed(1) + ' KB';
+  }
+
+  function note(text) {
+    const line = document.createElement('p');
+    line.className = 'note';
+    line.textContent = text;
+    bodyEl.replaceChildren(line);
+  }
+
+  const pathOf = (file) => file.webkitRelativePath || file.name;
+  const parentOf = (path) => {
+    const cut = path.lastIndexOf('/');
+    return cut < 0 ? '' : path.slice(0, cut);
+  };
+
+  /** 这些文件的父目录里，markdown 最多的那一层就是「结果目录」。 */
+  function pickDirectory(docs) {
+    const groups = new Map();
+    for (const doc of docs) {
+      const parent = parentOf(pathOf(doc));
+      if (!groups.has(parent)) groups.set(parent, []);
+      groups.get(parent).push(doc);
+    }
+    let best = '';
+    let bestCount = -1;
+    for (const [parent, list] of groups) {
+      if (list.length > bestCount) { best = parent; bestCount = list.length; }
+    }
+    return best;
+  }
+
+  async function read(file) {
+    const path = pathOf(file);
+    if (!texts.has(path)) texts.set(path, await file.text());
+    return texts.get(path);
+  }
+
+  async function open(docs, index) {
+    for (const button of filesEl.querySelectorAll('.file')) {
+      button.setAttribute('aria-pressed', String(Number(button.dataset.index) === index));
+    }
+
+    bodyEl.textContent = '读取中…';
+    try {
+      const text = await read(docs[index]);
+      bodyEl.innerHTML = text.trim()
+        ? renderMarkdown(text)
+        : '<p class="note">（这个文件是空的）</p>';
+    } catch (error) {
+      note('读取失败：' + ((error && error.message) || '未知错误'));
+    }
+  }
+
+  function mount(docs) {
+    const parent = pickDirectory(docs);
+    const list = docs
+      .filter((doc) => parentOf(pathOf(doc)) === parent)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+    dirEl.textContent = parent === '' ? docs[0].name : parent;
+    countEl.textContent = list.length + ' 个文件 · 点击切换';
+    filesEl.replaceChildren();
+
+    list.forEach((doc, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'file';
+      button.dataset.index = String(index);
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = doc.name;
+
+      const size = document.createElement('span');
+      size.className = 'size';
+      size.textContent = sizeLabel(doc.size);
+
+      button.innerHTML = FILE_ICON;
+      button.append(name, size);
+      button.addEventListener('click', () => { open(list, index); });
+      filesEl.append(button);
+    });
+
+    open(list, 0);   // 没有点击时默认打开第一个
+  }
+
+  document.getElementById('pick').addEventListener('click', () => input.click());
+
+  input.addEventListener('change', () => {
+    texts.clear();
+    const docs = Array.from(input.files || []).filter((file) => isMarkdown(file.name));
+
+    if (docs.length === 0) {
+      dirEl.textContent = '未选择目录';
+      countEl.textContent = '';
+      filesEl.replaceChildren();
+      note('选中的目录里没有 markdown 文件。');
+      return;
+    }
+
+    mount(docs);
+  });
+
+  note('先点上面的「选择目录」，选 docs/详细设计。');
+</script>
+</body>
+</html>
