@@ -19,6 +19,7 @@ import type {
   WorkbenchRunPhase,
   WorkbenchRunRequest,
   WorkbenchRunState,
+  WorkbenchPipelineHandoff,
   WorkbenchSandboxMode,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
@@ -50,6 +51,7 @@ import {
   renderWorkbenchRefinePrompt,
   renderWorkbenchSkillPrompt,
 } from './skill-card-prompt.ts'
+import { readHandoffNotes, writeHandoffNote } from './pipeline-handoff.ts'
 
 /**
  * Why a card run cannot start on a harness without either run seam.
@@ -258,6 +260,8 @@ interface RunRecord {
   readonly bare: boolean
   /** Directory this run happens in: its own, or the card's stored one. */
   readonly workspace: string
+  /** Which pipeline and step this run is, when it is one, for the note it leaves. */
+  readonly handoff?: WorkbenchPipelineHandoff
   /**
    * What the user told this run to do, verbatim; absent when it carried none.
    *
@@ -307,6 +311,8 @@ interface RunRecord {
 type RunInput =
   | {
     readonly kind: 'card'
+  /** Notes the earlier steps left, when this run cannot continue their conversation. */
+  readonly handoff?: string
     /**
      * The run's session agent.
      *
@@ -576,6 +582,7 @@ export class WorkbenchSkillCardRunner {
     // resolved.
     const model = selection.model
     const pinned = model === undefined ? {} : { model }
+
     // The agent whose scope resolves the skill definition is separate from the run's own
     // session and is not known until that session is resolved, so the closures take it as a
     // parameter rather than reading it here.
@@ -615,6 +622,7 @@ export class WorkbenchSkillCardRunner {
             template,
             ...pinned,
             ...carried === undefined ? {} : { instruction: carried },
+            ...handoffNote === undefined ? {} : { handoff: handoffNote },
             ...request.payload === undefined ? {} : { payload: request.payload },
             outputSchema: request.outputSchema,
           })
@@ -662,7 +670,17 @@ export class WorkbenchSkillCardRunner {
         `the workspace directory "${workspacePath}" does not exist or is not a directory`,
       )
     }
-    // Checked here as well as below, and the earlier check is load-bearing: resolving a
+    // A step that opens its own session has no conversation to inherit, so it is handed the
+    // notes the earlier steps left. Read here, before anything starts: a step that cannot
+    // read them runs without them, which is worth knowing before a session is published for
+    // it. A joining step reads nothing — its own conversation is the hand-off, and pasting
+    // the notes over it would tell the child what it is already looking at.
+    const handoffNote = mode.kind === 'step' && !mode.join && mode.handoff !== undefined
+      ? await readHandoffNotes(workspacePath, mode.handoff).catch((error: unknown) => {
+          this.options.warn(`workbench pipeline handoff could not be read: ${messageOf(error)}`)
+          return undefined
+        })
+      : undefined    // Checked here as well as below, and the earlier check is load-bearing: resolving a
     // run's session creates one, and a start that will be refused must not publish a
     // session — or restore one a running child still hangs from — on its way to a refusal.
     if (this.congested()) {
@@ -771,6 +789,7 @@ export class WorkbenchSkillCardRunner {
       // Where this run happens, kept on the run so its record states it rather than the
       // card's directory — which for an invocation from another card is another folder.
       workspace: workspacePath,
+      ...mode.kind === 'step' && mode.handoff !== undefined ? { handoff: mode.handoff } : {},
       session,
       phase: 'running',
       retried: false,
@@ -1415,6 +1434,7 @@ await this.finish(run, outcome)
                 input.payload,
                 input.instruction,
                 this.options.runTimeoutMs,
+                input.handoff,
               )
             : input.kind === 'refine'
               ? renderWorkbenchRefinePrompt(
@@ -1565,6 +1585,20 @@ await this.finish(run, outcome)
     // A bare run keeps nothing: its verdict stays in the run table for this session
     // and a reload leaves the card showing its own stored result.
     if (run.bare) return
+    // The note this step leaves for the ones after it, written before the result is stored
+    // and after the run has one: a chain that is stopped right here still leaves the steps
+    // that come later something to read. Best effort, always — a note that could not be
+    // written costs the fallback, not the run.
+    if (run.handoff !== undefined) {
+      const note = handoffOf(record.structured)
+      if (note !== undefined) {
+        try {
+          await writeHandoffNote(run.workspace, run.handoff, note)
+        } catch (error) {
+          this.options.warn(`workbench pipeline handoff could not be stored: ${messageOf(error)}`)
+        }
+      }
+    }
     try {
       await this.options.saveResult(run.cardId, record)
     } catch (error) {
@@ -1831,4 +1865,20 @@ function messageOf(error: unknown): string {
  */
 function errorNameOf(error: unknown): string {
   return error instanceof Error ? error.name : ''
+}
+
+/**
+ * Read the note a step left out of its own structured answer.
+ *
+ * A skill that wants its successor to know something says it in `handoff`; a skill that
+ * says nothing leaves no note, and the chain falls back to the conversation alone. The
+ * field is optional on the contract on purpose: the note is for the chain, and a card run
+ * has no successor to write for.
+ * @param structured - the run's structured answer, when it produced one.
+ * @returns the note, or undefined when the answer carried none.
+ */
+function handoffOf(structured: unknown): string | undefined {
+  if (typeof structured !== 'object' || structured === null) return undefined
+  const value = (structured as { handoff?: unknown }).handoff
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }

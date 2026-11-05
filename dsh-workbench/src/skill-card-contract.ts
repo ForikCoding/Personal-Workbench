@@ -1096,8 +1096,29 @@ export type WorkbenchRunMode =
    * `terminal` marks the last step of the chain. Every intermediate step settles without
    * archiving its session, because the next step continues it; the terminal one archives,
    * so a pipeline that ran to its end leaves the session list as it found it.
+   *
+   * `handoff` names the pipeline and the step's position in it, which is where the run
+   * writes the note the next step reads when it cannot continue the conversation. The
+   * conversation is the hand-off while it lives; the note is what is left of it after the
+   * session is gone — a chain run tomorrow, or one step run on its own.
    */
-  | { readonly kind: 'step'; readonly terminal: boolean; readonly join: boolean }
+  | {
+    readonly kind: 'step'
+    /** Whether this step ends the chain and may archive the session it ran in. */
+    readonly terminal: boolean
+    /** Whether the named session is one to continue rather than one to open. */
+    readonly join: boolean
+    /** Which pipeline this step belongs to, and where in it. */
+    readonly handoff?: WorkbenchPipelineHandoff
+  }
+
+/** Which step of which pipeline a run is, for the note it leaves behind. */
+export interface WorkbenchPipelineHandoff {
+  /** Pipeline identity, as the client stores it. */
+  readonly pipelineId: string
+  /** Zero-based step index within that pipeline. */
+  readonly step: number
+}
 
 /** Client-to-Host run start. */
 export interface WorkbenchRunRequest {

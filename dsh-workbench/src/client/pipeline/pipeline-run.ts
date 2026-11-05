@@ -291,7 +291,15 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
           // that lost its session is refused instead of quietly starting over.
           ...ask.sessionId === undefined ? {} : { sessionId: ask.sessionId },
           ...scope === undefined ? {} : { scopeSessionId: scope },
-          mode: { kind: 'step', terminal: ask.terminal, join: ask.sessionId !== undefined },
+          mode: {
+            kind: 'step',
+            terminal: ask.terminal,
+            join: ask.sessionId !== undefined,
+            // Which pipeline and step this is, so the run leaves a note the later steps can
+            // read when the conversation is gone. Sent on every step, joined or not: a note
+            // is written by every step, read only by one that cannot join.
+            handoff: { pipelineId: pipeline.id, step: _index },
+          },
           ...ask.instruction === undefined ? {} : { instruction: ask.instruction },
           outputSchema: WORKBENCH_OUTPUT_SCHEMA,
         })

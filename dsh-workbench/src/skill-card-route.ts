@@ -18,6 +18,7 @@ import type {
   WorkbenchResultEditRequest,
   WorkbenchResultEditResponse,
   WorkbenchRunCapabilities,
+  WorkbenchPipelineHandoff,
   WorkbenchRunMode,
   WorkbenchRunRequest,
   WorkbenchRunResponse,
@@ -926,11 +927,20 @@ function parseRunMode(value: unknown): WorkbenchRunMode {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'mode must be an object')
   }
-  const mode = value as { kind?: unknown; skill?: unknown; instruction?: unknown; previous?: unknown }
+  const mode = value as {
+    kind?: unknown
+    skill?: unknown
+    instruction?: unknown
+    previous?: unknown
+    terminal?: unknown
+    join?: unknown
+    handoff?: unknown
+  }
   if (mode.kind === 'card') return { kind: 'card' }
   if (mode.kind === 'refine') return parseRefineMode(mode)
+  if (mode.kind === 'step') return parseStepMode(mode)
   if (mode.kind !== 'bare') {
-    throw new SkillCardRequestError(400, 'invalid-request', 'mode.kind must be card, bare or refine')
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.kind must be card, bare, refine or step')
   }
   if (typeof mode.skill !== 'string' || !isWorkbenchSkillName(mode.skill)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'mode.skill must be a kebab-case skill name')
@@ -966,6 +976,60 @@ function parseRefineMode(mode: { instruction?: unknown; previous?: unknown }): W
     throw new SkillCardRequestError(413, 'too-large', 'mode.previous exceeds the byte limit')
   }
   return { kind: 'refine', instruction: mode.instruction, previous: mode.previous }
+}
+
+/**
+ * Validate the two flags and the optional hand-off a step carries.
+ *
+ * Both flags are required rather than defaulted. A step that defaulted `join` to false
+ * would open a second session for a chain that already had one, and a step that defaulted
+ * `terminal` to false would leave the chain's session open forever — the two mistakes this
+ * mode exists to make impossible, so neither is worth guessing at.
+ * @param mode - the decoded `mode` field, already known to say `step`.
+ * @returns the validated step mode.
+ * @throws {SkillCardRequestError} 400 when a flag is missing or not a boolean, or the
+ * hand-off is malformed.
+ */
+function parseStepMode(mode: { terminal?: unknown; join?: unknown; handoff?: unknown }): WorkbenchRunMode {
+  if (typeof mode.terminal !== 'boolean') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.terminal must be a boolean')
+  }
+  if (typeof mode.join !== 'boolean') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.join must be a boolean')
+  }
+  const handoff = parseStepHandoff(mode.handoff)
+  return {
+    kind: 'step',
+    terminal: mode.terminal,
+    join: mode.join,
+    ...handoff === undefined ? {} : { handoff },
+  }
+}
+
+/**
+ * Validate where a step sits in its pipeline.
+ *
+ * Optional, because a step still runs without it: the note it would have left is a
+ * fallback for later steps, not something this run needs. What is not optional is that a
+ * hand-off which is present is usable — a malformed one would write to a path of the
+ * caller's choosing, so it is refused rather than ignored.
+ * @param value - the decoded `handoff` field.
+ * @returns the validated hand-off, or undefined when absent.
+ * @throws {SkillCardRequestError} 400 when it is present and malformed.
+ */
+function parseStepHandoff(value: unknown): WorkbenchPipelineHandoff | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff must be an object')
+  }
+  const handoff = value as { pipelineId?: unknown; step?: unknown }
+  if (typeof handoff.pipelineId !== 'string' || handoff.pipelineId === '' || handoff.pipelineId.length > 64) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff.pipelineId must be a pipeline id')
+  }
+  if (typeof handoff.step !== 'number' || !Number.isInteger(handoff.step) || handoff.step < 0 || handoff.step >= 64) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff.step must be a step index')
+  }
+  return { pipelineId: handoff.pipelineId, step: handoff.step }
 }
 
 /**

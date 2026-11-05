@@ -279,9 +279,9 @@ describe('WorkbenchPage', () => {
     fireEvent.click(await screen.findByText(en.pipeRunAll))
     await waitFor(() => { expect(starts).toHaveLength(2) })
     // The first step opens the chain; the second joins the session the first settled in.
-    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: false, join: false })
+    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0 } })
     expect(starts[0]?.sessionId).toBeUndefined()
-    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true })
+    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } })
     expect(starts[1]?.sessionId).toBe('session-chain')
     // Both steps ask for the card contract, which is what a step produces.
     expect(starts[0]?.outputSchema).toBeDefined()
@@ -311,7 +311,7 @@ describe('WorkbenchPage', () => {
     fireEvent.click(document.querySelector('[data-run-step="0"]') as HTMLElement)
     await waitFor(() => { expect(starts).toHaveLength(1) })
     // A step run on its own is a chain of one: it opens its session and closes it.
-    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: true, join: false })
+    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: true, join: false, handoff: { pipelineId: 'pipeline-1', step: 0 } })
     expect(starts[0]?.cardId).toBe('a-card')
   })
 

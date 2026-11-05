@@ -107,10 +107,28 @@ for 每一 步 i in [from..to]:
 3. 第二步 `join: true` + `sessionId`，`attachRunSession` 把它挂到同一会话上继续。
 4. 提示词不变（`renderWorkbenchSkillPrompt`），模型自然看到前几步的对话与工具结果。
 
-不需要中间产物落盘、不需要把上一步的 HTML 注入下一步、不需要新的 handoff 字段。代价与边界：
+不需要把上一步的 HTML 注入下一步。代价与边界：
 
 - 一条链共用一个模型与权限（会话级），因此**以第一步的卡片值为准**；各步的工作目录必须一致，否则产物会落到第一步的目录里（见 §7）。
 - 关掉面板会中断链：驱动在客户端。
+
+### 5.2 交接单落盘（会话没了之后的兜底）
+
+会话是链的现场，但现场会消失：昨天跑完的链、被 profile 归档的会话、用户单独重跑的第三步——这些情况下步骤拿不到前文，如果就这样跑，它会**凭空白答**。
+
+所以每一步在结算时，把自己想留给后人的那段话写进工作目录：
+
+```
+<工作目录>/.workbench/handoff/<pipelineId>/<step>.md
+```
+
+- 文件由该步的 `structured.handoff` 字符串决定（可选字段；某步没写就没有文件）。每次运行**覆盖**，它是这一步"最近一次的交代"，不是日志。
+- 只有 `join: false` 的步骤（链的第一步、或单独重跑的某一步）才读它，读的是 `step` 之前的全部文件，按步序拼成一段 `<previous_steps>`；`join: true` 的步骤**不读**——它的对话就是前文，再贴一遍等于把对方正在看的东西又念给它听。
+- 读写都是 best effort：读不到当作没有，写不进只 warn。落盘只是兜底，坏了不该让一步已经跑完的运行失败。
+- 上限：单条 8 KiB、合计 24 KiB、共 32 步，按字节截断且不切开多字节字符。
+- `pipelineId` 来自客户端，必须能安全当目录名：`[A-Za-z0-9._-]` 之外一律换成 `_`，`.`/`..`/空串换成 `_`，否则 `../` 会把交接单写到工作目录之外。
+
+对比"把上一步的 HTML 注入下一步"：注入会把前一步的**产物**当成后一步的**输入**，而真正需要传的是"我做了什么、结论是什么"。交接单让模型自己写这句话，长度也可控。注入还有个死结：目录型结果根本没有一段 HTML 可以注入。
 
 ## 6. 失败与中断
 
@@ -124,11 +142,14 @@ for 每一 步 i in [from..to]:
 2. **跨步骤的目录/模型一致性没有校验。** 一条链以第一步的卡片为准，若第二步的卡片指向别的目录，产物会静默写到第一步的目录。应在 `runAll` 前比较各步卡片的 `workspace`，不一致就拦住并说明。
 3. **流式中间产物没有回传。** 画布只显示"第几步 · 已运行多久 · 结果"（轮询得知），没有逐步的 token/工具流。要做得更细需要 Host 侧的运行事件订阅。
 4. **原型 v2 里的步骤级 `instruction` 只在契约与存储里打通，UI 还没有编辑入口**（画布只展示已有的指令）。补一个行内编辑即可，不动别的层。
+5. **交接单的写入由 runner 承担，测试覆盖到模块、路由与提示词三层，但 runner 里的那两行只经过类型检查与代码审阅**：假 Host 的目录探针不落真盘，为它单独造一个临时工作目录不值当。
 
 ## 8. 涉及文件
 
-新增（Host）：`pipeline-contract.ts`、`pipeline-spec.ts`、`pipeline-service.ts`、`pipeline-route.ts`
+新增（Host）：`pipeline-contract.ts`、`pipeline-spec.ts`、`pipeline-service.ts`、`pipeline-route.ts`、`pipeline-handoff.ts`
 新增（Client）：`pipeline-api.ts`、`pipeline-controller.ts`、`pipeline/pipeline-run.ts`、`WorkbenchPipeline.tsx`
-修改：`index.ts`（客户端注册 + Host 第三个 `ctx.effect`）、`WorkbenchPage.tsx`（改为三区外壳，保留"外部打开某个卡片视角"的整屏行为）、`skill-card-contract.ts`（`step` 运行模式）、`skill-card-runner.ts`（`carryoverSessionId`、`SessionArchivePolicy`）、`workbench.module.css`（三区样式）、`locales.ts`（32 个 `pipe*` 键，中英各一份）
+修改：`index.ts`（客户端注册 + Host 第三个 `ctx.effect`）、`WorkbenchPage.tsx`（改为三区外壳，保留"外部打开某个卡片视角"的整屏行为）、`skill-card-contract.ts`（`step` 运行模式与 `WorkbenchPipelineHandoff`）、`skill-card-runner.ts`（`carryoverSessionId`、`SessionArchivePolicy`、交接单读写）、`skill-card-route.ts`（`step` 模式解析）、`skill-card-prompt.ts`（`<previous_steps>` 块）、`workbench.module.css`（三区样式）、`locales.ts`（30 个 `pipe*` 键，中英各一份）
 
-测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`、`WorkbenchPage.spec.tsx` 重写为 17 条三区用例。
+交接单：`pipeline-handoff.ts`（新增模块）+ `skill-card-route.ts` 补上 `step` 模式的解析（此前只认 card/bare/refine，`kind:'step'` 会被 400 拒掉——这组用例暴露了这个漏洞，现在有 4 条路由用例盯住它）。
+
+测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`pipeline-handoff.spec.ts`(15)、`skill-card-prompt-handoff.spec.ts`(4)、`skill-card-route.spec.ts` 追加 4 条步骤模式、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`、`WorkbenchPage.spec.tsx` 重写为 17 条三区用例。

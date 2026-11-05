@@ -6405,7 +6405,11 @@ window.__ModuleLoader__.load({
 							mode: {
 								kind: "step",
 								terminal: ask.terminal,
-								join: ask.sessionId !== void 0
+								join: ask.sessionId !== void 0,
+								handoff: {
+									pipelineId: pipeline.id,
+									step: _index
+								}
 							},
 							...ask.instruction === void 0 ? {} : { instruction: ask.instruction },
 							outputSchema: WORKBENCH_OUTPUT_SCHEMA

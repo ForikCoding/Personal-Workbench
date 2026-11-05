@@ -25,9 +25,12 @@ import type { WorkbenchSkillDefinition } from './skill-card-host.ts';
  * @param template - the card's own HTML for this skill.
  * @param payload - the clicked row's raw fields; absent for a run no row triggered.
  * @param instruction - what the user asked this run to do; absent for a run that said nothing.
+ * @param budgetMs - the deadline the run has, when it has one.
+ * @param handoff - notes the steps before this one left, when this run cannot continue
+ * their conversation.
  * @returns the complete model-facing prompt text.
  */
-export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number): string;
+export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number, handoff?: string): string;
 /**
  * Render one skill, the document, the result to revise, and the revision request.
  *

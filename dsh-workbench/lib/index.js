@@ -1,8 +1,8 @@
 import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
 import { z } from "zod";
 import { constants } from "node:fs";
-import { access, readFile, readdir, realpath, stat } from "node:fs/promises";
-import { isAbsolute, join, resolve, sep } from "node:path";
+import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import z$1 from "@deepseek-ai/schemastery";
 //#region src/layout-contract.ts
 /**
@@ -1982,13 +1982,17 @@ const REFINE_TASK_INSTRUCTION = [
 * @param template - the card's own HTML for this skill.
 * @param payload - the clicked row's raw fields; absent for a run no row triggered.
 * @param instruction - what the user asked this run to do; absent for a run that said nothing.
+* @param budgetMs - the deadline the run has, when it has one.
+* @param handoff - notes the steps before this one left, when this run cannot continue
+* their conversation.
 * @returns the complete model-facing prompt text.
 */
-function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs) {
+function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs, handoff) {
 	return [
 		...skillBlock(skill),
 		...rowDataBlock(payload),
 		...instructionBlock(instruction),
+		...handoffBlock(handoff),
 		...budgetBlock(budgetMs),
 		"",
 		"<output_document>",
@@ -2001,6 +2005,28 @@ function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budge
 			TASK_INSTRUCTION_REGION
 		].join("\n")
 	].join("\n");
+}
+/**
+* Frame what the earlier steps of this pipeline left behind.
+*
+* A step normally continues the conversation its predecessor ran in, and then the
+* conversation is the hand-off. When it cannot — the session is gone, or this step was
+* started on its own — the notes the earlier steps wrote into the workspace stand in for
+* it. They are quoted rather than adopted: they are that step's own account of what it
+* produced, and the skill being applied here is still this card's.
+* @param handoff - the notes, oldest first, as they were read back; absent when there are none.
+* @returns the block's lines, or nothing at all when there is no note.
+*/
+function handoffBlock(handoff) {
+	if (handoff === void 0 || handoff.trim() === "") return [];
+	return [
+		"",
+		"The steps before this one in the pipeline left the notes below. Their conversation is",
+		"not available to you, so these notes are what you have of what they produced:",
+		"<previous_steps>",
+		handoff,
+		"</previous_steps>"
+	];
 }
 /**
 * Frame what the user asked for, when they asked for something.
@@ -2183,6 +2209,124 @@ function escapeAttr(value) {
 */
 function escapeText(value) {
 	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+//#endregion
+//#region src/pipeline-handoff.ts
+/**
+* The notes a pipeline's steps leave for each other on disk.
+*
+* A chain's real hand-off is its conversation: step two continues the session step one
+* ran in, and sees everything. That only holds while the session does. A chain finished
+* yesterday, a session the profile archived, or a single step started on its own all
+* reach a step with no conversation behind it — and a step that then runs blind is a step
+* that quietly answers from nothing.
+*
+* So each step writes one note into its own workspace, named by the pipeline and the
+* position in it, and a step that cannot continue the conversation is handed the notes of
+* the steps before it instead. One file per (pipeline, step), overwritten each run: the
+* note is the step's latest account of itself, not a log.
+*
+* Writing is best effort, always. A note that could not be written costs the fallback, not
+* the run; a step that ran is worth more than the bookkeeping about it.
+* @module dsh-workbench/pipeline-handoff
+*/
+/** Directory, relative to the workspace, the notes live under. */
+const WORKBENCH_HANDOFF_DIR = ".workbench/handoff";
+/** How much of one note is carried into a prompt. */
+const WORKBENCH_HANDOFF_NOTE_MAX_BYTES = 8 * 1024;
+/** How much of all the notes together is carried into a prompt. */
+const WORKBENCH_HANDOFF_TOTAL_MAX_BYTES = 24 * 1024;
+/**
+* Turn a pipeline id into a directory name.
+*
+* The id is the client's, and a client is free to name a pipeline anything, so it cannot
+* be used as a path segment as-is: a slash would write outside the pipeline's own folder
+* and a leading dot would hide it. Everything outside a conservative set becomes `_`,
+* which keeps two different pipelines apart in every case that matters and collapses the
+* ones that would only have differed by a character a filesystem refuses anyway.
+* @param pipelineId - the pipeline's identity.
+* @returns the directory name to use.
+*/
+function handoffDirectoryName(pipelineId) {
+	const safe = pipelineId.replace(/[^A-Za-z0-9._-]/g, "_");
+	return safe === "" || safe === "." || safe === ".." ? "_" : safe;
+}
+/**
+* Where one step's note lives.
+* @param workspace - the directory the step runs in.
+* @param handoff - which pipeline and which step.
+* @returns the note's absolute path.
+*/
+function handoffPathFor(workspace, handoff) {
+	return join(workspace, WORKBENCH_HANDOFF_DIR, handoffDirectoryName(handoff.pipelineId), `${String(handoff.step)}.md`);
+}
+/**
+* Read the notes the earlier steps of one pipeline left.
+*
+* Oldest first, because that is the order the steps ran in and the order they should be
+* read in. Absent files are not an error: a step two of three is normally the first run of
+* anything, and it simply has no notes to read.
+* @param workspace - the directory the step is about to run in.
+* @param handoff - which pipeline and which step is starting.
+* @returns the notes as one document, or undefined when there are none.
+*/
+async function readHandoffNotes(workspace, handoff) {
+	const sections = [];
+	let carried = 0;
+	const from = Math.max(0, handoff.step - 32);
+	for (let step = from; step < handoff.step; step += 1) {
+		if (carried >= 24576) break;
+		const text = await readNote(handoffPathFor(workspace, {
+			pipelineId: handoff.pipelineId,
+			step
+		}));
+		if (text === void 0) continue;
+		const room = Math.min(WORKBENCH_HANDOFF_NOTE_MAX_BYTES, WORKBENCH_HANDOFF_TOTAL_MAX_BYTES - carried);
+		const clipped = room >= Buffer.byteLength(text, "utf8") ? text : truncated(text, room);
+		sections.push(`## Step ${String(step + 1)}\n\n${clipped}`);
+		carried += Buffer.byteLength(clipped, "utf8");
+	}
+	return sections.length === 0 ? void 0 : sections.join("\n\n");
+}
+/**
+* Write the note one step leaves behind.
+* @param workspace - the directory the step ran in.
+* @param handoff - which pipeline and which step.
+* @param text - the note itself; blank means nothing worth leaving, so nothing is written.
+* @returns the path written, or undefined when there was nothing to write.
+*/
+async function writeHandoffNote(workspace, handoff, text) {
+	if (text.trim() === "") return void 0;
+	const path = handoffPathFor(workspace, handoff);
+	await mkdir(dirname(path), { recursive: true });
+	await writeFile(path, truncated(text, WORKBENCH_HANDOFF_NOTE_MAX_BYTES), "utf8");
+	return path;
+}
+/**
+* Read one note, treating every failure as absence.
+* @param path - the note's path.
+* @returns its text, or undefined when it is not there or cannot be read.
+*/
+async function readNote(path) {
+	try {
+		return await readFile(path, "utf8");
+	} catch {
+		return;
+	}
+}
+/**
+* Cut a note down to a byte budget, on a character boundary.
+* @param text - the text to cut.
+* @param maxBytes - the budget.
+* @returns the text, cut and marked when it did not fit.
+*/
+function truncated(text, maxBytes) {
+	if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
+	const bytes = Buffer.from(text, "utf8").subarray(0, maxBytes);
+	let end = bytes.length;
+	while (end > 0 && (bytes[end - 1] ?? 0) >= 128 && (bytes[end - 1] ?? 0) < 192) end -= 1;
+	if (end > 0) end -= 1;
+	return `${bytes.subarray(0, Math.max(0, end)).toString("utf8")}\n\n[this note was cut to fit]`.trim();
 }
 //#endregion
 //#region src/skill-card-runner.ts
@@ -2394,6 +2538,7 @@ var WorkbenchSkillCardRunner = class {
 				template,
 				...pinned,
 				...carried === void 0 ? {} : { instruction: carried },
+				...handoffNote === void 0 ? {} : { handoff: handoffNote },
 				...request.payload === void 0 ? {} : { payload: request.payload },
 				outputSchema: request.outputSchema
 			});
@@ -2410,6 +2555,9 @@ var WorkbenchSkillCardRunner = class {
 		if (workspacePath === void 0) return reject("workspace-missing", `no workspace directory is configured for card "${request.cardId}"`);
 		const found = await this.options.statDirectory(workspacePath);
 		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspacePath}" does not exist or is not a directory`);
+		const handoffNote = mode.kind === "step" && !mode.join && mode.handoff !== void 0 ? await readHandoffNotes(workspacePath, mode.handoff).catch((error) => {
+			this.options.warn(`workbench pipeline handoff could not be read: ${messageOf(error)}`);
+		}) : void 0;
 		if (this.congested()) return reject("run-in-progress", "the concurrency limit is reached");
 		if (carryoverSessionId !== void 0) {
 			if (this.sessionBusy(carryoverSessionId) !== void 0) return reject("run-in-progress", `session "${carryoverSessionId}" is already running`);
@@ -2445,6 +2593,7 @@ var WorkbenchSkillCardRunner = class {
 			bare: mode.kind === "bare",
 			...carried === void 0 ? {} : { instruction: carried },
 			workspace: workspacePath,
+			...mode.kind === "step" && mode.handoff !== void 0 ? { handoff: mode.handoff } : {},
 			session,
 			phase: "running",
 			retried: false,
@@ -2972,7 +3121,7 @@ var WorkbenchSkillCardRunner = class {
 				parent,
 				prompt: [{
 					type: "text",
-					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
+					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs, input.handoff) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
 				...resolvedCwd === void 0 ? {} : { cwd: resolvedCwd },
 				toolFilter: WORKBENCH_RUN_TOOL_FILTER,
@@ -3069,6 +3218,14 @@ var WorkbenchSkillCardRunner = class {
 			run.failureCode = code;
 		}
 		if (run.bare) return;
+		if (run.handoff !== void 0) {
+			const note = handoffOf(record.structured);
+			if (note !== void 0) try {
+				await writeHandoffNote(run.workspace, run.handoff, note);
+			} catch (error) {
+				this.options.warn(`workbench pipeline handoff could not be stored: ${messageOf(error)}`);
+			}
+		}
 		try {
 			await this.options.saveResult(run.cardId, record);
 		} catch (error) {
@@ -3288,6 +3445,21 @@ function messageOf(error) {
 */
 function errorNameOf(error) {
 	return error instanceof Error ? error.name : "";
+}
+/**
+* Read the note a step left out of its own structured answer.
+*
+* A skill that wants its successor to know something says it in `handoff`; a skill that
+* says nothing leaves no note, and the chain falls back to the conversation alone. The
+* field is optional on the contract on purpose: the note is for the chain, and a card run
+* has no successor to write for.
+* @param structured - the run's structured answer, when it produced one.
+* @returns the note, or undefined when the answer carried none.
+*/
+function handoffOf(structured) {
+	if (typeof structured !== "object" || structured === null) return void 0;
+	const value = structured.handoff;
+	return typeof value === "string" && value.trim() !== "" ? value : void 0;
 }
 //#endregion
 //#region src/skill-card-route.ts
@@ -3825,7 +3997,8 @@ function parseRunMode(value) {
 	const mode = value;
 	if (mode.kind === "card") return { kind: "card" };
 	if (mode.kind === "refine") return parseRefineMode(mode);
-	if (mode.kind !== "bare") throw new SkillCardRequestError(400, "invalid-request", "mode.kind must be card, bare or refine");
+	if (mode.kind === "step") return parseStepMode(mode);
+	if (mode.kind !== "bare") throw new SkillCardRequestError(400, "invalid-request", "mode.kind must be card, bare, refine or step");
 	if (typeof mode.skill !== "string" || !isWorkbenchSkillName(mode.skill)) throw new SkillCardRequestError(400, "invalid-request", "mode.skill must be a kebab-case skill name");
 	return {
 		kind: "bare",
@@ -3853,6 +4026,51 @@ function parseRefineMode(mode) {
 		kind: "refine",
 		instruction: mode.instruction,
 		previous: mode.previous
+	};
+}
+/**
+* Validate the two flags and the optional hand-off a step carries.
+*
+* Both flags are required rather than defaulted. A step that defaulted `join` to false
+* would open a second session for a chain that already had one, and a step that defaulted
+* `terminal` to false would leave the chain's session open forever — the two mistakes this
+* mode exists to make impossible, so neither is worth guessing at.
+* @param mode - the decoded `mode` field, already known to say `step`.
+* @returns the validated step mode.
+* @throws {SkillCardRequestError} 400 when a flag is missing or not a boolean, or the
+* hand-off is malformed.
+*/
+function parseStepMode(mode) {
+	if (typeof mode.terminal !== "boolean") throw new SkillCardRequestError(400, "invalid-request", "mode.terminal must be a boolean");
+	if (typeof mode.join !== "boolean") throw new SkillCardRequestError(400, "invalid-request", "mode.join must be a boolean");
+	const handoff = parseStepHandoff(mode.handoff);
+	return {
+		kind: "step",
+		terminal: mode.terminal,
+		join: mode.join,
+		...handoff === void 0 ? {} : { handoff }
+	};
+}
+/**
+* Validate where a step sits in its pipeline.
+*
+* Optional, because a step still runs without it: the note it would have left is a
+* fallback for later steps, not something this run needs. What is not optional is that a
+* hand-off which is present is usable — a malformed one would write to a path of the
+* caller's choosing, so it is refused rather than ignored.
+* @param value - the decoded `handoff` field.
+* @returns the validated hand-off, or undefined when absent.
+* @throws {SkillCardRequestError} 400 when it is present and malformed.
+*/
+function parseStepHandoff(value) {
+	if (value === void 0) return void 0;
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new SkillCardRequestError(400, "invalid-request", "mode.handoff must be an object");
+	const handoff = value;
+	if (typeof handoff.pipelineId !== "string" || handoff.pipelineId === "" || handoff.pipelineId.length > 64) throw new SkillCardRequestError(400, "invalid-request", "mode.handoff.pipelineId must be a pipeline id");
+	if (typeof handoff.step !== "number" || !Number.isInteger(handoff.step) || handoff.step < 0 || handoff.step >= 64) throw new SkillCardRequestError(400, "invalid-request", "mode.handoff.step must be a step index");
+	return {
+		pipelineId: handoff.pipelineId,
+		step: handoff.step
 	};
 }
 /**

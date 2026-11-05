@@ -89,6 +89,9 @@ const REFINE_TASK_INSTRUCTION = [
  * @param template - the card's own HTML for this skill.
  * @param payload - the clicked row's raw fields; absent for a run no row triggered.
  * @param instruction - what the user asked this run to do; absent for a run that said nothing.
+ * @param budgetMs - the deadline the run has, when it has one.
+ * @param handoff - notes the steps before this one left, when this run cannot continue
+ * their conversation.
  * @returns the complete model-facing prompt text.
  */
 export function renderWorkbenchSkillPrompt(
@@ -97,11 +100,13 @@ export function renderWorkbenchSkillPrompt(
   payload?: Record<string, unknown>,
   instruction?: string,
   budgetMs?: number,
+  handoff?: string,
 ): string {
   return [
     ...skillBlock(skill),
     ...rowDataBlock(payload),
     ...instructionBlock(instruction),
+    ...handoffBlock(handoff),
     ...budgetBlock(budgetMs),
     '',
     '<output_document>',
@@ -114,6 +119,29 @@ export function renderWorkbenchSkillPrompt(
       TASK_INSTRUCTION_REGION,
     ].join('\n'),
   ].join('\n')
+}
+
+/**
+ * Frame what the earlier steps of this pipeline left behind.
+ *
+ * A step normally continues the conversation its predecessor ran in, and then the
+ * conversation is the hand-off. When it cannot — the session is gone, or this step was
+ * started on its own — the notes the earlier steps wrote into the workspace stand in for
+ * it. They are quoted rather than adopted: they are that step's own account of what it
+ * produced, and the skill being applied here is still this card's.
+ * @param handoff - the notes, oldest first, as they were read back; absent when there are none.
+ * @returns the block's lines, or nothing at all when there is no note.
+ */
+function handoffBlock(handoff: string | undefined): string[] {
+  if (handoff === undefined || handoff.trim() === '') return []
+  return [
+    '',
+    'The steps before this one in the pipeline left the notes below. Their conversation is',
+    'not available to you, so these notes are what you have of what they produced:',
+    '<previous_steps>',
+    handoff,
+    '</previous_steps>',
+  ]
 }
 
 /**

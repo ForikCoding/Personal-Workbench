@@ -23,6 +23,7 @@
 - 只归档最后一步的会话；中间步骤归档了，下一步就会挂到一个关掉的会话上。
 - 某一步没结算就停链，并把原因写在画布上（第几步、为什么），后续步骤保持"等待"——它们根本没跑。
 - 单跑某一步 = 长度为 1 的链，自带独立会话，不污染整链上下文。
+- **交接单落盘兜底**：每一步结算时把自己要留给后人的那段话写进工作目录 `.workbench/handoff/<流水线>/<步号>.md`（由输出的 `handoff` 字段决定，每次覆盖，单条 8 KiB、合计 24 KiB）。链的第一步、以及单独重跑的某一步会读它，按步序拼成 `<previous_steps>` 放进提示词；能接上会话的步骤不读——对话本身就是前文。读不到当作没有、写不进只 warn：落盘只是兜底，坏了不该让已经跑完的一步失败。
 - 检视器三个页签**直接挂载**既有的运行记录 / 配置 / 结果页，没有重写：结果页的模板预览、源码、放大、重新生成，与单任务完全一致。
 
 ## 装法
@@ -53,9 +54,9 @@ profile 的 `package.json` 换成 `dsh-workbench-2.5.0.tgz`。装完整个退出
 
 ## 回归
 
-`corepack yarn workspace dsh-workbench check` 全绿：typecheck 4 份 tsconfig 全 0；`vitest` **992 passed / 3 skipped**（56 个 spec 文件）；build 0；`verify:artifacts` 干净。
+`corepack yarn workspace dsh-workbench check` 全绿：typecheck 4 份 tsconfig 全 0；`vitest` **1015 passed / 3 skipped**（57 个 spec 文件）；build 0；`verify:artifacts` 干净。
 
-本次新增测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`；`WorkbenchPage.spec.tsx` 从网格用例重写为 17 条三区用例（含"两步按序跑、第二步带上第一步的 sessionId"与"第一步失败则第二步不启动"）。
+本次新增测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`pipeline-handoff.spec.ts`(15)、`skill-card-prompt-handoff.spec.ts`(4)、`skill-card-route.spec.ts` 追加 4 条步骤模式（此前 `kind:'step'` 会被 400 拒掉，正是这组用例暴露的）、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`；`WorkbenchPage.spec.tsx` 从网格用例重写为 17 条三区用例（含"两步按序跑、第二步带上第一步的 sessionId"与"第一步失败则第二步不启动"）。
 
 ## 没做的（写进设计文档 §7）
 
@@ -63,3 +64,4 @@ profile 的 `package.json` 换成 `dsh-workbench-2.5.0.tgz`。装完整个退出
 - 跨步骤的工作目录一致性没有校验：一条链以第一步的卡片为准。
 - 画布上没有步骤级 `instruction` 的编辑入口（契约与存储已经通了）。
 - 面板关闭会中断链：驱动在客户端。
+- 交接单的写入在 runner 里，测试覆盖到模块 / 路由 / 提示词三层，runner 里那两行只过了类型检查与代码审阅。

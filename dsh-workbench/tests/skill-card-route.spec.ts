@@ -815,7 +815,7 @@ describe('workbench skill card run route', () => {
     expect(JSON.parse(none.body).error.message).toBe('mode must be an object')
 
     const unknown = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: { kind: 'other' } })))
-    expect(JSON.parse(unknown.body).error.message).toBe('mode.kind must be card, bare or refine')
+    expect(JSON.parse(unknown.body).error.message).toBe('mode.kind must be card, bare, refine or step')
 
     const nameless = await run(handle, at(RUN_PATH, 'POST', runBody({ mode: { kind: 'bare' } })))
     expect(JSON.parse(nameless.body).error.message).toBe('mode.skill must be a kebab-case skill name')
@@ -1076,5 +1076,59 @@ describe('workbench skill card directory route', () => {
     const missing = await run(handle, at('/api/workbench/skill-card/directory'))
     expect(missing.statusCode).toBe(400)
     expect(asked).toEqual([])
+  })
+})
+
+describe('workbench skill card run route: pipeline steps', () => {
+  it('accepts a step that opens the chain, and one that joins it', async () => {
+    const opening = runtime({ outcomes: ['hang'] })
+    const first = await run(opening.run, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0 } },
+    })))
+    expect(first.statusCode).toBe(202)
+    opening.runner.cancel('skill-card')
+
+    const joining = runtime({ outcomes: ['hang'] })
+    const sessionId = (joining.fake.createdAgents[0]?.id ?? 'session-1') as string
+    const second = await run(joining.run, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } },
+      sessionId,
+    })))
+    expect(second.statusCode).toBe(202)
+    joining.runner.cancel('skill-card')
+  })
+
+  it('refuses a step that does not say whether it opens or joins', async () => {
+    const refused = runtime()
+    const response = await run(refused.run, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'step', terminal: true },
+    })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body)).toMatchObject({
+      error: { code: 'invalid-request', message: 'mode.join must be a boolean' },
+    })
+    expect(refused.fake.activations).toHaveLength(0)
+  })
+
+  it('refuses a hand-off that is not a pipeline and a step', async () => {
+    const refused = runtime()
+    const response = await run(refused.run, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'step', terminal: false, join: false, handoff: { pipelineId: '', step: 0 } },
+    })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body)).toMatchObject({
+      error: { code: 'invalid-request', message: 'mode.handoff.pipelineId must be a pipeline id' },
+    })
+  })
+
+  it('refuses a step index that is not a position in a pipeline', async () => {
+    const refused = runtime()
+    const response = await run(refused.run, at(RUN_PATH, 'POST', runBody({
+      mode: { kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: -1 } },
+    })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body)).toMatchObject({
+      error: { code: 'invalid-request', message: 'mode.handoff.step must be a step index' },
+    })
   })
 })
