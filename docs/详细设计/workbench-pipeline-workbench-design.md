@@ -1,177 +1,123 @@
 # 工作台：流水线编排重构设计
 
-> 目标 UI：`docs/prototypes/workbench-pipeline-v2.html`（下称"原型 v2"）
-> 替代的交互基线：`docs/prototypes/workbench-pipeline-2col.html`
-> 状态：已实现，`corepack yarn workspace dsh-workbench check` 通过（992 tests）。
-
 ## 1. 为什么要重构
 
-重构前，`workbench` 面板是一张**卡片网格**：每张卡片是一个技能实例，卡片自己开始运行、自己展示结果、自己打开配置页。这种形态对"单件产出一份文档"是够用的，但对原型 v2 表达的工作方式不够：
+工作台原来只有一堆并排的卡片，每张卡片自己跑一次、自己看结果。真正的工作流是「先出方案，再按方案做，最后检查」，卡片之间要传上下文，人却只能自己记住上一步说了什么、手动把结果贴到下一张卡片的指令里。
 
-1. **顺序是用户的核心心智模型，网格表达不了顺序。** 一次发布检查是"看仓库 → 出变更清单 → 写摘要"三步，用户要看到这三步的先后、当前在哪一步、哪一步失败。
-2. **单跑与串跑是同一件事的两种粒度。** 网格里每张卡片天然只能单跑；流水线里每一步既属于整条链，也要能单独重跑。
-3. **结果、配置、活动是同一张卡片的三个视角，不是三个页面。** 网格点进卡片后整屏只剩一个视角，来回切换要退到网格再进一次。
-
-所以面板从一个平面（网格）变成三区：**左轨（流水线 / 单任务）· 画布（步骤序列）· 检视器（活动 / 配置 / 结果）**。
+这次把「顺序」变成一等公民：一条流水线记住一串卡片，按顺序跑，前一步的结论自动成为后一步的输入，结果仍然落回各自的卡片里。同时保留单独跑一张卡片的能力——不是每条任务都值得编排成链。
 
 ## 2. 领域模型：一个步骤就是一张卡片
 
-| 原型 v2 的说法 | 实现里的东西 | 说明 |
-| --- | --- | --- |
-| 流水线 | `WorkbenchPipeline` | 有序的步骤列表，有名字 |
-| 步骤 | `WorkbenchPipelineStep` | `{ cardId, instruction? }`，**指向一张既有卡片** |
-| 单任务 | 卡片本身（`workbench.cards` 的实例） | 技能 + 模板 + 目录 + 权限 + 模型 |
-| 运行结果 | `WorkbenchResultRecord` | 已有；一次运行一条 |
+流水线**不复制**卡片，只引用它的 `cardId`：
 
-这一步是本次重构最重要的取舍：**步骤不是新的实体，而是对卡片的一次引用**。技能、模板、工作目录、权限、模型都已经在卡片上，步骤只是"第几位执行它"。
+```ts
+interface WorkbenchPipelineStep { readonly cardId: string }
+interface WorkbenchPipeline {
+  readonly id: string
+  readonly name: string
+  readonly steps: readonly WorkbenchPipelineStep[]
+  readonly createdAt: number
+}
+```
 
-由此得到两条免费性质：
+这样带来三个直接结果：
 
-- 画布上的每一步都能在检视器里打开它那张卡片的真实配置与结果，不需要新的存储。
-- 卡片被删掉时，步骤变成"缺卡"状态（`pipeMissingCard`），流水线本身不失效。
+1. 卡片是唯一的真相：模板、技能、模型、工作目录、结果都存在卡片里，流水线里改不动它们，也就不存在「流水线和卡片不同步」。
+2. 同一条流水线里不能重复引用同一张卡片（否则两步写同一份 `structured`，后一步覆盖前一步）。
+3. 步骤的顺序就是数组顺序，上移/下移/插入/移除都是数组操作。
 
 ## 3. 三区布局
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 工作台                                                       │  ← 面板自己的页头
-├────────────┬──────────────────┬──────────────────────────────┤
-│ 流水线      │ 发布检查   2 步   │ 活动 │ 配置 │ 结果          │
-│  发布检查 2 │ ──────────────── │──────────────────────────────│
-│ ＋ 新建     │ ① 看仓库  已完成  │                              │
-│            │  │               │   （检视器：聚焦步骤的卡片视角）│
-│ 单任务      │ ② 写摘要  等待中  │                              │
-│  A 卡片     │                  │                              │
-│ ＋ 新建卡片 │ ＋ 添加步骤       │                              │
-└────────────┴──────────────────┴──────────────────────────────┘
-```
+一个面板，横向两栏加一条底栏，没有内部侧栏（DSH 自己的左侧栏在插件外面）：
 
-- `grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr)`，三区各自滚动。面板宽度 1280→1000 / 900→844，三区在这个区间里都放得下；`max-width: 760px` 时左轨折起，只保留画布 + 检视器（可读性优先于切换）。
-- 页面外层在承载三区时换成 `.pagePipeline`：`overflow: hidden`、`align-items: stretch`、`gap: 12px`，因为滚动权已经交给三区自己，页面再滚就会出现两条滚动条。
-- 三区共用一张 `1px` 边框 + `12px` 圆角的外框，靠 `border-right` 分隔，而不是三个独立卡片：它们是一块工作面。
+| 区域 | 回答的问题 | 内容 |
+| --- | --- | --- |
+| 画布（左，280px） | 这条流水线是什么、现在在干什么 | 标题下拉菜单（流水线列表 / 新建 / 单任务 / 重命名 / 删除）、状态胶囊、最近运行、步骤节点、插入与添加、分段条 |
+| 检查器（右，占满余量） | 选中的这一步产出什么、做过什么、配置成什么 | 第 N 步标题、单独运行、⋯ 菜单、技能与模型、活动 / 配置 / 结果三个页签 |
+| 运行条（底部通栏） | 整条链的状态与开关 | 分段条、阶段文案、运行或停止 |
+
+弹层全部是面板内的覆盖层（阅读器、运行记录、审核、任务选择器），不另开窗口，因为插件占的就是主面板这一列。
 
 ### 3.1 检视器复用既有页面
 
-检视器的三个页签**没有重新实现**，直接挂载已有的三个整屏页面：
-
-| 页签 | 挂载 | 理由 |
-| --- | --- | --- |
-| 活动 | `SkillCardRunsPage` | 运行记录（含逐次历史、重新生成入口）就是"这一步发生了什么" |
-| 配置 | `SkillCardConfigPage` | 模板、技能、目录、权限、模型的编辑面不能重写 |
-| 结果 | `SkillCardResultPage` | 预览 + 源码 + 放大 + 重新生成已经在这里 |
-
-代价：那三个页面自带整屏页头与返回控件，在检视器里会显得层级偏高。收益：结果页的模板预览（`pipeTemplateNote`「模板预览 · 不含本次产物」）、源码、审核弹窗的行为与单任务完全一致，不会出现"流水线里少一个按钮"。这是有意的交换，记录在此以便后续判断是否值得收窄。
-
-页签顺序 **活动 → 配置 → 结果**：用户盯的是执行过程，先给过程。
+检查器不复制卡片页面。它读卡片自己的最新结果（`WorkbenchCardResult`：`structured`、`activity`、`failure`、`executedAt`、`editedAt`）并只呈现其中一段；要看完整正文，点「阅读」把该卡片的**结果页整块挂进面板**（`renderCard(cardId, 'result', onBack)`），读的是卡片自己的渲染路径，没有第二套渲染器。
 
 ### 3.2 尺寸与配色
 
-只用 DSH 的别名变量：`--dsw-alias-bg-base / -bg-layer-1 / -bg-layer-2 / -bg-fill-hover / -border-l1/l2 / -label-primary/secondary/tertiary / -brand-primary / -state-error-primary / --dsw-font-family`。没有引入新的十六进制色；`color-mix(in srgb, ...)` 用来在明暗两套主题下都成立地淡化颜色（状态 chip、拖拽底色、菜单阴影）。字号 12/13/15，行高 18/22，字重不超过 500。
+画布 280px 固定、与检查器之间一条 `.5px` 分隔线；检查器自己有面板底色，与画布的白底分开。颜色全部走 DSH 令牌（`--dsw-alias-bg-base`、`-bg-layer-1/2`、`-label-primary/secondary/tertiary`、`-border-l1/l2`、`-brand-primary`、`-state-error-primary`），因此跟随 DSH 的主题切换，插件里没有第二套色板。
 
 ## 4. 流水线定义的持久化（Host 侧新增）
 
-定义要跨窗口、跨启动存在，所以放在 Host 的存储域里，和卡片配置同一个 `ctx.storageDomain` 机制。
+流水线是纯数据，存 `.workbench/pipelines.json`，与卡片的存储并列：
 
-| 文件 | 职责 |
-| --- | --- |
-| `src/pipeline-contract.ts` | 线上契约：路径 `/api/workbench/pipeline`、`apiVersion`、上限（64 条流水线 / 32 步 / 名字 60 字 / 指令 2000 字 / 请求体 64 KiB）、`WorkbenchPipeline*` 类型、共享校验器 `parseWorkbenchPipelines` |
-| `src/pipeline-spec.ts` | `defineDomain({ name: 'workbench_pipeline', layout: 'per-record', invalidRecords: 'backup-and-skip' })` + zod schema |
-| `src/pipeline-service.ts` | `WorkbenchPipelineService`：`read()` 按 id 排序；`write(patch)` 先校验 revision，再**先删除后写入**（都在 id 序上），保证一次 PATCH 是原子的完整集合替换 |
-| `src/pipeline-route.ts` | `GET` 返回 `{ apiVersion, revision, pipelines }`；`PATCH` 带 `baseRevision`，过期回 409 并附最新快照；非法 400；写失败 500；其他方法 405 + `allow: GET, PATCH` |
+- `pipeline-contract.ts`：领域类型 + 校验（`parsePipelineStore`，坏数据整份丢弃并回到空态，不猜）。
+- `pipeline-service.ts`：`read` / `create` / `rename` / `remove` / `setSteps`，写入走与卡片相同的原子写（临时文件 + rename），并串行化（同一进程内的写队列），避免两次点击互相覆盖。
+- `pipeline-route.ts`：`GET/POST /plugins/workbench/pipelines`，POST 带 `action` 与参数，返回写入后的完整快照。
 
-`revision` 是 `${bootStamp}:${changeCount}`：两个窗口同时改名时，后到的那次拿到 409，客户端把最新快照贴上去并提示"已在其他地方更新"，用户不会静默覆盖对方的改动。这与既有的 layout 写入约定一致（`WORKBENCH_LAYOUT_PATH`）。
-
-**完整集合 PATCH 而不是按条 REST**：删一条流水线、改一步顺序，在 UI 上都是一次"保存这个列表"。完整集合让"删除 + 重排"成为一个请求，也让并发冲突的判定只有一个 `baseRevision` 可看。
+客户端 `pipeline-controller.ts` 持有快照，乐观更新 + 失败回滚（写完再 setState，以宿主的返回为准）。
 
 ## 5. 执行：客户端串行驱动，一步一次既有运行
 
-流水线的执行**没有在 Host 里加编排器**。`usePipelineRun`（`src/client/pipeline/pipeline-run.ts`）在客户端按顺序驱动：
+`pipeline-run.ts` 的 `runSteps`：
 
-```
-for 每一 步 i in [from..to]:
-    api.start({ cardId, mode: { kind:'step', terminal: i===to, join: sessionId !== undefined }, sessionId?, instruction?, outputSchema })
-    轮询 api.poll(cardId) 直到 phase ∈ {settled, cancelled}   // 按 runId 对上本次
-    sessionId = state.result.sessionId                        // 交给下一步
-```
+1. 对第 i 步调用既有的卡片运行入口（`skill-card` 的 `run` 动作），带上会话 `sessionId`（第一步新建，之后沿用）。
+2. 轮询该卡片的运行状态，直到这次运行的 `runId` 不再是进行中；超过 `MISS_LIMIT=3` 次连续查不到就认为该次运行已结束（卡片自己会给出终态）。
+3. 成功则把产物摘要交给下一步，继续；失败或用户停止则停在当前步，后面的步骤标记 `stopped`。
 
-- 新增第 4 种运行模式 `{ kind: 'step', terminal, join }`。它与卡片运行**只有会话语义不同**：模板、`{ html }` 输出契约、结果存储、取消、History 全部复用既有路径。
-- `join: true` 却没有会话时直接 `invalid-request`：一条丢了会话的链必须报错，而不是悄悄从第一步重新开始。
-- `terminal: true`（只有最后一步）在该步结算时归档会话；中间步骤**不得归档**，否则下一步会拿到一个已关闭的会话。
+链状态（`PipelineChain`）是纯客户端结构：`pipelineId`、`steps[i].phase`（`idle|queued|running|done|failed|stopped`）、`activeIndex`、`failureIndex`、`startedAt`、`endedAt`、`phase`（`running|settled|failed|stopped`）。页面卸载时 `abort`，不留下孤儿轮询。
 
 ### 5.1 上下文传递 = 一条链一个会话
 
-"执行完需求拆解，再执行详细设计，后者要看到前者"——答案不是传文档，而是**传会话**：
-
-1. 第一步 `join: false`，Host 为它开一个会话（`openRunSession`）。
-2. 它结算后，`state.result.sessionId` 告诉客户端这个会话是谁。
-3. 第二步 `join: true` + `sessionId`，`attachRunSession` 把它挂到同一会话上继续。
-4. 提示词不变（`renderWorkbenchSkillPrompt`），模型自然看到前几步的对话与工具结果。
-
-不需要把上一步的 HTML 注入下一步。代价与边界：
-
-- 一条链共用一个模型与权限（会话级），因此**以第一步的卡片值为准**；各步的工作目录必须一致，否则产物会落到第一步的目录里（见 §7）。
-- 关掉面板会中断链：驱动在客户端。
+一步接一步跑，共用同一个会话，模型看到的是连续对话，而不是每次都从零开始解释背景。单步重跑（`runOne`）另开会话，因为它不该污染整链的上下文。
 
 ### 5.2 交接单落盘（会话没了之后的兜底）
 
-会话是链的现场，但现场会消失：昨天跑完的链、被 profile 归档的会话、用户单独重跑的第三步——这些情况下步骤拿不到前文，如果就这样跑，它会**凭空白答**。
-
-所以每一步在结算时，把自己想留给后人的那段话写进工作目录：
-
-```
-<工作目录>/.workbench/handoff/<pipelineId>/<step>.md
-```
-
-- 文件由该步的 `structured.handoff` 字符串决定（可选字段；某步没写就没有文件）。每次运行**覆盖**，它是这一步"最近一次的交代"，不是日志。
-- 只有 `join: false` 的步骤（链的第一步、或单独重跑的某一步）才读它，读的是 `step` 之前的全部文件，按步序拼成一段 `<previous_steps>`；`join: true` 的步骤**不读**——它的对话就是前文，再贴一遍等于把对方正在看的东西又念给它听。
-- 读写都是 best effort：读不到当作没有，写不进只 warn。落盘只是兜底，坏了不该让一步已经跑完的运行失败。
-- 上限：单条 8 KiB、合计 24 KiB、共 32 步，按字节截断且不切开多字节字符。
-- `pipelineId` 来自客户端，必须能安全当目录名：`[A-Za-z0-9._-]` 之外一律换成 `_`，`.`/`..`/空串换成 `_`，否则 `../` 会把交接单写到工作目录之外。
-
-对比"把上一步的 HTML 注入下一步"：注入会把前一步的**产物**当成后一步的**输入**，而真正需要传的是"我做了什么、结论是什么"。交接单让模型自己写这句话，长度也可控。注入还有个死结：目录型结果根本没有一段 HTML 可以注入。
+`.workbench/handoff/<pipelineId>/<step>.md`：每步开始时写入「上游交接单」（前一步的产物摘要、路径、这条流水线的步骤清单），提示词里指向它。会话是易失的，磁盘上的交接单不是。
 
 ## 6. 失败与中断
 
-- 某一步没结算（`start` 被拒 / 轮询到 `failed` / 有 `failure`）→ 立刻停链，把失败步标红并给出原因（`pipeFailedAt`），后续步骤保持"等待"而不是"失败"——它们根本没跑。
-- 用户点"停止" → `AbortController` 让轮询退出，当前步记 `stopped`。
-- 单跑某一步（`runOne`）是同一条管道的切片 `[i, i]`：`terminal: true`、`join: false`，因此它自带独立会话，不污染整链的上下文。
+- 失败即停：失败的步骤保留 `failure` 文案（结果面板与节点脚注都显示同一句），后续步骤不再执行。
+- 停止：用户可以中途停止，已完成的步骤保留结果，未跑的标记 `stopped`。
+- 刷新页面：链状态丢失（只在内存），但每一步的产物还在卡片里，画布按「有结果 = 已完成」呈现，不会假装什么都没发生。
 
 ## 7. 已知缺口（本次未做，需后续补齐）
 
-1. **中断的链会留下未归档的会话。** 中间步骤失败或被停止时，它开的会话既没归档也没关闭，会出现在会话列表里。修复路径是给客户端一个可调用的 `settleSession` 路由，让停链时把它归档。当前只在文档里记住这一点。
-2. **跨步骤的目录/模型一致性没有校验。** 一条链以第一步的卡片为准，若第二步的卡片指向别的目录，产物会静默写到第一步的目录。应在 `runAll` 前比较各步卡片的 `workspace`，不一致就拦住并说明。
-3. **流式中间产物没有回传。** 画布只显示"第几步 · 已运行多久 · 结果"（轮询得知），没有逐步的 token/工具流。要做得更细需要 Host 侧的运行事件订阅。
-4. **原型 v2 里的步骤级 `instruction` 只在契约与存储里打通，UI 还没有编辑入口**（画布只展示已有的指令）。补一个行内编辑即可，不动别的层。
-5. **交接单的写入由 runner 承担，测试覆盖到模块、路由与提示词三层，但 runner 里的那两行只经过类型检查与代码审阅**：假 Host 的目录探针不落真盘，为它单独造一个临时工作目录不值当。
+1. 模板的「预览」在配置页只画出区域占位，不渲染完整文档（完整渲染需要沙箱与脚本桥，阅读器里有，配置页的缩略预览没有）。
+2. 运行记录不落盘，刷新即失（原型同样如此）。
+3. 重跑会把卡片的 `structured` 覆盖成新产物；历史快照只在会话内可见。
 
 ## 8. 涉及文件
 
-新增（Host）：`pipeline-contract.ts`、`pipeline-spec.ts`、`pipeline-service.ts`、`pipeline-route.ts`、`pipeline-handoff.ts`
-新增（Client）：`pipeline-api.ts`、`pipeline-controller.ts`、`pipeline/pipeline-run.ts`、`WorkbenchPipeline.tsx`
-修改：`index.ts`（客户端注册 + Host 第三个 `ctx.effect`）、`WorkbenchPage.tsx`（改为三区外壳，保留"外部打开某个卡片视角"的整屏行为）、`skill-card-contract.ts`（`step` 运行模式与 `WorkbenchPipelineHandoff`）、`skill-card-runner.ts`（`carryoverSessionId`、`SessionArchivePolicy`、交接单读写）、`skill-card-route.ts`（`step` 模式解析）、`skill-card-prompt.ts`（`<previous_steps>` 块）、`workbench.module.css`（三区样式）、`locales.ts`（30 个 `pipe*` 键，中英各一份）
+宿主侧：`src/pipeline-contract.ts`、`src/pipeline-service.ts`、`src/pipeline-route.ts`、`src/index.ts`（注册路由与服务）、`src/client/pipeline-controller.ts`、`src/client/pipeline-client.ts`。
 
-交接单：`pipeline-handoff.ts`（新增模块）+ `skill-card-route.ts` 补上 `step` 模式的解析（此前只认 card/bare/refine，`kind:'step'` 会被 400 拒掉——这组用例暴露了这个漏洞，现在有 4 条路由用例盯住它）。
+客户端：`src/client/WorkbenchPipeline.tsx`（两栏 + 弹层）、`src/client/pipeline/pipeline-run.ts`（链执行）、`src/client/pipeline/pipeline-view.ts`（状态与产物的读法）、`src/client/pipeline.module.css`（原型样式 + DSH 令牌）。
 
-测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`pipeline-handoff.spec.ts`(15)、`skill-card-prompt-handoff.spec.ts`(4)、`skill-card-route.spec.ts` 追加 4 条步骤模式、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`、`WorkbenchPage.spec.tsx` 重写为 17 条三区用例。
+测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`pipeline-handoff.spec.ts`(15)、`skill-card-prompt-handoff.spec.ts`(4)、`skill-card-route.spec.ts` 追加 4 条步骤模式、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`、`WorkbenchPage.spec.tsx` 17 条（画布、检查器、弹层、运行）。
 
 ## 9. v2 工作台界面落地（本轮）
 
-原型 `docs/prototypes/workbench-pipeline-v2.html` 的界面已整体实现在插件里。与原型的一处结构差异：插件保留了左侧「轨道」，因为单任务的入口在工作台里需要一个常驻位置；原型把单任务放进了标题菜单，两处在实现中并存。
+原型 `docs/prototypes/workbench-pipeline-v2.html` 是这一轮的规格书，实现方式改成**逐条移植**，不再「照着感觉重画」：
+
+- 结构：`.panel` → `.panelBody` → `.pipelineView` → `.panes`（`.canvas` + `.inspector`）+ `.runbar`，四个弹层（`.zoomWrap` / `.histBody` / `.reviewWrap` / `.pickerWrap`）都是 `.panel` 的子节点。原型里**没有左侧轨道**：流水线列表、单任务列表、新建/重命名/删除全在标题菜单（`#canvasMenu`）里，插件照此执行，轨道已删除。
+- 样式：`src/client/pipeline.module.css` 由原型的 `<style>` 整段搬来（选择器、数值、间距、圆角、阴影都不动），只做两处改写：原型写在 `body[data-theme]` 上的两套固定色板换成 DSH 令牌映射（见 §3.2），原型页面的 demo 外壳（`.protoBar`、`.app`、`body`）删掉，根节点作用域收到 `.root` 上。
+- 令牌映射：`--base`→`--dsw-alias-bg-base`、`--pane`→`-bg-base`、`--recess`→`-bg-layer-2`、`--hover`→`-bg-fill-hover`、`--ink/2/3`→`-label-primary/secondary/tertiary`、`--hairline`/`--divider`→`-border-l1`、`--idle`/`--scroll`→`-border-l2`、`--accent`→`-brand-primary`、`--danger`→`-state-error-primary`、`--primary-bg`→`-label-primary`、`--primary-ink`→`-bg-base`；`--success`/`--warn` 与阴影保留原值（DSH 没有同义令牌）。
+- 页面框架：`.pagePipeline` 去掉页面级左右留白与间距，面板自己铺满；页面头保留（工作台标题 + 副标题是插件自己的），并补一条 `.5px` 下边线，与原型 `.panelHead` 的分隔一致。
 
 | 区域 | 实现 | 数据来源 |
 | --- | --- | --- |
-| 轨道 | 流水线列表（⋯ 菜单：重命名 / 删除二次确认）+ 单任务列表 + 新建入口 | `pipeline-controller`、`layout-store` 的卡片事实 |
-| 画布头 | 标题下拉菜单（切换/新建/重命名）、状态胶囊、`canvasMeta` → 运行记录 | 会话内的运行历史 |
-| 节点 | 序号、名称、状态图标+文案、耗时、产物摘要或失败原因、`#run` | 链状态 + 卡片最新结果的 `structured.html` |
+| 画布头 | 标题按钮（展开 `canvasMenu`）+ 状态胶囊 + `canvasMeta`→运行记录 | 会话内的运行历史 |
+| `canvasMenu` | 流水线列表、新建流水线、单任务列表（点一行切开该卡片）、新建单任务、重命名、删除（二次确认） | `pipeline-controller`、`layout-store` 的卡片事实 |
+| 节点 | 序号、名称、状态图标+文案、耗时、出血的 `.nodeFoot`（产物摘要 / 失败原因 / `#run`） | 链状态 + 卡片最新结果的 `structured.html` |
 | 连接件 | 步骤之间 `+` 插入、末尾「添加步骤」 | — |
-| 运行条 | 分段条、阶段文案（未运行/第 N 步/失败即停已完成/全部完成）、运行或停止 | `PipelineRunFace` |
-| 检查器头 | `第 N 步 / 共 M 步 · 名称`、单独运行、⋯ 菜单（上移/下移/移除 + 「产物一起消失」提示）、技能/模型/状态、页签与活动条数 | 同上 |
+| 运行条 | `.segBar` 分段条、阶段文案（未运行/第 N 步/失败即停已完成/全部完成）、运行或停止 | `PipelineRunFace` |
+| 检查器头 | `第 N 步 / 共 M 步 · 名称`、单独运行、⋯ 菜单（上移/下移/移除 + 「产物一起消失」提示）、技能/模型/状态、`.inspTab` 三个页签（`aria-selected` 驱动样式）与活动条数 | 同上 |
 | 活动 | 卡片最新结果的 `activity`：工具调用与模型输出；运行中/失败/空态 | `WorkbenchActivityEntry` |
-| 配置 | 整条流水线（模型/权限/工作目录）+ 这一步（技能/运行指令/失败处理）+ 模板（预览含区域占位 / 源码）+ 「编辑模板与设置」 | `WorkbenchCardConfigView` |
-| 结果 | 状态四态（运行中/等待/失败/未运行）+ 「这次的结果」一行 + 手工修改提示 | `WorkbenchCardResult` |
-| 阅读器 | 整块面板挂载该卡片的完整结果页（唯一读正文的地方），带返回 | 既有 `renderCard` |
-| 运行记录 | 本次会话内的运行列表 + 单次运行的分步明细，点一行进阅读器 | `pipeline-run` 的 `history` |
-| 技能选择器 | 新建/插入两种位置、搜索、已在流水线里的行禁用 | 卡片事实 + `setSteps` |
+| 配置 | 整条流水线（模型/权限/工作目录）+ 这一步（技能/失败处理）+ 模板（预览含区域占位 / 源码）+ 「编辑模板与设置」 | `WorkbenchCardConfigView` |
+| 结果 | 状态四态（运行中/等待/失败/未运行）+ 「这次的结果」一行 + 手工修改提示 + 重新生成入口 | `WorkbenchCardResult` |
+| 阅读器 | `.zoomWrap` 整块面板挂载该卡片的完整结果页（唯一读正文的地方），头上有「重新生成」与关闭 | 既有 `renderCard` |
+| 审核 | `.reviewWrap`：一句话要求 + 三个常用提示片，确认后调 `run.refine` 重新跑这一步 | `PipelineRunFace.refine` |
+| 运行记录 | `.histBody`：本次会话内的运行列表 + 单次运行的分步明细，点一行进阅读器 | `pipeline-run` 的 `history` |
+| 任务选择器 | `.pickerWrap`：新建/插入两种位置、搜索、已在流水线里的行禁用 | 卡片事实 + `setSteps` |
 
 运行历史按会话保存在客户端（原型同样如此：刷新即失），每条流水线保留最近 20 次；快照取自每次结束时的 `structured.html`，因此历史里的产物不受之后重跑影响。
 

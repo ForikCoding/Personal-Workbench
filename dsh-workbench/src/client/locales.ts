@@ -422,7 +422,18 @@ export const zh = {
   pipeRename: '重命名',
   pipeRenameLabel: '流水线名称',
   pipeDelete: '删除这条流水线',
-  pipeDeleteConfirm: '再点一次确认删除'
+  pipeDeleteConfirm: '再点一次确认删除',
+  pipeReaderTitle: '阅读结果',
+  pipeEscHint: 'Esc 关闭',
+  pipeReviewTitle: '重新生成',
+  pipeReviewSubtitle: '说明要改哪里，其余保持原样',
+  pipeReviewPlaceholder: '例如：表格换成三列，金额右对齐',
+  pipeChipEdges: '两侧留白再宽一点',
+  pipeChipTable: '表格换成三列',
+  pipeChipShorter: '篇幅再短一半',
+  pipeReviewWarn: '重新生成会覆盖这一步现在的产物，之前的结果仍留在运行记录里。',
+  pipeCancel: '取消',
+  pipeRegenerate: '重新生成'
 }
 
 /** English dictionary; the annotation keeps both dictionaries on one key set. */
@@ -811,7 +822,18 @@ export const en: Record<keyof typeof zh, string> = {
   pipeRename: 'Rename',
   pipeRenameLabel: 'Pipeline name',
   pipeDelete: 'Delete this pipeline',
-  pipeDeleteConfirm: 'Click again to delete'
+  pipeDeleteConfirm: 'Click again to delete',
+  pipeReaderTitle: 'Result',
+  pipeEscHint: 'Esc to close',
+  pipeReviewTitle: 'Regenerate',
+  pipeReviewSubtitle: 'Say what should change; everything else stays as it is',
+  pipeReviewPlaceholder: 'e.g. Make the table three columns and right-align the amounts',
+  pipeChipEdges: 'Wider margins',
+  pipeChipTable: 'Three-column table',
+  pipeChipShorter: 'Half the length',
+  pipeReviewWarn: 'Regenerating replaces the current output of this step; earlier results stay in the run history.',
+  pipeCancel: 'Cancel',
+  pipeRegenerate: 'Regenerate'
 }
 
 /** Key union of the `workbench` namespace. */

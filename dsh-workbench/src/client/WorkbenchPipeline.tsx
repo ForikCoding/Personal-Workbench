@@ -1,16 +1,17 @@
 /**
- * The pipeline workbench: routes on the left, the chain in the middle, one step on the right.
+ * 流水线工作台：左边是这条流水线本身，右边是选中的这一步。
  *
- * Three zones that answer three different questions, and none of them duplicates another:
- * the rail says which pipelines exist, the canvas says what the chain is doing, and the
- * inspector says what one step produced, did, and is configured to do. Everything a step
- * *is* lives in its card — the pipeline only holds an order — so this surface never edits a
- * card's template; the inspector mounts the card's own page for that.
+ * 结构与 `docs/prototypes/workbench-pipeline-v2.html` 一一对应：面板头 → 两栏（画布 + 检查器）
+ * → 运行条，四个弹层（阅读器 / 运行记录 / 审核 / 选择器）都是面板内的覆盖层，不另开窗口。
+ * 样式逐条取自原型，只把原型的固定色板换成 DSH 令牌，于是插件跟 DSH 一起换肤。
+ *
+ * 步骤的“是什么”全在它自己的卡片里（模板、技能、模型、工作目录），流水线只记住顺序，
+ * 所以这里从不编辑卡片的模板：要改就进卡片自己的页面。
  * @module dsh-workbench/client/WorkbenchPipeline
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import css from './workbench.module.css'
+import css from './pipeline.module.css'
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts'
 import type { PipelineRunFace, PipelineStepPhase } from './pipeline/pipeline-run.ts'
 import type { PipelineRunEntry, StepProduct } from './pipeline/pipeline-view.ts'
@@ -32,18 +33,18 @@ type CardView = 'config' | 'runs' | 'result'
 /** Which inspector tab is showing. */
 type InspectorTab = 'activity' | 'config' | 'result'
 
-/** What the middle of the surface is showing. */
+/** What the inspector is looking at. */
 type Focus = { readonly kind: 'step'; readonly index: number } | { readonly kind: 'card'; readonly cardId: string }
 
 /** Props of the pipeline workbench. */
 export interface WorkbenchPipelineProps {
-  /** Stored pipelines and the mutations the rail offers. */
+  /** Stored pipelines and the mutations the menu offers. */
   readonly pipelines: WorkbenchPipelinesFace
   /** The run engine the canvas drives. */
   readonly run: PipelineRunFace
-  /** Cards the workbench knows about, as the rail lists them. */
+  /** Cards the workbench knows about, as the menu lists them. */
   readonly facts: readonly WorkbenchCardFact[]
-  /** Transport, so a step's stored result can be read without threading it through the page. */
+  /** Transport, so a step's stored result is read here rather than threaded through the page. */
   readonly api: WorkbenchSkillCardApi
   /**
    * Mount one card's own view.
@@ -53,7 +54,7 @@ export interface WorkbenchPipelineProps {
    * @returns the view.
    */
   readonly renderCard: (cardId: string, view: CardView, onBack: () => void) => ReactNode
-  /** Create a new single card, from the rail's own entry. */
+  /** Create a new single card, from the menu's own entry. */
   readonly onCreateCard: () => void
   /**
    * Translate one workbench string.
@@ -87,7 +88,7 @@ interface StepView {
 /**
  * Render the pipeline workbench.
  * @param props - stored pipelines, run engine, cards, transport, card views, and `t`.
- * @returns the three-zone surface.
+ * @returns the two-column surface with its overlays.
  */
 export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const { pipelines, run, facts, api, renderCard, onCreateCard, t } = props
@@ -96,16 +97,17 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [tab, setTab] = useState<InspectorTab>('activity')
   const [cards, setCards] = useState<readonly WorkbenchCardConfigView[]>([])
   const [results, setResults] = useState<readonly WorkbenchCardResult[]>([])
-  const [menuFor, setMenuFor] = useState<string | undefined>(undefined)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [stepMenu, setStepMenu] = useState<number | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<string | undefined>(undefined)
   const [renaming, setRenaming] = useState<string | undefined>(undefined)
-  const [titleMenu, setTitleMenu] = useState(false)
   const [picker, setPicker] = useState<{ readonly at: number } | undefined>(undefined)
   const [pickerQuery, setPickerQuery] = useState('')
   const [reader, setReader] = useState<{ readonly cardId: string } | undefined>(undefined)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyAt, setHistoryAt] = useState<number | undefined>(undefined)
-  const [stepMenu, setStepMenu] = useState<number | undefined>(undefined)
+  const [review, setReview] = useState<{ readonly cardId: string } | undefined>(undefined)
+  const [reviewText, setReviewText] = useState('')
 
   const active = useMemo<WorkbenchPipeline | undefined>(() => {
     const found = pipelines.pipelines.find(pipeline => pipeline.id === activeId)
@@ -115,8 +117,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   }, [activeId, pipelines.pipelines])
 
   // The page hands over the cards it can see from more than one place, so the same card can
-  // arrive twice; the rail lists each one once.
-  const railFacts = useMemo<readonly WorkbenchCardFact[]>(() => {
+  // arrive twice; the menu lists each one once.
+  const menuFacts = useMemo<readonly WorkbenchCardFact[]>(() => {
     const seen = new Set<string>()
     return facts.filter(fact => {
       if (seen.has(fact.id)) return false
@@ -126,10 +128,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   }, [facts])
 
   const labelOf = useCallback((cardId: string): string => {
-    const fact = facts.find(entry => entry.id === cardId)
+    const fact = menuFacts.find(entry => entry.id === cardId)
     const label = fact?.label ?? ''
     return label.length === 0 ? cardId : label
-  }, [facts])
+  }, [menuFacts])
 
   /** Read the stored cards and results, which every panel reads from. */
   const reload = useCallback(async () => {
@@ -156,13 +158,28 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     return () => { clearTimeout(timer) }
   }, [confirmDelete])
 
-  // Both menus close on the next click anywhere, which is what a menu has to do.
+  // The menus close on the next click anywhere, which is what a menu has to do. The
+  // dialogs close on Escape and their scrim instead.
   useEffect(() => {
-    if (menuFor === undefined && !titleMenu) return
-    const close = (): void => { setMenuFor(undefined); setTitleMenu(false) }
+    if (!menuOpen && stepMenu === undefined) return
+    const close = (): void => { setMenuOpen(false); setStepMenu(undefined) }
     document.addEventListener('pointerdown', close)
     return () => { document.removeEventListener('pointerdown', close) }
-  }, [menuFor, titleMenu])
+  }, [menuOpen, stepMenu])
+
+  const anyOverlay = reader !== undefined || historyOpen || review !== undefined || picker !== undefined
+  useEffect(() => {
+    if (!anyOverlay) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      setReader(undefined)
+      setHistoryOpen(false)
+      setReview(undefined)
+      setPicker(undefined)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey) }
+  }, [anyOverlay])
 
   const chain = run.chain !== undefined && active !== undefined && run.chain.pipelineId === active.id
     ? run.chain
@@ -185,7 +202,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       const result = resultOf(step.cardId)
       const html = resultHtml(result?.structured)
       const chainStep = chain?.steps[index]
-      // Without a chain in this page, a step that has a stored result has run before: it
+      // Without a chain in this panel, a step that has a stored result has run before: it
       // reads as done rather than idle, because that is what the user can see it produced.
       const phase: PipelineStepPhase = chainStep !== undefined && chainStep.phase !== 'idle'
         ? chainStep.phase
@@ -260,28 +277,6 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })()
   }, [pipelines, t])
 
-  // The reader takes the whole panel: it is the one place a result is read, and reading it
-  // inside a 320px column would be the same mistake as reading it in two places.
-  if (reader !== undefined) {
-    return (
-      <div className={css.pagePipeline} data-reader={reader.cardId}>
-        <div className={css.readerBar}>
-          <button
-            type="button"
-            className={css.ghostBtn}
-            data-reader-back=""
-            onClick={() => { setReader(undefined) }}
-          >
-            {t('pipeReaderBack')}
-          </button>
-        </div>
-        <div className={css.readerBody}>
-          {renderCard(reader.cardId, 'result', () => { setReader(undefined) })}
-        </div>
-      </div>
-    )
-  }
-
   const stateText = (phase: PipelineStepPhase): string => t(`pipeStepState_${stateView(phase).key}` as WorkbenchLocaleKey)
   const markOf = (phase: PipelineStepPhase): ReactNode => MARK[stateView(phase).mark]
 
@@ -306,300 +301,502 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const doneCount = chain === undefined ? 0 : chain.steps.filter(step => step.phase === 'done').length
   const failedAt = chain?.failureIndex
 
+  const runNoise = (): ReactNode => {
+    if (chain === undefined) {
+      return <span>{active === undefined || active.steps.length === 0 ? t('pipeNoSteps') : t('pipeNotRun')}</span>
+    }
+    if (chain.phase === 'running') {
+      return <span>{t('pipeRunningStep', { at: (chain.activeIndex ?? 0) + 1, count: active?.steps.length ?? 0 })}</span>
+    }
+    if (chain.phase === 'failed') {
+      return <span>{t('pipeFailedAt', { done: doneCount, count: active?.steps.length ?? 0, at: (failedAt ?? doneCount) + 1 })}</span>
+    }
+    if (chain.phase === 'stopped') {
+      return <span>{t('pipeStopped', { done: doneCount, count: active?.steps.length ?? 0 })}</span>
+    }
+    return <span>{t('pipeAllDone', { count: active?.steps.length ?? 0 })}</span>
+  }
+
+  const openReader = (cardId: string): void => { setReader({ cardId }) }
+
   return (
-    <div className={css.pagePipeline} data-workbench-pipeline="">
-      <div className={css.shell}>
-        {/* ── 轨道：有哪些流水线，有哪些单任务 ── */}
-        <nav className={css.rail} data-rail="">
-          <div className={css.railHead}>
-            <span>{t('pipeRailPipelines')}</span>
-            <button type="button" className={css.railAction} data-new-pipeline="" onClick={createPipeline}>
-              {t('pipeNewPipeline')}
-            </button>
-          </div>
-          {pipelines.pipelines.length === 0
-            ? <p className={css.railEmpty}>{t('pipeRailNoPipelines')}</p>
-            : (
-              <ul className={css.railList}>
-                {pipelines.pipelines.map(pipeline => {
-                  const current = pipeline.id === active?.id
-                  const armed = confirmDelete === pipeline.id
-                  return (
-                    <li key={pipeline.id} className={css.railItem}>
-                      {renaming === pipeline.id
+    <div className={`${css.root} ${css.panel}`} data-workbench-pipeline="">
+      <div className={css.panelBody}>
+        <section className={css.pipelineView}>
+          <div className={css.panes}>
+            {/* ── 画布：这条流水线长什么样，现在在干什么 ── */}
+            <div className={css.canvas} data-canvas="">
+              <div className={css.canvasHead}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className={css.canvasTitleRow}>
+                    <span>
+                      {renaming !== undefined
                         ? (
                           <RenameField
                             t={t}
-                            initial={pipeline.name}
+                            initial={active?.name ?? ''}
                             onCommit={(name) => {
                               setRenaming(undefined)
-                              if (name !== '' && name !== pipeline.name) void pipelines.rename(pipeline.id, name)
+                              if (name !== '' && name !== active?.name) void pipelines.rename(renaming, name)
                             }}
                             onCancel={() => { setRenaming(undefined) }}
                           />
-                        )
+                          )
                         : (
                           <button
                             type="button"
-                            className={current ? `${css.railRow} ${css.railRowCurrent}` : css.railRow}
-                            data-pipeline-row={pipeline.id}
-                            aria-current={current}
-                            onClick={() => { setActiveId(pipeline.id); setFocus(undefined) }}
+                            className={css.canvasTitleBtn}
+                            data-canvas-title=""
+                            aria-expanded={menuOpen}
+                            aria-haspopup="menu"
+                            disabled={active === undefined}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setMenuOpen(!menuOpen)
+                            }}
                           >
-                            <span className={css.railName}>{pipeline.name}</span>
-                            <span className={css.railCount}>{pipeline.steps.length}</span>
+                            <span>{active?.name ?? t('pipeNoPipeline')}</span>
+                            {MARK.chev}
                           </button>
-                        )}
+                          )}
+                    </span>
+                    <span className={css.chipState} data-canvas-state={chainState}>
+                      <span className={css.dot} data-s={chainState} />
+                      {stateText(chainState)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={css.canvasMeta}
+                    data-canvas-meta=""
+                    aria-label={t('pipeHistoryTitle')}
+                    disabled={active === undefined || active.steps.length === 0}
+                    onClick={() => { setHistoryOpen(true); setHistoryAt(undefined) }}
+                  >
+                    {active === undefined ? t('pipeMetaNoPipeline') : metaOf(active)}
+                  </button>
+                </div>
+                {menuOpen
+                  ? (
+                    <div className={css.canvasMenu} data-title-menu="" role="menu">
+                      {pipelines.pipelines.map(pipeline => (
+                        <button
+                          key={pipeline.id}
+                          type="button"
+                          className={css.menuRow}
+                          role="menuitem"
+                          data-pipeline-row={pipeline.id}
+                          aria-current={pipeline.id === active?.id}
+                          onClick={() => { setMenuOpen(false); setActiveId(pipeline.id); setFocus(undefined) }}
+                        >
+                          <span className={css.menuRowMain}>{pipeline.name}</span>
+                          <span className={css.menuRowTail}>{pipeline.steps.length}</span>
+                        </button>
+                      ))}
                       <button
                         type="button"
-                        className={css.railDots}
-                        aria-label={t('pipeRailMenu')}
-                        aria-expanded={menuFor === pipeline.id}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setMenuFor(menuFor === pipeline.id ? undefined : pipeline.id)
-                        }}
+                        className={css.menuRow}
+                        role="menuitem"
+                        data-new-pipeline=""
+                        onClick={() => { setMenuOpen(false); createPipeline() }}
                       >
-                        ⋯
+                        {MARK.plus}
+                        <span className={css.menuRowMain}>{t('pipeNewPipeline')}</span>
                       </button>
-                      {menuFor === pipeline.id
-                        ? (
-                          <div className={css.menu} data-pipeline-menu={pipeline.id}>
+                      <div className={css.menuSep} />
+                      <div className={css.menuSect}>{t('pipeRailTasks')}</div>
+                      {menuFacts.map(fact => (
+                        <button
+                          key={fact.id}
+                          type="button"
+                          className={css.menuRow}
+                          role="menuitem"
+                          data-card-row={fact.id}
+                          onClick={() => { setMenuOpen(false); setFocus({ kind: 'card', cardId: fact.id }); setTab('result') }}
+                        >
+                          <span className={css.menuRowMain}>{fact.label}</span>
+                          <span className={css.menuRun}>{MARK.play}</span>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={css.menuRow}
+                        role="menuitem"
+                        data-create-card=""
+                        onClick={() => { setMenuOpen(false); onCreateCard() }}
+                      >
+                        {MARK.plus}
+                        <span className={css.menuRowMain}>{t('pipeCreateCard')}</span>
+                      </button>
+                      {active === undefined
+                        ? null
+                        : (
+                          <>
+                            <div className={css.menuSep} />
                             <button
                               type="button"
                               className={css.menuRow}
-                              onClick={() => { setMenuFor(undefined); setRenaming(pipeline.id) }}
+                              role="menuitem"
+                              onClick={() => { setMenuOpen(false); setRenaming(active.id) }}
                             >
-                              {t('pipeRename')}
+                              <span className={css.menuRowMain}>{t('pipeRename')}</span>
                             </button>
                             <button
                               type="button"
-                              className={armed ? `${css.menuRow} ${css.menuRowDanger}` : css.menuRow}
+                              className={confirmDelete === active.id ? `${css.menuRow} ${css.hError}` : css.menuRow}
+                              role="menuitem"
                               data-delete-pipeline=""
                               onClick={() => {
-                                if (!armed) { setConfirmDelete(pipeline.id); return }
+                                if (confirmDelete !== active.id) { setConfirmDelete(active.id); return }
                                 setConfirmDelete(undefined)
-                                setMenuFor(undefined)
-                                void pipelines.remove(pipeline.id)
-                                if (pipeline.id === active?.id) setFocus(undefined)
+                                setMenuOpen(false)
+                                void pipelines.remove(active.id)
+                                setFocus(undefined)
                               }}
                             >
-                              {armed ? t('pipeDeleteConfirm') : t('pipeDelete')}
+                              <span className={css.menuRowMain}>
+                                {confirmDelete === active.id ? t('pipeDeleteConfirm') : t('pipeDelete')}
+                              </span>
                             </button>
-                          </div>
-                        )
-                        : null}
-                    </li>
-                  )
-                })}
-              </ul>
-              )}
-          <div className={css.railHead}>
-            <span>{t('pipeRailTasks')}</span>
-            <button type="button" className={css.railAction} data-create-card="" onClick={onCreateCard}>
-              {t('pipeCreateCard')}
-            </button>
-          </div>
-          <ul className={css.railList}>
-            {railFacts.map(fact => (
-              <li key={fact.id} className={css.railItem}>
-                <button
-                  type="button"
-                  className={focus?.kind === 'card' && focus.cardId === fact.id
-                    ? `${css.railRow} ${css.railRowCurrent}`
-                    : css.railRow}
-                  data-card-row={fact.id}
-                  onClick={() => { setFocus({ kind: 'card', cardId: fact.id }); setTab('result') }}
-                >
-                  <span className={css.railName}>{fact.label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* ── 画布：这条流水线长什么样，现在在干什么 ── */}
-        <section className={css.canvas} data-canvas="">
-          <div className={css.canvasHead}>
-            <div className={css.canvasTitleWrap}>
-              <div className={css.canvasTitleRow}>
-                <button
-                  type="button"
-                  className={css.canvasTitle}
-                  data-canvas-title=""
-                  aria-expanded={titleMenu}
-                  disabled={active === undefined}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setTitleMenu(!titleMenu)
-                  }}
-                >
-                  {active?.name ?? t('pipeNoPipeline')}
-                  <span className={css.chev}>{MARK.chev}</span>
-                </button>
-                {active === undefined
-                  ? null
-                  : (
-                    <span className={css.stateChip} data-canvas-state={chainState}>
-                      <i className={css.dot} data-s={chainState} />
-                      {stateText(chainState)}
-                    </span>
-                    )}
+                          </>
+                          )}
+                    </div>
+                    )
+                  : null}
               </div>
-              <button
-                type="button"
-                className={css.canvasMeta}
-                data-canvas-meta=""
-                disabled={active === undefined || active.steps.length === 0}
-                onClick={() => { setHistoryOpen(true); setHistoryAt(undefined) }}
-              >
-                {active === undefined ? t('pipeMetaNoPipeline') : metaOf(active)}
-              </button>
-            </div>
-            {titleMenu && active !== undefined
-              ? (
-                <div className={css.menu} data-title-menu="">
-                  {pipelines.pipelines.map(pipeline => (
-                    <button
-                      key={pipeline.id}
-                      type="button"
-                      className={css.menuRow}
-                      aria-current={pipeline.id === active.id}
-                      onClick={() => { setTitleMenu(false); setActiveId(pipeline.id); setFocus(undefined) }}
-                    >
-                      <i className={css.dot} data-s="idle" />
-                      <span className={css.menuRowMain}>{pipeline.name}</span>
-                      <span className={css.menuTail}>{pipeline.steps.length}</span>
-                    </button>
-                  ))}
-                  <div className={css.menuSep} />
-                  <button type="button" className={css.menuRow} onClick={() => { setTitleMenu(false); createPipeline() }}>
-                    {t('pipeNewPipeline')}
-                  </button>
-                  <button type="button" className={css.menuRow} onClick={() => { setTitleMenu(false); setRenaming(active.id) }}>
-                    {t('pipeRename')}
-                  </button>
-                </div>
-                )
-              : null}
-          </div>
 
-          <div className={css.canvasScroll}>
-            {active === undefined || active.steps.length === 0
-              ? (
-                <div className={css.emptyFlow} data-empty-pipeline="">
-                  <span className={css.emptyMark}>{MARK.plus}</span>
-                  <h4>{active === undefined ? t('pipeNoPipeline') : t('pipeEmptyTitle')}</h4>
-                  <p>{t('pipeEmptyBody')}</p>
-                  <button
-                    type="button"
-                    className={css.primaryBtn}
-                    data-add-step="0"
-                    onClick={() => {
-                      if (active === undefined) return
-                      setPicker({ at: 0 })
-                      setPickerQuery('')
-                    }}
-                  >
-                    {MARK.plus}
-                    {t('pipeAddFirstStep')}
-                  </button>
-                </div>
-                )
-              : (
-                <div className={css.flow}>
-                  {stepViews.map(step => (
-                    <div key={`${step.cardId}-${String(step.index)}`} className={css.nodeWrap}>
-                      {step.index > 0
-                        ? (
-                          <div className={css.connector}>
-                            <button
-                              type="button"
-                              className={css.insertBtn}
-                              data-insert-step={step.index}
-                              aria-label={t('pipeInsertHere', { at: step.index + 1 })}
-                              onClick={() => { setPicker({ at: step.index }); setPickerQuery('') }}
-                            >
-                              {MARK.plus}
-                            </button>
-                          </div>
-                          )
-                        : null}
-                      <div
-                        className={step.index === selectedIndex ? `${css.node} ${css.nodeSelected}` : css.node}
-                        data-step-index={step.index}
-                        data-s={step.phase}
-                        role="button"
-                        tabIndex={0}
-                        aria-selected={step.index === selectedIndex}
-                        onClick={() => { setFocus({ kind: 'step', index: step.index }) }}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ') return
-                          event.preventDefault()
-                          setFocus({ kind: 'step', index: step.index })
+              <div className={`${css.canvasScroll} ${css.scroll}`}>
+                {active === undefined || active.steps.length === 0
+                  ? (
+                    <div className={css.emptyFlow} data-empty-pipeline="">
+                      <span className={css.emptyMark}>{MARK.plus}</span>
+                      <h4>{active === undefined ? t('pipeNoPipeline') : t('pipeEmptyTitle')}</h4>
+                      <p>{t('pipeEmptyBody')}</p>
+                      <button
+                        type="button"
+                        className={`${css.btn} ${css.primary}`}
+                        data-add-step="0"
+                        onClick={() => {
+                          if (active === undefined) return
+                          setPicker({ at: 0 })
+                          setPickerQuery('')
                         }}
                       >
-                        <div className={css.nodeTop}>
-                          <span className={css.nodeIndex}>{String(step.index + 1).padStart(2, '0')}</span>
-                          <span className={css.nodeTitle}>{step.label}</span>
-                          <span className={css.nodeState} data-s={step.phase}>
-                            {markOf(step.phase)}
-                            {stateText(step.phase)}
-                          </span>
-                          <span className={css.nodeDur}>
-                            {step.phase === 'running' ? '…' : formatDuration(step.tookMs)}
-                          </span>
+                        {MARK.plus}
+                        {t('pipeAddFirstStep')}
+                      </button>
+                    </div>
+                    )
+                  : (
+                    <div className={css.flow}>
+                      {stepViews.map(step => (
+                        <div key={`${step.cardId}-${String(step.index)}`}>
+                          {step.index > 0
+                            ? (
+                              <div className={css.connector}>
+                                <button
+                                  type="button"
+                                  className={css.insertBtn}
+                                  data-insert-step={step.index}
+                                  aria-label={t('pipeInsertHere', { at: step.index + 1 })}
+                                  onClick={() => { setPicker({ at: step.index }); setPickerQuery('') }}
+                                >
+                                  {MARK.plus}
+                                </button>
+                              </div>
+                              )
+                            : null}
+                          <div
+                            className={css.node}
+                            data-node={step.index}
+                            data-step-index={step.index}
+                            data-s={step.phase}
+                            role="button"
+                            tabIndex={0}
+                            aria-selected={step.index === selectedIndex}
+                            onClick={() => {
+                              setFocus({ kind: 'step', index: step.index })
+                              setStepMenu(undefined)
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter' && event.key !== ' ') return
+                              event.preventDefault()
+                              setFocus({ kind: 'step', index: step.index })
+                              setStepMenu(undefined)
+                            }}
+                          >
+                            <div className={css.nodeTop}>
+                              <span className={css.nodeIndex}>{String(step.index + 1).padStart(2, '0')}</span>
+                              <span className={css.nodeTitle}>{step.label}</span>
+                              <span className={css.nodeState}>
+                                {markOf(step.phase)}
+                                {stateText(step.phase)}
+                              </span>
+                              <span className={css.nodeDur}>
+                                {step.phase === 'running' ? '…' : formatDuration(step.tookMs)}
+                              </span>
+                            </div>
+                            <div className={css.nodeFoot} data-s={step.phase}>
+                              {footOf(step, t)}
+                              {step.runNo === undefined
+                                ? null
+                                : <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>}
+                            </div>
+                          </div>
                         </div>
-                        <div className={css.nodeFoot} data-s={step.phase}>
-                          {footOf(step, t)}
-                          {step.runNo === undefined
-                            ? null
-                            : <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>}
-                        </div>
+                      ))}
+                      <div className={css.connectorShort} />
+                      <button
+                        type="button"
+                        className={css.addStep}
+                        data-add-step={String(active.steps.length)}
+                        onClick={() => { setPicker({ at: active.steps.length }); setPickerQuery('') }}
+                      >
+                        {MARK.plus} {t('pipeAddStep')}
+                      </button>
+                    </div>
+                    )}
+              </div>
+
+              {/* 窄面板时画布让位，这一条替它：每步一个可选中的小块。 */}
+              <div className={css.stepStrip} role="tablist" aria-label={t('pipeTabsLabel')}>
+                {stepViews.map(step => (
+                  <button
+                    key={`strip-${step.cardId}`}
+                    type="button"
+                    role="tab"
+                    className={css.stepChip}
+                    data-s={step.phase}
+                    data-strip-step={step.index}
+                    aria-selected={step.index === selectedIndex}
+                    onClick={() => { setFocus({ kind: 'step', index: step.index }) }}
+                  >
+                    <b>{String(step.index + 1).padStart(2, '0')}</b>
+                    <span className={css.dot} data-s={step.phase} />
+                    {step.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── 检查器：选中这一步的结果、活动、配置 ── */}
+            <aside className={css.inspector} data-inspector="">
+              <div className={css.inspHead}>
+                <div className={css.inspKicker} data-insp-kicker="">
+                  {focus?.kind === 'card'
+                    ? t('pipeCardKicker')
+                    : selected === undefined
+                      ? t('pipeNoStepKicker')
+                      : t('pipeStepKicker', {
+                        at: selected.index + 1,
+                        count: active?.steps.length ?? 0,
+                        name: active?.name ?? '',
+                      })}
+                </div>
+                <div className={css.inspTitleRow}>
+                  <h2 className={css.inspTitle} data-insp-title="">
+                    {focus?.kind === 'card' ? labelOf(focus.cardId) : selected?.label ?? t('pipeNoStep')}
+                  </h2>
+                  {selected === undefined || focus?.kind === 'card'
+                    ? null
+                    : (
+                      <>
+                        <button
+                          type="button"
+                          className={css.runOne}
+                          data-run-one=""
+                          disabled={running}
+                          onClick={() => { if (active !== undefined) run.runOne(active, selected.index) }}
+                        >
+                          {MARK.play}
+                          {t('pipeRunOne')}
+                        </button>
+                        <button
+                          type="button"
+                          className={css.iconBtn}
+                          aria-label={t('pipeStepMenu')}
+                          aria-haspopup="menu"
+                          aria-expanded={stepMenu === selectedIndex}
+                          data-step-menu-btn=""
+                          onClick={() => {
+                            setStepMenu(stepMenu === selectedIndex ? undefined : selectedIndex)
+                          }}
+                        >
+                          {MARK.dots}
+                        </button>
+                      </>
+                      )}
+                </div>
+                {stepMenu !== undefined && stepMenu === selectedIndex && selected !== undefined
+                  ? (
+                    <div className={css.stepMenu} role="menu" data-step-menu="">
+                      <button
+                        type="button"
+                        className={css.stepMenuRow}
+                        role="menuitem"
+                        data-move-up=""
+                        disabled={selected.index === 0}
+                        onClick={() => { setStepMenu(undefined); void moveStep(selected.index, -1) }}
+                      >
+                        {t('pipeMoveUp')}
+                      </button>
+                      <button
+                        type="button"
+                        className={css.stepMenuRow}
+                        role="menuitem"
+                        data-move-down=""
+                        disabled={selected.index === (active?.steps.length ?? 1) - 1}
+                        onClick={() => { setStepMenu(undefined); void moveStep(selected.index, 1) }}
+                      >
+                        {t('pipeMoveDown')}
+                      </button>
+                      <div className={css.stepMenuSep} />
+                      <button
+                        type="button"
+                        className={`${css.stepMenuRow} ${css.hError}`}
+                        role="menuitem"
+                        aria-label={t('pipeRemoveStep')}
+                        data-remove-step=""
+                        onClick={() => { setStepMenu(undefined); void removeStep(selected.index) }}
+                      >
+                        {t('pipeRemoveStep')}
+                      </button>
+                      <div className={css.stepMenuNote}>{t('pipeRemoveNote')}</div>
+                    </div>
+                    )
+                  : null}
+                {selected === undefined
+                  ? null
+                  : (
+                    <div className={css.inspMeta} data-insp-meta="">
+                      {selected.skill === undefined ? null : <code className={css.mono}>{selected.skill}</code>}
+                      {selected.card?.model === undefined
+                        ? null
+                        : <span>{`${selected.card.model.provider}/${selected.card.model.model}`}</span>}
+                      <span className={css.chipTag} data-s={selected.phase}>
+                        {markOf(selected.phase)}
+                        {stateText(selected.phase)}
+                      </span>
+                    </div>
+                    )}
+                {focus?.kind === 'card'
+                  ? null
+                  : (
+                    <div className={css.inspTabs} role="tablist" aria-label={t('pipeTabsLabel')}>
+                      {(['activity', 'config', 'result'] as const).map(key => (
+                        <button
+                          key={key}
+                          type="button"
+                          role="tab"
+                          className={css.inspTab}
+                          data-insp-tab={key}
+                          aria-selected={tab === key}
+                          aria-controls={`pipe-panel-${key}`}
+                          tabIndex={tab === key ? 0 : -1}
+                          onClick={() => { setTab(key) }}
+                        >
+                          {t(TAB_KEY[key])}
+                          {key === 'activity' && selected?.result !== undefined
+                            ? <em>{selected.result.activity?.length ?? 0}</em>
+                            : null}
+                        </button>
+                      ))}
+                    </div>
+                    )}
+              </div>
+
+              <div className={`${css.inspScroll} ${css.scroll}`}>
+                {focus?.kind === 'card'
+                  ? (
+                    <div className={css.resultPanel} data-panel="card">
+                      <div className={css.cfgBlock}>
+                        <div className={css.cfgBlockHead}><span>{t('pipeCardPanel')}</span></div>
+                        <p className={css.hint}>{t('pipeCardPanelNote')}</p>
+                        <button
+                          type="button"
+                          className={`${css.btn} ${css.ghost}`}
+                          data-open-card=""
+                          onClick={() => { openReader(focus.cardId) }}
+                        >
+                          {t('pipeOpenResult')}
+                        </button>
                       </div>
                     </div>
-                  ))}
-                  <div className={css.connectorShort} />
-                  <button
-                    type="button"
-                    className={css.addStep}
-                    data-add-step={String(active.steps.length)}
-                    onClick={() => { setPicker({ at: active.steps.length }); setPickerQuery('') }}
-                  >
-                    {MARK.plus} {t('pipeAddStep')}
-                  </button>
-                </div>
-                )}
+                    )
+                  : selected === undefined
+                    ? (
+                      <div className={css.resultPanel} data-panel="empty">
+                        <div className={css.stateBlock}>
+                          <h6>{t('pipeEmptyPanelTitle')}</h6>
+                          <p>{t('pipeEmptyPanelBody')}</p>
+                          <button
+                            type="button"
+                            className={`${css.btn} ${css.ghost}`}
+                            data-add-step="0"
+                            onClick={() => { setPicker({ at: 0 }); setPickerQuery('') }}
+                          >
+                            {MARK.plus}
+                            {t('pipeAddFirstStep')}
+                          </button>
+                        </div>
+                      </div>
+                      )
+                    : tab === 'activity'
+                      ? (
+                        <div className={css.activityPanel} id="pipe-panel-activity" role="tabpanel" data-panel="activity">
+                          <ActivityPanel
+                            step={selected}
+                            t={t}
+                            onOpenCard={() => { openReader(selected.cardId) }}
+                          />
+                        </div>
+                        )
+                      : tab === 'config'
+                        ? (
+                          <div className={css.configPanel} id="pipe-panel-config" role="tabpanel" data-panel="config">
+                            <ConfigPanel
+                              step={selected}
+                              shared={stepViews[0]?.card}
+                              t={t}
+                              onEdit={() => { openReader(selected.cardId) }}
+                            />
+                          </div>
+                          )
+                        : (
+                          <div className={css.resultPanel} id="pipe-panel-result" role="tabpanel" data-panel="result">
+                            <ResultPanel
+                              step={selected}
+                              t={t}
+                              onOpen={() => { openReader(selected.cardId) }}
+                              onRun={() => { if (active !== undefined) run.runOne(active, selected.index) }}
+                              onReview={() => { setReview({ cardId: selected.cardId }) }}
+                            />
+                          </div>
+                          )}
+              </div>
+            </aside>
           </div>
 
-          <div className={css.runBar}>
+          <div className={css.runbar}>
             <div className={css.segBar}>
               {stepViews.map(step => (
                 <i key={`seg-${step.cardId}`} data-s={step.phase} />
               ))}
             </div>
             <div className={css.runNoise} data-run-noise={chain?.phase ?? 'idle'}>
-              {chain === undefined
-                ? <span>{active === undefined || active.steps.length === 0 ? t('pipeNoSteps') : t('pipeNotRun')}</span>
-                : chain.phase === 'running'
-                  ? <span>{t('pipeRunningStep', { at: (chain.activeIndex ?? 0) + 1, count: active?.steps.length ?? 0 })}</span>
-                  : chain.phase === 'failed'
-                    ? <span>{t('pipeFailedAt', { done: doneCount, count: active?.steps.length ?? 0, at: (failedAt ?? doneCount) + 1 })}</span>
-                    : chain.phase === 'stopped'
-                      ? <span>{t('pipeStopped', { done: doneCount, count: active?.steps.length ?? 0 })}</span>
-                      : <span>{t('pipeAllDone', { count: active?.steps.length ?? 0 })}</span>}
+              {runNoise()}
             </div>
             <div className={css.runActions}>
               {running
                 ? (
-                  <button type="button" className={css.ghostBtn} data-stop="" onClick={() => { run.stop() }}>
+                  <button type="button" className={`${css.btn} ${css.ghost}`} data-stop="" onClick={() => { run.stop() }}>
                     {t('pipeStop')}
                   </button>
                   )
                 : (
                   <button
                     type="button"
-                    className={css.primaryBtn}
+                    className={`${css.btn} ${css.primary}`}
                     data-run-all=""
                     disabled={active === undefined || active.steps.length === 0}
                     onClick={() => { if (active !== undefined) run.runAll(active) }}
@@ -611,312 +808,224 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
             </div>
           </div>
         </section>
-
-        {/* ── 检查器：选中这一步的结果、活动、配置 ── */}
-        <aside className={css.inspector} data-inspector="">
-          <div className={css.inspHead}>
-            <div className={css.inspKicker} data-insp-kicker="">
-              {focus?.kind === 'card'
-                ? t('pipeCardKicker')
-                : selected === undefined
-                  ? t('pipeNoStepKicker')
-                  : t('pipeStepKicker', {
-                    at: selected.index + 1,
-                    count: active?.steps.length ?? 0,
-                    name: active?.name ?? '',
-                  })}
-            </div>
-            <div className={css.inspTitleRow}>
-              <h2 className={css.inspTitle} data-insp-title="">
-                {focus?.kind === 'card' ? labelOf(focus.cardId) : selected?.label ?? t('pipeNoStep')}
-              </h2>
-              {selected === undefined || focus?.kind === 'card'
-                ? null
-                : (
-                  <>
-                    <button
-                      type="button"
-                      className={css.runOne}
-                      data-run-one=""
-                      disabled={running}
-                      onClick={() => { if (active !== undefined) run.runOne(active, selected.index) }}
-                    >
-                      {MARK.play}
-                      {t('pipeRunOne')}
-                    </button>
-                    <button
-                      type="button"
-                      className={css.iconBtn}
-                      aria-label={t('pipeStepMenu')}
-                      aria-expanded={stepMenu === selectedIndex}
-                      data-step-menu-btn=""
-                      onClick={() => { setStepMenu(stepMenu === selectedIndex ? undefined : selectedIndex) }}
-                    >
-                      ⋯
-                    </button>
-                  </>
-                  )}
-            </div>
-            {selected === undefined
-              ? null
-              : (
-                <div className={css.inspMeta} data-insp-meta="">
-                  {selected.skill === undefined ? null : <code>{selected.skill}</code>}
-                  {selected.card?.model === undefined
-                    ? null
-                    : <span>{`${selected.card.model.provider}/${selected.card.model.model}`}</span>}
-                  <span className={css.chipTag} data-s={selected.phase}>
-                    {markOf(selected.phase)}
-                    {stateText(selected.phase)}
-                  </span>
-                </div>
-                )}
-            {focus?.kind === 'card'
-              ? null
-              : (
-                <div className={css.inspTabs} role="tablist" aria-label={t('pipeTabsLabel')}>
-                  {(['activity', 'config', 'result'] as const).map(key => (
-                    <button
-                      key={key}
-                      type="button"
-                      role="tab"
-                      className={tab === key ? `${css.tab} ${css.tabActive}` : css.tab}
-                      data-insp-tab={key}
-                      aria-selected={tab === key}
-                      tabIndex={tab === key ? 0 : -1}
-                      onClick={() => { setTab(key) }}
-                    >
-                      {t(TAB_KEY[key])}
-                      {key === 'activity' && selected?.result !== undefined
-                        ? <em className={css.tabCount}>{selected.result.activity?.length ?? 0}</em>
-                        : null}
-                    </button>
-                  ))}
-                </div>
-                )}
-          </div>
-
-          <div className={css.inspScroll}>
-            {focus?.kind === 'card'
-              ? (
-                <div className={css.panelBody} data-panel="card">
-                  <div className={css.cfgBlock}>
-                    <div className={css.cfgBlockHead}><span>{t('pipeCardPanel')}</span></div>
-                    <p className={css.panelNote}>{t('pipeCardPanelNote')}</p>
-                    <button
-                      type="button"
-                      className={css.ghostBtn}
-                      data-open-card=""
-                      onClick={() => { setReader({ cardId: focus.cardId }) }}
-                    >
-                      {t('pipeOpenResult')}
-                    </button>
-                  </div>
-                </div>
-                )
-              : selected === undefined
-                ? (
-                  <div className={css.panelBody} data-panel="empty">
-                    <div className={css.stateBlock}>
-                      <h6>{t('pipeEmptyPanelTitle')}</h6>
-                      <p>{t('pipeEmptyPanelBody')}</p>
-                      <button
-                        type="button"
-                        className={css.ghostBtn}
-                        data-add-step="0"
-                        onClick={() => { setPicker({ at: 0 }); setPickerQuery('') }}
-                      >
-                        {MARK.plus}
-                        {t('pipeAddFirstStep')}
-                      </button>
-                    </div>
-                  </div>
-                  )
-                : tab === 'activity'
-                  ? (
-                    <div className={css.panelBody} data-panel="activity">
-                      <ActivityPanel step={selected} t={t} onOpenCard={() => { setReader({ cardId: selected.cardId }) }} />
-                    </div>
-                    )
-                  : tab === 'config'
-                    ? (
-                      <div className={css.panelBody} data-panel="config">
-                        <ConfigPanel
-                          step={selected}
-                          shared={stepViews[0]?.card}
-                          t={t}
-                          onEdit={() => { setReader({ cardId: selected.cardId }) }}
-                        />
-                      </div>
-                      )
-                    : (
-                      <div className={css.panelBody} data-panel="result">
-                        <ResultPanel
-                          step={selected}
-                          t={t}
-                          onOpen={() => { setReader({ cardId: selected.cardId }) }}
-                          onRun={() => { if (active !== undefined) run.runOne(active, selected.index) }}
-                        />
-                      </div>
-                      )}
-
-            {stepMenu !== undefined && stepMenu === selectedIndex && selected !== undefined && focus?.kind === 'step'
-              ? (
-                <div className={css.stepMenu} data-step-menu="">
-                  <button
-                    type="button"
-                    className={css.menuRow}
-                    data-move-up=""
-                    disabled={selected.index === 0}
-                    onClick={() => { setStepMenu(undefined); void moveStep(selected.index, -1) }}
-                  >
-                    {MARK.up}{t('pipeMoveUp')}
-                  </button>
-                  <button
-                    type="button"
-                    className={css.menuRow}
-                    data-move-down=""
-                    disabled={selected.index === (active?.steps.length ?? 1) - 1}
-                    onClick={() => { setStepMenu(undefined); void moveStep(selected.index, 1) }}
-                  >
-                    {MARK.down}{t('pipeMoveDown')}
-                  </button>
-                  <div className={css.menuSep} />
-                  <button
-                    type="button"
-                    className={`${css.menuRow} ${css.menuRowDanger}`}
-                    aria-label={t('pipeRemoveStep')}
-                    data-remove-step=""
-                    onClick={() => { setStepMenu(undefined); void removeStep(selected.index) }}
-                  >
-                    {MARK.trash}{t('pipeRemoveStep')}
-                  </button>
-                  <p className={css.menuNote}>{t('pipeRemoveNote')}</p>
-                </div>
-                )
-              : null}
-          </div>
-        </aside>
       </div>
+
+      {/* ── 阅读器：整块面板，正文只在这里读 ── */}
+      {reader === undefined
+        ? null
+        : (
+          <div className={css.zoomWrap} data-reader={reader.cardId}>
+            <div className={css.zoomScrim} onClick={() => { setReader(undefined) }} />
+            <div className={css.zoom} role="dialog" aria-modal="true" aria-labelledby="pipe-zoom-title">
+              <div className={css.zoomHead}>
+                <span className={css.zoomKicker} id="pipe-zoom-title">{t('pipeReaderTitle')}</span>
+                <span className={css.zoomMeta}>{labelOf(reader.cardId)}</span>
+                <span className={css.zoomHint}>{t('pipeEscHint')}</span>
+                <button
+                  type="button"
+                  className={`${css.btn} ${css.ghost} ${css.zoomReview}`}
+                  data-review-open=""
+                  onClick={() => { setReview({ cardId: reader.cardId }); setReviewText('') }}
+                >
+                  {t('pipeReviewTitle')}
+                </button>
+                <button
+                  type="button"
+                  className={css.iconBtn}
+                  aria-label={t('pipeClose')}
+                  data-reader-back=""
+                  onClick={() => { setReader(undefined) }}
+                >
+                  {MARK.x}
+                </button>
+              </div>
+              <div className={css.zoomBody}>
+                {renderCard(reader.cardId, 'result', () => { setReader(undefined) })}
+              </div>
+            </div>
+          </div>
+          )}
 
       {/* ── 运行记录 ── */}
       {historyOpen
         ? (
-          <Modal onClose={() => { setHistoryOpen(false) }} labelledBy="pipe-hist-title">
-            <div className={css.modalHead}>
-              <span className={css.modalKicker} id="pipe-hist-title" data-hist-title="">
+          <div className={css.zoomWrap} data-history="">
+            <div className={css.zoomScrim} onClick={() => { setHistoryOpen(false) }} />
+            <div className={css.zoom} role="dialog" aria-modal="true" aria-labelledby="pipe-hist-title">
+              <div className={css.zoomHead}>
                 {historyAt === undefined
-                  ? t('pipeHistoryTitle')
-                  : t('pipeHistoryRun', { no: history[historyAt]?.no ?? 0 })}
-              </span>
-              <span className={css.modalMeta} data-hist-meta="">
-                {historyAt === undefined
-                  ? history.length === 0 ? t('pipeHistoryEmptyMeta') : t('pipeHistoryCount', { count: history.length })
-                  : (history[historyAt] === undefined
-                      ? ''
-                      : `${formatWhen(history[historyAt]?.startedAt ?? 0, Date.now())} · ${formatDuration(history[historyAt]?.tookMs)}`)}
-              </span>
-              {historyAt === undefined
-                ? null
-                : (
-                  <button type="button" className={css.ghostBtn} onClick={() => { setHistoryAt(undefined) }}>
-                    {t('pipeHistoryBack')}
-                  </button>
-                  )}
-              <button type="button" className={css.iconBtn} aria-label={t('pipeClose')} onClick={() => { setHistoryOpen(false) }}>
-                {MARK.x}
-              </button>
-            </div>
-            <div className={css.modalBody}>
-              {historyAt === undefined
-                ? history.length === 0
-                  ? <div className={css.stateBlock}><p>{t('pipeHistoryEmpty')}</p></div>
+                  ? null
                   : (
-                    <div className={css.histList}>
-                      {history.map((entry, at) => (
-                        <button
-                          key={`hist-${String(entry.no)}`}
-                          type="button"
-                          className={css.histRow}
-                          data-hist-run={at}
-                          onClick={() => { setHistoryAt(at) }}
-                        >
-                          <span className={css.histNo}>{`#${String(entry.no)}`}</span>
-                          <span className={css.histWhen}>{formatWhen(entry.startedAt, Date.now())}</span>
-                          <span className={css.histSum}>
-                            {`${entry.steps.map(step => labelOf(step.cardId)).join(' → ')}`}
-                          </span>
-                          <span className={css.histTook}>{formatDuration(entry.tookMs)}</span>
-                          <span className={css.histBadge} data-s={entry.phase}>{entry.phase}</span>
-                        </button>
-                      ))}
-                    </div>
-                    )
-                : (
-                  <div className={css.histDetail}>
-                    {(history[historyAt]?.steps ?? []).map((step, at) => (
-                      <div key={`hist-step-${String(at)}`} className={css.histStep}>
-                        <button
-                          type="button"
-                          className={css.histStepHead}
-                          data-hist-step={at}
-                          onClick={() => {
-                            setHistoryOpen(false)
-                            setReader({ cardId: step.cardId })
-                          }}
-                        >
-                          <span className={css.histStepNo}>{String(at + 1)}</span>
-                          <span className={css.histStepName}>{labelOf(step.cardId)}</span>
-                          <span className={css.histStepMeta}>
-                            {(() => {
-                              const product = productOf(step.html)
-                              if (product.kind === 'directory') return product.path
-                              return product.kind === 'inline' ? t('pipeInlineProduct') : t('pipeNoProduct')
-                            })()}
-                          </span>
-                          <span className={css.histStepTook}>{formatDuration(step.tookMs)}</span>
-                          <span className={css.chev}>{MARK.chev}</span>
-                        </button>
+                    <button
+                      type="button"
+                      className={css.iconBtn}
+                      aria-label={t('pipeHistoryBack')}
+                      onClick={() => { setHistoryAt(undefined) }}
+                    >
+                      {MARK.back}
+                    </button>
+                    )}
+                <span className={css.zoomKicker} id="pipe-hist-title" data-hist-title="">
+                  {historyAt === undefined
+                    ? t('pipeHistoryTitle')
+                    : t('pipeHistoryRun', { no: history[historyAt]?.no ?? 0 })}
+                </span>
+                <span className={css.zoomMeta} data-hist-meta="">
+                  {historyAt === undefined
+                    ? history.length === 0 ? t('pipeHistoryEmptyMeta') : t('pipeHistoryCount', { count: history.length })
+                    : (history[historyAt] === undefined
+                        ? ''
+                        : `${formatWhen(history[historyAt]?.startedAt ?? 0, Date.now())} · ${formatDuration(history[historyAt]?.tookMs)}`)}
+                </span>
+                <span className={css.zoomHint}>{t('pipeEscHint')}</span>
+                <button type="button" className={css.iconBtn} aria-label={t('pipeClose')} onClick={() => { setHistoryOpen(false) }}>
+                  {MARK.x}
+                </button>
+              </div>
+              <div className={css.histBody}>
+                {historyAt === undefined
+                  ? history.length === 0
+                    ? <div className={css.stateBlock}><p>{t('pipeHistoryEmpty')}</p></div>
+                    : (
+                      <div>
+                        {history.map((entry, at) => (
+                          <button
+                            key={`hist-${String(entry.no)}`}
+                            type="button"
+                            className={css.histRow}
+                            data-hist-run={at}
+                            onClick={() => { setHistoryAt(at) }}
+                          >
+                            <span className={css.histNo}>{`#${String(entry.no)}`}</span>
+                            <span className={css.histWhen}>{formatWhen(entry.startedAt, Date.now())}</span>
+                            <span className={css.histSum}>{entry.steps.map(step => labelOf(step.cardId)).join(' → ')}</span>
+                            <span className={css.histTook}>{formatDuration(entry.tookMs)}</span>
+                            <span className={css.histBadge} data-s={entry.phase}>{entry.phase}</span>
+                          </button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  )}
+                      )
+                  : (history[historyAt]?.steps ?? []).map((step, at) => (
+                    <div key={`hist-step-${String(at)}`} className={css.hStep}>
+                      <button
+                        type="button"
+                        className={css.hStepHead}
+                        data-hist-step={at}
+                        onClick={() => {
+                          setHistoryOpen(false)
+                          openReader(step.cardId)
+                        }}
+                      >
+                        <span className={css.hStepNo}>{String(at + 1)}</span>
+                        <span className={css.hStepName}>{labelOf(step.cardId)}</span>
+                        <span className={css.hStepMeta}>{productLine(step.html, t)}</span>
+                        <span className={css.hStepTook}>{formatDuration(step.tookMs)}</span>
+                      </button>
+                    </div>
+                  ))}
+              </div>
             </div>
-          </Modal>
+          </div>
           )
         : null}
 
-      {/* ── 技能选择器 ── */}
+      {/* ── 审核：提要求 → 重新生成 ── */}
+      {review === undefined
+        ? null
+        : (
+          <div className={css.reviewWrap} data-review="">
+            <div className={css.reviewScrim} onClick={() => { setReview(undefined) }} />
+            <div className={css.review} role="dialog" aria-modal="true" aria-label={t('pipeReviewTitle')}>
+              <div className={css.reviewHead}>
+                <div className={css.reviewTitle}>
+                  <span>{t('pipeReviewTitle')}</span>
+                  <em>{t('pipeReviewSubtitle')}</em>
+                </div>
+                <div className={css.reviewWho}>{labelOf(review.cardId)}</div>
+              </div>
+              <div className={css.reviewBody}>
+                <textarea
+                  className={css.reviewArea}
+                  rows={3}
+                  value={reviewText}
+                  data-review-text=""
+                  placeholder={t('pipeReviewPlaceholder')}
+                  onChange={(event) => { setReviewText(event.target.value) }}
+                />
+                <div className={css.reviewChips}>
+                  {(['pipeChipEdges', 'pipeChipTable', 'pipeChipShorter'] as const).map(key => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={css.reviewChip}
+                      onClick={() => {
+                        setReviewText(prev => (prev.trim() === '' ? t(key) : `${prev}，${t(key)}`))
+                      }}
+                    >
+                      {t(key)}
+                    </button>
+                  ))}
+                </div>
+                <div className={css.reviewNote}>{t('pipeReviewWarn')}</div>
+              </div>
+              <div className={css.reviewFoot}>
+                <div className={css.spacer} />
+                <button type="button" className={`${css.btn} ${css.ghost}`} onClick={() => { setReview(undefined) }}>
+                  {t('pipeCancel')}
+                </button>
+                <button
+                  type="button"
+                  className={`${css.btn} ${css.primary}`}
+                  data-review-submit=""
+                  disabled={reviewText.trim() === ''}
+                  onClick={() => {
+                    const at = stepViews.findIndex(step => step.cardId === review.cardId)
+                    const instruction = reviewText.trim()
+                    setReview(undefined)
+                    setReviewText('')
+                    if (active === undefined || at < 0 || instruction === '') return
+                    setReader(undefined)
+                    run.refine(active, at, instruction)
+                  }}
+                >
+                  {t('pipeRegenerate')}
+                </button>
+              </div>
+            </div>
+          </div>
+          )}
+
+      {/* ── 任务选择器 ── */}
       {picker === undefined
         ? null
         : (
-          <Modal onClose={() => { setPicker(undefined) }} labelledBy="pipe-picker-title" width="narrow">
-            <div className={css.modalHead}>
-              <span className={css.modalKicker} id="pipe-picker-title" data-picker-title="">
-                {t('pipePickerTitle')}
-              </span>
-              <span className={css.modalMeta}>{t('pipePickerAt', { at: picker.at + 1 })}</span>
-              <button type="button" className={css.iconBtn} aria-label={t('pipeClose')} onClick={() => { setPicker(undefined) }}>
-                {MARK.x}
-              </button>
-            </div>
-            <div className={css.modalBody}>
-              <label className={css.searchField}>
-                {MARK.search}
-                <input
-                  type="text"
-                  autoFocus
-                  value={pickerQuery}
-                  data-picker-search=""
-                  placeholder={t('pipePickerSearch')}
-                  onChange={(event) => { setPickerQuery(event.target.value) }}
-                />
-              </label>
+          <div className={css.pickerWrap} data-picker="">
+            <div className={css.pickerScrim} onClick={() => { setPicker(undefined) }} />
+            <div className={css.picker} role="dialog" aria-modal="true" aria-labelledby="pipe-picker-title">
+              <div className={css.pickerHead}>
+                <div className={css.pickerTitle}>
+                  <span id="pipe-picker-title" data-picker-title="">{t('pipePickerTitle')}</span>
+                  <em>{t('pipePickerAt', { at: picker.at + 1 })}</em>
+                </div>
+                <label className={css.searchField}>
+                  {MARK.search}
+                  <input
+                    type="text"
+                    autoFocus
+                    value={pickerQuery}
+                    data-picker-search=""
+                    placeholder={t('pipePickerSearch')}
+                    autoComplete="off"
+                    onChange={(event) => { setPickerQuery(event.target.value) }}
+                  />
+                </label>
+              </div>
               <div className={css.pickerList}>
-                {railFacts
+                {menuFacts
                   .filter(fact => pickerQuery.trim() === ''
                     ? true
-                    : fact.label.toLowerCase().includes(pickerQuery.trim().toLowerCase()) || fact.id.includes(pickerQuery.trim()))
+                    : fact.label.toLowerCase().includes(pickerQuery.trim().toLowerCase())
+                      || fact.id.includes(pickerQuery.trim()))
                   .map(fact => {
                     const used = active?.steps.some(step => step.cardId === fact.id) ?? false
                     return (
@@ -936,17 +1045,16 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                       </button>
                     )
                   })}
-                {railFacts.length === 0
-                  ? <p className={css.panelNote}>{t('pipePickerEmpty')}</p>
+                {menuFacts.length === 0
+                  ? <p className={css.pickerEmpty}>{t('pipePickerEmpty')}</p>
                   : null}
               </div>
             </div>
-          </Modal>
+          </div>
           )}
     </div>
   )
 }
-
 
 /**
  * Render one step's foot line: what it produced, or why it stopped.
@@ -963,8 +1071,15 @@ function footOf(step: StepView, t: (key: WorkbenchLocaleKey, params?: Record<str
       </>
     )
   }
-  if (step.phase === 'queued') return <span>{t('pipeQueued')}</span>
-  if (step.phase === 'running') return <span>{t('pipeWorking')}</span>
+  if (step.phase === 'queued') return <span>{t('pipeQueued', { at: step.index })}</span>
+  if (step.phase === 'running') {
+    return (
+      <>
+        <span className={css.nodeProg}><i /></span>
+        <span>{t('pipeWorking')}</span>
+      </>
+    )
+  }
   if (step.phase === 'stopped') return <span>{t('pipeStepState_stopped')}</span>
   if (step.phase === 'idle') return <span>{t('pipeNeverRan')}</span>
   if (step.product.kind === 'directory') return <span>{step.product.path}</span>
@@ -972,8 +1087,20 @@ function footOf(step: StepView, t: (key: WorkbenchLocaleKey, params?: Record<str
   return <span>{t('pipeNoProduct')}</span>
 }
 
+/**
+ * Read one run step's product as a single line.
+ * @param html - the step's stored region.
+ * @param t - translator.
+ * @returns the path for a directory product, otherwise what the region is.
+ */
+function productLine(html: string | undefined, t: (key: WorkbenchLocaleKey) => string): string {
+  const product = productOf(html)
+  if (product.kind === 'directory') return product.path
+  return product.kind === 'inline' ? t('pipeInlineProduct') : t('pipeNoProduct')
+}
+
 /** The marks a state is drawn with, so colour is never the only signal. */
-const MARK: Record<'dash' | 'clock' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'up' | 'down' | 'trash', ReactNode> = {
+const MARK: Record<'dash' | 'clock' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
   dash: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="5.3" strokeDasharray="2.2 2.2" /></svg>,
   clock: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="5.7" /><path d="M8 4.8V8l2.2 1.4" /></svg>,
   check: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m3.6 8.4 2.8 2.6 5.9-6" /></svg>,
@@ -981,11 +1108,10 @@ const MARK: Record<'dash' | 'clock' | 'check' | 'warn' | 'x' | 'plus' | 'play' |
   x: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" /></svg>,
   plus: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3.4v9.2M3.4 8h9.2" /></svg>,
   play: <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z" /></svg>,
-  chev: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m4.4 6.4 3.6 3.4 3.6-3.4" /></svg>,
+  chev: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m4.4 6.4 3.6 3.4 3.6-3.4" /></svg>,
   search: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7.2" cy="7.2" r="4.4" /><path d="m10.6 10.6 2.6 2.6" /></svg>,
-  up: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 12.6V3.6M4.2 7.2 8 3.4l3.8 3.8" /></svg>,
-  down: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3.4v9M4.2 8.8 8 12.6l3.8-3.8" /></svg>,
-  trash: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2.8 4.4h10.4M6.2 4.4V2.9h3.6v1.5M4.1 4.4l.6 8.3a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.6-8.3" /></svg>,
+  dots: <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.4" cy="8" r="1.15" /><circle cx="8" cy="8" r="1.15" /><circle cx="12.6" cy="8" r="1.15" /></svg>,
+  back: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9.6 3.6 5.2 8l4.4 4.4" /></svg>,
 }
 
 /** Tab titles by tab. */
@@ -1016,7 +1142,7 @@ function ActivityPanel(props: {
       <div className={css.stateBlock} data-tone="danger">
         <h6>{t('pipeActivityFailed')}</h6>
         <p>{step.failure ?? t('pipeNoProduct')}</p>
-        <button type="button" className={css.ghostBtn} onClick={onOpenCard}>{t('pipeOpenRuns')}</button>
+        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onOpenCard}>{t('pipeOpenRuns')}</button>
       </div>
     )
   }
@@ -1080,9 +1206,7 @@ function ConfigPanel(props: {
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgPermission')}</span>
           <span className={css.ruleValue}>
-            <span className={css.val}>
-              {t(permissionLabelKey(shared?.permission ?? 'workspace-write'))}
-            </span>
+            <span className={css.val}>{t(permissionLabelKey(shared?.permission ?? 'workspace-write'))}</span>
           </span>
         </div>
         <div className={css.ruleRow}>
@@ -1126,10 +1250,10 @@ function ConfigPanel(props: {
           </span>
         </div>
         {template === undefined
-          ? <p className={css.panelNote}>{t('pipeCfgNoTemplate')}</p>
+          ? <p className={css.hint}>{t('pipeCfgNoTemplate')}</p>
           : view === 'preview'
             ? (
-              <div className={css.tplSlot}>
+              <div>
                 <div className={css.tplSlotLabel}>{t('pipeCfgPreviewNote')}</div>
                 <div className={css.tplSlotBox}>
                   <span className={css.tplSlotTag}>{t('pipeCfgRegion')}</span>
@@ -1138,7 +1262,7 @@ function ConfigPanel(props: {
               </div>
               )
             : <pre className={css.docSrc} data-cfg-source="">{template}</pre>}
-        <button type="button" className={css.ghostBtn} data-edit-card="" onClick={onEdit}>
+        <button type="button" className={`${css.btn} ${css.ghost}`} data-edit-card="" onClick={onEdit}>
           {t('pipeCfgEdit')}
         </button>
       </div>
@@ -1152,8 +1276,9 @@ function ResultPanel(props: {
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onOpen: () => void
   readonly onRun: () => void
+  readonly onReview: () => void
 }): ReactNode {
-  const { step, t, onOpen, onRun } = props
+  const { step, t, onOpen, onRun, onReview } = props
   if (step.phase === 'running') {
     return (
       <div className={css.stateBlock}>
@@ -1166,8 +1291,8 @@ function ResultPanel(props: {
     return (
       <div className={css.stateBlock}>
         <h6>{t('pipeResultQueued')}</h6>
-        <p>{t('pipeResultQueuedBody', { at: step.index + 1 })}</p>
-        <button type="button" className={css.ghostBtn} onClick={onRun}>{MARK.play}{t('pipeRunThisStep')}</button>
+        <p>{t('pipeResultQueuedBody', { at: step.index })}</p>
+        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onRun}>{t('pipeRunThisStep')}</button>
       </div>
     )
   }
@@ -1176,7 +1301,7 @@ function ResultPanel(props: {
       <div className={css.stateBlock} data-tone="danger">
         <h6>{t('pipeResultFailed')}</h6>
         <p>{step.failure ?? t('pipeNoProduct')}</p>
-        <button type="button" className={css.ghostBtn} onClick={onRun}>{MARK.play}{t('pipeRetryStep')}</button>
+        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onRun}>{t('pipeRetryStep')}</button>
       </div>
     )
   }
@@ -1185,60 +1310,33 @@ function ResultPanel(props: {
       <div className={css.stateBlock}>
         <h6>{t('pipeResultNone')}</h6>
         <p>{t('pipeResultNoneBody')}</p>
-        <button type="button" className={css.ghostBtn} onClick={onRun}>{MARK.play}{t('pipeRunOne')}</button>
+        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onRun}>{t('pipeRunOne')}</button>
       </div>
     )
   }
   return (
     <div className={css.resBlock}>
-      <div className={css.cfgBlockHead}>
+      <div className={css.resBlockHead}>
         <span>{t('pipeResultWhat')}</span>
         {step.product.kind === 'directory' ? <em>{step.product.path}</em> : null}
       </div>
       {step.result.editedAt === undefined ? null : (
-        <p className={css.panelNote} data-edited="">{t('pipeResultEdited')}</p>
+        <p className={css.revised} data-edited="">{t('pipeResultEdited')}</p>
       )}
       <div className={css.resList}>
         <button type="button" className={css.resItem} data-open-result="" onClick={onOpen}>
-          {MARK.dash}
           <span className={css.resItemName}>
             {step.product.kind === 'directory' ? t('pipeResultOpenDir') : t('pipeResultOpenInline')}
           </span>
           <span className={css.resItemSize}>{formatWhen(step.result.executedAt, Date.now())}</span>
-          <span className={css.chev}>{MARK.chev}</span>
         </button>
       </div>
-      <p className={css.panelNote}>{t('pipeResultReadNote')}</p>
-    </div>
-  )
-}
-
-/** One overlay, scrim plus dialog, closed by Escape and by its scrim. */
-function Modal(props: {
-  readonly onClose: () => void
-  readonly labelledBy: string
-  readonly width?: 'narrow'
-  readonly children: ReactNode
-}): ReactNode {
-  const { onClose, labelledBy, width, children } = props
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('keydown', onKey) }
-  }, [onClose])
-  return (
-    <div className={css.modalWrap}>
-      <div className={css.scrim} onClick={onClose} />
-      <div
-        className={width === 'narrow' ? `${css.modal} ${css.modalNarrow}` : css.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-      >
-        {children}
+      <div className={css.resOpen}>
+        <button type="button" className={`${css.btn} ${css.ghost}`} data-result-review="" onClick={onReview}>
+          {t('pipeRegenerate')}
+        </button>
       </div>
+      <p className={css.hint}>{t('pipeResultReadNote')}</p>
     </div>
   )
 }
@@ -1258,6 +1356,7 @@ function RenameField(props: {
       className={css.renameInput}
       value={value}
       aria-label={t('pipeRenameLabel')}
+      maxLength={24}
       autoFocus
       onChange={(event) => { setValue(event.target.value) }}
       onKeyDown={(event) => {

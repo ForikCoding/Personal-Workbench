@@ -1,11 +1,12 @@
 /**
- * The pipeline workbench: routes on the left, the chain in the middle, one step on the right.
+ * 流水线工作台：左边是这条流水线本身，右边是选中的这一步。
  *
- * Three zones that answer three different questions, and none of them duplicates another:
- * the rail says which pipelines exist, the canvas says what the chain is doing, and the
- * inspector says what one step produced, did, and is configured to do. Everything a step
- * *is* lives in its card — the pipeline only holds an order — so this surface never edits a
- * card's template; the inspector mounts the card's own page for that.
+ * 结构与 `docs/prototypes/workbench-pipeline-v2.html` 一一对应：面板头 → 两栏（画布 + 检查器）
+ * → 运行条，四个弹层（阅读器 / 运行记录 / 审核 / 选择器）都是面板内的覆盖层，不另开窗口。
+ * 样式逐条取自原型，只把原型的固定色板换成 DSH 令牌，于是插件跟 DSH 一起换肤。
+ *
+ * 步骤的“是什么”全在它自己的卡片里（模板、技能、模型、工作目录），流水线只记住顺序，
+ * 所以这里从不编辑卡片的模板：要改就进卡片自己的页面。
  * @module dsh-workbench/client/WorkbenchPipeline
  */
 import { type ReactNode } from 'react';
@@ -18,13 +19,13 @@ import type { WorkbenchLocaleKey } from './locales.ts';
 type CardView = 'config' | 'runs' | 'result';
 /** Props of the pipeline workbench. */
 export interface WorkbenchPipelineProps {
-    /** Stored pipelines and the mutations the rail offers. */
+    /** Stored pipelines and the mutations the menu offers. */
     readonly pipelines: WorkbenchPipelinesFace;
     /** The run engine the canvas drives. */
     readonly run: PipelineRunFace;
-    /** Cards the workbench knows about, as the rail lists them. */
+    /** Cards the workbench knows about, as the menu lists them. */
     readonly facts: readonly WorkbenchCardFact[];
-    /** Transport, so a step's stored result can be read without threading it through the page. */
+    /** Transport, so a step's stored result is read here rather than threaded through the page. */
     readonly api: WorkbenchSkillCardApi;
     /**
      * Mount one card's own view.
@@ -34,7 +35,7 @@ export interface WorkbenchPipelineProps {
      * @returns the view.
      */
     readonly renderCard: (cardId: string, view: CardView, onBack: () => void) => ReactNode;
-    /** Create a new single card, from the rail's own entry. */
+    /** Create a new single card, from the menu's own entry. */
     readonly onCreateCard: () => void;
     /**
      * Translate one workbench string.
@@ -47,7 +48,7 @@ export interface WorkbenchPipelineProps {
 /**
  * Render the pipeline workbench.
  * @param props - stored pipelines, run engine, cards, transport, card views, and `t`.
- * @returns the three-zone surface.
+ * @returns the two-column surface with its overlays.
  */
 export declare function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode;
 export {};

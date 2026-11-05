@@ -342,6 +342,17 @@ export declare const zh: {
     pipeRenameLabel: string;
     pipeDelete: string;
     pipeDeleteConfirm: string;
+    pipeReaderTitle: string;
+    pipeEscHint: string;
+    pipeReviewTitle: string;
+    pipeReviewSubtitle: string;
+    pipeReviewPlaceholder: string;
+    pipeChipEdges: string;
+    pipeChipTable: string;
+    pipeChipShorter: string;
+    pipeReviewWarn: string;
+    pipeCancel: string;
+    pipeRegenerate: string;
 };
 /** English dictionary; the annotation keeps both dictionaries on one key set. */
 export declare const en: Record<keyof typeof zh, string>;

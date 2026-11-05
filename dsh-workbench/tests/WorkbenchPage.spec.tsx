@@ -176,9 +176,7 @@ describe('WorkbenchPage', () => {
   it('opens on the first stored pipeline with its steps on the canvas', async () => {
     await renderPage()
     await waitFor(() => { expect(document.querySelectorAll('[data-step-index]').length).toBe(2) })
-    // The rail row and the canvas title both name it; the canvas is what says which
-    // pipeline the steps below belong to.
-    expect(screen.getAllByText('Release check').length).toBe(2)
+    // The canvas title is the one place that names the pipeline on screen.
     expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Release check')
     expect(document.querySelector('[data-insp-kicker]')?.textContent).toBe(en.pipeStepKicker
       .replace('{at}', '1').replace('{count}', '2').replace('{name}', 'Release check'))
@@ -191,21 +189,25 @@ describe('WorkbenchPage', () => {
 
   it('lists the stored cards under the single-task heading', async () => {
     await renderPage()
-    expect(screen.getByText(en.pipeRailTasks)).toBeDefined()
+    // The title menu is the only list: pipelines, then the single tasks, then the
+    // pipeline's own actions.
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
+    expect(await screen.findByText(en.pipeRailTasks)).toBeDefined()
     // Both cards are steps of the pipeline and are also listed as single tasks.
-    // The rail lists every card the workbench knows about.\n    expect(document.querySelectorAll('[data-card-row]').length).toBeGreaterThanOrEqual(2)
+    expect(document.querySelectorAll('[data-card-row]').length).toBeGreaterThanOrEqual(2)
   })
 
   it('opens onto the creation offer when nothing is stored', async () => {
     await renderPage({ pipelines: [] })
     expect((await screen.findAllByText(en.pipeEmptyTitle)).length).toBeGreaterThan(0)
     expect(screen.getByText(en.pipeEmptyBody)).toBeDefined()
-    expect(screen.getByText(en.pipeRailNoPipelines)).toBeDefined()
+    expect(document.querySelector('[data-canvas-title]')?.textContent).toBe(en.pipeNoPipeline)
   })
 
   it('creates a pipeline with no steps and opens it', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(document.querySelector('[data-new-pipeline]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
+    fireEvent.click(await screen.findByText(en.pipeNewPipeline))
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines.map(entry => entry.id)).toEqual(['pipeline-1', 'pipeline-2'])
     expect(writes[0]?.pipelines.find(entry => entry.id === 'pipeline-2')?.steps).toEqual([])
@@ -257,7 +259,7 @@ describe('WorkbenchPage', () => {
 
   it('renames a pipeline from its row menu', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByLabelText(en.pipeRailMenu))
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeRename))
     const field = screen.getByLabelText(en.pipeRenameLabel) as HTMLInputElement
     fireEvent.change(field, { target: { value: 'Nightly' } })
@@ -268,7 +270,7 @@ describe('WorkbenchPage', () => {
 
   it('keeps a blank rename out of storage', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByLabelText(en.pipeRailMenu))
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeRename))
     const field = screen.getByLabelText(en.pipeRenameLabel) as HTMLInputElement
     fireEvent.change(field, { target: { value: '   ' } })
@@ -280,7 +282,7 @@ describe('WorkbenchPage', () => {
 
   it('deletes a pipeline only once the deletion is confirmed', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByLabelText(en.pipeRailMenu))
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeDelete))
     // The first click arms the row; nothing is written yet.
     expect(writes).toHaveLength(0)

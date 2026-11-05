@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
 // The Loader never fetches a sibling stylesheet, so this one ships inside
 // the factory and installs on first evaluation.
 {
-  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_1dl0t_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_1dl0t_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_1dl0t_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_1dl0t_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_1dl0t_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_1dl0t_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_1dl0t_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_1dl0t_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_1dl0t_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_1dl0t_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_1dl0t_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide.\n   \n   The track is stated rather than left implicit: an implicit `auto` track sizes itself\n   from the item's content, so the creation tile — whose only content is a mark and a\n   short word — collapsed into a narrow column while the cards beside it stayed wide. */\n._cell_1dl0t_95 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  min-width: 0;\n}\n\n._createRoot_1dl0t_101 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n/* Same frame as a card, drawn as an outline: it belongs in the row of cards without\n   claiming to be one of them. */\n._createTile_1dl0t_112 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease,\n    transform 0.15s ease;\n}\n\n._createTile_1dl0t_112:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n  transform: translateY(-1px);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. It is the size and shape of the\n   monogram every card carries, which is what makes the tile read as a peer of the cards\n   rather than as a hole in the grid. */\n._createMark_1dl0t_145 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  /* Mixed from the label colour, not filled with a layer token: the light theme's layers\n     are all the same white as the tile, which would leave the mark with no shape. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  font-size: 16px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_1dl0t_112:hover ._createMark_1dl0t_145 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_1dl0t_112:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_1dl0t_81 {\n    grid-template-columns: 1fr;\n  }\n}\n\n/* ---------------------------------------------------------------------------\n   The pipeline workbench: a rail of pipelines and single cards, a canvas of\n   steps, and an inspector that mounts one card's own views.\n\n   Three fixed columns rather than one flowing column: the rail is a list, the\n   canvas is a sequence, and the inspector is a document — each scrolls on its\n   own, so a long run history never pushes the canvas out of view.\n   --------------------------------------------------------------------------- */\n\n/* The page's own frame when it hosts the shell: the shell scrolls internally, so\n   the page must not scroll as well. */\n._pagePipeline_1dl0t_188 {\n  align-items: stretch;\n  gap: 12px;\n  overflow: hidden;\n  padding-bottom: 12px;\n}\n\n._shell_1dl0t_195 {\n  display: grid;\n  flex: 1 1 auto;\n  grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr);\n  box-sizing: border-box;\n  min-height: 0;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  overflow: hidden;\n}\n\n@media (max-width: 760px) {\n  /* Below the panel's own minimum the inspector is what has to survive: the rail\n     folds away and the canvas narrows, because a pipeline you cannot read is worse\n     than one you cannot switch. */\n  ._shell_1dl0t_195 {\n    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);\n  }\n\n  ._rail_1dl0t_214 {\n    display: none;\n  }\n}\n\n/* --- rail ---------------------------------------------------------------- */\n\n._rail_1dl0t_214 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 10px 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n._railHead_1dl0t_233 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n  padding: 4px 6px 2px;\n}\n\n._railTitle_1dl0t_241 {\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railAction_1dl0t_248,\n._linkBtn_1dl0t_249 {\n  padding: 2px 4px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n  border-radius: 6px;\n}\n\n._railAction_1dl0t_248:hover,\n._linkBtn_1dl0t_249:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._railAction_1dl0t_248:focus-visible,\n._linkBtn_1dl0t_249:focus-visible,\n._menuBtn_1dl0t_269:focus-visible,\n._toolBtn_1dl0t_270:focus-visible,\n._stepBadge_1dl0t_271:focus-visible,\n._stepMain_1dl0t_272:focus-visible,\n._railRowMain_1dl0t_273:focus-visible,\n._railRowTask_1dl0t_274:focus-visible,\n._tab_1dl0t_275:focus-visible,\n._primaryBtn_1dl0t_276:focus-visible,\n._stopBtn_1dl0t_277:focus-visible,\n._addStep_1dl0t_278:focus-visible,\n._pickerRow_1dl0t_279:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._railList_1dl0t_284 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._railEmpty_1dl0t_293 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railRow_1dl0t_273 {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  border-radius: 8px;\n}\n\n._railRowActive_1dl0t_308 {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowMain_1dl0t_273 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 1px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 6px 8px;\n  border: none;\n  border-radius: 8px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._railRowTask_1dl0t_274 {\n  width: 100%;\n  padding: 6px 8px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n  border-radius: 8px;\n}\n\n._railRowTask_1dl0t_274:hover,\n._railRowMain_1dl0t_273:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowName_1dl0t_350 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._railCount_1dl0t_356 {\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._menuBtn_1dl0t_269 {\n  flex: none;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 14px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._menuBtn_1dl0t_269:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._menu_1dl0t_269 {\n  position: absolute;\n  z-index: 2;\n  margin-top: 32px;\n  display: flex;\n  flex-direction: column;\n  min-width: 132px;\n  padding: 4px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n  box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);\n}\n\n._menuRow_1dl0t_395 {\n  padding: 6px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._menuRow_1dl0t_395:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._menuRowDanger_1dl0t_412 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._renameInput_1dl0t_416 {\n  box-sizing: border-box;\n  width: 100%;\n  padding: 6px 8px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 18px;\n}\n\n/* --- canvas -------------------------------------------------------------- */\n\n._canvas_1dl0t_431 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 12px 12px 16px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  overflow: auto;\n}\n\n._canvasHead_1dl0t_442 {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n._canvasTitleGroup_1dl0t_449 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n._canvasTitle_1dl0t_449 {\n  margin: 0;\n  overflow: hidden;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: var(--dsw-alias-label-primary);\n}\n\n._canvasMeta_1dl0t_467,\n._canvasHint_1dl0t_468 {\n  margin: 0;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._canvasHint_1dl0t_468 {\n  padding: 8px 2px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runBar_1dl0t_480 {\n  display: flex;\n  flex: none;\n  gap: 6px;\n}\n\n._primaryBtn_1dl0t_276,\n._stopBtn_1dl0t_277 {\n  padding: 4px 10px;\n  border: 1px solid transparent;\n  border-radius: 8px;\n  background: var(--dsw-alias-brand-primary);\n  color: #fff;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._primaryBtn_1dl0t_276:hover {\n  filter: brightness(1.06);\n}\n\n._primaryBtn_1dl0t_276:disabled {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  cursor: default;\n}\n\n._stopBtn_1dl0t_277 {\n  background: none;\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chainLine_1dl0t_515 {\n  margin: 0;\n  padding: 6px 8px;\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chainLineFailed_1dl0t_525 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._stepList_1dl0t_529 {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._step_1dl0t_271 {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px 6px 6px 4px;\n  border: 1px solid transparent;\n  border-radius: 10px;\n}\n\n._stepSelected_1dl0t_548 {\n  border-color: var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._stepRow_1dl0t_553 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._stepBadge_1dl0t_271 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 20px;\n  height: 20px;\n  margin-top: 2px;\n  border: none;\n  border-radius: 7px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._stepMain_1dl0t_272 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 3px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 0;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n._stepName_1dl0t_594 {\n  overflow: hidden;\n  font-size: 13px;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepNameMissing_1dl0t_602 {\n  color: var(--dsw-alias-label-tertiary);\n  text-decoration: line-through;\n}\n\n._stepSub_1dl0t_607 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._stepAsk_1dl0t_617 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepTook_1dl0t_623 {\n  font-variant-numeric: tabular-nums;\n}\n\n._chip_1dl0t_627 {\n  flex: none;\n  padding: 1px 6px;\n  border-radius: 999px;\n  font-size: 11px;\n  line-height: 14px;\n}\n\n._chipIdle_1dl0t_635 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipQueued_1dl0t_640 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipRunning_1dl0t_645 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._chipDone_1dl0t_650 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._chipFailed_1dl0t_655 {\n  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chipStopped_1dl0t_660 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* The per-step controls appear on hover or focus: a canvas of six steps showing six\n   toolbars reads as a settings form rather than as an order of operations. */\n._stepTools_1dl0t_667 {\n  display: flex;\n  gap: 4px;\n  padding-left: 28px;\n  opacity: 0;\n  transition: opacity 0.12s ease;\n}\n\n._step_1dl0t_271:hover ._stepTools_1dl0t_667,\n._step_1dl0t_271:focus-within ._stepTools_1dl0t_667,\n._stepSelected_1dl0t_548 ._stepTools_1dl0t_667 {\n  opacity: 1;\n}\n\n._toolBtn_1dl0t_270 {\n  padding: 1px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._toolBtn_1dl0t_270:hover {\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._connector_1dl0t_698 {\n  display: block;\n  width: 1px;\n  height: 10px;\n  margin: 2px 0 2px 14px;\n  background: var(--dsw-alias-border-l2);\n}\n\n._addStep_1dl0t_278 {\n  padding: 6px 10px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._addStep_1dl0t_278:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  color: var(--dsw-alias-label-primary);\n}\n\n._picker_1dl0t_279 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._pickerHead_1dl0t_734 {\n  padding: 2px 6px 4px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._pickerRow_1dl0t_279 {\n  padding: 5px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._pickerRow_1dl0t_279:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._pickerEmpty_1dl0t_758 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* --- inspector ----------------------------------------------------------- */\n\n._inspector_1dl0t_768 {\n  display: flex;\n  flex-direction: column;\n  box-sizing: border-box;\n  min-height: 0;\n  min-width: 0;\n}\n\n._tabs_1dl0t_776 {\n  display: flex;\n  flex: none;\n  gap: 2px;\n  padding: 8px 12px 0;\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._tab_1dl0t_275 {\n  padding: 6px 10px;\n  border: none;\n  border-bottom: 2px solid transparent;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._tab_1dl0t_275:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n._tabActive_1dl0t_800 {\n  border-bottom-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n/* The mounted card view brings its own padding and its own scroller; this box only\n   has to give it a bounded height so it can own both. */\n._tabBody_1dl0t_808 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  min-height: 0;\n  overflow: hidden;\n}\n\n._tabBody_1dl0t_808 > * {\n  min-height: 0;\n}\n\n._noFocus_1dl0t_820 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 40px 16px;\n  text-align: center;\n}\r\n\n/* ==========================================================================\n   流水线工作台：三区、节点、检查器、弹层\n   只用 DSH 令牌与 color-mix，明暗两主题由令牌本身保证。\n   ========================================================================== */\n\n._shell_1dl0t_195 {\n  display: grid;\n  grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr);\n  gap: 12px;\n  min-height: 0;\n  flex: 1;\n}\n\n@media (max-width: 760px) {\n  ._shell_1dl0t_195 { grid-template-columns: minmax(0, 1fr); }\n  ._rail_1dl0t_214 { display: none; }\n}\n\n/* ── 轨道 ── */\n._rail_1dl0t_214 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-height: 0;\n  overflow: auto;\n  padding-right: 2px;\n}\n\n._railHead_1dl0t_233 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  padding: 10px 8px 6px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._railAction_1dl0t_248 {\n  padding: 2px 6px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n\n._railAction_1dl0t_248:hover { background: var(--dsw-alias-bg-fill-hover); color: var(--dsw-alias-label-primary); }\n\n._railEmpty_1dl0t_293 { margin: 0 8px 6px; color: var(--dsw-alias-label-tertiary); font-size: 12px; }\n\n._railList_1dl0t_284 { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }\n\n._railItem_1dl0t_885 { position: relative; display: flex; align-items: center; }\n\n._railRow_1dl0t_273 {\n  display: flex;\n  flex: 1;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._railRow_1dl0t_273:hover { background: var(--dsw-alias-bg-fill-hover); }\n._railRowCurrent_1dl0t_905 { background: var(--dsw-alias-bg-layer-2); font-weight: 500; }\n._railName_1dl0t_906 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._railCount_1dl0t_356 { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }\n\n._railDots_1dl0t_909 {\n  width: 22px;\n  height: 22px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  opacity: 0;\n  cursor: pointer;\n}\n\n._railItem_1dl0t_885:hover ._railDots_1dl0t_909, ._railDots_1dl0t_909[aria-expanded='true'] { opacity: 1; }\n._railDots_1dl0t_909:hover { background: var(--dsw-alias-bg-fill-hover); color: var(--dsw-alias-label-primary); }\n\n._renameInput_1dl0t_416 {\n  flex: 1;\n  min-width: 0;\n  padding: 5px 8px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 13px;\n}\n\n/* ── 菜单 ── */\n._menu_1dl0t_269 {\n  position: absolute;\n  z-index: 30;\n  top: calc(100% + 4px);\n  left: 8px;\n  min-width: 180px;\n  padding: 4px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-1);\n  box-shadow: 0 10px 28px color-mix(in srgb, #000 18%, transparent);\n}\n\n._menuRow_1dl0t_395 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._menuRow_1dl0t_395:hover:not(:disabled) { background: var(--dsw-alias-bg-fill-hover); }\n._menuRow_1dl0t_395:disabled { opacity: 0.45; cursor: default; }\n._menuRowDanger_1dl0t_412 { color: var(--dsw-alias-state-error-primary); }\n._menuRowMain_1dl0t_968 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._menuTail_1dl0t_969 { color: var(--dsw-alias-label-tertiary); font-size: 11px; }\n._menuSep_1dl0t_970 { height: 1px; margin: 4px 2px; background: var(--dsw-alias-border-l1); }\n._menuNote_1dl0t_971 { margin: 4px 8px 6px; color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 1.5; }\n\n/* ── 画布 ── */\n._canvas_1dl0t_431 {\n  display: flex;\n  flex-direction: column;\n  min-height: 0;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-base);\n  overflow: hidden;\n}\n\n._canvasHead_1dl0t_442 {\n  position: relative;\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 10px 12px 8px;\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._canvasTitleWrap_1dl0t_993 { flex: 1; min-width: 0; }\n._canvasTitleRow_1dl0t_994 { display: flex; align-items: center; gap: 8px; min-width: 0; }\n\n._canvasTitle_1dl0t_449 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  min-width: 0;\n  padding: 2px 6px 2px 2px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 15px;\n  font-weight: 500;\n  cursor: pointer;\n}\n\n._canvasTitle_1dl0t_449:hover:not(:disabled) { background: var(--dsw-alias-bg-fill-hover); }\n._canvasTitle_1dl0t_449:disabled { cursor: default; color: var(--dsw-alias-label-tertiary); }\n._chev_1dl0t_1014 { display: inline-flex; color: var(--dsw-alias-label-tertiary); }\n._chev_1dl0t_1014 svg { width: 14px; height: 14px; }\n\n._stateChip_1dl0t_1017 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 1px 7px;\n  border-radius: 999px;\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 12%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n._dot_1dl0t_1029 { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-label-tertiary); }\n._dot_1dl0t_1029[data-s='running'] { background: var(--dsw-alias-brand-primary); }\n._dot_1dl0t_1029[data-s='done'] { background: #2f9e6e; }\n._dot_1dl0t_1029[data-s='failed'] { background: var(--dsw-alias-state-error-primary); }\n._dot_1dl0t_1029[data-s='stopped'] { background: var(--dsw-alias-label-secondary); }\n\n._canvasMeta_1dl0t_467 {\n  display: block;\n  max-width: 100%;\n  margin-top: 4px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  font: inherit;\n  font-size: 11px;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  cursor: pointer;\n}\n\n._canvasMeta_1dl0t_467:hover:not(:disabled) { color: var(--dsw-alias-label-secondary); text-decoration: underline; }\n._canvasMeta_1dl0t_467:disabled { cursor: default; }\n\n._canvasScroll_1dl0t_1055 { flex: 1; min-height: 0; overflow: auto; padding: 14px 12px; }\n\n._emptyFlow_1dl0t_1057 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 6px;\n  padding: 32px 16px;\n  text-align: center;\n}\n\n._emptyMark_1dl0t_1066 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 50%;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._emptyMark_1dl0t_1066 svg { width: 15px; height: 15px; }\n._emptyFlow_1dl0t_1057 h4 { margin: 2px 0 0; font-size: 13px; font-weight: 500; }\n._emptyFlow_1dl0t_1057 p { max-width: 280px; margin: 0 0 8px; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 1.6; }\n\n._flow_1dl0t_1081 { display: flex; flex-direction: column; }\n\n._nodeWrap_1dl0t_1083 { display: flex; flex-direction: column; }\n\n._connector_1dl0t_698 { display: flex; align-items: center; justify-content: center; height: 18px; }\n._connectorShort_1dl0t_1086 { height: 10px; }\n\n._insertBtn_1dl0t_1088 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 18px;\n  height: 18px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: 50%;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-tertiary);\n  opacity: 0;\n  cursor: pointer;\n}\n\n._insertBtn_1dl0t_1088 svg { width: 11px; height: 11px; }\n._nodeWrap_1dl0t_1083:hover + ._connector_1dl0t_698 ._insertBtn_1dl0t_1088, ._connector_1dl0t_698:hover ._insertBtn_1dl0t_1088 { opacity: 1; }\n._insertBtn_1dl0t_1088:hover { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }\n\n._node_1dl0t_1083 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 9px 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-1);\n  cursor: pointer;\n  text-align: left;\n}\n\n._node_1dl0t_1083:hover { border-color: var(--dsw-alias-border-l2); }\n._nodeSelected_1dl0t_1119 { border-color: var(--dsw-alias-brand-primary); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, var(--dsw-alias-bg-layer-1)); }\n._node_1dl0t_1083[data-s='running'] { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 55%, var(--dsw-alias-border-l1)); }\n._node_1dl0t_1083[data-s='failed'] { border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 50%, var(--dsw-alias-border-l1)); }\n\n._nodeTop_1dl0t_1123 { display: flex; align-items: center; gap: 6px; min-width: 0; }\n\n._nodeIndex_1dl0t_1125 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 10px;\n  font-variant-numeric: tabular-nums;\n  letter-spacing: 0.04em;\n}\n\n._nodeTitle_1dl0t_1132 {\n  flex: 1;\n  overflow: hidden;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._nodeState_1dl0t_1141 {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n._nodeState_1dl0t_1141 svg, ._chipTag_1dl0t_1150 svg, ._runOne_1dl0t_1150 svg, ._primaryBtn_1dl0t_276 svg, ._ghostBtn_1dl0t_1150 svg, ._nodeFoot_1dl0t_1150 svg, ._resItem_1dl0t_1150 svg { width: 12px; height: 12px; }\n._nodeState_1dl0t_1141[data-s='done'] { color: #2f9e6e; }\n._nodeState_1dl0t_1141[data-s='failed'] { color: var(--dsw-alias-state-error-primary); }\n._nodeState_1dl0t_1141[data-s='running'] { color: var(--dsw-alias-brand-primary); }\n\n._nodeDur_1dl0t_1155 { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }\n\n._nodeFoot_1dl0t_1150 {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  overflow: hidden;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 1.5;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._nodeFoot_1dl0t_1150[data-s='failed'] { color: var(--dsw-alias-state-error-primary); }\n._nodeRun_1dl0t_1170 { margin-left: auto; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }\n\n._addStep_1dl0t_278 {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 4px;\n  padding: 8px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n\n._addStep_1dl0t_278 svg { width: 12px; height: 12px; }\n._addStep_1dl0t_278:hover { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }\n\n._runBar_1dl0t_480 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 8px 12px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._segBar_1dl0t_1199 { display: flex; gap: 2px; flex: 0 0 auto; }\n._segBar_1dl0t_1199 i { width: 12px; height: 3px; border-radius: 2px; background: var(--dsw-alias-border-l2); }\n._segBar_1dl0t_1199 i[data-s='done'] { background: #2f9e6e; }\n._segBar_1dl0t_1199 i[data-s='running'] { background: var(--dsw-alias-brand-primary); }\n._segBar_1dl0t_1199 i[data-s='failed'] { background: var(--dsw-alias-state-error-primary); }\n\n._runNoise_1dl0t_1205 { flex: 1; min-width: 0; color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._runActions_1dl0t_1206 { display: flex; align-items: center; gap: 6px; }\n\n._primaryBtn_1dl0t_276 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 5px 11px;\n  border: 0;\n  border-radius: 8px;\n  background: var(--dsw-alias-label-primary);\n  color: var(--dsw-alias-bg-base);\n  font: inherit;\n  font-size: 12px;\n  font-weight: 500;\n  cursor: pointer;\n}\n\n._primaryBtn_1dl0t_276:hover:not(:disabled) { background: color-mix(in srgb, var(--dsw-alias-label-primary) 86%, var(--dsw-alias-bg-base)); }\n._primaryBtn_1dl0t_276:disabled { opacity: 0.45; cursor: default; }\n\n._ghostBtn_1dl0t_1150 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 5px 10px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 8px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n\n._ghostBtn_1dl0t_1150:hover:not(:disabled) { background: var(--dsw-alias-bg-fill-hover); }\n._ghostBtn_1dl0t_1150:disabled { opacity: 0.5; cursor: default; }\n\n._iconBtn_1dl0t_1243 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  font: inherit;\n  cursor: pointer;\n}\n\n._iconBtn_1dl0t_1243 svg { width: 13px; height: 13px; }\n._iconBtn_1dl0t_1243:hover { background: var(--dsw-alias-bg-fill-hover); color: var(--dsw-alias-label-primary); }\n\n/* ── 检查器 ── */\n._inspector_1dl0t_768 {\n  display: flex;\n  flex-direction: column;\n  min-height: 0;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-base);\n  overflow: hidden;\n}\n\n._inspHead_1dl0t_1271 { padding: 10px 12px 0; border-bottom: 1px solid var(--dsw-alias-border-l1); }\n._inspKicker_1dl0t_1272 { color: var(--dsw-alias-label-tertiary); font-size: 11px; }\n._inspTitleRow_1dl0t_1273 { display: flex; align-items: center; gap: 6px; margin-top: 3px; }\n\n._inspTitle_1dl0t_1273 {\n  flex: 1;\n  min-width: 0;\n  margin: 0;\n  overflow: hidden;\n  font-size: 14px;\n  font-weight: 500;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runOne_1dl0t_1150 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 3px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n\n._runOne_1dl0t_1150:hover:not(:disabled) { background: var(--dsw-alias-bg-fill-hover); color: var(--dsw-alias-label-primary); }\n._runOne_1dl0t_1150:disabled { opacity: 0.45; cursor: default; }\n\n._inspMeta_1dl0t_1304 { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow: hidden; }\n._inspMeta_1dl0t_1304 code { padding: 0 4px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2); font-size: 11px; }\n._inspMeta_1dl0t_1304 > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n\n._chipTag_1dl0t_1150 {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  margin-left: auto;\n  padding: 1px 6px;\n  border-radius: 999px;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 10px;\n  white-space: nowrap;\n}\n\n._chipTag_1dl0t_1150[data-s='done'] { color: #2f9e6e; background: color-mix(in srgb, #2f9e6e 12%, transparent); }\n._chipTag_1dl0t_1150[data-s='failed'] { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); }\n\n._inspTabs_1dl0t_1324 { display: flex; gap: 2px; margin-top: 8px; }\n\n._tab_1dl0t_275 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 6px 8px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n\n._tab_1dl0t_275:hover { color: var(--dsw-alias-label-secondary); }\n._tabActive_1dl0t_800 { color: var(--dsw-alias-label-primary); border-bottom-color: var(--dsw-alias-label-primary); }\n._tabCount_1dl0t_1342 { padding: 0 4px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-tertiary); font-size: 10px; font-style: normal; }\n\n._inspScroll_1dl0t_1344 { position: relative; flex: 1; min-height: 0; overflow: auto; }\n._panelBody_1dl0t_1345 { padding: 12px; }\n\n._stateBlock_1dl0t_1347 { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }\n._stateBlock_1dl0t_1347 h6 { margin: 0; font-size: 12px; font-weight: 500; color: var(--dsw-alias-label-primary); }\n._stateBlock_1dl0t_1347 p { margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 1.6; }\n._stateBlock_1dl0t_1347[data-tone='danger'] h6 { color: var(--dsw-alias-state-error-primary); }\n._stateBlock_1dl0t_1347 ._ghostBtn_1dl0t_1150 { align-self: flex-start; margin-top: 2px; }\n\n._panelNote_1dl0t_1353 { margin: 0 0 8px; color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 1.6; }\n\n._actList_1dl0t_1355 { display: flex; flex-direction: column; gap: 8px; }\n._act_1dl0t_1355 { display: flex; gap: 7px; }\n._actIcon_1dl0t_1357 { flex: 0 0 auto; padding-top: 1px; color: var(--dsw-alias-label-tertiary); }\n._actIcon_1dl0t_1357 svg { width: 12px; height: 12px; }\n._actBody_1dl0t_1359 { min-width: 0; flex: 1; }\n._actTop_1dl0t_1360 { display: flex; align-items: baseline; gap: 6px; min-width: 0; }\n._actName_1dl0t_1361 { flex: 0 0 auto; color: var(--dsw-alias-label-primary); font-size: 12px; }\n._actArg_1dl0t_1362 { overflow: hidden; color: var(--dsw-alias-label-tertiary); font-family: var(--dsw-font-family); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }\n._actMsg_1dl0t_1363 { margin-top: 2px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }\n\n._cfgBlock_1dl0t_1365 {\n  padding: 10px 0;\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._cfgBlock_1dl0t_1365:first-child { padding-top: 0; }\n._cfgBlock_1dl0t_1365:last-child { border-bottom: 0; padding-bottom: 0; }\n\n._cfgBlockHead_1dl0t_1373 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 500; color: var(--dsw-alias-label-primary); }\n._cfgBlockHead_1dl0t_1373 em { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-style: normal; font-weight: 400; }\n\n._ruleRow_1dl0t_1376 { display: flex; gap: 10px; padding: 4px 0; font-size: 12px; }\n._ruleLabel_1dl0t_1377 { flex: 0 0 62px; color: var(--dsw-alias-label-tertiary); }\n._ruleValue_1dl0t_1378 { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }\n._val_1dl0t_1379 { color: var(--dsw-alias-label-primary); overflow-wrap: anywhere; }\n._mono_1dl0t_1380 { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }\n._hint_1dl0t_1381 { color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 1.5; }\n\n._segTiny_1dl0t_1383 { display: inline-flex; gap: 2px; padding: 1px; border-radius: 7px; background: var(--dsw-alias-bg-layer-2); }\n._segTiny_1dl0t_1383 button { padding: 2px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary); font: inherit; font-size: 11px; cursor: pointer; }\n._segTiny_1dl0t_1383 button[aria-pressed='true'] { background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }\n\n._tplSlot_1dl0t_1387 { margin-bottom: 8px; }\n._tplSlotLabel_1dl0t_1388 { margin-bottom: 4px; color: var(--dsw-alias-label-tertiary); font-size: 11px; }\n._tplSlotBox_1dl0t_1389 {\n  display: flex;\n  flex-direction: column;\n  gap: 3px;\n  padding: 14px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n}\n._tplSlotTag_1dl0t_1398 { color: var(--dsw-alias-label-secondary); font-size: 11px; font-weight: 500; }\n._tplSlotText_1dl0t_1399 { color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 1.6; }\n\n._docSrc_1dl0t_1401 {\n  max-height: 240px;\n  margin: 0 0 8px;\n  padding: 10px;\n  overflow: auto;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;\n  font-size: 11px;\n  line-height: 1.55;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n._resBlock_1dl0t_1417 { display: flex; flex-direction: column; }\n._resList_1dl0t_1418 { display: flex; flex-direction: column; gap: 2px; }\n\n._resItem_1dl0t_1150 {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  width: 100%;\n  padding: 7px 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._resItem_1dl0t_1150:hover { border-color: var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-fill-hover); }\n._resItemName_1dl0t_1437 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._resItemSize_1dl0t_1438 { color: var(--dsw-alias-label-tertiary); font-size: 11px; white-space: nowrap; }\n\n._stepMenu_1dl0t_1440 {\n  position: absolute;\n  z-index: 20;\n  top: 64px;\n  right: 10px;\n  min-width: 172px;\n  padding: 4px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-1);\n  box-shadow: 0 10px 28px color-mix(in srgb, #000 16%, transparent);\n}\n\n/* ── 弹层 ── */\n._modalWrap_1dl0t_1454 { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; }\n._scrim_1dl0t_1455 { position: absolute; inset: 0; background: color-mix(in srgb, #000 32%, transparent); }\n\n._modal_1dl0t_1454 {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  width: min(560px, 100%);\n  max-height: 100%;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 14px;\n  background: var(--dsw-alias-bg-base);\n  box-shadow: 0 24px 64px color-mix(in srgb, #000 28%, transparent);\n  overflow: hidden;\n}\n\n._modalNarrow_1dl0t_1470 { width: min(420px, 100%); }\n._modalHead_1dl0t_1471 { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--dsw-alias-border-l1); }\n._modalKicker_1dl0t_1472 { font-size: 13px; font-weight: 500; }\n._modalMeta_1dl0t_1473 { flex: 1; min-width: 0; overflow: hidden; color: var(--dsw-alias-label-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }\n._modalBody_1dl0t_1474 { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px 16px; }\n\n._histList_1dl0t_1476 { display: flex; flex-direction: column; gap: 2px; }\n\n._histRow_1dl0t_1478 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 7px 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._histRow_1dl0t_1478:hover { background: var(--dsw-alias-bg-fill-hover); }\n._histNo_1dl0t_1494 { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }\n._histWhen_1dl0t_1495 { color: var(--dsw-alias-label-secondary); font-size: 11px; white-space: nowrap; }\n._histSum_1dl0t_1496 { flex: 1; min-width: 0; overflow: hidden; color: var(--dsw-alias-label-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }\n._histTook_1dl0t_1497 { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }\n\n._histBadge_1dl0t_1499 { padding: 1px 6px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10px; }\n._histBadge_1dl0t_1499[data-s='settled'] { color: #2f9e6e; background: color-mix(in srgb, #2f9e6e 12%, transparent); }\n._histBadge_1dl0t_1499[data-s='failed'] { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); }\n\n._histDetail_1dl0t_1503 { display: flex; flex-direction: column; gap: 2px; }\n._histStep_1dl0t_1504 { display: flex; flex-direction: column; }\n\n._histStepHead_1dl0t_1506 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._histStepHead_1dl0t_1506:hover { background: var(--dsw-alias-bg-fill-hover); }\n._histStepNo_1dl0t_1523 { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }\n._histStepName_1dl0t_1524 { flex: 0 0 auto; }\n._histStepMeta_1dl0t_1525 { flex: 1; min-width: 0; overflow: hidden; color: var(--dsw-alias-label-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }\n._histStepTook_1dl0t_1526 { color: var(--dsw-alias-label-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }\n\n._searchField_1dl0t_1528 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin-bottom: 8px;\n  padding: 5px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._searchField_1dl0t_1528 svg { width: 13px; height: 13px; flex: 0 0 auto; }\n._searchField_1dl0t_1528 input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; outline: none; }\n\n._pickerList_1dl0t_1543 { display: flex; flex-direction: column; gap: 2px; }\n\n._pickerRow_1dl0t_279 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 7px 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--dsw-alias-label-primary);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._pickerRow_1dl0t_279:hover:not(:disabled) { background: var(--dsw-alias-bg-fill-hover); }\n._pickerRow_1dl0t_279:disabled { opacity: 0.5; cursor: default; }\n._pickerRow_1dl0t_279 svg { width: 12px; height: 12px; color: var(--dsw-alias-label-tertiary); }\n._pickerRowMain_1dl0t_1563 { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }\n._pickerRowTitle_1dl0t_1564 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._pickerRowSub_1dl0t_1565 { color: var(--dsw-alias-label-tertiary); font-size: 11px; }\n._pickerUsed_1dl0t_1566 { color: var(--dsw-alias-label-tertiary); font-size: 11px; }\n\n/* ── 阅读器 ── */\n._readerBar_1dl0t_1569 { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }\n._readerBody_1dl0t_1570 { display: flex; flex: 1; min-height: 0; flex-direction: column; }\n._readerBody_1dl0t_1570 > * { flex: 1; min-height: 0; }\r\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1865q_4 {\n  display: block;\n}\n\n._body_1865q_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* The face's way into configuration, as a quiet pill rather than a bare word: at rest it\n   is a control with an edge, and the grid stops reading as three titles with a stray\n   \"配置\" floating at the end of each. */\n._cardActions_1865q_17 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* The tint is mixed from the label colour rather than taken from a layer token: in the\n   light theme every layer token is the same white as the card, so a control filled with\n   one would have no edge at all. */\n._cardActions_1865q_17 button {\n  height: 24px;\n  padding: 0 9px;\n  border-radius: 6px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--dsw-alias-label-secondary);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._cardActions_1865q_17 button:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* What the face fills its frame with: the line the last run produced, and the two facts\n   a glance at the grid wants. Both are secondary; the card's name is the only primary\n   thing on it. */\n._faceBody_1865q_44 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n  /* Fills the shell's body slot so the footer can be pushed to the bottom: the run\n     count then sits on one line across the whole grid, whether the card's summary ran\n     to two lines or to none. */\n  height: 100%;\n}\n\n._faceSummary_1865q_55 {\n  display: -webkit-box;\n  margin: 2px 0 0;\n  overflow: hidden;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* An invitation is not a summary: it sits a level quieter than the text a run produced. */\n._faceSummary_1865q_55[data-face-summary='empty'] {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* A card that cannot run has three things to say in a cell sized for two: the result it\n   last produced, why 运行 is closed, and how many runs there have been. The summary gives up\n   a line, because the reason is the part the user can act on. */\n._faceBody_1865q_44[data-face-blocked] ._faceSummary_1865q_55 {\n  -webkit-line-clamp: 1;\n}\n\n/* Why the card's run control is closed. Two lines at most, clamped: the face is an index\n   entry, and a card that shouted the whole sentence would out-shout the result under it.\n   Tinted like the run pages' version, so the two read as one statement in two sizes. */\n._faceProblem_1865q_81 {\n  display: -webkit-box;\n  margin: 0;\n  padding: 4px 8px;\n  overflow: hidden;\n  border-radius: var(--dsw-radius-sm);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* Tabular figures keep the times in one column across the grid. */\n._faceFoot_1865q_96 {\n  margin: auto 0 0;\n  font-size: 11px;\n  line-height: 16px;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1865q_107 {\n  display: flex;\n  flex-direction: column;\n  /* One step of rhythm between the zones — head, composer, document, its actions, the\n     trace — so the document does not read as stuck to the composer above it. */\n  gap: 18px;\n  width: 100%;\n  min-width: 0;\n}\n\n/* The head every full-panel view opens with, in tiers: the way back, then the title\n   with its own controls, then the facts about the view.\n\n   The crumb used to sit inline before the title, so the heading started one button's\n   width in from the page's left edge while every row of the list under it started at\n   that edge: two left margins on one page, and the list appeared to hang out to the left\n   of the title it belongs to. Above the title, the crumb reads as a margin note and the\n   title, the meta, and the rows all share one left edge. */\n._pageHead_1865q_125 {\n  /* Pinned: these views grow with the document under them, and the way back and the card's\n     name used to scroll out of sight within one long report. The scrollport is the workbench\n     panel, which is this head's ancestor. */\n  position: sticky;\n  top: 0;\n  z-index: 2;\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  /* The head is opaque because the document scrolls under it, and the hairline is what\n     separates the two once it is pinned. */\n  padding: 4px 0 10px;\n  background: var(--dsw-alias-bg-base);\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._pageHeadBar_1865q_143 {\n  display: flex;\n  align-items: center;\n  /* Cancels the button's own inset so the chevron's edge, not its padding, lands on the\n     page's left edge. */\n  margin-left: -6px;\n}\n\n._pageHeadTitle_1865q_151 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 20px;\n  font-weight: 600;\n  line-height: 28px;\n  letter-spacing: -0.01em;\n  overflow-wrap: anywhere;\n}\n\n\n/* The facts under the title, separated by a middot: three values set in the same grey\n   with nothing between them read as one sentence, and the eye cannot tell where the\n   count ends and the moment begins. */\n._pageHeadMeta_1865q_166 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  min-width: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._pageHeadMeta_1865q_166 > * + *::before {\n  content: '·';\n  margin: 0 8px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The skill a card runs: a chip, because it is a name rather than part of a sentence.\n\n   The separator above is drawn by a pseudo element on the item, and on a chip that lands\n   *inside* the box: the dot sat against the chip's own left padding, with the box starting\n   flush against the word before it. A box is its own separator, so it takes a margin on\n   that side instead. */\n._pageHeadChip_1865q_188 {\n  flex: none;\n  padding: 1px 7px;\n  border-radius: 6px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._pageHeadMeta_1865q_166 > ._pageHeadChip_1865q_188::before {\n  content: none;\n}\n\n._pageHeadMeta_1865q_166 > ._pageHeadChip_1865q_188:not(:first-child) {\n  margin-left: 10px;\n}\n\n._runProblem_1865q_206 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result.\n *\n * No box. It was a tinted slab with a hairline, and next to the act dock — the same tint,\n * the same radius, the same weight — the two read as one banded form under the document, so\n * neither the place to write nor the record of how the document was made stood out. The\n * dock took the surface for writing; this keeps none and is what it is: one line of history\n * under the place that acts, with the trace folded behind it. */\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom. The rows wear the conversation's run-record\n   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,\n   so a long trace reads like the chat it came from rather than a log dump.\n\n   The list is not bounded: like the conversation's own run record, it grows with its\n   content and the page scrolls, so a long reasoning span opens to its full text rather\n   than a narrow frame. */\n._runTraceList_1865q_232 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._activityList_1865q_238 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 4px 0 0;\n  padding: 0;\n  list-style: none;\n}\n\n._activityItem_1865q_247 {\n  display: block;\n  min-width: 0;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityToolRow_1865q_253 {\n  min-width: 0;\n}\n\n/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header\n   with the secondary tier; the workbench only sizes the pieces it supplies. */\n._activityRow_1865q_259 {\n  min-width: 0;\n}\n\n._activityTitle_1865q_263 {\n  font-weight: 400;\n}\n\n/* The 2x2 separator between the title and the collapsed summary, matching the\n   conversation's run rows. */\n._activitySep_1865q_269 {\n  flex: none;\n  width: 2px;\n  height: 2px;\n  margin: 0 8px;\n  border-radius: 1px;\n  background: var(--dsw-alias-label-caption);\n}\n\n/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */\n._activitySummary_1865q_279 {\n  flex: 1 1 auto;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n}\n\n/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */\n._activityBody_1865q_290 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  padding: 4px 0 4px 22px;\n}\n\n._activityBodyLabel_1865q_298 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n._activityBodyText_1865q_304 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The model thinking: a disclosure row like the conversation's, set apart from the calls\n   because it is what the card is *reasoning*, not what it is doing. */\n._activityReasoning_1865q_314 {\n  min-width: 0;\n}\n\n/* The model speaking to the user: plain narration, no chrome — it is the reply, not a\n   step. Reads like an assistant message in the conversation. */\n._activityNarration_1865q_320 {\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  overflow-wrap: anywhere;\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_1865q_330 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The settled turn-process header above a trace, matching the conversation's Turn process\n   row: a full-width button with the outcome word and a chevron that folds the whole stream. */\n/* No rule of its own any more: the block's edge is the boundary, and the header is the\n   block's first line. It carries a step count because 已完成 alone gave no reason to open\n   it — the summary said how the run ended and nothing about what was inside. */\n/* A chip, not a bar. Full width put the chevron a page away from the words it folds, which\n   is the one thing on the line nobody could connect to it; sized to its own text, the\n   outcome, the count and the chevron read as one control and its hover area agrees with\n   what it looks like. The negative start padding is only so the chip's own inset does not\n   push its text off the document's left edge. */\n._turnProcess_1865q_346 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  width: auto;\n  max-width: 100%;\n  margin-left: -4px;\n  padding: 3px 8px 3px 4px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 12px;\n  font-weight: 500;\n  cursor: pointer;\n  text-align: left;\n  transition: color 100ms ease, background 100ms ease;\n}\n\n._turnProcess_1865q_346:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The outcome at a glance, before the word is read: a quiet dot for a settled run and the\n   warning colour for one that failed or was stopped. */\n._turnProcessDot_1865q_373 {\n  flex: none;\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 24%, transparent);\n}\n\n._turnProcess_1865q_346[data-turn-process=\"failed\"] ._turnProcessDot_1865q_373 {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._turnProcessLabel_1865q_385 {\n  min-width: 0;\n  overflow: hidden;\n  font-size: inherit;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* How many entries the fold hides, in the colour of a count rather than of the outcome. */\n._turnProcessSteps_1865q_395 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-weight: 400;\n  font-variant-numeric: tabular-nums;\n}\n\n/* Right after the count: the chevron belongs to the words it folds. */\n._turnProcessChevron_1865q_404 {\n  flex: none;\n  width: 14px;\n  height: 14px;\n  color: inherit;\n  transition: transform 100ms ease;\n}\n\n._turnProcess_1865q_346[data-open] ._turnProcessChevron_1865q_404 {\n  transform: rotate(180deg);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._turnProcess_1865q_346,\n  ._turnProcessChevron_1865q_404 {\n    transition: none;\n  }\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1865q_431 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1865q_443 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* The page's one place to act: three quiet controls where the document they change ends, and\n   the revision log under them. It was a selector plus a dock with a field in it; choosing a\n   way of changing the result now opens a dialog, so there is nothing to write here and\n   nothing to frame.\n\n   The row is the shape the chat's own message actions have: icons with their labels, quiet at\n   rest, one tinted pill under the pointer. Its controls are the page's only way to act on\n   what is above them, so they stay readable rather than waiting for a hover — hiding them\n   would leave a page that looks like it cannot do anything. */\n._actBlock_1865q_459 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n._actRow_1865q_466 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 2px;\n  margin-left: -8px;\n  min-width: 0;\n}\n\n/* The run's fold sits on the same line as the ways of changing the result, and it is not one\n   of them: it says how the run behind the result ended and opens its steps. So it keeps the\n   gap the actions have between them on its left and its own padding on its right, rather\n   than hanging off the row at the page's edge the way it did when it headed a section. */\n._actRow_1865q_466 ._turnProcess_1865q_346 {\n  margin-left: 6px;\n}\n\n._actAction_1865q_483 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 4px 8px;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  cursor: pointer;\n  transition: background 100ms ease, color 100ms ease;\n}\n\n._actAction_1865q_483:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._actAction_1865q_483:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A way of changing the result that this one cannot offer — nothing to revise, or a run\n   already holding the card — reads as unavailable rather than disappearing, so the row keeps\n   the same length whichever state the page is in. */\n._actAction_1865q_483:disabled {\n  color: var(--dsw-alias-label-caption);\n  cursor: not-allowed;\n}\n\n._actAction_1865q_483:disabled:hover {\n  background: transparent;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The dialog a sentence is written in. Portalled to the body by `PromptDialog`, so these\n   classes are not nested under anything the page controls. */\n._dialogOverlay_1865q_525 {\n  position: fixed;\n  inset: 0;\n  z-index: 60;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 24px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 28%, transparent);\n}\n\n._dialogPanel_1865q_536 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  width: min(560px, 100%);\n  max-height: calc(100vh - 48px);\n  padding: 18px 18px 16px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-alias-bg-layer-1);\n  box-shadow: 0 24px 48px -20px color-mix(in srgb, var(--dsw-alias-label-primary) 45%, transparent);\n  overflow: hidden;\n}\n\n/* Keyboard users land on the panel when it holds no field; the field takes the caret itself. */\n._dialogPanel_1865q_536:focus-visible {\n  outline: none;\n}\n\n/* The window that holds a document instead of a form: as wide as the window allows and as\n   tall as the viewport does, because what is inside was laid out for a screen rather than\n   for a column. The height is stated rather than left to the content so that a short\n   document does not shrink the panel and a long one scrolls inside the well. */\n._dialogPanel_1865q_536[data-dialog-size='wide'] {\n  width: min(1040px, 100%);\n  height: min(84vh, 900px);\n  max-height: calc(100vh - 48px);\n}\n\n._dialogHead_1865q_566 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._dialogTitle_1865q_573 {\n  flex: 1 1 auto;\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  min-width: 0;\n}\n\n._dialogClose_1865q_583 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  margin: -2px -2px 0 0;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  cursor: pointer;\n}\n\n._dialogClose_1865q_583:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._dialogClose_1865q_583:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._dialogHint_1865q_609 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* A refusal, inside the dialog rather than beside the page: the form was submitted and the\n   Host would not take it, which is the same sentence the run bar states in its own layout.\n   It is the error colour, not the hint's grey, because it is about the press and not the\n   form. */\n._dialogProblem_1865q_620 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The form's own surface: unlike the row, this *is* written into, so it carries the frame the\n   block used to. Taller than the bar's field because the dialog exists to give a sentence\n   room. */\n._dialogField_1865q_630 {\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 96px;\n  max-height: 40vh;\n  padding: 10px 12px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-specific-input-major);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 20px;\n  resize: none;\n  overflow-y: auto;\n}\n\n._dialogField_1865q_630::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._dialogField_1865q_630:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._dialogField_1865q_630:focus-visible {\n  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 30%, transparent);\n  outline: 2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);\n  outline-offset: 1px;\n}\n\n/* The two ways out, at the end the form submits from. */\n._dialogFoot_1865q_663 {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n  padding-top: 2px;\n}\n\n/* The directory this run happens in, at the top of the run dialog: a label, the value, and the\n   picker beside it. The same three pieces the configuration page's workspace field draws, so\n   the dialog and the page it writes to cannot describe one directory two ways. */\n._runWorkspace_1865q_673 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The picker keeps its own width whatever the path beside it is: two characters of a button\n   wrapping onto a second line is the one thing that makes the row look broken. */\n._runWorkspace_1865q_673 button {\n  flex: none;\n  white-space: nowrap;\n}\n\n/* Where a result happened: one item in the head's row of facts, beside the skill that made it.\n   The path is the exact one and never the folder's name, because the name is a display\n   convenience and the directory that ran is the whole path. Quiet enough to read as a fact\n   rather than a warning — unless the directory is gone, which the path's own colour says. */\n._runWorkspaceLine_1865q_691 {\n  display: inline-flex;\n  align-items: baseline;\n  gap: 4px;\n  min-width: 0;\n  max-width: 100%;\n}\n\n._runWorkspaceLineLabel_1865q_699 {\n  flex: none;\n}\n\n._runWorkspaceLinePath_1865q_703 {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runWorkspaceLine_1865q_691[data-run-workspace-line='invalid'] ._runWorkspaceLinePath_1865q_703 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The instructions this card was recently given, offered back as chips in the run dialog.\n   A shortcut for the common case — the same ask again, with a small edit — so a click refills\n   the field rather than starting a run. */\n._runChips_1865q_717 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n}\n\n._runChipsLabel_1865q_725 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runChip_1865q_717 {\n  max-width: 220px;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 999px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  line-height: 16px;\n  white-space: nowrap;\n  text-overflow: ellipsis;\n  overflow: hidden;\n  cursor: pointer;\n}\n\n._runChip_1865q_717:hover {\n  border-color: var(--dsw-alias-border-l3);\n  color: var(--dsw-alias-label-primary);\n}\n\n._runChip_1865q_717:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1865q_759 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1865q_767 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1865q_775 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1865q_782 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1865q_792 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1865q_804 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1865q_809 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1865q_814 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1865q_823 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1865q_830 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1865q_837 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1865q_844 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1865q_853 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1865q_862 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 18px 0;\n}\n\n/* A group's first line: its name, and whatever belongs to the group as a whole — the\n   template's three actions, the preview's caption. The controls used to sit inside the\n   sentence about the region and the byte count, where an underlined 添加动作 read as one\n   more fact instead of the one thing on the line a user could press. */\n._sectionHead_1865q_874 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 12px;\n  min-width: 0;\n}\n\n._sectionTools_1865q_882 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin-left: auto;\n  min-width: 0;\n}\n\n/* Not flush against the head: the head is pinned and carries a hairline, and a section\n   title one line under it reads as part of the head rather than as the first group. */\n._section_1865q_862:first-child {\n  padding-top: 18px;\n}\n\n._section_1865q_862 + ._section_1865q_862 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1865q_900 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1865q_912 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1865q_912 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1865q_912 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1865q_937 {\n  margin: 0;\n  box-sizing: border-box;\n  display: flex;\n  align-items: center;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1865q_954 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1865q_962 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n/* One line, like every other control in the grid: the leaf name on the left, the exact\n   path flushing right. Two lines made this cell taller than its neighbour, so no two rows\n   of the group ever lined up — and the row's whole purpose is that they do. */\n._workspaceValue_1865q_976 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1865q_995 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n/* The same row, with a field to type into instead of a value to read. It matches the value\n   control's height and border so a card on a build without a chooser does not look like a\n   different kind of card, and it takes the space the button beside it does not. */\n._workspaceInput_1865q_1002 {\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._workspaceInput_1865q_1002:focus {\n  outline: none;\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._workspaceInputInvalid_1865q_1022 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceInput_1865q_1002::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._workspaceLeaf_1865q_1030 {\n  flex: none;\n  max-width: 62%;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  line-height: 18px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1865q_1042 {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  text-align: right;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1865q_1056 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The page's controls are one size and one surface: a form whose fields are 28px tall\n   reads as a settings list from a denser app, and a name field the height of a table row\n   is not obviously a place you can type. */\n._select_1865q_1066,\n._editor_1865q_1067 {\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n}\n\n._select_1865q_1066 {\n  box-sizing: border-box;\n  height: 32px;\n  padding: 0 8px;\n}\n\n/* Tall enough to hold a page of template on a laptop window without pushing the save bar\n   half way up the screen, and still growing on a large one.\n\n   The height comes from the pane's stated row; the field fills it and, with the content\n   taller than the box, scrolls inside it. `min-height: 0` is what lets a text area shrink\n   into a row instead of pushing the row open to fit its text. */\n._editor_1865q_1067 {\n  min-height: 0;\n  padding: 6px;\n  font-family: monospace;\n  /* Not resizable: dragging the handle wrote a height on the field, the pane's row stayed as\n     stated and clipped it, so the handle was a control that broke the layout it sat in. */\n  resize: none;\n}\n\n/* The editor's status rail, at the foot of the pane: where the region is, what the\n   template declares, and how much of the size budget it uses. These are readings of the\n   text above them, so they belong under it — a line of facts above a code block reads as\n   a caption for the section, and it took a whole row away from the editor. */\n._editorStatus_1865q_1101 {\n  grid-column: 1 / -1;\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 2px 10px;\n  box-sizing: border-box;\n  padding: 5px 10px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Pushed to the rail's far end: it is about the whole file, not about the region's range. */\n._editorStatusDirty_1865q_1117 {\n  margin-left: auto;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1865q_1124 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1865q_1129 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The template read as structure. Same metrics as the field it replaces, so switching\n   between the two does not move the text a line up or down, and the same tinted number\n   column, so the two views read as one pane. */\n._foldView_1865q_1136 {\n  grid-column: 1 / -1;\n  /* Fills the pane's stated row, like the field it replaces: the two presentations have to be\n     the same size to read as one pane, and a view that grows with its document is a page. */\n  min-height: 0;\n  padding: 6px 0;\n  overflow: auto;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  font-size: 12px;\n  line-height: 18px;\n  /* The scrollbar a long document brings must not narrow the code mid-read. */\n  scrollbar-gutter: stable;\n}\n\n._foldRow_1865q_1150 {\n  display: flex;\n  align-items: flex-start;\n  min-width: max-content;\n}\n\n/* Fills the rest of the row so the row's hover tint covers the whole width, while the\n   count stays against the text it belongs to instead of at the far edge of a long pane. */\n._foldRow_1865q_1150::after {\n  content: '';\n  flex: 1 1 auto;\n}\n\n._foldRow_1865q_1150:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n}\n\n/* The number column, the caret, and the text are three buttons in one row. Nothing here is\n   a tab stop: the row's job is to hand a line to the field, and the field is a keyboard\n   control on its own. */\n._foldNumber_1865q_1170,\n._foldCaret_1865q_1171,\n._foldText_1865q_1172 {\n  margin: 0;\n  border: 0;\n  background: transparent;\n  font: inherit;\n  line-height: inherit;\n  cursor: pointer;\n}\n\n._foldNumber_1865q_1170 {\n  flex: none;\n  width: 44px;\n  padding: 0 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  text-align: right;\n  user-select: none;\n}\n\n._foldCaret_1865q_1171,\n._foldCaretBlank_1865q_1193 {\n  flex: none;\n  width: 18px;\n  padding: 0;\n  color: var(--dsw-alias-label-secondary);\n  text-align: center;\n  user-select: none;\n}\n\n._foldText_1865q_1172 {\n  flex: 0 0 auto;\n  padding: 0 10px 0 0;\n  color: var(--dsw-alias-label-primary);\n  text-align: left;\n  white-space: pre;\n}\n\n/* What one folded line stands for: the size of what is hidden, so a fold that swallowed\n   the whole stylesheet cannot be mistaken for a fold that hid three lines. */\n._foldCount_1865q_1212 {\n  flex: none;\n  padding: 0 12px 0 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n/* Gutter and text on the first row, the status rail under both of them. The gutter and\n   the text must share font, size, line height and vertical padding, or the numbers stop\n   lining up with the lines they label.\n\n   The first row's height is stated rather than divided. `minmax(0, 1fr)` inside a grid that\n   is as tall as its own content has nothing to divide, so the row grew to the code's full\n   height: a three-hundred-line template made a five-thousand-pixel field, the page scrolled\n   instead of the field, and a jump selected a line that was nowhere on screen. A stated row\n   makes the field and the gutter the scrollers, and keeps the page a page. */\n._editorPane_1865q_1229 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  grid-template-rows: clamp(280px, 44vh, 560px) auto;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1865q_1243 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  /* A tint rather than a layer token: both layer tokens are the same white in this theme,\n     which left the numbers floating in the code with nothing separating them. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1865q_1263 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1865q_1263:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1865q_1283 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1865q_1291 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1865q_1229 ._editor_1865q_1067 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n  /* A number labels a row only while one line of the file is one row on screen: a wrapped\n     line pushed every number under it onto its neighbour's line, and indentation read as\n     ragged because the glyphs were not on a grid. Long lines scroll sideways instead, in a\n     stack that is monospaced on every Windows without the shell's default font deciding. */\n  white-space: pre;\n  overflow-wrap: normal;\n  /* Both axes are stated: a long file scrolls inside the field, and a jump moves that scroll.\n     Leaving the vertical axis to be inferred from the horizontal one made the pane's own\n     scroller a candidate for a jump, and a jump that scrolls the wrong box looks like a jump\n     that did nothing. */\n  overflow-x: auto;\n  overflow-y: auto;\n  tab-size: 2;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  /* The scrollbar that appears with a long file must not narrow the text mid-edit. */\n  scrollbar-gutter: stable;\n}\n\n._editorPane_1865q_1229 ._editor_1865q_1067:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1865q_1229:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1865q_1067:focus-visible,\n._select_1865q_1066:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1865q_1336 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1865q_1346 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1865q_1346:hover,\n._violationJump_1865q_1346:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The frame the document is drawn in, inside the preview window: tinted, inset, and the one\n   thing in the panel that scrolls, so a document taller than the window scrolls inside it\n   rather than pushing the head and the footer out of view. */\n._previewFrame_1865q_1367 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  min-height: 0;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n}\n\n/* The well the document is drawn in: white on the tinted frame, so the user's own card\n   reads as the document and the frame reads as the page around it. */\n._preview_1865q_1367 {\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 8px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n\n._settingsActions_1865q_1395 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1865q_1402 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1865q_1413 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1865q_1420 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1865q_1430 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1865q_1437 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall.\n\n   Sticky insets resolve against the scrollport's *content* edge, so `bottom: 0` pinned\n   this bar one page-padding up (48px, from the panel's own `.page`) — and the template's\n   lines kept scrolling through the strip underneath it, which read as the bar cutting the\n   editor in half. The negative inset puts the reference back on the padding's outer edge,\n   which is the window's own bottom. */\n._configFooter_1865q_1449 {\n  position: sticky;\n  bottom: -48px;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 8px;\n  padding: 12px 0 14px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n  /* A hairline alone left the editor's last lines looking cut rather than covered: the bar\n     and the page are the same white, so the bar has to cast something to read as a bar. */\n  box-shadow: 0 -12px 20px -18px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);\n}\n\n/* What the save button would keep, stated beside it. */\n._footerHint_1865q_1467 {\n  margin-left: 4px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._footerActions_1865q_1474 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1865q_1480 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1865q_1485 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1865q_1474 ._deleteCard_1865q_1493 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1865q_1474 ._deleteCard_1865q_1493:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1865q_1503 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1865q_1513 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1865q_1522 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1865q_1522 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1865q_1522 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The directory the panel proposes, and the sentence saying what it is for: the field is the\n   same one the card's own page uses, so only the breathing room under it is set here. */\n._actionFacts_1865q_1522 [data-action-workspace-note] {\n  margin-top: 4px;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1865q_1548 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1865q_1564 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1865q_1564[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n\n/* The run-history page: its heading, the count line, the empty state, and the runs.\n\n   The list is read as days: one heading per day, rows under it, a hairline between rows.\n   A row is two lines of its own — what the run produced, then the facts that tell it\n   apart from its neighbours — with the outcome opposite, so a reader scanning for a run\n   lands on content rather than on seven identical completion words. */\n\n._runsHeadText_1865q_1584 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n._runsHeadTitle_1865q_1592 {\n  margin: 0;\n  font-size: 18px;\n  font-weight: 600;\n  line-height: 26px;\n  overflow-wrap: anywhere;\n}\n\n._runsHeadMeta_1865q_1600 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 8px;\n  margin: 0;\n  min-width: 0;\n}\n\n._runHistoryCount_1865q_1609 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runHistoryEmpty_1865q_1616 {\n  margin: 0;\n  padding: 32px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  line-height: 20px;\n  text-align: center;\n}\n\n._runHistoryList_1865q_1627 {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  min-width: 0;\n}\n\n._runHistoryGroup_1865q_1634 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n}\n\n/* The day a group of rows completed on. It is a caption, not a title: the rows below it\n   are what the page is about, and a heavier heading would make the list read as days.\n\n   It sticks to the top of the list while its own group scrolls past, because a long\n   history is read one day at a time and the rows themselves carry only a clock: without\n   the caption on screen, \"22:47\" is a time on no particular day. */\n._runHistoryDay_1865q_1647 {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  margin: 0;\n  padding: 5px 10px 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-caption);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  letter-spacing: 0.04em;\n}\n\n._runHistoryItems_1865q_1661 {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n  min-width: 0;\n}\n\n._runHistoryItem_1865q_1661 {\n  min-width: 0;\n}\n\n/* Rows separate by a hairline rather than by their own borders: seven outlined boxes\n   read as seven unrelated cards, while one column of rows reads as one day's work. */\n._runHistoryItem_1865q_1661 + ._runHistoryItem_1865q_1661 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* The row is a container rather than the button itself: a run in flight carries a stop\n   control of its own, and a button inside a button is not a thing a browser can draw. */\n._runHistoryRow_1865q_1680 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  min-width: 0;\n  margin: 0;\n  padding: 10px;\n  border-radius: var(--dsw-radius-sm);\n}\n\n._runHistoryRow_1865q_1680:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._runHistoryOpen_1865q_1695 {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n/* A run that did not finish earns a mark on the row's edge.\n\n   Seven rows of one card are mostly the same shape, and the one that failed differs\n   only in a small word on the far right: the eye scanning the titles had nothing to\n   catch on. The bar is that catch, and it is drawn inside the row's padding so that no\n   row's text moves — the list keeps one left edge, marked rows included. */\n._runHistoryOpen_1865q_1695::before {\n  content: '';\n  position: absolute;\n  /* On the row's own left edge, one row's padding away from the text: far enough that it\n     reads as a margin mark rather than as part of the first glyph. */\n  left: -10px;\n  top: 50%;\n  width: 2px;\n  height: 18px;\n  margin-top: -9px;\n  border-radius: 1px;\n  background: transparent;\n}\n\n._runHistoryOpen_1865q_1695[data-run-outcome='aborted']::before {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryOpen_1865q_1695[data-run-outcome='error']::before,\n._runHistoryOpen_1865q_1695[data-run-outcome='failed']::before {\n  background: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryOpen_1865q_1695[data-run-outcome='running']::before {\n  background: var(--dsw-alias-link);\n}\n\n/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and\n   only the row of a run in flight has one. */\n._runHistoryStop_1865q_1747 {\n  flex: none;\n  margin: 0;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-sm);\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._runHistoryStop_1865q_1747:hover {\n  color: var(--dsw-alias-label-primary);\n  border-color: var(--dsw-alias-border-primary);\n}\n\n._runHistoryBody_1865q_1766 {\n  display: flex;\n  flex-direction: column;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The run's content is the row's title: the only line at reading weight, and the only\n   one allowed to be the first thing the eye lands on. */\n._runHistoryTitle_1865q_1776 {\n  min-width: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 14px;\n  font-weight: 500;\n  line-height: 21px;\n  /* One line: a two-line clamp let one long title stand taller than its neighbours and\n     made the rhythm of the list ragged. */\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A run that stored nothing still owns the row's first line. Without it the row was a\n   lone grey meta line, which read as a row that had failed to load rather than a run that\n   had nothing to say. */\n._runHistoryTitle_1865q_1776[data-empty='true'] {\n  font-weight: 400;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._runHistoryMeta_1865q_1797 {\n  display: flex;\n  align-items: baseline;\n  min-width: 0;\n  flex-wrap: wrap;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The same middot the page head uses between its facts, for the same reason: a clock, a\n   model id, and an ordinal set in one grey with only space between them read as one\n   string. */\n._runHistoryMeta_1865q_1797 > * + *::before {\n  content: '·';\n  margin: 0 6px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The clock is the one fact on this line a reader compares across rows, so it is a step\n   above the model id and the ordinal, in figures that line up column-wise. */\n._runHistoryTime_1865q_1818 {\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n._runHistoryModel_1865q_1825 {\n  /* Wide enough for a real model id — `GLM-FLASH-LATEST` — so the truncation lands on a\n     name that is actually long rather than on the one this workbench runs. */\n  max-width: 24ch;\n  color: var(--dsw-alias-label-tertiary);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryOrdinal_1865q_1835,\n._runHistoryEdited_1865q_1836 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  white-space: nowrap;\n}\n\n/* What the run was asked for: one line under the row's own meta, because two runs of one\n   card differ by this and a wrapped quote would make every row's height depend on how much\n   was typed. The full text is on the result page that opens from the row. */\n._runHistoryInstruction_1865q_1845 {\n  display: block;\n  max-width: 100%;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistorySide_1865q_1856 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n}\n\n/* The outcome is a quiet dot and a word. Only a run that did not complete earns a\n   hearing: a wall of neutral \"已完成\" would compete with the titles it sits beside.\n\n   Right-aligned in a column of its own width, so the dots and the words line up down the\n   right edge instead of starting wherever each word's length puts them. */\n._runHistoryOutcome_1865q_1868 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 5px;\n  min-width: 4em;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n\n._runHistoryDot_1865q_1880 {\n  width: 6px;\n  height: 6px;\n  flex: none;\n  border-radius: 50%;\n  background: currentColor;\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='aborted'] ._runHistoryOutcome_1865q_1868 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='error'] ._runHistoryOutcome_1865q_1868,\n._runHistoryRow_1865q_1680 [data-run-outcome='failed'] ._runHistoryOutcome_1865q_1868 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='running'] ._runHistoryOutcome_1865q_1868 {\n  color: var(--dsw-alias-link);\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='running'] ._runHistoryDot_1865q_1880 {\n  animation: _runHistoryPulse_1865q_1 1.4s ease-in-out infinite;\n}\n\n@keyframes _runHistoryPulse_1865q_1 {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.25; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._runHistoryRow_1865q_1680[data-run-outcome='running'] ._runHistoryDot_1865q_1880 {\n    animation: none;\n  }\n}\n\n/* The way in, quiet at rest and nudged on hover: the whole row is the control, and this\n   only has to say which direction it goes. */\n._runHistoryChevron_1865q_1918 {\n  display: inline-flex;\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  line-height: 1;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n._runHistoryRow_1865q_1680:hover ._runHistoryChevron_1865q_1918,\n._runHistoryOpen_1865q_1695:focus-visible ._runHistoryChevron_1865q_1918 {\n  color: var(--dsw-alias-label-secondary);\n  transform: translateX(2px);\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_13mto_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  height: 100%;\n  /* A card is an index entry, not a panel: with the name, the meta line, and the body\n     it carries it does not need the height an empty cell used to ask for, and the\n     shorter frame is what stops three cards from reading as three blanks. */\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_13mto_20 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_13mto_27 {\n  cursor: pointer;\n}\n\n._activatable_13mto_27:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_13mto_27:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_13mto_44 {\n  grid-row: span 2;\n}\n\n._spanLarge_13mto_48 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_13mto_53 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The card's monogram: the first character of the user's own name for the card, on a\n   tint that is stable per card.\n   \n   Three cards of one workbench differ only in their titles, and a title is read rather\n   than seen — so the grid needed one mark each that the eye can pick out before the\n   text is read. The hue comes from the card id (see the shell), never from the name: a\n   card keeps its colour when it is renamed. Tints are mixed from a single hue so the\n   mark works in both themes without a second set of tokens. */\n._mark_13mto_68 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  background: color-mix(in srgb, hsl(var(--wb-hue, 250) 68% 52%) 16%, transparent);\n  color: color-mix(in srgb, hsl(var(--wb-hue, 250) 66% 42%) 78%, var(--dsw-alias-label-primary));\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 1;\n  user-select: none;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_13mto_89 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_13mto_96 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* Everything the card states about itself that is not its name: the skill it runs and\n   the run it last finished. One row under the title, in the secondary colour, so the\n   title keeps the whole width and the facts line up across the grid. */\n._meta_13mto_109 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 4px 10px;\n  min-width: 0;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_13mto_119 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_13mto_132 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_13mto_142 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_13mto_149 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_13mto_3:hover ._iconButton_13mto_149,\n._card_13mto_3:focus-within ._iconButton_13mto_149 {\n  opacity: 1;\n}\n\n._iconButton_13mto_149:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_13mto_149:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_13mto_185 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_13mto_185:active {\n  cursor: grabbing;\n}\n\n._body_13mto_195 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._failure_13mto_203 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_13mto_211 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
+  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_1r4st_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_1r4st_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_1r4st_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_1r4st_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_1r4st_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_1r4st_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_1r4st_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_1r4st_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_1r4st_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_1r4st_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_1r4st_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide.\n   \n   The track is stated rather than left implicit: an implicit `auto` track sizes itself\n   from the item's content, so the creation tile — whose only content is a mark and a\n   short word — collapsed into a narrow column while the cards beside it stayed wide. */\n._cell_1r4st_95 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  min-width: 0;\n}\n\n._createRoot_1r4st_101 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n/* Same frame as a card, drawn as an outline: it belongs in the row of cards without\n   claiming to be one of them. */\n._createTile_1r4st_112 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease,\n    transform 0.15s ease;\n}\n\n._createTile_1r4st_112:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n  transform: translateY(-1px);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. It is the size and shape of the\n   monogram every card carries, which is what makes the tile read as a peer of the cards\n   rather than as a hole in the grid. */\n._createMark_1r4st_145 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  /* Mixed from the label colour, not filled with a layer token: the light theme's layers\n     are all the same white as the tile, which would leave the mark with no shape. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  font-size: 16px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_1r4st_112:hover ._createMark_1r4st_145 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_1r4st_112:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_1r4st_81 {\n    grid-template-columns: 1fr;\n  }\n}\n\n/* ---------------------------------------------------------------------------\n   The pipeline workbench: a rail of pipelines and single cards, a canvas of\n   steps, and an inspector that mounts one card's own views.\n\n   Three fixed columns rather than one flowing column: the rail is a list, the\n   canvas is a sequence, and the inspector is a document — each scrolls on its\n   own, so a long run history never pushes the canvas out of view.\n   --------------------------------------------------------------------------- */\n\n/* The page's own frame when it hosts the pipeline: the surface divides itself into\n   columns and a run bar, so the page must not add a gutter or scroll as well. The\n   head keeps its own inset, and gains the hairline the panel's own head carries. */\n._pagePipeline_1r4st_189 {\n  align-items: stretch;\n  gap: 0;\n  overflow: hidden;\n  padding: 0;\n}\n\n._pagePipeline_1r4st_189 ._pageHead_1r4st_20 {\n  flex: none;\n  padding: 18px clamp(18px, 3vw, 28px) 14px;\n  border-bottom: 0.5px solid var(--dsw-alias-border-l1);\n}\n\n._shell_1r4st_202 {\n  display: grid;\n  flex: 1 1 auto;\n  grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr);\n  box-sizing: border-box;\n  min-height: 0;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  overflow: hidden;\n}\n\n@media (max-width: 760px) {\n  /* Below the panel's own minimum the inspector is what has to survive: the rail\n     folds away and the canvas narrows, because a pipeline you cannot read is worse\n     than one you cannot switch. */\n  ._shell_1r4st_202 {\n    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);\n  }\n\n  ._rail_1r4st_221 {\n    display: none;\n  }\n}\n\n/* --- rail ---------------------------------------------------------------- */\n\n._rail_1r4st_221 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 10px 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n._railHead_1r4st_240 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n  padding: 4px 6px 2px;\n}\n\n._railTitle_1r4st_248 {\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railAction_1r4st_255,\n._linkBtn_1r4st_256 {\n  padding: 2px 4px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n  border-radius: 6px;\n}\n\n._railAction_1r4st_255:hover,\n._linkBtn_1r4st_256:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._railAction_1r4st_255:focus-visible,\n._linkBtn_1r4st_256:focus-visible,\n._menuBtn_1r4st_276:focus-visible,\n._toolBtn_1r4st_277:focus-visible,\n._stepBadge_1r4st_278:focus-visible,\n._stepMain_1r4st_279:focus-visible,\n._railRowMain_1r4st_280:focus-visible,\n._railRowTask_1r4st_281:focus-visible,\n._tab_1r4st_282:focus-visible,\n._primaryBtn_1r4st_283:focus-visible,\n._stopBtn_1r4st_284:focus-visible,\n._addStep_1r4st_285:focus-visible,\n._pickerRow_1r4st_286:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._railList_1r4st_291 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._railEmpty_1r4st_300 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railRow_1r4st_280 {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  border-radius: 8px;\n}\n\n._railRowActive_1r4st_315 {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowMain_1r4st_280 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 1px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 6px 8px;\n  border: none;\n  border-radius: 8px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._railRowTask_1r4st_281 {\n  width: 100%;\n  padding: 6px 8px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n  border-radius: 8px;\n}\n\n._railRowTask_1r4st_281:hover,\n._railRowMain_1r4st_280:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowName_1r4st_357 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._railCount_1r4st_363 {\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._menuBtn_1r4st_276 {\n  flex: none;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 14px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._menuBtn_1r4st_276:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._menu_1r4st_276 {\n  position: absolute;\n  z-index: 2;\n  margin-top: 32px;\n  display: flex;\n  flex-direction: column;\n  min-width: 132px;\n  padding: 4px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n  box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);\n}\n\n._menuRow_1r4st_402 {\n  padding: 6px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._menuRow_1r4st_402:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._menuRowDanger_1r4st_419 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._renameInput_1r4st_423 {\n  box-sizing: border-box;\n  width: 100%;\n  padding: 6px 8px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 18px;\n}\n\n/* --- canvas -------------------------------------------------------------- */\n\n._canvas_1r4st_438 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 12px 12px 16px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  overflow: auto;\n}\n\n._canvasHead_1r4st_449 {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n._canvasTitleGroup_1r4st_456 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n._canvasTitle_1r4st_456 {\n  margin: 0;\n  overflow: hidden;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: var(--dsw-alias-label-primary);\n}\n\n._canvasMeta_1r4st_474,\n._canvasHint_1r4st_475 {\n  margin: 0;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._canvasHint_1r4st_475 {\n  padding: 8px 2px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runBar_1r4st_487 {\n  display: flex;\n  flex: none;\n  gap: 6px;\n}\n\n._primaryBtn_1r4st_283,\n._stopBtn_1r4st_284 {\n  padding: 4px 10px;\n  border: 1px solid transparent;\n  border-radius: 8px;\n  background: var(--dsw-alias-brand-primary);\n  color: #fff;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._primaryBtn_1r4st_283:hover {\n  filter: brightness(1.06);\n}\n\n._primaryBtn_1r4st_283:disabled {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  cursor: default;\n}\n\n._stopBtn_1r4st_284 {\n  background: none;\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chainLine_1r4st_522 {\n  margin: 0;\n  padding: 6px 8px;\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chainLineFailed_1r4st_532 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._stepList_1r4st_536 {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._step_1r4st_278 {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px 6px 6px 4px;\n  border: 1px solid transparent;\n  border-radius: 10px;\n}\n\n._stepSelected_1r4st_555 {\n  border-color: var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._stepRow_1r4st_560 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._stepBadge_1r4st_278 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 20px;\n  height: 20px;\n  margin-top: 2px;\n  border: none;\n  border-radius: 7px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._stepMain_1r4st_279 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 3px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 0;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n._stepName_1r4st_601 {\n  overflow: hidden;\n  font-size: 13px;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepNameMissing_1r4st_609 {\n  color: var(--dsw-alias-label-tertiary);\n  text-decoration: line-through;\n}\n\n._stepSub_1r4st_614 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._stepAsk_1r4st_624 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepTook_1r4st_630 {\n  font-variant-numeric: tabular-nums;\n}\n\n._chip_1r4st_634 {\n  flex: none;\n  padding: 1px 6px;\n  border-radius: 999px;\n  font-size: 11px;\n  line-height: 14px;\n}\n\n._chipIdle_1r4st_642 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipQueued_1r4st_647 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipRunning_1r4st_652 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._chipDone_1r4st_657 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._chipFailed_1r4st_662 {\n  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chipStopped_1r4st_667 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* The per-step controls appear on hover or focus: a canvas of six steps showing six\n   toolbars reads as a settings form rather than as an order of operations. */\n._stepTools_1r4st_674 {\n  display: flex;\n  gap: 4px;\n  padding-left: 28px;\n  opacity: 0;\n  transition: opacity 0.12s ease;\n}\n\n._step_1r4st_278:hover ._stepTools_1r4st_674,\n._step_1r4st_278:focus-within ._stepTools_1r4st_674,\n._stepSelected_1r4st_555 ._stepTools_1r4st_674 {\n  opacity: 1;\n}\n\n._toolBtn_1r4st_277 {\n  padding: 1px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._toolBtn_1r4st_277:hover {\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._connector_1r4st_705 {\n  display: block;\n  width: 1px;\n  height: 10px;\n  margin: 2px 0 2px 14px;\n  background: var(--dsw-alias-border-l2);\n}\n\n._addStep_1r4st_285 {\n  padding: 6px 10px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._addStep_1r4st_285:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  color: var(--dsw-alias-label-primary);\n}\n\n._picker_1r4st_286 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._pickerHead_1r4st_741 {\n  padding: 2px 6px 4px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._pickerRow_1r4st_286 {\n  padding: 5px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._pickerRow_1r4st_286:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._pickerEmpty_1r4st_765 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* --- inspector ----------------------------------------------------------- */\n\n._inspector_1r4st_775 {\n  display: flex;\n  flex-direction: column;\n  box-sizing: border-box;\n  min-height: 0;\n  min-width: 0;\n}\n\n._tabs_1r4st_783 {\n  display: flex;\n  flex: none;\n  gap: 2px;\n  padding: 8px 12px 0;\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._tab_1r4st_282 {\n  padding: 6px 10px;\n  border: none;\n  border-bottom: 2px solid transparent;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._tab_1r4st_282:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n._tabActive_1r4st_807 {\n  border-bottom-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n/* The mounted card view brings its own padding and its own scroller; this box only\n   has to give it a bounded height so it can own both. */\n._tabBody_1r4st_815 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  min-height: 0;\n  overflow: hidden;\n}\n\n._tabBody_1r4st_815 > * {\n  min-height: 0;\n}\n\n._noFocus_1r4st_827 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 40px 16px;\n  text-align: center;\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_1865q_4 {\n  display: block;\n}\n\n._body_1865q_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* The face's way into configuration, as a quiet pill rather than a bare word: at rest it\n   is a control with an edge, and the grid stops reading as three titles with a stray\n   \"配置\" floating at the end of each. */\n._cardActions_1865q_17 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* The tint is mixed from the label colour rather than taken from a layer token: in the\n   light theme every layer token is the same white as the card, so a control filled with\n   one would have no edge at all. */\n._cardActions_1865q_17 button {\n  height: 24px;\n  padding: 0 9px;\n  border-radius: 6px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--dsw-alias-label-secondary);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._cardActions_1865q_17 button:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* What the face fills its frame with: the line the last run produced, and the two facts\n   a glance at the grid wants. Both are secondary; the card's name is the only primary\n   thing on it. */\n._faceBody_1865q_44 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n  /* Fills the shell's body slot so the footer can be pushed to the bottom: the run\n     count then sits on one line across the whole grid, whether the card's summary ran\n     to two lines or to none. */\n  height: 100%;\n}\n\n._faceSummary_1865q_55 {\n  display: -webkit-box;\n  margin: 2px 0 0;\n  overflow: hidden;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* An invitation is not a summary: it sits a level quieter than the text a run produced. */\n._faceSummary_1865q_55[data-face-summary='empty'] {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* A card that cannot run has three things to say in a cell sized for two: the result it\n   last produced, why 运行 is closed, and how many runs there have been. The summary gives up\n   a line, because the reason is the part the user can act on. */\n._faceBody_1865q_44[data-face-blocked] ._faceSummary_1865q_55 {\n  -webkit-line-clamp: 1;\n}\n\n/* Why the card's run control is closed. Two lines at most, clamped: the face is an index\n   entry, and a card that shouted the whole sentence would out-shout the result under it.\n   Tinted like the run pages' version, so the two read as one statement in two sizes. */\n._faceProblem_1865q_81 {\n  display: -webkit-box;\n  margin: 0;\n  padding: 4px 8px;\n  overflow: hidden;\n  border-radius: var(--dsw-radius-sm);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* Tabular figures keep the times in one column across the grid. */\n._faceFoot_1865q_96 {\n  margin: auto 0 0;\n  font-size: 11px;\n  line-height: 16px;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_1865q_107 {\n  display: flex;\n  flex-direction: column;\n  /* One step of rhythm between the zones — head, composer, document, its actions, the\n     trace — so the document does not read as stuck to the composer above it. */\n  gap: 18px;\n  width: 100%;\n  min-width: 0;\n}\n\n/* The head every full-panel view opens with, in tiers: the way back, then the title\n   with its own controls, then the facts about the view.\n\n   The crumb used to sit inline before the title, so the heading started one button's\n   width in from the page's left edge while every row of the list under it started at\n   that edge: two left margins on one page, and the list appeared to hang out to the left\n   of the title it belongs to. Above the title, the crumb reads as a margin note and the\n   title, the meta, and the rows all share one left edge. */\n._pageHead_1865q_125 {\n  /* Pinned: these views grow with the document under them, and the way back and the card's\n     name used to scroll out of sight within one long report. The scrollport is the workbench\n     panel, which is this head's ancestor. */\n  position: sticky;\n  top: 0;\n  z-index: 2;\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  /* The head is opaque because the document scrolls under it, and the hairline is what\n     separates the two once it is pinned. */\n  padding: 4px 0 10px;\n  background: var(--dsw-alias-bg-base);\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._pageHeadBar_1865q_143 {\n  display: flex;\n  align-items: center;\n  /* Cancels the button's own inset so the chevron's edge, not its padding, lands on the\n     page's left edge. */\n  margin-left: -6px;\n}\n\n._pageHeadTitle_1865q_151 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 20px;\n  font-weight: 600;\n  line-height: 28px;\n  letter-spacing: -0.01em;\n  overflow-wrap: anywhere;\n}\n\n\n/* The facts under the title, separated by a middot: three values set in the same grey\n   with nothing between them read as one sentence, and the eye cannot tell where the\n   count ends and the moment begins. */\n._pageHeadMeta_1865q_166 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  min-width: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._pageHeadMeta_1865q_166 > * + *::before {\n  content: '·';\n  margin: 0 8px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The skill a card runs: a chip, because it is a name rather than part of a sentence.\n\n   The separator above is drawn by a pseudo element on the item, and on a chip that lands\n   *inside* the box: the dot sat against the chip's own left padding, with the box starting\n   flush against the word before it. A box is its own separator, so it takes a margin on\n   that side instead. */\n._pageHeadChip_1865q_188 {\n  flex: none;\n  padding: 1px 7px;\n  border-radius: 6px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._pageHeadMeta_1865q_166 > ._pageHeadChip_1865q_188::before {\n  content: none;\n}\n\n._pageHeadMeta_1865q_166 > ._pageHeadChip_1865q_188:not(:first-child) {\n  margin-left: 10px;\n}\n\n._runProblem_1865q_206 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result.\n *\n * No box. It was a tinted slab with a hairline, and next to the act dock — the same tint,\n * the same radius, the same weight — the two read as one banded form under the document, so\n * neither the place to write nor the record of how the document was made stood out. The\n * dock took the surface for writing; this keeps none and is what it is: one line of history\n * under the place that acts, with the trace folded behind it. */\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom. The rows wear the conversation's run-record\n   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,\n   so a long trace reads like the chat it came from rather than a log dump.\n\n   The list is not bounded: like the conversation's own run record, it grows with its\n   content and the page scrolls, so a long reasoning span opens to its full text rather\n   than a narrow frame. */\n._runTraceList_1865q_232 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._activityList_1865q_238 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 4px 0 0;\n  padding: 0;\n  list-style: none;\n}\n\n._activityItem_1865q_247 {\n  display: block;\n  min-width: 0;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityToolRow_1865q_253 {\n  min-width: 0;\n}\n\n/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header\n   with the secondary tier; the workbench only sizes the pieces it supplies. */\n._activityRow_1865q_259 {\n  min-width: 0;\n}\n\n._activityTitle_1865q_263 {\n  font-weight: 400;\n}\n\n/* The 2x2 separator between the title and the collapsed summary, matching the\n   conversation's run rows. */\n._activitySep_1865q_269 {\n  flex: none;\n  width: 2px;\n  height: 2px;\n  margin: 0 8px;\n  border-radius: 1px;\n  background: var(--dsw-alias-label-caption);\n}\n\n/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */\n._activitySummary_1865q_279 {\n  flex: 1 1 auto;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n}\n\n/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */\n._activityBody_1865q_290 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  padding: 4px 0 4px 22px;\n}\n\n._activityBodyLabel_1865q_298 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n._activityBodyText_1865q_304 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The model thinking: a disclosure row like the conversation's, set apart from the calls\n   because it is what the card is *reasoning*, not what it is doing. */\n._activityReasoning_1865q_314 {\n  min-width: 0;\n}\n\n/* The model speaking to the user: plain narration, no chrome — it is the reply, not a\n   step. Reads like an assistant message in the conversation. */\n._activityNarration_1865q_320 {\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  overflow-wrap: anywhere;\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_1865q_330 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The settled turn-process header above a trace, matching the conversation's Turn process\n   row: a full-width button with the outcome word and a chevron that folds the whole stream. */\n/* No rule of its own any more: the block's edge is the boundary, and the header is the\n   block's first line. It carries a step count because 已完成 alone gave no reason to open\n   it — the summary said how the run ended and nothing about what was inside. */\n/* A chip, not a bar. Full width put the chevron a page away from the words it folds, which\n   is the one thing on the line nobody could connect to it; sized to its own text, the\n   outcome, the count and the chevron read as one control and its hover area agrees with\n   what it looks like. The negative start padding is only so the chip's own inset does not\n   push its text off the document's left edge. */\n._turnProcess_1865q_346 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  width: auto;\n  max-width: 100%;\n  margin-left: -4px;\n  padding: 3px 8px 3px 4px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 12px;\n  font-weight: 500;\n  cursor: pointer;\n  text-align: left;\n  transition: color 100ms ease, background 100ms ease;\n}\n\n._turnProcess_1865q_346:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The outcome at a glance, before the word is read: a quiet dot for a settled run and the\n   warning colour for one that failed or was stopped. */\n._turnProcessDot_1865q_373 {\n  flex: none;\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 24%, transparent);\n}\n\n._turnProcess_1865q_346[data-turn-process=\"failed\"] ._turnProcessDot_1865q_373 {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._turnProcessLabel_1865q_385 {\n  min-width: 0;\n  overflow: hidden;\n  font-size: inherit;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* How many entries the fold hides, in the colour of a count rather than of the outcome. */\n._turnProcessSteps_1865q_395 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-weight: 400;\n  font-variant-numeric: tabular-nums;\n}\n\n/* Right after the count: the chevron belongs to the words it folds. */\n._turnProcessChevron_1865q_404 {\n  flex: none;\n  width: 14px;\n  height: 14px;\n  color: inherit;\n  transition: transform 100ms ease;\n}\n\n._turnProcess_1865q_346[data-open] ._turnProcessChevron_1865q_404 {\n  transform: rotate(180deg);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._turnProcess_1865q_346,\n  ._turnProcessChevron_1865q_404 {\n    transition: none;\n  }\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_1865q_431 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_1865q_443 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* The page's one place to act: three quiet controls where the document they change ends, and\n   the revision log under them. It was a selector plus a dock with a field in it; choosing a\n   way of changing the result now opens a dialog, so there is nothing to write here and\n   nothing to frame.\n\n   The row is the shape the chat's own message actions have: icons with their labels, quiet at\n   rest, one tinted pill under the pointer. Its controls are the page's only way to act on\n   what is above them, so they stay readable rather than waiting for a hover — hiding them\n   would leave a page that looks like it cannot do anything. */\n._actBlock_1865q_459 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n._actRow_1865q_466 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 2px;\n  margin-left: -8px;\n  min-width: 0;\n}\n\n/* The run's fold sits on the same line as the ways of changing the result, and it is not one\n   of them: it says how the run behind the result ended and opens its steps. So it keeps the\n   gap the actions have between them on its left and its own padding on its right, rather\n   than hanging off the row at the page's edge the way it did when it headed a section. */\n._actRow_1865q_466 ._turnProcess_1865q_346 {\n  margin-left: 6px;\n}\n\n._actAction_1865q_483 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 4px 8px;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  cursor: pointer;\n  transition: background 100ms ease, color 100ms ease;\n}\n\n._actAction_1865q_483:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._actAction_1865q_483:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A way of changing the result that this one cannot offer — nothing to revise, or a run\n   already holding the card — reads as unavailable rather than disappearing, so the row keeps\n   the same length whichever state the page is in. */\n._actAction_1865q_483:disabled {\n  color: var(--dsw-alias-label-caption);\n  cursor: not-allowed;\n}\n\n._actAction_1865q_483:disabled:hover {\n  background: transparent;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The dialog a sentence is written in. Portalled to the body by `PromptDialog`, so these\n   classes are not nested under anything the page controls. */\n._dialogOverlay_1865q_525 {\n  position: fixed;\n  inset: 0;\n  z-index: 60;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 24px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 28%, transparent);\n}\n\n._dialogPanel_1865q_536 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  width: min(560px, 100%);\n  max-height: calc(100vh - 48px);\n  padding: 18px 18px 16px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-alias-bg-layer-1);\n  box-shadow: 0 24px 48px -20px color-mix(in srgb, var(--dsw-alias-label-primary) 45%, transparent);\n  overflow: hidden;\n}\n\n/* Keyboard users land on the panel when it holds no field; the field takes the caret itself. */\n._dialogPanel_1865q_536:focus-visible {\n  outline: none;\n}\n\n/* The window that holds a document instead of a form: as wide as the window allows and as\n   tall as the viewport does, because what is inside was laid out for a screen rather than\n   for a column. The height is stated rather than left to the content so that a short\n   document does not shrink the panel and a long one scrolls inside the well. */\n._dialogPanel_1865q_536[data-dialog-size='wide'] {\n  width: min(1040px, 100%);\n  height: min(84vh, 900px);\n  max-height: calc(100vh - 48px);\n}\n\n._dialogHead_1865q_566 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._dialogTitle_1865q_573 {\n  flex: 1 1 auto;\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  min-width: 0;\n}\n\n._dialogClose_1865q_583 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  margin: -2px -2px 0 0;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  cursor: pointer;\n}\n\n._dialogClose_1865q_583:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._dialogClose_1865q_583:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._dialogHint_1865q_609 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* A refusal, inside the dialog rather than beside the page: the form was submitted and the\n   Host would not take it, which is the same sentence the run bar states in its own layout.\n   It is the error colour, not the hint's grey, because it is about the press and not the\n   form. */\n._dialogProblem_1865q_620 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The form's own surface: unlike the row, this *is* written into, so it carries the frame the\n   block used to. Taller than the bar's field because the dialog exists to give a sentence\n   room. */\n._dialogField_1865q_630 {\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 96px;\n  max-height: 40vh;\n  padding: 10px 12px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-specific-input-major);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 20px;\n  resize: none;\n  overflow-y: auto;\n}\n\n._dialogField_1865q_630::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._dialogField_1865q_630:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._dialogField_1865q_630:focus-visible {\n  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 30%, transparent);\n  outline: 2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);\n  outline-offset: 1px;\n}\n\n/* The two ways out, at the end the form submits from. */\n._dialogFoot_1865q_663 {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n  padding-top: 2px;\n}\n\n/* The directory this run happens in, at the top of the run dialog: a label, the value, and the\n   picker beside it. The same three pieces the configuration page's workspace field draws, so\n   the dialog and the page it writes to cannot describe one directory two ways. */\n._runWorkspace_1865q_673 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The picker keeps its own width whatever the path beside it is: two characters of a button\n   wrapping onto a second line is the one thing that makes the row look broken. */\n._runWorkspace_1865q_673 button {\n  flex: none;\n  white-space: nowrap;\n}\n\n/* Where a result happened: one item in the head's row of facts, beside the skill that made it.\n   The path is the exact one and never the folder's name, because the name is a display\n   convenience and the directory that ran is the whole path. Quiet enough to read as a fact\n   rather than a warning — unless the directory is gone, which the path's own colour says. */\n._runWorkspaceLine_1865q_691 {\n  display: inline-flex;\n  align-items: baseline;\n  gap: 4px;\n  min-width: 0;\n  max-width: 100%;\n}\n\n._runWorkspaceLineLabel_1865q_699 {\n  flex: none;\n}\n\n._runWorkspaceLinePath_1865q_703 {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runWorkspaceLine_1865q_691[data-run-workspace-line='invalid'] ._runWorkspaceLinePath_1865q_703 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The instructions this card was recently given, offered back as chips in the run dialog.\n   A shortcut for the common case — the same ask again, with a small edit — so a click refills\n   the field rather than starting a run. */\n._runChips_1865q_717 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n}\n\n._runChipsLabel_1865q_725 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runChip_1865q_717 {\n  max-width: 220px;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 999px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  line-height: 16px;\n  white-space: nowrap;\n  text-overflow: ellipsis;\n  overflow: hidden;\n  cursor: pointer;\n}\n\n._runChip_1865q_717:hover {\n  border-color: var(--dsw-alias-border-l3);\n  color: var(--dsw-alias-label-primary);\n}\n\n._runChip_1865q_717:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_1865q_759 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_1865q_767 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_1865q_775 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_1865q_782 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_1865q_792 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_1865q_804 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_1865q_809 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_1865q_814 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_1865q_823 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_1865q_830 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_1865q_837 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_1865q_844 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_1865q_853 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_1865q_862 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 18px 0;\n}\n\n/* A group's first line: its name, and whatever belongs to the group as a whole — the\n   template's three actions, the preview's caption. The controls used to sit inside the\n   sentence about the region and the byte count, where an underlined 添加动作 read as one\n   more fact instead of the one thing on the line a user could press. */\n._sectionHead_1865q_874 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 12px;\n  min-width: 0;\n}\n\n._sectionTools_1865q_882 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin-left: auto;\n  min-width: 0;\n}\n\n/* Not flush against the head: the head is pinned and carries a hairline, and a section\n   title one line under it reads as part of the head rather than as the first group. */\n._section_1865q_862:first-child {\n  padding-top: 18px;\n}\n\n._section_1865q_862 + ._section_1865q_862 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_1865q_900 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_1865q_912 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_1865q_912 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_1865q_912 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_1865q_937 {\n  margin: 0;\n  box-sizing: border-box;\n  display: flex;\n  align-items: center;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_1865q_954 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_1865q_962 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n/* One line, like every other control in the grid: the leaf name on the left, the exact\n   path flushing right. Two lines made this cell taller than its neighbour, so no two rows\n   of the group ever lined up — and the row's whole purpose is that they do. */\n._workspaceValue_1865q_976 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_1865q_995 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n/* The same row, with a field to type into instead of a value to read. It matches the value\n   control's height and border so a card on a build without a chooser does not look like a\n   different kind of card, and it takes the space the button beside it does not. */\n._workspaceInput_1865q_1002 {\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._workspaceInput_1865q_1002:focus {\n  outline: none;\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._workspaceInputInvalid_1865q_1022 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceInput_1865q_1002::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._workspaceLeaf_1865q_1030 {\n  flex: none;\n  max-width: 62%;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  line-height: 18px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_1865q_1042 {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  text-align: right;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_1865q_1056 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The page's controls are one size and one surface: a form whose fields are 28px tall\n   reads as a settings list from a denser app, and a name field the height of a table row\n   is not obviously a place you can type. */\n._select_1865q_1066,\n._editor_1865q_1067 {\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n}\n\n._select_1865q_1066 {\n  box-sizing: border-box;\n  height: 32px;\n  padding: 0 8px;\n}\n\n/* Tall enough to hold a page of template on a laptop window without pushing the save bar\n   half way up the screen, and still growing on a large one.\n\n   The height comes from the pane's stated row; the field fills it and, with the content\n   taller than the box, scrolls inside it. `min-height: 0` is what lets a text area shrink\n   into a row instead of pushing the row open to fit its text. */\n._editor_1865q_1067 {\n  min-height: 0;\n  padding: 6px;\n  font-family: monospace;\n  /* Not resizable: dragging the handle wrote a height on the field, the pane's row stayed as\n     stated and clipped it, so the handle was a control that broke the layout it sat in. */\n  resize: none;\n}\n\n/* The editor's status rail, at the foot of the pane: where the region is, what the\n   template declares, and how much of the size budget it uses. These are readings of the\n   text above them, so they belong under it — a line of facts above a code block reads as\n   a caption for the section, and it took a whole row away from the editor. */\n._editorStatus_1865q_1101 {\n  grid-column: 1 / -1;\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 2px 10px;\n  box-sizing: border-box;\n  padding: 5px 10px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Pushed to the rail's far end: it is about the whole file, not about the region's range. */\n._editorStatusDirty_1865q_1117 {\n  margin-left: auto;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_1865q_1124 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_1865q_1129 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The template read as structure. Same metrics as the field it replaces, so switching\n   between the two does not move the text a line up or down, and the same tinted number\n   column, so the two views read as one pane. */\n._foldView_1865q_1136 {\n  grid-column: 1 / -1;\n  /* Fills the pane's stated row, like the field it replaces: the two presentations have to be\n     the same size to read as one pane, and a view that grows with its document is a page. */\n  min-height: 0;\n  padding: 6px 0;\n  overflow: auto;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  font-size: 12px;\n  line-height: 18px;\n  /* The scrollbar a long document brings must not narrow the code mid-read. */\n  scrollbar-gutter: stable;\n}\n\n._foldRow_1865q_1150 {\n  display: flex;\n  align-items: flex-start;\n  min-width: max-content;\n}\n\n/* Fills the rest of the row so the row's hover tint covers the whole width, while the\n   count stays against the text it belongs to instead of at the far edge of a long pane. */\n._foldRow_1865q_1150::after {\n  content: '';\n  flex: 1 1 auto;\n}\n\n._foldRow_1865q_1150:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n}\n\n/* The number column, the caret, and the text are three buttons in one row. Nothing here is\n   a tab stop: the row's job is to hand a line to the field, and the field is a keyboard\n   control on its own. */\n._foldNumber_1865q_1170,\n._foldCaret_1865q_1171,\n._foldText_1865q_1172 {\n  margin: 0;\n  border: 0;\n  background: transparent;\n  font: inherit;\n  line-height: inherit;\n  cursor: pointer;\n}\n\n._foldNumber_1865q_1170 {\n  flex: none;\n  width: 44px;\n  padding: 0 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  text-align: right;\n  user-select: none;\n}\n\n._foldCaret_1865q_1171,\n._foldCaretBlank_1865q_1193 {\n  flex: none;\n  width: 18px;\n  padding: 0;\n  color: var(--dsw-alias-label-secondary);\n  text-align: center;\n  user-select: none;\n}\n\n._foldText_1865q_1172 {\n  flex: 0 0 auto;\n  padding: 0 10px 0 0;\n  color: var(--dsw-alias-label-primary);\n  text-align: left;\n  white-space: pre;\n}\n\n/* What one folded line stands for: the size of what is hidden, so a fold that swallowed\n   the whole stylesheet cannot be mistaken for a fold that hid three lines. */\n._foldCount_1865q_1212 {\n  flex: none;\n  padding: 0 12px 0 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n/* Gutter and text on the first row, the status rail under both of them. The gutter and\n   the text must share font, size, line height and vertical padding, or the numbers stop\n   lining up with the lines they label.\n\n   The first row's height is stated rather than divided. `minmax(0, 1fr)` inside a grid that\n   is as tall as its own content has nothing to divide, so the row grew to the code's full\n   height: a three-hundred-line template made a five-thousand-pixel field, the page scrolled\n   instead of the field, and a jump selected a line that was nowhere on screen. A stated row\n   makes the field and the gutter the scrollers, and keeps the page a page. */\n._editorPane_1865q_1229 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  grid-template-rows: clamp(280px, 44vh, 560px) auto;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_1865q_1243 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  /* A tint rather than a layer token: both layer tokens are the same white in this theme,\n     which left the numbers floating in the code with nothing separating them. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_1865q_1263 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_1865q_1263:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_1865q_1283 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_1865q_1291 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_1865q_1229 ._editor_1865q_1067 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n  /* A number labels a row only while one line of the file is one row on screen: a wrapped\n     line pushed every number under it onto its neighbour's line, and indentation read as\n     ragged because the glyphs were not on a grid. Long lines scroll sideways instead, in a\n     stack that is monospaced on every Windows without the shell's default font deciding. */\n  white-space: pre;\n  overflow-wrap: normal;\n  /* Both axes are stated: a long file scrolls inside the field, and a jump moves that scroll.\n     Leaving the vertical axis to be inferred from the horizontal one made the pane's own\n     scroller a candidate for a jump, and a jump that scrolls the wrong box looks like a jump\n     that did nothing. */\n  overflow-x: auto;\n  overflow-y: auto;\n  tab-size: 2;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  /* The scrollbar that appears with a long file must not narrow the text mid-edit. */\n  scrollbar-gutter: stable;\n}\n\n._editorPane_1865q_1229 ._editor_1865q_1067:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_1865q_1229:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_1865q_1067:focus-visible,\n._select_1865q_1066:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_1865q_1336 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_1865q_1346 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_1865q_1346:hover,\n._violationJump_1865q_1346:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The frame the document is drawn in, inside the preview window: tinted, inset, and the one\n   thing in the panel that scrolls, so a document taller than the window scrolls inside it\n   rather than pushing the head and the footer out of view. */\n._previewFrame_1865q_1367 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  min-height: 0;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n}\n\n/* The well the document is drawn in: white on the tinted frame, so the user's own card\n   reads as the document and the frame reads as the page around it. */\n._preview_1865q_1367 {\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 8px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n\n._settingsActions_1865q_1395 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_1865q_1402 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_1865q_1413 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_1865q_1420 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_1865q_1430 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_1865q_1437 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall.\n\n   Sticky insets resolve against the scrollport's *content* edge, so `bottom: 0` pinned\n   this bar one page-padding up (48px, from the panel's own `.page`) — and the template's\n   lines kept scrolling through the strip underneath it, which read as the bar cutting the\n   editor in half. The negative inset puts the reference back on the padding's outer edge,\n   which is the window's own bottom. */\n._configFooter_1865q_1449 {\n  position: sticky;\n  bottom: -48px;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 8px;\n  padding: 12px 0 14px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n  /* A hairline alone left the editor's last lines looking cut rather than covered: the bar\n     and the page are the same white, so the bar has to cast something to read as a bar. */\n  box-shadow: 0 -12px 20px -18px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);\n}\n\n/* What the save button would keep, stated beside it. */\n._footerHint_1865q_1467 {\n  margin-left: 4px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._footerActions_1865q_1474 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_1865q_1480 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_1865q_1485 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_1865q_1474 ._deleteCard_1865q_1493 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_1865q_1474 ._deleteCard_1865q_1493:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_1865q_1503 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_1865q_1513 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_1865q_1522 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_1865q_1522 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_1865q_1522 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The directory the panel proposes, and the sentence saying what it is for: the field is the\n   same one the card's own page uses, so only the breathing room under it is set here. */\n._actionFacts_1865q_1522 [data-action-workspace-note] {\n  margin-top: 4px;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_1865q_1548 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_1865q_1564 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_1865q_1564[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n\n/* The run-history page: its heading, the count line, the empty state, and the runs.\n\n   The list is read as days: one heading per day, rows under it, a hairline between rows.\n   A row is two lines of its own — what the run produced, then the facts that tell it\n   apart from its neighbours — with the outcome opposite, so a reader scanning for a run\n   lands on content rather than on seven identical completion words. */\n\n._runsHeadText_1865q_1584 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n._runsHeadTitle_1865q_1592 {\n  margin: 0;\n  font-size: 18px;\n  font-weight: 600;\n  line-height: 26px;\n  overflow-wrap: anywhere;\n}\n\n._runsHeadMeta_1865q_1600 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 8px;\n  margin: 0;\n  min-width: 0;\n}\n\n._runHistoryCount_1865q_1609 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runHistoryEmpty_1865q_1616 {\n  margin: 0;\n  padding: 32px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  line-height: 20px;\n  text-align: center;\n}\n\n._runHistoryList_1865q_1627 {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  min-width: 0;\n}\n\n._runHistoryGroup_1865q_1634 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n}\n\n/* The day a group of rows completed on. It is a caption, not a title: the rows below it\n   are what the page is about, and a heavier heading would make the list read as days.\n\n   It sticks to the top of the list while its own group scrolls past, because a long\n   history is read one day at a time and the rows themselves carry only a clock: without\n   the caption on screen, \"22:47\" is a time on no particular day. */\n._runHistoryDay_1865q_1647 {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  margin: 0;\n  padding: 5px 10px 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-caption);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  letter-spacing: 0.04em;\n}\n\n._runHistoryItems_1865q_1661 {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n  min-width: 0;\n}\n\n._runHistoryItem_1865q_1661 {\n  min-width: 0;\n}\n\n/* Rows separate by a hairline rather than by their own borders: seven outlined boxes\n   read as seven unrelated cards, while one column of rows reads as one day's work. */\n._runHistoryItem_1865q_1661 + ._runHistoryItem_1865q_1661 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* The row is a container rather than the button itself: a run in flight carries a stop\n   control of its own, and a button inside a button is not a thing a browser can draw. */\n._runHistoryRow_1865q_1680 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  min-width: 0;\n  margin: 0;\n  padding: 10px;\n  border-radius: var(--dsw-radius-sm);\n}\n\n._runHistoryRow_1865q_1680:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._runHistoryOpen_1865q_1695 {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n/* A run that did not finish earns a mark on the row's edge.\n\n   Seven rows of one card are mostly the same shape, and the one that failed differs\n   only in a small word on the far right: the eye scanning the titles had nothing to\n   catch on. The bar is that catch, and it is drawn inside the row's padding so that no\n   row's text moves — the list keeps one left edge, marked rows included. */\n._runHistoryOpen_1865q_1695::before {\n  content: '';\n  position: absolute;\n  /* On the row's own left edge, one row's padding away from the text: far enough that it\n     reads as a margin mark rather than as part of the first glyph. */\n  left: -10px;\n  top: 50%;\n  width: 2px;\n  height: 18px;\n  margin-top: -9px;\n  border-radius: 1px;\n  background: transparent;\n}\n\n._runHistoryOpen_1865q_1695[data-run-outcome='aborted']::before {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryOpen_1865q_1695[data-run-outcome='error']::before,\n._runHistoryOpen_1865q_1695[data-run-outcome='failed']::before {\n  background: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryOpen_1865q_1695[data-run-outcome='running']::before {\n  background: var(--dsw-alias-link);\n}\n\n/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and\n   only the row of a run in flight has one. */\n._runHistoryStop_1865q_1747 {\n  flex: none;\n  margin: 0;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-sm);\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._runHistoryStop_1865q_1747:hover {\n  color: var(--dsw-alias-label-primary);\n  border-color: var(--dsw-alias-border-primary);\n}\n\n._runHistoryBody_1865q_1766 {\n  display: flex;\n  flex-direction: column;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The run's content is the row's title: the only line at reading weight, and the only\n   one allowed to be the first thing the eye lands on. */\n._runHistoryTitle_1865q_1776 {\n  min-width: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 14px;\n  font-weight: 500;\n  line-height: 21px;\n  /* One line: a two-line clamp let one long title stand taller than its neighbours and\n     made the rhythm of the list ragged. */\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A run that stored nothing still owns the row's first line. Without it the row was a\n   lone grey meta line, which read as a row that had failed to load rather than a run that\n   had nothing to say. */\n._runHistoryTitle_1865q_1776[data-empty='true'] {\n  font-weight: 400;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._runHistoryMeta_1865q_1797 {\n  display: flex;\n  align-items: baseline;\n  min-width: 0;\n  flex-wrap: wrap;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The same middot the page head uses between its facts, for the same reason: a clock, a\n   model id, and an ordinal set in one grey with only space between them read as one\n   string. */\n._runHistoryMeta_1865q_1797 > * + *::before {\n  content: '·';\n  margin: 0 6px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The clock is the one fact on this line a reader compares across rows, so it is a step\n   above the model id and the ordinal, in figures that line up column-wise. */\n._runHistoryTime_1865q_1818 {\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n._runHistoryModel_1865q_1825 {\n  /* Wide enough for a real model id — `GLM-FLASH-LATEST` — so the truncation lands on a\n     name that is actually long rather than on the one this workbench runs. */\n  max-width: 24ch;\n  color: var(--dsw-alias-label-tertiary);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryOrdinal_1865q_1835,\n._runHistoryEdited_1865q_1836 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  white-space: nowrap;\n}\n\n/* What the run was asked for: one line under the row's own meta, because two runs of one\n   card differ by this and a wrapped quote would make every row's height depend on how much\n   was typed. The full text is on the result page that opens from the row. */\n._runHistoryInstruction_1865q_1845 {\n  display: block;\n  max-width: 100%;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistorySide_1865q_1856 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n}\n\n/* The outcome is a quiet dot and a word. Only a run that did not complete earns a\n   hearing: a wall of neutral \"已完成\" would compete with the titles it sits beside.\n\n   Right-aligned in a column of its own width, so the dots and the words line up down the\n   right edge instead of starting wherever each word's length puts them. */\n._runHistoryOutcome_1865q_1868 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 5px;\n  min-width: 4em;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n\n._runHistoryDot_1865q_1880 {\n  width: 6px;\n  height: 6px;\n  flex: none;\n  border-radius: 50%;\n  background: currentColor;\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='aborted'] ._runHistoryOutcome_1865q_1868 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='error'] ._runHistoryOutcome_1865q_1868,\n._runHistoryRow_1865q_1680 [data-run-outcome='failed'] ._runHistoryOutcome_1865q_1868 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='running'] ._runHistoryOutcome_1865q_1868 {\n  color: var(--dsw-alias-link);\n}\n\n._runHistoryRow_1865q_1680 [data-run-outcome='running'] ._runHistoryDot_1865q_1880 {\n  animation: _runHistoryPulse_1865q_1 1.4s ease-in-out infinite;\n}\n\n@keyframes _runHistoryPulse_1865q_1 {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.25; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._runHistoryRow_1865q_1680[data-run-outcome='running'] ._runHistoryDot_1865q_1880 {\n    animation: none;\n  }\n}\n\n/* The way in, quiet at rest and nudged on hover: the whole row is the control, and this\n   only has to say which direction it goes. */\n._runHistoryChevron_1865q_1918 {\n  display: inline-flex;\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  line-height: 1;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n._runHistoryRow_1865q_1680:hover ._runHistoryChevron_1865q_1918,\n._runHistoryOpen_1865q_1695:focus-visible ._runHistoryChevron_1865q_1918 {\n  color: var(--dsw-alias-label-secondary);\n  transform: translateX(2px);\n}/**\n * 流水线工作台的样式，逐条取自 docs/prototypes/workbench-pipeline-v2.html。\n *\n * 原型自带两套固定色板（浅色/深色写在 body[data-theme] 上）。这里把它的令牌改写为\n * DSH 的同义令牌，于是插件跟 DSH 一起换肤，不必再维护第二套颜色。除此之外，选择器、\n * 数值、间距、圆角、阴影都保持原型的写法，改起来仍能一句一句对回原型。\n */\n\n._root_bzxwc_9 {\n  /* 字体 */\n  --f-sans: var(--dsw-font-family);\n  --f-mono: ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;\n\n  /* 底色：面板、凹槽、卡片 */\n  --base: var(--dsw-alias-bg-base);\n  --pane: var(--dsw-alias-bg-base);\n  --rail: var(--dsw-alias-bg-layer-1);\n  --card-bg: var(--dsw-alias-bg-base);\n  --recess: var(--dsw-alias-bg-layer-2);\n\n  /* 交互 */\n  --hover: var(--dsw-alias-bg-fill-hover);\n  --hover-strong: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n\n  /* 文字 */\n  font-family: var(--f-sans);\n\n  --ink: var(--dsw-alias-label-primary);\n  --ink2: var(--dsw-alias-label-secondary);\n  --ink3: var(--dsw-alias-label-tertiary);\n  --ink4: var(--dsw-alias-label-tertiary);\n\n  /* 分隔与边框 */\n  --hairline: var(--dsw-alias-border-l1);\n  --divider: var(--dsw-alias-border-l1);\n\n  /* 强调与状态 */\n  --accent: var(--dsw-alias-brand-primary);\n  --accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);\n  --accent-wash: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent);\n  --success: #22c55e;\n  --warn: #f59e0b;\n  --danger: var(--dsw-alias-state-error-primary);\n  --danger-wash: color-mix(in srgb, var(--dsw-alias-state-error-primary) 7%, transparent);\n  --idle: var(--dsw-alias-border-l2);\n\n  /* 主按钮、阴影、遮罩 */\n  --primary-bg: var(--dsw-alias-label-primary);\n  --primary-ink: var(--dsw-alias-bg-base);\n  --shadow-menu: 0 12px 32px color-mix(in srgb, #000 14%, transparent), 0 2px 8px color-mix(in srgb, #000 6%, transparent);\n  --shadow-node: 0 1px 2px color-mix(in srgb, #000 5%, transparent);\n  --scrim: color-mix(in srgb, #000 24%, transparent);\n  --scroll: var(--dsw-alias-border-l2);\n}\n/* ==========================================================================\n   工作台原型 · 两栏版\n   --------------------------------------------------------------------------\n   与原版（workbench-pipeline.html）的差别只有一件事：宽度按 DSH Desktop\n   主面板的真实可用宽度来设计，不再假设一个 1348px 的壳。\n\n   插件占的就是主面板那一列，整块、无内部侧栏；DSH 自己的左侧栏在插件外面，\n   不属于这个插件。所以下面这个原型框 = 面板本身，宽度可切。\n\n   面板宽度取自仓库代码（窗口宽 - 侧栏 - 右侧面板）：\n     大窗口（最大化）        → 约 1280\n     窗口默认 1280x840      → 侧栏 280 → 1000   （settings-bridge.ts:158）\n     窗口最小 900x640       → 侧栏 56  → 844    （columns.ts:13/19/23）\n     TaskManagerPage 断点   → 760               （其 module.css:1439）\n     右侧面板打开           → 424（CENTER_MIN 400 托底）\n\n   因此：\n     - 常驻三栏取消。任务库变弹出选择器。\n     - 画布 + 检查器并排需 >=820；更窄时检查器滑动覆盖。\n     - 断点用容器查询（@container），因为面板宽度 != 视口宽度。\n   ========================================================================== */\n\n*, *::before, *::after { box-sizing: border-box; }\n[hidden] { display: none !important; }\n\n/* 内联 svg 的兜底尺寸：任何一处忘了单独指定的图标都不会撑成一块黑板。\n   具体规则（.btn svg / .iconBtn svg …）单类选择器优先级更高，照常覆盖。 */\n._root_bzxwc_9 svg { flex: none; width: 14px; height: 14px; }\n\n\n\n/* ---------------------------------------------------------------- 主题令牌 */\n\n\n\n/* ---------------------------------------------------------------- 原型外壳 */\n\n\n\n\n\n\n\n\n\n\n\n/* ------------------------------------------------------------------ 应用帧 */\n/* 原型框 = 面板本身。DSH 左侧栏（新会话 / 插件 / 工作台 / 工作区）在插件外面，\n   不属于这个插件，所以这里不画，宽度就是切换器标的那个数。 */\n\n\n/* -------------------------------------------------------------------- 面板 */\n._panel_bzxwc_108 {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  position: relative;\n  overflow: hidden;\n  background: var(--base);\n  color: var(--ink);\n  font-size: 13px;\n  /* 断点跟着面板走，不跟视口走 */\n  container-type: inline-size;\n  container-name: panel;\n}\n\n._panelHead_bzxwc_123 {\n  flex: none;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  height: 58px;\n  padding: 0 18px;\n  border-bottom: 0.5px solid var(--hairline);\n}\n._panelHead_bzxwc_123 h1 {\n  margin: 0;\n  font-size: 20px;\n  line-height: 28px;\n  font-weight: 500;\n  letter-spacing: -.01em;\n  white-space: nowrap;\n}\n._headSpacer_bzxwc_140 { flex: 1; }\n._btn_bzxwc_81 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  height: 30px;\n  padding: 0 12px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n._btn_bzxwc_81 svg { width: 14px; height: 14px; flex: none; }\n._btn_bzxwc_81:hover { background: var(--hover); }\n._btn_bzxwc_81._ghost_bzxwc_158 { border: 0.5px solid var(--hairline); }\n._btn_bzxwc_81._ghost_bzxwc_158:hover { background: var(--hover-strong); }\n._btn_bzxwc_81._primary_bzxwc_160 { background: var(--primary-bg); color: var(--primary-ink); font-weight: 500; }\n._btn_bzxwc_81._primary_bzxwc_160:hover { opacity: .86; }\n/* 禁用态要看得出来。审核弹框靠它表达「先写要求」这件事。 */\n._btn_bzxwc_81:disabled { opacity: .38; cursor: default; }\n._btn_bzxwc_81:disabled:hover { background: transparent; opacity: .38; }\n._btn_bzxwc_81._ghost_bzxwc_158:disabled:hover { background: transparent; }\n._btn_bzxwc_81._primary_bzxwc_160:disabled:hover { opacity: .38; }\n\n._panelBody_bzxwc_168 { flex: 1; min-height: 0; display: flex; }\n/* 只剩一个视图了，不再需要切换用的 display 开关 */\n._pipelineView_bzxwc_170 { flex: 1; min-width: 0; display: flex; flex-direction: column; }\n\n/* -------------------------------------------------------------- 步骤轨道 + 结果 */\n/* 执行时看的是产出。步骤是导航，结果是主体，所以这里反过来：\n   轨道固定窄，结果吃掉剩余全部宽度。 */\n._panes_bzxwc_175 { position: relative; flex: 1; min-height: 0; display: flex; }\n\n._canvas_bzxwc_177 {\n  flex: none;\n  width: 280px;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  border-right: 0.5px solid var(--divider);\n}\n\n._canvasHead_bzxwc_186 {\n  flex: none;\n  position: relative;\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 12px 14px 10px;\n  border-bottom: 0.5px solid var(--divider);\n}\n._canvasTitleRow_bzxwc_195 { display: flex; align-items: center; gap: 8px; min-width: 0; }\n._canvasTitleBtn_bzxwc_196 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 15px;\n  font-weight: 500;\n  cursor: pointer;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._canvasTitleBtn_bzxwc_196 svg { width: 13px; height: 13px; flex: none; color: var(--ink3); }\n._canvasTitleBtn_bzxwc_196:hover svg { color: var(--ink); }\n._chipState_bzxwc_214 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 20px;\n  padding: 0 8px;\n  border-radius: 10px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-size: 12px;\n  white-space: nowrap;\n}\n._chipState_bzxwc_214[data-s=\"running\"] { background: var(--accent-wash); color: var(--accent); }\n._chipState_bzxwc_214[data-s=\"done\"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 82%, var(--ink)); }\n._chipState_bzxwc_214[data-s=\"failed\"] { background: var(--danger-wash); color: var(--danger); }\n._chipState_bzxwc_214[data-s=\"idle\"], ._chipState_bzxwc_214[data-s=\"stopped\"] { background: var(--hover); color: var(--ink2); }\n/* 这行字是运行记录的入口：它本来就在说\"上一次运行改了什么\"，所以让它能点 */\n._canvasMeta_bzxwc_231 {\n  display: block;\n  width: 100%;\n  margin-top: 4px;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  cursor: pointer;\n}\n._canvasMeta_bzxwc_231:not(:disabled):hover { color: var(--ink); }\n._canvasMeta_bzxwc_231:disabled { cursor: default; }\n._iconBtn_bzxwc_81 {\n  width: 26px; height: 26px;\n  padding: 0;\n  display: grid; place-items: center;\n  border: 0;\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink3);\n  cursor: pointer;\n}\n._iconBtn_bzxwc_81 svg { width: 15px; height: 15px; }\n._iconBtn_bzxwc_81:hover { background: var(--hover); color: var(--ink); }\n\n._canvasScroll_bzxwc_262 { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }\n._flow_bzxwc_263 { padding: 12px 14px 16px; }\n\n/* 节点 */\n._node_bzxwc_266 {\n  position: relative;\n  display: block;\n  width: 100%;\n  text-align: left;\n  padding: 9px 11px 0;\n  border: 0.5px solid var(--hairline);\n  border-radius: 12px;\n  background: var(--card-bg);\n  box-shadow: var(--shadow-node);\n  font: inherit;\n  color: inherit;\n  cursor: pointer;\n  transition: border-color .12s, box-shadow .12s;\n}\n._node_bzxwc_266::before {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  top: 13px;\n  bottom: 13px;\n  width: 2px;\n  border-radius: 0 2px 2px 0;\n  background: var(--idle);\n}\n._node_bzxwc_266[data-s=\"done\"]::before { background: var(--success); }\n._node_bzxwc_266[data-s=\"running\"]::before { background: var(--accent); }\n._node_bzxwc_266[data-s=\"failed\"]::before { background: var(--danger); }\n._node_bzxwc_266:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }\n._node_bzxwc_266[aria-selected=\"true\"] { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent-soft); }\n\n._nodeTop_bzxwc_297 { display: flex; align-items: center; gap: 7px; }\n._nodeIndex_bzxwc_298 {\n  flex: none;\n  width: 18px; height: 18px;\n  display: grid; place-items: center;\n  border-radius: 5px;\n  background: var(--hover);\n  color: var(--ink3);\n  font-family: var(--f-mono);\n  font-size: 11px;\n}\n._node_bzxwc_266[data-s=\"running\"] ._nodeIndex_bzxwc_298 { background: var(--accent-wash); color: var(--accent); }\n._node_bzxwc_266[data-s=\"done\"] ._nodeIndex_bzxwc_298 { color: var(--ink2); }\n._nodeTitle_bzxwc_310 {\n  min-width: 0;\n  font-size: 13px;\n  font-weight: 500;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._nodeState_bzxwc_318 {\n  margin-left: auto;\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  color: var(--ink3);\n  white-space: nowrap;\n}\n._nodeState_bzxwc_318 svg { width: 12px; height: 12px; }\n._node_bzxwc_266[data-s=\"done\"] ._nodeState_bzxwc_318 { color: color-mix(in srgb, var(--success) 72%, var(--ink)); }\n._node_bzxwc_266[data-s=\"running\"] ._nodeState_bzxwc_318 { color: var(--accent); }\n._node_bzxwc_266[data-s=\"failed\"] ._nodeState_bzxwc_318 { color: var(--danger); }\n._nodeDur_bzxwc_332 {\n  flex: none;\n  min-width: 44px;\n  text-align: right;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n  font-variant-numeric: tabular-nums;\n}\n/* 轨道上放不下「技能·模型·权限」这一行，技能 id 交给右侧检查器头部显示 */\n._nodeFoot_bzxwc_342 {\n  margin: 7px -11px 0;\n  padding: 5px 11px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  border-top: 0.5px solid var(--divider);\n  border-radius: 0 0 12px 12px;\n  background: var(--recess);\n  font-size: 11px;\n  color: var(--ink3);\n  min-height: 24px;\n}\n._node_bzxwc_266[data-s=\"failed\"] ._nodeFoot_bzxwc_342 { background: var(--danger-wash); color: var(--danger); }\n._node_bzxwc_266[data-s=\"running\"] ._nodeFoot_bzxwc_342 { background: var(--accent-wash); color: var(--accent); }\n._nodeFoot_bzxwc_342 span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n/* 这一步的产物来自哪次运行。单点重跑之后只有它会变 */\n._nodeRun_bzxwc_359 { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n._nodeProg_bzxwc_360 { flex: none; width: 34px; height: 3px; border-radius: 2px; background: var(--accent-soft); overflow: hidden; }\n._nodeProg_bzxwc_360 i { display: block; height: 100%; width: 40%; border-radius: 2px; background: var(--accent); animation: _prog_bzxwc_1 1.5s ease-in-out infinite; }\n@keyframes _prog_bzxwc_1 { 0% { transform: translateX(-100%) } 100% { transform: translateX(280%) } }\n\n/* 连接线 + 插入点：线和按钮叠在同一个 grid 单元格里，居中靠布局而不是靠绝对定位猜 */\n._connector_bzxwc_365 {\n  position: relative;\n  height: 24px;\n  display: grid;\n  place-items: center;\n}\n._connector_bzxwc_365::before {\n  content: \"\";\n  grid-area: 1 / 1;\n  width: 1px;\n  height: 100%;\n  background: var(--divider);\n}\n._insertBtn_bzxwc_378 {\n  grid-area: 1 / 1;\n  z-index: 1;\n  width: 20px;\n  height: 20px;\n  /* button 元素自带 UA padding，不清零会把图标挤出边框 */\n  padding: 0;\n  display: grid;\n  place-items: center;\n  border: 0.5px solid var(--hairline);\n  border-radius: 50%;\n  background: var(--base);\n  color: var(--ink3);\n  cursor: pointer;\n  /* 每条连接线上都挂一个 +，五步就是四个噪点。默认藏起来，鼠标过来或者键盘\n     聚焦时才浮出；真的想加步骤，底下常驻的「添加步骤」永远在那儿 */\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity .12s, color .12s, background .12s, border-color .12s;\n}\n._connector_bzxwc_365:hover ._insertBtn_bzxwc_378,\n._connector_bzxwc_365:focus-within ._insertBtn_bzxwc_378 {\n  opacity: 1;\n  pointer-events: auto;\n}\n._insertBtn_bzxwc_378 svg { width: 11px; height: 11px; }\n._connector_bzxwc_365:hover ._insertBtn_bzxwc_378 {\n  opacity: 1;\n  border-color: color-mix(in srgb, var(--accent) 38%, transparent);\n  color: var(--accent);\n}\n._insertBtn_bzxwc_378:hover { background: var(--accent-wash); color: var(--accent); }\n\n._connectorShort_bzxwc_411 { height: 14px; display: flex; justify-content: center; }\n._connectorShort_bzxwc_411::before { content: \"\"; width: 1px; height: 100%; background: var(--divider); }\n\n/* 空流水线 */\n._emptyFlow_bzxwc_415 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  padding: 34px 24px;\n  border: 1px dashed var(--hairline);\n  border-radius: 12px;\n  color: var(--ink3);\n}\n._emptyMark_bzxwc_425 {\n  width: 36px; height: 36px;\n  display: grid; place-items: center;\n  border-radius: 10px;\n  background: var(--hover);\n  color: var(--ink3);\n  margin-bottom: 11px;\n}\n._emptyMark_bzxwc_425 svg { width: 17px; height: 17px; }\n._emptyFlow_bzxwc_415 h4 { margin: 0 0 5px; font-size: 13px; font-weight: 500; color: var(--ink); }\n._emptyFlow_bzxwc_415 p { margin: 0 0 14px; max-width: 300px; font-size: 12px; line-height: 19px; }\n\n._addStep_bzxwc_437 {\n  width: 100%;\n  height: 42px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  border: 1px dashed var(--hairline);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 13px;\n  cursor: pointer;\n}\n._addStep_bzxwc_437 svg { width: 13px; height: 13px; }\n._addStep_bzxwc_437:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }\n\n/* ------------------------------------------------------------------ 检查器 */\n/* 结果区吃掉剩余全部宽度。执行时看的是产出，不是步骤定义。 */\n._inspector_bzxwc_457 {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  min-height: 0;\n  background: var(--pane);\n}\n\n._inspHead_bzxwc_466 {\n  flex: none;\n  position: relative;\n  padding: 12px 16px 0;\n}\n\n/* 当前步骤的操作菜单：上移 / 下移 / 移除 */\n._stepMenu_bzxwc_473 {\n  position: absolute;\n  /* 落在标题行下沿：kicker + 标题行高度稳定，用固定偏移比百分比可靠 */\n  top: 62px;\n  right: 14px;\n  z-index: 60;\n  width: 184px;\n  padding: 5px;\n  border-radius: 10px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n._stepMenuRow_bzxwc_486 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 9px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n._stepMenuRow_bzxwc_486 svg { width: 13px; height: 13px; color: var(--ink3); }\n._stepMenuRow_bzxwc_486:hover { background: var(--hover); }\n._stepMenuRow_bzxwc_486[data-danger] { color: var(--danger); }\n._stepMenuRow_bzxwc_486[data-danger] svg { color: var(--danger); }\n._stepMenuRow_bzxwc_486[data-danger]:hover { background: var(--danger-wash); }\n._stepMenuRow_bzxwc_486[disabled] { opacity: .38; cursor: default; }\n._stepMenuRow_bzxwc_486[disabled]:hover { background: transparent; }\n._stepMenuSep_bzxwc_508 { height: 0.5px; margin: 4px 8px; background: var(--divider); }\n._stepMenuNote_bzxwc_509 {\n  padding: 6px 9px 3px;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 15px;\n}\n._inspKicker_bzxwc_515 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  color: var(--ink3);\n  font-size: 12px;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._inspKicker_bzxwc_515 b { font-weight: 500; color: var(--ink2); }\n._inspTitleRow_bzxwc_526 { display: flex; align-items: center; gap: 8px; margin-top: 6px; }\n._inspTitle_bzxwc_526 {\n  min-width: 0;\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._runOne_bzxwc_537 {\n  margin-left: auto;\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 26px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 13px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n._runOne_bzxwc_537 svg { width: 11px; height: 11px; }\n._runOne_bzxwc_537:hover { background: var(--hover-strong); }\n._inspMeta_bzxwc_556 {\n  margin-top: 5px;\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n}\n._inspMeta_bzxwc_556 code { font-family: var(--f-mono); font-size: 11px; color: var(--ink3); }\n._chipTag_bzxwc_567 {\n  display: inline-flex;\n  align-items: center;\n  height: 18px;\n  padding: 0 7px;\n  border-radius: 9px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-size: 11px;\n}\n._chipTag_bzxwc_567 svg { flex: none; width: 10px; height: 10px; }\n._chipTag_bzxwc_567[data-s=\"running\"] { background: var(--accent-wash); color: var(--accent); }\n._chipTag_bzxwc_567[data-s=\"done\"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 78%, var(--ink)); }\n._chipTag_bzxwc_567[data-s=\"failed\"] { background: var(--danger-wash); color: var(--danger); }\n\n._inspTabs_bzxwc_582 {\n  flex: none;\n  display: flex;\n  gap: 16px;\n  margin-top: 10px;\n  padding: 0 16px;\n  border-bottom: 0.5px solid var(--divider);\n}\n._inspTab_bzxwc_582 {\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: var(--ink2);\n  font: inherit;\n  font-size: 13px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n._inspTab_bzxwc_582:hover { color: var(--ink); }\n._inspTab_bzxwc_582[aria-selected=\"true\"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }\n._inspTab_bzxwc_582 em { font-style: normal; color: var(--ink4); margin-left: 3px; }\n\n._inspScroll_bzxwc_606 { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }\n\n/* 结果面板 */\n._resultPanel_bzxwc_609 { padding: 12px 16px 18px; }\n._resultBar_bzxwc_610 { display: flex; align-items: center; gap: 4px; margin-bottom: 9px; }\n/* 宽屏阅读跟 预览/源码 是一组：都是\"换个读法\"，所以贴着放，不甩到右边去 */\n._resultBar_bzxwc_610 ._iconBtn_bzxwc_81 { width: 24px; height: 24px; }\n\n/* 重生成之后的痕迹：留着「这次是按什么要求改的」，否则改了什么会丢 */\n._revised_bzxwc_615 {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  margin-bottom: 11px;\n  padding: 6px 9px;\n  border-radius: 7px;\n  background: var(--accent-wash);\n  font-size: 11px;\n}\n._revised_bzxwc_615 span { flex: none; color: var(--accent); }\n._revised_bzxwc_615 em {\n  font-style: normal;\n  min-width: 0;\n  color: var(--ink2);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* 结果区两块：这次的结果（清单）/ 模板（预览·源码）。中间一条发丝线分开。 */\n._resBlock_bzxwc_636 + ._resBlock_bzxwc_636 { margin-top: 18px; padding-top: 15px; border-top: 0.5px solid var(--divider); }\n._resBlockHead_bzxwc_637 { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; font-weight: 500; }\n._resBlockHead_bzxwc_637 > em {\n  min-width: 0;\n  font-style: normal;\n  font-weight: 400;\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._resBlockHead_bzxwc_637 ._segTiny_bzxwc_648 { margin-left: auto; }\n\n/* 这次交出来的东西：一行一个文件。窄栏只列清单，正文去阅读器读 */\n._resList_bzxwc_651 { display: flex; flex-direction: column; gap: 4px; }\n._resItem_bzxwc_652 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 8px 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n._resItem_bzxwc_652:hover { background: var(--hover); border-color: color-mix(in srgb, var(--ink) 18%, transparent); }\n._resItem_bzxwc_652 > svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }\n._resItemName_bzxwc_669 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._resItemSize_bzxwc_670 { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 箭头朝右 = 进去读，不是展开 */\n._resItem_bzxwc_652 > svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }\n/* 无目录的步骤：没有清单可列，就一个按钮进去读。摘要那行在区块标题右边 */\n._resOpen_bzxwc_674 {\n  display: inline-flex;\n  align-items: center;\n  /* 放在 column flex 里不被拉满，按钮就是按钮的宽度 */\n  align-self: flex-start;\n  gap: 6px;\n  height: 28px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink2);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n  transition: background .12s, color .12s, border-color .12s;\n}\n._resOpen_bzxwc_674:hover {\n  background: var(--hover);\n  color: var(--ink);\n  border-color: color-mix(in srgb, var(--accent) 34%, transparent);\n}\n._resOpen_bzxwc_674 svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }\n/* 摘要跟在动作后面，是同一行里的补充，不是另一句\"有结果了\" */\n._resOpen_bzxwc_674 em { font-style: normal; font-size: 11px; color: var(--ink4); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._resOpen_bzxwc_674 svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }\n._resOpen_bzxwc_674:hover svg:first-child { color: var(--accent); }\n._resEmpty_bzxwc_701 { padding: 10px 2px; font-size: 12px; line-height: 19px; color: var(--ink3); }\n._resEmpty_bzxwc_701 em { display: block; font-style: normal; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n/* 模板预览：一块标了名字的空位。不用骨架条，那不是\"占位\"，那是\"加载中\" */\n._tplSlotLabel_bzxwc_705 { margin-bottom: 7px; font-size: 11px; color: var(--ink4); }\n._tplSlotBox_bzxwc_706 {\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  padding: 18px 14px;\n  border: 0.5px dashed var(--hairline);\n  border-radius: 9px;\n  background: var(--recess);\n}\n._tplSlotTag_bzxwc_715 {\n  flex: none;\n  padding: 2px 7px;\n  border-radius: 5px;\n  background: var(--hover-strong);\n  font-size: 11px;\n  color: var(--ink2);\n}\n._tplSlotText_bzxwc_723 { min-width: 0; font-size: 12px; line-height: 17px; color: var(--ink3); }\n\n/* 源头说明：告诉读者「源码」只是区域片段，文件正文不在里面 */\n._srcNote_bzxwc_726 {\n  /* 横向 padding 由 .resultPanel 给，这里只补下方间距 */\n  padding: 0 0 9px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink4);\n}\n._srcNote_bzxwc_726 code { font-family: var(--f-mono); font-size: 11px; }\n\n/* 源码那一栏：卡片的 HTML 模板全文，等宽、可滚、底色压暗。\n   区域标记之间就是模型每次执行要替换的那段。 */\n._docSrc_bzxwc_737 {\n  margin: 0;\n  padding: 10px 12px;\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--recess);\n  color: var(--ink2);\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 17px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  max-height: 420px;\n  overflow-y: auto;\n}\n/* 区域标记要能一眼看见，否则一段 90 行的模板里找不到「模型写哪儿」 */\n._docSrc_bzxwc_737 ._mk_bzxwc_753 { color: var(--accent); }\n._segTiny_bzxwc_648 { display: flex; gap: 1px; padding: 1px; border-radius: 6px; background: var(--hover); }\n._segTiny_bzxwc_648 button {\n  border: 0;\n  padding: 2px 8px;\n  border-radius: 5px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n._segTiny_bzxwc_648 button[aria-pressed=\"true\"] { background: var(--base); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }\n._resultBar_bzxwc_610 ._spacer_bzxwc_766 { flex: 1; }\n._docPad_bzxwc_767 {\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--base);\n  padding: 12px 14px 14px;\n}\n._docPad_bzxwc_767[data-tone=\"danger\"] { background: var(--danger-wash); border-color: color-mix(in srgb, var(--danger) 28%, transparent); }\n\n/* 结果文档 */\n._doc_bzxwc_737 { color: var(--ink); font-size: 13px; line-height: 20px; }\n._doc_bzxwc_737 h5 { margin: 0 0 7px; font-size: 13px; font-weight: 500; line-height: 20px; }\n._doc_bzxwc_737 h6 { margin: 11px 0 5px; font-size: 11px; font-weight: 500; color: var(--ink3); letter-spacing: .02em; }\n._doc_bzxwc_737 p { margin: 0 0 9px; }\n._doc_bzxwc_737 ul { margin: 0 0 8px; padding-left: 16px; }\n._doc_bzxwc_737 li { margin-bottom: 3px; }\n._doc_bzxwc_737 code { font-family: var(--f-mono); font-size: 11px; padding: 1px 4px; border-radius: 4px; background: var(--hover); }\n._doc_bzxwc_737 strong { font-weight: 500; }\n._doc_bzxwc_737 table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 9px; font-size: 12px; }\n._doc_bzxwc_737 th:nth-child(1), ._doc_bzxwc_737 td:nth-child(1) { width: 44%; }\n._doc_bzxwc_737 th:nth-child(2), ._doc_bzxwc_737 td:nth-child(2) { width: 34%; }\n._doc_bzxwc_737 th:nth-child(3), ._doc_bzxwc_737 td:nth-child(3) { width: 22%; }\n._doc_bzxwc_737 th {\n  text-align: left;\n  font-weight: 400;\n  font-size: 11px;\n  color: var(--ink4);\n  padding: 0 0 5px;\n  border-bottom: 0.5px solid var(--divider);\n}\n._doc_bzxwc_737 td { padding: 6px 0; border-bottom: 0.5px solid var(--divider); vertical-align: top; overflow-wrap: anywhere; }\n._doc_bzxwc_737 tr:last-child td { border-bottom: 0; }\n._doc_bzxwc_737 ._num_bzxwc_798 { text-align: right; font-family: var(--f-mono); font-size: 11px; }\n._doc_bzxwc_737 ._add_bzxwc_437 { color: rgb(34, 160, 90); }\n._doc_bzxwc_737 ._del_bzxwc_800 { color: var(--danger); }\n._doc_bzxwc_737 ._callout_bzxwc_801 {\n  margin: 9px 0 0;\n  padding: 8px 10px;\n  border-radius: 8px;\n  background: var(--accent-wash);\n  color: var(--ink2);\n  font-size: 12px;\n  line-height: 18px;\n}\n._doc_bzxwc_737 ._checks_bzxwc_810 { margin: 0; }\n._doc_bzxwc_737 ._check_bzxwc_810 { display: flex; align-items: flex-start; gap: 7px; padding: 5px 0; font-size: 12px; border-bottom: 0.5px solid var(--divider); }\n._doc_bzxwc_737 ._check_bzxwc_810:last-child { border-bottom: 0; }\n._doc_bzxwc_737 ._check_bzxwc_810 i { flex: none; width: 11px; height: 11px; margin-top: 4px; border-radius: 50%; background: var(--success); }\n._doc_bzxwc_737 ._check_bzxwc_810[data-s=\"todo\"] i { background: var(--idle); }\n._doc_bzxwc_737 ._check_bzxwc_810 span { flex: 1; min-width: 0; }\n._doc_bzxwc_737 ._check_bzxwc_810 em { flex: none; font-style: normal; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n._doc_bzxwc_737 ._metrics_bzxwc_817 { display: flex; gap: 8px; margin: 0 0 9px; }\n._doc_bzxwc_737 ._metric_bzxwc_817 { flex: 1; padding: 8px 10px; border-radius: 8px; background: var(--hover); }\n._doc_bzxwc_737 ._metric_bzxwc_817 ._k_bzxwc_819 { display: block; font-size: 11px; color: var(--ink3); }\n._doc_bzxwc_737 ._metric_bzxwc_817 ._v_bzxwc_820 { display: block; margin-top: 1px; font-size: 17px; font-weight: 500; line-height: 22px; }\n._doc_bzxwc_737 ._metric_bzxwc_817 small { font-size: 11px; font-weight: 400; color: var(--ink4); }\n\n\n/* 结果占位：运行中 / 排队 / 未运行 / 失败 */\n._stateBlock_bzxwc_825 { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 0 2px; }\n._stateBlock_bzxwc_825 h6 { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink); }\n._stateBlock_bzxwc_825 p { margin: 0; color: var(--ink3); font-size: 12px; line-height: 19px; }\n._skel_bzxwc_828 { display: flex; flex-direction: column; gap: 7px; }\n._skel_bzxwc_828 i {\n  display: block;\n  height: 9px;\n  border-radius: 5px;\n  background: linear-gradient(90deg, var(--hover) 25%, var(--hover-strong) 37%, var(--hover) 63%);\n  background-size: 400% 100%;\n  animation: _shimmer_bzxwc_1 1.4s ease-in-out infinite;\n}\n@keyframes _shimmer_bzxwc_1 { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }\n._inlineFail_bzxwc_838 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 9px 11px;\n  border-radius: 9px;\n  background: var(--danger-wash);\n  color: var(--danger);\n  font-size: 12px;\n  line-height: 18px;\n}\n._inlineFail_bzxwc_838 svg { flex: none; width: 14px; height: 14px; margin-top: 2px; }\n._inlineFail_bzxwc_838 b { display: block; font-weight: 500; }\n._inlineFail_bzxwc_838 em { display: block; font-style: normal; color: var(--ink2); margin-top: 2px; }\n\n/* 活动时间线 */\n._activityPanel_bzxwc_854 { padding: 10px 16px 18px; }\n._actList_bzxwc_855 { display: flex; flex-direction: column; }\n._act_bzxwc_854 {\n  position: relative;\n  display: flex;\n  gap: 9px;\n  padding: 0 0 13px;\n}\n._act_bzxwc_854:last-child { padding-bottom: 0; }\n._act_bzxwc_854::before {\n  content: \"\";\n  position: absolute;\n  left: 6px;\n  top: 16px;\n  bottom: 0;\n  width: 1px;\n  background: var(--divider);\n}\n._act_bzxwc_854:last-child::before { display: none; }\n._actIcon_bzxwc_873 {\n  position: relative;\n  z-index: 1;\n  flex: none;\n  width: 13px; height: 13px;\n  margin-top: 2px;\n  display: grid;\n  place-items: center;\n  background: var(--pane);\n  color: var(--ink4);\n}\n._actIcon_bzxwc_873 svg { width: 11px; height: 11px; }\n._act_bzxwc_854[data-k=\"done\"] ._actIcon_bzxwc_873 { color: var(--success); }\n._act_bzxwc_854[data-k=\"fail\"] ._actIcon_bzxwc_873 { color: var(--danger); }\n._act_bzxwc_854[data-k=\"write\"] ._actIcon_bzxwc_873 { color: var(--accent); }\n._actBody_bzxwc_888 { min-width: 0; flex: 1; }\n._actTop_bzxwc_889 { display: flex; align-items: baseline; gap: 6px; }\n._actName_bzxwc_890 { font-size: 12px; color: var(--ink); white-space: nowrap; }\n._actArg_bzxwc_891 {\n  min-width: 0;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink3);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n._actT_bzxwc_889 { margin-left: auto; flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n._actMsg_bzxwc_901 { margin-top: 2px; color: var(--ink2); font-size: 12px; line-height: 17px; }\n._actDur_bzxwc_902 { margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n/* 配置面板 */\n._configPanel_bzxwc_905 { padding: 12px 16px 18px; }\n/* 配置分三层：整条流水线 / 这一步 / 模板。三层之间一条发丝线。 */\n._cfgBlock_bzxwc_907 + ._cfgBlock_bzxwc_907 { margin-top: 16px; padding-top: 14px; border-top: 0.5px solid var(--divider); }\n._cfgBlockHead_bzxwc_908 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-bottom: 2px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--ink);\n}\n._cfgBlockHead_bzxwc_908 > em { min-width: 0; font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._cfgBlockHead_bzxwc_908 ._segTiny_bzxwc_648 { margin-left: auto; }\n/* 真下拉，不是长得像下拉的死按钮 */\n._ruleSelect_bzxwc_920 {\n  display: block;\n  max-width: 240px;\n  padding: 4px 8px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n._ruleSelect_bzxwc_920:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n\n._ruleRow_bzxwc_934 {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  min-height: 46px;\n  padding: 10px 0;\n  border-bottom: 0.5px solid var(--divider);\n}\n._ruleRow_bzxwc_934:last-child { border-bottom: 0; }\n._ruleLabel_bzxwc_943 { flex: none; width: 76px; color: var(--ink3); font-size: 12px; }\n._ruleValue_bzxwc_944 { flex: 1; min-width: 0; }\n._ruleValue_bzxwc_944 ._val_bzxwc_945 {\n  display: block;\n  font-size: 13px;\n  color: var(--ink);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._ruleValue_bzxwc_944 ._val_bzxwc_945._mono_bzxwc_953 { font-family: var(--f-mono); font-size: 12px; }\n._ruleValue_bzxwc_944 ._hint_bzxwc_954 { display: block; margin-top: 1px; color: var(--ink4); font-size: 11px; }\n\n/* ----------------------------------------------------------------- 运行条 */\n._runbar_bzxwc_957 {\n  flex: none;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  height: 46px;\n  padding: 0 16px;\n  border-top: 0.5px solid var(--hairline);\n  background: var(--pane);\n}\n._segBar_bzxwc_967 { flex: none; display: flex; gap: 3px; }\n/* 运行条不只靠颜色区分状态：完成了是实心，排队是空心的点阵，失败是斜纹 */\n._segBar_bzxwc_967 i { display: block; width: 22px; height: 4px; border-radius: 2px; background: var(--divider); }\n._segBar_bzxwc_967 i[data-s=\"done\"] { background: var(--success); }\n._segBar_bzxwc_967 i[data-s=\"running\"] {\n  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, color-mix(in srgb, var(--accent) 38%, transparent) 4px 8px);\n}\n._segBar_bzxwc_967 i[data-s=\"failed\"] {\n  background: repeating-linear-gradient(45deg, var(--danger) 0 2px, transparent 2px 5px);\n  box-shadow: inset 0 0 0 0.5px var(--danger);\n}\n._segBar_bzxwc_967 i[data-s=\"queued\"] {\n  background: repeating-linear-gradient(90deg, var(--ink4) 0 1.5px, transparent 1.5px 4px);\n  opacity: .75;\n}\n._runNoise_bzxwc_982 { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }\n._runNoise_bzxwc_982 b { font-weight: 500; color: var(--ink); }\n._runNoise_bzxwc_982 ._timer_bzxwc_984 { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }\n._runActions_bzxwc_985 { flex: none; display: flex; align-items: center; gap: 6px; }\n\n/* 点 */\n._dot_bzxwc_988 { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--idle); }\n._dot_bzxwc_988[data-s=\"done\"] { background: var(--success); }\n._dot_bzxwc_988[data-s=\"running\"] { background: var(--accent); }\n._dot_bzxwc_988[data-s=\"failed\"] { background: var(--danger); }\n._dot_bzxwc_988[data-s=\"queued\"] { background: var(--idle); }\n._dot_bzxwc_988[data-s=\"stopped\"] { background: var(--ink4); }\n\n/* ------------------------------------------------------------- 标题下拉菜单 */\n._renameInput_bzxwc_996 {\n  width: 190px;\n  max-width: 100%;\n  padding: 2px 6px;\n  border: 0.5px solid var(--accent);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink);\n  font: inherit;\n  font-size: 15px;\n  outline: none;\n}\n._pickerUsed_bzxwc_1008 { flex: none; font-size: 11px; color: var(--ink4); }\n._canvasMenu_bzxwc_1009 {\n  position: absolute;\n  top: calc(100% - 2px);\n  left: 18px;\n  z-index: 60;\n  width: min(330px, calc(100% - 36px));\n  max-height: min(440px, calc(100vh - 220px));\n  overflow-y: auto;\n  padding: 5px;\n  border-radius: 12px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n._menuSect_bzxwc_1023 {\n  padding: 6px 8px 4px;\n  color: var(--ink4);\n  font-size: 11px;\n  letter-spacing: .02em;\n}\n._menuRow_bzxwc_1029 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 8px;\n  border: 0;\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n._menuRow_bzxwc_1029:hover { background: var(--hover); }\n._menuRow_bzxwc_1029[aria-current=\"true\"] { background: var(--hover-strong); }\n._menuRowMain_bzxwc_1046 { flex: 1; min-width: 0; }\n._menuRowTitle_bzxwc_1047 { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._menuRowSub_bzxwc_1048 { display: block; margin-top: 1px; color: var(--ink4); font-size: 11px; font-family: var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._menuRowTail_bzxwc_1049 { flex: none; display: flex; align-items: center; gap: 6px; color: var(--ink4); font-size: 11px; }\n._menuRun_bzxwc_1050 {\n  flex: none;\n  width: 22px; height: 22px;\n  display: grid; place-items: center;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink3);\n  cursor: pointer;\n  opacity: 0;\n}\n._menuRun_bzxwc_1050 svg { width: 11px; height: 11px; }\n._menuRow_bzxwc_1029:hover ._menuRun_bzxwc_1050 { opacity: 1; }\n._menuRun_bzxwc_1050:hover { background: var(--hover-strong); color: var(--ink); }\n._menuSep_bzxwc_1064 { height: 0.5px; margin: 5px 8px; background: var(--divider); }\n\n/* ------------------------------------------------------------ 任务选择器 */\n._pickerWrap_bzxwc_1067 { position: absolute; inset: 0; z-index: 80; display: flex; align-items: flex-start; justify-content: center; padding-top: 84px; }\n._pickerScrim_bzxwc_1068 { position: absolute; inset: 0; background: var(--scrim); }\n._picker_bzxwc_1008 {\n  position: relative;\n  width: min(400px, calc(100% - 32px));\n  max-height: min(430px, calc(100% - 140px));\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n._pickerHead_bzxwc_1081 { flex: none; padding: 11px 12px 9px; border-bottom: 0.5px solid var(--divider); }\n._pickerTitle_bzxwc_1082 { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; font-weight: 500; }\n._pickerTitle_bzxwc_1082 span { flex: 1; min-width: 0; }\n._pickerTitle_bzxwc_1082 em { font-style: normal; font-weight: 400; color: var(--ink4); font-size: 11px; }\n._searchField_bzxwc_1085 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  height: 30px;\n  padding: 0 9px;\n  border-radius: 8px;\n  background: var(--recess);\n  border: 0.5px solid var(--divider);\n}\n._searchField_bzxwc_1085 svg { flex: none; width: 13px; height: 13px; color: var(--ink4); }\n._searchField_bzxwc_1085 input {\n  flex: 1;\n  min-width: 0;\n  border: 0;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  outline: none;\n}\n._searchField_bzxwc_1085 input::placeholder { color: var(--ink4); }\n._pickerList_bzxwc_1107 { flex: 1; min-height: 0; overflow-y: auto; padding: 5px; }\n._pickerRow_bzxwc_1108 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n._pickerRow_bzxwc_1108:hover { background: var(--hover); }\n._pickerRow_bzxwc_1108 svg { width: 13px; height: 13px; color: var(--ink4); }\n._pickerRow_bzxwc_1108:hover svg { color: var(--accent); }\n._pickerRowMain_bzxwc_1125 { flex: 1; min-width: 0; }\n._pickerRowTitle_bzxwc_1126 { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._pickerRowSub_bzxwc_1127 { display: block; margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._pickerEmpty_bzxwc_1128 { padding: 16px 8px; text-align: center; color: var(--ink4); font-size: 12px; }\n\n/* ------------------------------------------------------------ 运行记录 */\n/*\n * 一条记录 = 一次流水线运行 = 它当时每一步的状态与产物快照。\n * 回看某一次，看到的是那天的文件，不是今天被改过的同一份——所以产物必须跟着\n * 那次运行存，而不是回读磁盘。\n */\n._histBody_bzxwc_1136 { flex: 1; min-height: 0; overflow-y: auto; }\n\n._histDay_bzxwc_1138 {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  padding: 9px 14px 6px;\n  background: var(--base);\n  font-size: 11px;\n  color: var(--ink4);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n._histRow_bzxwc_1149 {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  width: 100%;\n  padding: 11px 14px;\n  font: inherit;\n  text-align: left;\n  background: transparent;\n  border: 0;\n  border-bottom: 0.5px solid var(--divider);\n  cursor: pointer;\n}\n._histRow_bzxwc_1149:hover { background: var(--hover); }\n._histNo_bzxwc_1163 { flex: none; width: 28px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n._histWhen_bzxwc_1164 { flex: none; width: 92px; font-size: 12px; }\n._histSum_bzxwc_1165 {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  color: var(--ink3);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._histTook_bzxwc_1174 { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n._histBadge_bzxwc_1175 { flex: none; width: 44px; font-size: 11px; }\n._histBadge_bzxwc_1175[data-s=\"ok\"] { color: rgb(34, 160, 90); }\n._histBadge_bzxwc_1175[data-s=\"fail\"] { color: var(--danger); }\n._histBadge_bzxwc_1175[data-s=\"running\"] { color: var(--accent); }\n._histBadge_bzxwc_1175[data-s=\"stopped\"] { color: var(--ink3); }\n._histRow_bzxwc_1149 > svg { flex: none; width: 12px; height: 12px; color: var(--ink4); }\n\n/* 详情 */\n._histTop_bzxwc_1183 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 10px 14px;\n  border-bottom: 0.5px solid var(--divider);\n}\n._histTopWhen_bzxwc_1190 { font-size: 12px; font-weight: 500; }\n._histTopMeta_bzxwc_1191 { min-width: 0; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._histReadonly_bzxwc_1192 {\n  flex: none;\n  margin-left: auto;\n  padding: 2px 7px;\n  border-radius: 20px;\n  background: var(--recess);\n  font-size: 11px;\n  color: var(--ink3);\n}\n\n/* 重生成那条运行带着\"要改什么\"，回看时它就是这次改动的由来 */\n._histAsk_bzxwc_1203 {\n  padding: 9px 14px;\n  background: var(--accent-wash);\n  font-size: 12px;\n  line-height: 17px;\n  color: var(--ink2);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n._hStep_bzxwc_1212 {\n  position: relative;\n  border-bottom: 0.5px solid var(--divider);\n}\n._hStep_bzxwc_1212:last-child { border-bottom: 0; }\n/* 失败的那一步在快照里没有产物可读，但可以现在就重跑 */\n._hStepRetry_bzxwc_1218 {\n  position: absolute;\n  top: 50%;\n  right: 12px;\n  transform: translateY(-50%);\n  padding: 2px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink2);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n._hStepRetry_bzxwc_1218:hover { background: var(--hover); color: var(--ink); }\n._hStepMuted_bzxwc_1233 { padding-right: 82px; }\n._hStepHead_bzxwc_1234 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 11px 14px;\n  font: inherit;\n  text-align: left;\n  background: transparent;\n  border: 0;\n  cursor: pointer;\n}\n._hStepHead_bzxwc_1234:hover { background: var(--hover); }\n._hStepNo_bzxwc_1247 { flex: none; width: 15px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n._hStepName_bzxwc_1248 { flex: none; font-size: 13px; }\n._hStepMeta_bzxwc_1249 { flex: 1; min-width: 0; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n._hStepTook_bzxwc_1250 { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 这一步的产物是点开看的：箭头朝右表示\"进去\"，不是一个会展开的手风琴 */\n._hStepHead_bzxwc_1234 > svg { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); transition: transform .14s; }\n._hStepHead_bzxwc_1234:hover > svg { transform: rotate(-90deg) translateY(-2px); }\n\n/* 返回箭头：chev 朝下，转 90° 朝左 */\n#_histBack_bzxwc_1 svg { transform: rotate(90deg); }\n\n/* 没东西可点的那一步（还没跑）：同样的格子，但不是按钮 */\n._hStepMuted_bzxwc_1233 { cursor: default; }\n._hStepMuted_bzxwc_1233:hover { background: transparent; }\n._hStepMuted_bzxwc_1233 ._hStepName_bzxwc_1248 { color: var(--ink3); }\n\n._hError_bzxwc_1263 {\n  padding: 9px 11px;\n  border-radius: 8px;\n  background: var(--danger-wash);\n  font-size: 12px;\n  color: var(--danger);\n}\n/* ------------------------------------------------------------ 阅读器 */\n/*\n * 读长文的唯一地方。\n *\n * 结果区那列最宽 690，去掉留白只剩 650——一份五万字的文档摆进去就是条窄带子，\n * 所以正文要在宽的场合读：从结果区打开读「现在这份」，从运行记录打开读「第 N 次那份」。\n * 两处是同一个阅读器，只是身份不同（live / snapshot），差别只在标题和一条只读提示。\n */\n._zoomWrap_bzxwc_1278 { position: absolute; inset: 0; z-index: 78; display: flex; padding: 10px; }\n/* 阅读器会盖在运行记录上面（从历史里点开一步就是），所以它得在上一级 */\n#_zoomWrap_bzxwc_1278 { z-index: 79; }\n._zoomScrim_bzxwc_1281 { position: absolute; inset: 0; background: var(--scrim); }\n._zoom_bzxwc_1278 {\n  position: relative;\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n._zoomHead_bzxwc_1294 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 11px 14px 10px;\n  border-bottom: 0.5px solid var(--divider);\n}\n._zoomKicker_bzxwc_1301 { flex: none; font-size: 13px; font-weight: 500; }\n._zoomMeta_bzxwc_1302 {\n  min-width: 0;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._zoomHint_bzxwc_1311 { flex: none; margin-left: auto; font-size: 11px; color: var(--ink4); }\n\n/* 文件清单照旧横向排、长名省略号，只是宽裕了所以能放得更长 */\n._zoomFiles_bzxwc_1314 { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px; border-bottom: 0.5px solid var(--divider); }\n._zoomFiles_bzxwc_1314:empty { display: none; }\n._zFile_bzxwc_1316 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  max-width: 380px;\n  min-width: 0;\n  padding: 6px 10px;\n  border: 0.5px solid var(--divider);\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n._zFile_bzxwc_1316 svg { flex: none; width: 13px; height: 13px; color: var(--ink4); }\n._zFile_bzxwc_1316:hover { background: var(--hover); color: var(--ink); }\n._zFile_bzxwc_1316[aria-pressed=\"true\"] { background: var(--hover-strong); border-color: var(--hairline); color: var(--ink); }\n._zFile_bzxwc_1316[aria-pressed=\"true\"] svg { color: var(--accent); }\n._zName_bzxwc_1335 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n._zFile_bzxwc_1316[aria-pressed=\"true\"] ._zName_bzxwc_1335 { font-weight: 500; }\n._zSize_bzxwc_1337 { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n._zoomBody_bzxwc_1339 { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 26px; }\n/* 历史快照：说清楚\"这不是现在磁盘上的那份\" */\n._zoomWarn_bzxwc_1341 {\n  flex: none;\n  padding: 8px 18px;\n  border-bottom: 0.5px solid var(--divider);\n  background: var(--recess);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink3);\n}\n\n/* 面积大了一倍，正文也该松一档，不然字全挤在左边一小条里 */\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 { font-size: 13px; line-height: 22px; }\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 h5 { margin-bottom: 9px; font-size: 15px; line-height: 22px; }\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 h6 { margin: 16px 0 6px; font-size: 12px; }\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 p { margin-bottom: 11px; }\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 td { padding: 8px 14px 8px 0; }\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 td:last-child { padding-right: 0; }\n/* 结果区的表格是固定比例（给窄列用的），放大后按内容分 */\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 table { table-layout: auto; font-size: 13px; }\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 th:nth-child(1), ._zoomBody_bzxwc_1339 ._doc_bzxwc_737 td:nth-child(1),\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 th:nth-child(2), ._zoomBody_bzxwc_1339 ._doc_bzxwc_737 td:nth-child(2),\n._zoomBody_bzxwc_1339 ._doc_bzxwc_737 th:nth-child(3), ._zoomBody_bzxwc_1339 ._doc_bzxwc_737 td:nth-child(3) { width: auto; }\n\n/* ------------------------------------------------------------ 审核（提要求重生成） */\n/* 和任务选择器同一套外壳：同一块面板里，两个浮层的形状不该有两套语言 */\n._reviewWrap_bzxwc_1366 { position: absolute; inset: 0; z-index: 85; display: flex; align-items: flex-start; justify-content: center; padding-top: 84px; }\n._reviewScrim_bzxwc_1367 { position: absolute; inset: 0; background: var(--scrim); }\n._review_bzxwc_1366 {\n  position: relative;\n  width: min(420px, calc(100% - 32px));\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n._reviewHead_bzxwc_1379 { padding: 12px 13px 10px; border-bottom: 0.5px solid var(--divider); }\n._reviewTitle_bzxwc_1380 { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }\n._reviewTitle_bzxwc_1380 span { flex: 1; min-width: 0; }\n._reviewTitle_bzxwc_1380 em { font-style: normal; font-weight: 400; color: var(--ink4); font-size: 11px; }\n._reviewWho_bzxwc_1383 {\n  margin-top: 5px;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink3);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n._reviewBody_bzxwc_1392 { padding: 11px 13px 0; }\n._reviewArea_bzxwc_1393 {\n  display: block;\n  width: 100%;\n  min-height: 84px;\n  max-height: 180px;\n  padding: 9px 10px;\n  border: 0.5px solid var(--divider);\n  border-radius: 9px;\n  background: var(--recess);\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  line-height: 19px;\n  resize: vertical;\n  outline: none;\n}\n._reviewArea_bzxwc_1393::placeholder { color: var(--ink4); }\n._reviewArea_bzxwc_1393:focus { border-color: color-mix(in srgb, var(--accent) 42%, transparent); }\n._reviewChips_bzxwc_1411 { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }\n._reviewChip_bzxwc_1411 {\n  padding: 4px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n._reviewChip_bzxwc_1411:hover { background: var(--hover); color: var(--ink); }\n._reviewNote_bzxwc_1423 { margin-top: 9px; font-size: 11px; line-height: 16px; color: var(--ink4); }\n/* 从历史快照点进来的：先讲清楚\"重做的是现在这一步，不是那条记录\" */\n._reviewFrom_bzxwc_1425 {\n  margin: 0 0 9px;\n  padding: 7px 10px;\n  border-radius: 8px;\n  background: var(--recess);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink3);\n}\n._zoomHead_bzxwc_1294 ._zoomReview_bzxwc_1434 { flex: none; height: 24px; padding: 0 9px; font-size: 12px; }\n._reviewFoot_bzxwc_1435 {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  padding: 11px 13px;\n}\n._reviewFoot_bzxwc_1435 ._spacer_bzxwc_766 { flex: 1; }\n\n/* ============================ 断点（容器查询，按面板宽度） ============================ */\n/* 轨道宽度阶梯：面板越宽，轨道稍微放宽一点，但永远是配角；\n   低于 700 时轨道改成横向条，结果仍然占满整块。 */\n\n@container panel (min-width: 1200px) {\n  ._canvas_bzxwc_177 { width: 312px; }\n  ._flow_bzxwc_263 { padding: 14px 16px 18px; }\n}\n\n@container panel (min-width: 900px) and (max-width: 1199.98px) {\n  ._canvas_bzxwc_177 { width: 280px; }\n}\n\n@container panel (min-width: 700px) and (max-width: 899.98px) {\n  ._canvas_bzxwc_177 { width: 248px; }\n  ._flow_bzxwc_263 { padding: 11px 12px 14px; }\n  ._canvasHead_bzxwc_186 { padding: 11px 12px 9px; }\n}\n\n/* < 700：竖轨道放不下，改成顶部横向步骤条，结果独占整块 */\n@container panel (max-width: 699.98px) {\n  ._panes_bzxwc_175 { flex-direction: column; }\n  ._canvas_bzxwc_177 {\n    width: 100%;\n    border-right: 0;\n    border-bottom: 0.5px solid var(--divider);\n  }\n  ._canvasScroll_bzxwc_262 { display: none; }\n  ._stepStrip_bzxwc_1471 { display: flex; }\n  ._canvasHead_bzxwc_186 { padding: 10px 12px 8px; }\n  ._panelHead_bzxwc_123 { height: 52px; padding: 0 14px; }\n  ._panelHead_bzxwc_123 h1 { font-size: 17px; }\n  ._headLabel_bzxwc_1475 { display: none; }\n  ._runbar_bzxwc_957 { padding: 0 12px; gap: 8px; }\n  ._segBar_bzxwc_967 i { width: 14px; }\n}\n\n/* ---------------------------------------------------------------- 步骤横条 */\n._stepStrip_bzxwc_1471 {\n  display: none;\n  gap: 6px;\n  overflow-x: auto;\n  padding: 7px 12px;\n  scrollbar-width: none;\n}\n._stepStrip_bzxwc_1471::-webkit-scrollbar { display: none; }\n._stepChip_bzxwc_1489 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 30px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--card-bg);\n  color: var(--ink2);\n  font: inherit;\n  font-size: 12px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n._stepChip_bzxwc_1489 b {\n  font-weight: 500;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n}\n._stepChip_bzxwc_1489:hover { background: var(--hover); }\n._stepChip_bzxwc_1489[aria-selected=\"true\"] { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); }\n._stepChip_bzxwc_1489[aria-selected=\"true\"] b { color: var(--accent); }\n._stepChip_bzxwc_1489[data-s=\"failed\"] { color: var(--danger); }\n._stepChip_bzxwc_1489[data-s=\"failed\"] ._dot_bzxwc_988 { background: var(--danger); }\n\n/* ---------------------------------------------------------------- 滚动条 */\n._scroll_bzxwc_1518::-webkit-scrollbar, ._canvasScroll_bzxwc_262::-webkit-scrollbar, ._inspScroll_bzxwc_606::-webkit-scrollbar,\n._histBody_bzxwc_1136::-webkit-scrollbar, ._zoomBody_bzxwc_1339::-webkit-scrollbar,\n._pickerList_bzxwc_1107::-webkit-scrollbar, ._canvasMenu_bzxwc_1009::-webkit-scrollbar { width: 9px; height: 9px; }\n._scroll_bzxwc_1518::-webkit-scrollbar-thumb, ._canvasScroll_bzxwc_262::-webkit-scrollbar-thumb, ._inspScroll_bzxwc_606::-webkit-scrollbar-thumb,\n._histBody_bzxwc_1136::-webkit-scrollbar-thumb, ._zoomBody_bzxwc_1339::-webkit-scrollbar-thumb,\n._pickerList_bzxwc_1107::-webkit-scrollbar-thumb, ._canvasMenu_bzxwc_1009::-webkit-scrollbar-thumb {\n  border: 2px solid transparent;\n  border-radius: 6px;\n  background: var(--scroll);\n  background-clip: content-box;\n}/* Workbench card shell: the frame every card renders inside. */\n\n._card_13mto_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  height: 100%;\n  /* A card is an index entry, not a panel: with the name, the meta line, and the body\n     it carries it does not need the height an empty cell used to ask for, and the\n     shorter frame is what stops three cards from reading as three blanks. */\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_13mto_20 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_13mto_27 {\n  cursor: pointer;\n}\n\n._activatable_13mto_27:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_13mto_27:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_13mto_44 {\n  grid-row: span 2;\n}\n\n._spanLarge_13mto_48 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_13mto_53 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The card's monogram: the first character of the user's own name for the card, on a\n   tint that is stable per card.\n   \n   Three cards of one workbench differ only in their titles, and a title is read rather\n   than seen — so the grid needed one mark each that the eye can pick out before the\n   text is read. The hue comes from the card id (see the shell), never from the name: a\n   card keeps its colour when it is renamed. Tints are mixed from a single hue so the\n   mark works in both themes without a second set of tokens. */\n._mark_13mto_68 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  background: color-mix(in srgb, hsl(var(--wb-hue, 250) 68% 52%) 16%, transparent);\n  color: color-mix(in srgb, hsl(var(--wb-hue, 250) 66% 42%) 78%, var(--dsw-alias-label-primary));\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 1;\n  user-select: none;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_13mto_89 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_13mto_96 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* Everything the card states about itself that is not its name: the skill it runs and\n   the run it last finished. One row under the title, in the secondary colour, so the\n   title keeps the whole width and the facts line up across the grid. */\n._meta_13mto_109 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 4px 10px;\n  min-width: 0;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_13mto_119 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_13mto_132 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_13mto_142 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_13mto_149 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_13mto_3:hover ._iconButton_13mto_149,\n._card_13mto_3:focus-within ._iconButton_13mto_149 {\n  opacity: 1;\n}\n\n._iconButton_13mto_149:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_13mto_149:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_13mto_185 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_13mto_185:active {\n  cursor: grabbing;\n}\n\n._body_13mto_195 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._failure_13mto_203 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_13mto_211 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
   if (typeof document !== 'undefined' && document.querySelector("style[data-plugin-css=\"dsh-workbench\"]") === null) {
     const tag = document.createElement('style');
     tag.dataset.pluginCss = "dsh-workbench";
@@ -762,7 +762,18 @@ window.__ModuleLoader__.load({
 			pipeRename: "重命名",
 			pipeRenameLabel: "流水线名称",
 			pipeDelete: "删除这条流水线",
-			pipeDeleteConfirm: "再点一次确认删除"
+			pipeDeleteConfirm: "再点一次确认删除",
+			pipeReaderTitle: "阅读结果",
+			pipeEscHint: "Esc 关闭",
+			pipeReviewTitle: "重新生成",
+			pipeReviewSubtitle: "说明要改哪里，其余保持原样",
+			pipeReviewPlaceholder: "例如：表格换成三列，金额右对齐",
+			pipeChipEdges: "两侧留白再宽一点",
+			pipeChipTable: "表格换成三列",
+			pipeChipShorter: "篇幅再短一半",
+			pipeReviewWarn: "重新生成会覆盖这一步现在的产物，之前的结果仍留在运行记录里。",
+			pipeCancel: "取消",
+			pipeRegenerate: "重新生成"
 		};
 		/** English dictionary; the annotation keeps both dictionaries on one key set. */
 		var en = {
@@ -1101,7 +1112,18 @@ window.__ModuleLoader__.load({
 			pipeRename: "Rename",
 			pipeRenameLabel: "Pipeline name",
 			pipeDelete: "Delete this pipeline",
-			pipeDeleteConfirm: "Click again to delete"
+			pipeDeleteConfirm: "Click again to delete",
+			pipeReaderTitle: "Result",
+			pipeEscHint: "Esc to close",
+			pipeReviewTitle: "Regenerate",
+			pipeReviewSubtitle: "Say what should change; everything else stays as it is",
+			pipeReviewPlaceholder: "e.g. Make the table three columns and right-align the amounts",
+			pipeChipEdges: "Wider margins",
+			pipeChipTable: "Three-column table",
+			pipeChipShorter: "Half the length",
+			pipeReviewWarn: "Regenerating replaces the current output of this step; earlier results stay in the run history.",
+			pipeCancel: "Cancel",
+			pipeRegenerate: "Regenerate"
 		};
 		//#endregion
 		//#region src/skill-card-contract.ts
@@ -2158,188 +2180,82 @@ window.__ModuleLoader__.load({
 			};
 		}
 		var workbench_module_default = {
-			page: "_page_1dl0t_3",
-			pageHead: "_pageHead_1dl0t_20",
-			pageTitle: "_pageTitle_1dl0t_34",
-			pageIntro: "_pageIntro_1dl0t_42",
-			notice: "_notice_1dl0t_49",
-			empty: "_empty_1dl0t_58",
-			emptyTitle: "_emptyTitle_1dl0t_67",
-			emptyBody: "_emptyBody_1dl0t_74",
-			grid: "_grid_1dl0t_81",
-			cell: "_cell_1dl0t_95",
-			createRoot: "_createRoot_1dl0t_101",
-			createTile: "_createTile_1dl0t_112",
-			createMark: "_createMark_1dl0t_145",
-			pagePipeline: "_pagePipeline_1dl0t_188",
-			shell: "_shell_1dl0t_195",
-			rail: "_rail_1dl0t_214",
-			railHead: "_railHead_1dl0t_233",
-			railTitle: "_railTitle_1dl0t_241",
-			railAction: "_railAction_1dl0t_248",
-			linkBtn: "_linkBtn_1dl0t_249",
-			menuBtn: "_menuBtn_1dl0t_269",
-			toolBtn: "_toolBtn_1dl0t_270",
-			stepBadge: "_stepBadge_1dl0t_271",
-			stepMain: "_stepMain_1dl0t_272",
-			railRowMain: "_railRowMain_1dl0t_273",
-			railRowTask: "_railRowTask_1dl0t_274",
-			tab: "_tab_1dl0t_275",
-			primaryBtn: "_primaryBtn_1dl0t_276",
-			stopBtn: "_stopBtn_1dl0t_277",
-			addStep: "_addStep_1dl0t_278",
-			pickerRow: "_pickerRow_1dl0t_279",
-			railList: "_railList_1dl0t_284",
-			railEmpty: "_railEmpty_1dl0t_293",
-			railRow: "_railRow_1dl0t_273",
-			railRowActive: "_railRowActive_1dl0t_308",
-			railRowName: "_railRowName_1dl0t_350",
-			railCount: "_railCount_1dl0t_356",
-			menu: "_menu_1dl0t_269",
-			menuRow: "_menuRow_1dl0t_395",
-			menuRowDanger: "_menuRowDanger_1dl0t_412",
-			renameInput: "_renameInput_1dl0t_416",
-			canvas: "_canvas_1dl0t_431",
-			canvasHead: "_canvasHead_1dl0t_442",
-			canvasTitleGroup: "_canvasTitleGroup_1dl0t_449",
-			canvasTitle: "_canvasTitle_1dl0t_449",
-			canvasMeta: "_canvasMeta_1dl0t_467",
-			canvasHint: "_canvasHint_1dl0t_468",
-			runBar: "_runBar_1dl0t_480",
-			chainLine: "_chainLine_1dl0t_515",
-			chainLineFailed: "_chainLineFailed_1dl0t_525",
-			stepList: "_stepList_1dl0t_529",
-			step: "_step_1dl0t_271",
-			stepSelected: "_stepSelected_1dl0t_548",
-			stepRow: "_stepRow_1dl0t_553",
-			stepName: "_stepName_1dl0t_594",
-			stepNameMissing: "_stepNameMissing_1dl0t_602",
-			stepSub: "_stepSub_1dl0t_607",
-			stepAsk: "_stepAsk_1dl0t_617",
-			stepTook: "_stepTook_1dl0t_623",
-			chip: "_chip_1dl0t_627",
-			chipIdle: "_chipIdle_1dl0t_635",
-			chipQueued: "_chipQueued_1dl0t_640",
-			chipRunning: "_chipRunning_1dl0t_645",
-			chipDone: "_chipDone_1dl0t_650",
-			chipFailed: "_chipFailed_1dl0t_655",
-			chipStopped: "_chipStopped_1dl0t_660",
-			stepTools: "_stepTools_1dl0t_667",
-			connector: "_connector_1dl0t_698",
-			picker: "_picker_1dl0t_279",
-			pickerHead: "_pickerHead_1dl0t_734",
-			pickerEmpty: "_pickerEmpty_1dl0t_758",
-			inspector: "_inspector_1dl0t_768",
-			tabs: "_tabs_1dl0t_776",
-			tabActive: "_tabActive_1dl0t_800",
-			tabBody: "_tabBody_1dl0t_808",
-			noFocus: "_noFocus_1dl0t_820",
-			railItem: "_railItem_1dl0t_885",
-			railRowCurrent: "_railRowCurrent_1dl0t_905",
-			railName: "_railName_1dl0t_906",
-			railDots: "_railDots_1dl0t_909",
-			menuRowMain: "_menuRowMain_1dl0t_968",
-			menuTail: "_menuTail_1dl0t_969",
-			menuSep: "_menuSep_1dl0t_970",
-			menuNote: "_menuNote_1dl0t_971",
-			canvasTitleWrap: "_canvasTitleWrap_1dl0t_993",
-			canvasTitleRow: "_canvasTitleRow_1dl0t_994",
-			chev: "_chev_1dl0t_1014",
-			stateChip: "_stateChip_1dl0t_1017",
-			dot: "_dot_1dl0t_1029",
-			canvasScroll: "_canvasScroll_1dl0t_1055",
-			emptyFlow: "_emptyFlow_1dl0t_1057",
-			emptyMark: "_emptyMark_1dl0t_1066",
-			flow: "_flow_1dl0t_1081",
-			nodeWrap: "_nodeWrap_1dl0t_1083",
-			connectorShort: "_connectorShort_1dl0t_1086",
-			insertBtn: "_insertBtn_1dl0t_1088",
-			node: "_node_1dl0t_1083",
-			nodeSelected: "_nodeSelected_1dl0t_1119",
-			nodeTop: "_nodeTop_1dl0t_1123",
-			nodeIndex: "_nodeIndex_1dl0t_1125",
-			nodeTitle: "_nodeTitle_1dl0t_1132",
-			nodeState: "_nodeState_1dl0t_1141",
-			chipTag: "_chipTag_1dl0t_1150",
-			runOne: "_runOne_1dl0t_1150",
-			ghostBtn: "_ghostBtn_1dl0t_1150",
-			nodeFoot: "_nodeFoot_1dl0t_1150",
-			resItem: "_resItem_1dl0t_1150",
-			nodeDur: "_nodeDur_1dl0t_1155",
-			nodeRun: "_nodeRun_1dl0t_1170",
-			segBar: "_segBar_1dl0t_1199",
-			runNoise: "_runNoise_1dl0t_1205",
-			runActions: "_runActions_1dl0t_1206",
-			iconBtn: "_iconBtn_1dl0t_1243",
-			inspHead: "_inspHead_1dl0t_1271",
-			inspKicker: "_inspKicker_1dl0t_1272",
-			inspTitleRow: "_inspTitleRow_1dl0t_1273",
-			inspTitle: "_inspTitle_1dl0t_1273",
-			inspMeta: "_inspMeta_1dl0t_1304",
-			inspTabs: "_inspTabs_1dl0t_1324",
-			tabCount: "_tabCount_1dl0t_1342",
-			inspScroll: "_inspScroll_1dl0t_1344",
-			panelBody: "_panelBody_1dl0t_1345",
-			stateBlock: "_stateBlock_1dl0t_1347",
-			panelNote: "_panelNote_1dl0t_1353",
-			actList: "_actList_1dl0t_1355",
-			act: "_act_1dl0t_1355",
-			actIcon: "_actIcon_1dl0t_1357",
-			actBody: "_actBody_1dl0t_1359",
-			actTop: "_actTop_1dl0t_1360",
-			actName: "_actName_1dl0t_1361",
-			actArg: "_actArg_1dl0t_1362",
-			actMsg: "_actMsg_1dl0t_1363",
-			cfgBlock: "_cfgBlock_1dl0t_1365",
-			cfgBlockHead: "_cfgBlockHead_1dl0t_1373",
-			ruleRow: "_ruleRow_1dl0t_1376",
-			ruleLabel: "_ruleLabel_1dl0t_1377",
-			ruleValue: "_ruleValue_1dl0t_1378",
-			val: "_val_1dl0t_1379",
-			mono: "_mono_1dl0t_1380",
-			hint: "_hint_1dl0t_1381",
-			segTiny: "_segTiny_1dl0t_1383",
-			tplSlot: "_tplSlot_1dl0t_1387",
-			tplSlotLabel: "_tplSlotLabel_1dl0t_1388",
-			tplSlotBox: "_tplSlotBox_1dl0t_1389",
-			tplSlotTag: "_tplSlotTag_1dl0t_1398",
-			tplSlotText: "_tplSlotText_1dl0t_1399",
-			docSrc: "_docSrc_1dl0t_1401",
-			resBlock: "_resBlock_1dl0t_1417",
-			resList: "_resList_1dl0t_1418",
-			resItemName: "_resItemName_1dl0t_1437",
-			resItemSize: "_resItemSize_1dl0t_1438",
-			stepMenu: "_stepMenu_1dl0t_1440",
-			modalWrap: "_modalWrap_1dl0t_1454",
-			scrim: "_scrim_1dl0t_1455",
-			modal: "_modal_1dl0t_1454",
-			modalNarrow: "_modalNarrow_1dl0t_1470",
-			modalHead: "_modalHead_1dl0t_1471",
-			modalKicker: "_modalKicker_1dl0t_1472",
-			modalMeta: "_modalMeta_1dl0t_1473",
-			modalBody: "_modalBody_1dl0t_1474",
-			histList: "_histList_1dl0t_1476",
-			histRow: "_histRow_1dl0t_1478",
-			histNo: "_histNo_1dl0t_1494",
-			histWhen: "_histWhen_1dl0t_1495",
-			histSum: "_histSum_1dl0t_1496",
-			histTook: "_histTook_1dl0t_1497",
-			histBadge: "_histBadge_1dl0t_1499",
-			histDetail: "_histDetail_1dl0t_1503",
-			histStep: "_histStep_1dl0t_1504",
-			histStepHead: "_histStepHead_1dl0t_1506",
-			histStepNo: "_histStepNo_1dl0t_1523",
-			histStepName: "_histStepName_1dl0t_1524",
-			histStepMeta: "_histStepMeta_1dl0t_1525",
-			histStepTook: "_histStepTook_1dl0t_1526",
-			searchField: "_searchField_1dl0t_1528",
-			pickerList: "_pickerList_1dl0t_1543",
-			pickerRowMain: "_pickerRowMain_1dl0t_1563",
-			pickerRowTitle: "_pickerRowTitle_1dl0t_1564",
-			pickerRowSub: "_pickerRowSub_1dl0t_1565",
-			pickerUsed: "_pickerUsed_1dl0t_1566",
-			readerBar: "_readerBar_1dl0t_1569",
-			readerBody: "_readerBody_1dl0t_1570"
+			page: "_page_1r4st_3",
+			pageHead: "_pageHead_1r4st_20",
+			pageTitle: "_pageTitle_1r4st_34",
+			pageIntro: "_pageIntro_1r4st_42",
+			notice: "_notice_1r4st_49",
+			empty: "_empty_1r4st_58",
+			emptyTitle: "_emptyTitle_1r4st_67",
+			emptyBody: "_emptyBody_1r4st_74",
+			grid: "_grid_1r4st_81",
+			cell: "_cell_1r4st_95",
+			createRoot: "_createRoot_1r4st_101",
+			createTile: "_createTile_1r4st_112",
+			createMark: "_createMark_1r4st_145",
+			pagePipeline: "_pagePipeline_1r4st_189",
+			shell: "_shell_1r4st_202",
+			rail: "_rail_1r4st_221",
+			railHead: "_railHead_1r4st_240",
+			railTitle: "_railTitle_1r4st_248",
+			railAction: "_railAction_1r4st_255",
+			linkBtn: "_linkBtn_1r4st_256",
+			menuBtn: "_menuBtn_1r4st_276",
+			toolBtn: "_toolBtn_1r4st_277",
+			stepBadge: "_stepBadge_1r4st_278",
+			stepMain: "_stepMain_1r4st_279",
+			railRowMain: "_railRowMain_1r4st_280",
+			railRowTask: "_railRowTask_1r4st_281",
+			tab: "_tab_1r4st_282",
+			primaryBtn: "_primaryBtn_1r4st_283",
+			stopBtn: "_stopBtn_1r4st_284",
+			addStep: "_addStep_1r4st_285",
+			pickerRow: "_pickerRow_1r4st_286",
+			railList: "_railList_1r4st_291",
+			railEmpty: "_railEmpty_1r4st_300",
+			railRow: "_railRow_1r4st_280",
+			railRowActive: "_railRowActive_1r4st_315",
+			railRowName: "_railRowName_1r4st_357",
+			railCount: "_railCount_1r4st_363",
+			menu: "_menu_1r4st_276",
+			menuRow: "_menuRow_1r4st_402",
+			menuRowDanger: "_menuRowDanger_1r4st_419",
+			renameInput: "_renameInput_1r4st_423",
+			canvas: "_canvas_1r4st_438",
+			canvasHead: "_canvasHead_1r4st_449",
+			canvasTitleGroup: "_canvasTitleGroup_1r4st_456",
+			canvasTitle: "_canvasTitle_1r4st_456",
+			canvasMeta: "_canvasMeta_1r4st_474",
+			canvasHint: "_canvasHint_1r4st_475",
+			runBar: "_runBar_1r4st_487",
+			chainLine: "_chainLine_1r4st_522",
+			chainLineFailed: "_chainLineFailed_1r4st_532",
+			stepList: "_stepList_1r4st_536",
+			step: "_step_1r4st_278",
+			stepSelected: "_stepSelected_1r4st_555",
+			stepRow: "_stepRow_1r4st_560",
+			stepName: "_stepName_1r4st_601",
+			stepNameMissing: "_stepNameMissing_1r4st_609",
+			stepSub: "_stepSub_1r4st_614",
+			stepAsk: "_stepAsk_1r4st_624",
+			stepTook: "_stepTook_1r4st_630",
+			chip: "_chip_1r4st_634",
+			chipIdle: "_chipIdle_1r4st_642",
+			chipQueued: "_chipQueued_1r4st_647",
+			chipRunning: "_chipRunning_1r4st_652",
+			chipDone: "_chipDone_1r4st_657",
+			chipFailed: "_chipFailed_1r4st_662",
+			chipStopped: "_chipStopped_1r4st_667",
+			stepTools: "_stepTools_1r4st_674",
+			connector: "_connector_1r4st_705",
+			picker: "_picker_1r4st_286",
+			pickerHead: "_pickerHead_1r4st_741",
+			pickerEmpty: "_pickerEmpty_1r4st_765",
+			inspector: "_inspector_1r4st_775",
+			tabs: "_tabs_1r4st_783",
+			tabActive: "_tabActive_1r4st_807",
+			tabBody: "_tabBody_1r4st_815",
+			noFocus: "_noFocus_1r4st_827"
 		};
 		//#endregion
 		//#region src/client/WorkbenchCardGrid.tsx
@@ -6922,6 +6838,198 @@ window.__ModuleLoader__.load({
 			const value = structured.html;
 			return typeof value === "string" ? value : void 0;
 		}
+		var pipeline_module_default = {
+			root: "_root_bzxwc_9",
+			panel: "_panel_bzxwc_108",
+			panelHead: "_panelHead_bzxwc_123",
+			headSpacer: "_headSpacer_bzxwc_140",
+			btn: "_btn_bzxwc_81",
+			ghost: "_ghost_bzxwc_158",
+			primary: "_primary_bzxwc_160",
+			panelBody: "_panelBody_bzxwc_168",
+			pipelineView: "_pipelineView_bzxwc_170",
+			panes: "_panes_bzxwc_175",
+			canvas: "_canvas_bzxwc_177",
+			canvasHead: "_canvasHead_bzxwc_186",
+			canvasTitleRow: "_canvasTitleRow_bzxwc_195",
+			canvasTitleBtn: "_canvasTitleBtn_bzxwc_196",
+			chipState: "_chipState_bzxwc_214",
+			canvasMeta: "_canvasMeta_bzxwc_231",
+			iconBtn: "_iconBtn_bzxwc_81",
+			canvasScroll: "_canvasScroll_bzxwc_262",
+			flow: "_flow_bzxwc_263",
+			node: "_node_bzxwc_266",
+			nodeTop: "_nodeTop_bzxwc_297",
+			nodeIndex: "_nodeIndex_bzxwc_298",
+			nodeTitle: "_nodeTitle_bzxwc_310",
+			nodeState: "_nodeState_bzxwc_318",
+			nodeDur: "_nodeDur_bzxwc_332",
+			nodeFoot: "_nodeFoot_bzxwc_342",
+			nodeRun: "_nodeRun_bzxwc_359",
+			nodeProg: "_nodeProg_bzxwc_360",
+			prog: "_prog_bzxwc_1",
+			connector: "_connector_bzxwc_365",
+			insertBtn: "_insertBtn_bzxwc_378",
+			connectorShort: "_connectorShort_bzxwc_411",
+			emptyFlow: "_emptyFlow_bzxwc_415",
+			emptyMark: "_emptyMark_bzxwc_425",
+			addStep: "_addStep_bzxwc_437",
+			inspector: "_inspector_bzxwc_457",
+			inspHead: "_inspHead_bzxwc_466",
+			stepMenu: "_stepMenu_bzxwc_473",
+			stepMenuRow: "_stepMenuRow_bzxwc_486",
+			stepMenuSep: "_stepMenuSep_bzxwc_508",
+			stepMenuNote: "_stepMenuNote_bzxwc_509",
+			inspKicker: "_inspKicker_bzxwc_515",
+			inspTitleRow: "_inspTitleRow_bzxwc_526",
+			inspTitle: "_inspTitle_bzxwc_526",
+			runOne: "_runOne_bzxwc_537",
+			inspMeta: "_inspMeta_bzxwc_556",
+			chipTag: "_chipTag_bzxwc_567",
+			inspTabs: "_inspTabs_bzxwc_582",
+			inspTab: "_inspTab_bzxwc_582",
+			inspScroll: "_inspScroll_bzxwc_606",
+			resultPanel: "_resultPanel_bzxwc_609",
+			resultBar: "_resultBar_bzxwc_610",
+			revised: "_revised_bzxwc_615",
+			resBlock: "_resBlock_bzxwc_636",
+			resBlockHead: "_resBlockHead_bzxwc_637",
+			segTiny: "_segTiny_bzxwc_648",
+			resList: "_resList_bzxwc_651",
+			resItem: "_resItem_bzxwc_652",
+			resItemName: "_resItemName_bzxwc_669",
+			resItemSize: "_resItemSize_bzxwc_670",
+			resOpen: "_resOpen_bzxwc_674",
+			resEmpty: "_resEmpty_bzxwc_701",
+			tplSlotLabel: "_tplSlotLabel_bzxwc_705",
+			tplSlotBox: "_tplSlotBox_bzxwc_706",
+			tplSlotTag: "_tplSlotTag_bzxwc_715",
+			tplSlotText: "_tplSlotText_bzxwc_723",
+			srcNote: "_srcNote_bzxwc_726",
+			docSrc: "_docSrc_bzxwc_737",
+			mk: "_mk_bzxwc_753",
+			spacer: "_spacer_bzxwc_766",
+			docPad: "_docPad_bzxwc_767",
+			doc: "_doc_bzxwc_737",
+			num: "_num_bzxwc_798",
+			add: "_add_bzxwc_437",
+			del: "_del_bzxwc_800",
+			callout: "_callout_bzxwc_801",
+			checks: "_checks_bzxwc_810",
+			check: "_check_bzxwc_810",
+			metrics: "_metrics_bzxwc_817",
+			metric: "_metric_bzxwc_817",
+			k: "_k_bzxwc_819",
+			v: "_v_bzxwc_820",
+			stateBlock: "_stateBlock_bzxwc_825",
+			skel: "_skel_bzxwc_828",
+			shimmer: "_shimmer_bzxwc_1",
+			inlineFail: "_inlineFail_bzxwc_838",
+			activityPanel: "_activityPanel_bzxwc_854",
+			actList: "_actList_bzxwc_855",
+			act: "_act_bzxwc_854",
+			actIcon: "_actIcon_bzxwc_873",
+			actBody: "_actBody_bzxwc_888",
+			actTop: "_actTop_bzxwc_889",
+			actName: "_actName_bzxwc_890",
+			actArg: "_actArg_bzxwc_891",
+			actT: "_actT_bzxwc_889",
+			actMsg: "_actMsg_bzxwc_901",
+			actDur: "_actDur_bzxwc_902",
+			configPanel: "_configPanel_bzxwc_905",
+			cfgBlock: "_cfgBlock_bzxwc_907",
+			cfgBlockHead: "_cfgBlockHead_bzxwc_908",
+			ruleSelect: "_ruleSelect_bzxwc_920",
+			ruleRow: "_ruleRow_bzxwc_934",
+			ruleLabel: "_ruleLabel_bzxwc_943",
+			ruleValue: "_ruleValue_bzxwc_944",
+			val: "_val_bzxwc_945",
+			mono: "_mono_bzxwc_953",
+			hint: "_hint_bzxwc_954",
+			runbar: "_runbar_bzxwc_957",
+			segBar: "_segBar_bzxwc_967",
+			runNoise: "_runNoise_bzxwc_982",
+			timer: "_timer_bzxwc_984",
+			runActions: "_runActions_bzxwc_985",
+			dot: "_dot_bzxwc_988",
+			renameInput: "_renameInput_bzxwc_996",
+			pickerUsed: "_pickerUsed_bzxwc_1008",
+			canvasMenu: "_canvasMenu_bzxwc_1009",
+			menuSect: "_menuSect_bzxwc_1023",
+			menuRow: "_menuRow_bzxwc_1029",
+			menuRowMain: "_menuRowMain_bzxwc_1046",
+			menuRowTitle: "_menuRowTitle_bzxwc_1047",
+			menuRowSub: "_menuRowSub_bzxwc_1048",
+			menuRowTail: "_menuRowTail_bzxwc_1049",
+			menuRun: "_menuRun_bzxwc_1050",
+			menuSep: "_menuSep_bzxwc_1064",
+			pickerWrap: "_pickerWrap_bzxwc_1067",
+			pickerScrim: "_pickerScrim_bzxwc_1068",
+			picker: "_picker_bzxwc_1008",
+			pickerHead: "_pickerHead_bzxwc_1081",
+			pickerTitle: "_pickerTitle_bzxwc_1082",
+			searchField: "_searchField_bzxwc_1085",
+			pickerList: "_pickerList_bzxwc_1107",
+			pickerRow: "_pickerRow_bzxwc_1108",
+			pickerRowMain: "_pickerRowMain_bzxwc_1125",
+			pickerRowTitle: "_pickerRowTitle_bzxwc_1126",
+			pickerRowSub: "_pickerRowSub_bzxwc_1127",
+			pickerEmpty: "_pickerEmpty_bzxwc_1128",
+			histBody: "_histBody_bzxwc_1136",
+			histDay: "_histDay_bzxwc_1138",
+			histRow: "_histRow_bzxwc_1149",
+			histNo: "_histNo_bzxwc_1163",
+			histWhen: "_histWhen_bzxwc_1164",
+			histSum: "_histSum_bzxwc_1165",
+			histTook: "_histTook_bzxwc_1174",
+			histBadge: "_histBadge_bzxwc_1175",
+			histTop: "_histTop_bzxwc_1183",
+			histTopWhen: "_histTopWhen_bzxwc_1190",
+			histTopMeta: "_histTopMeta_bzxwc_1191",
+			histReadonly: "_histReadonly_bzxwc_1192",
+			histAsk: "_histAsk_bzxwc_1203",
+			hStep: "_hStep_bzxwc_1212",
+			hStepRetry: "_hStepRetry_bzxwc_1218",
+			hStepMuted: "_hStepMuted_bzxwc_1233",
+			hStepHead: "_hStepHead_bzxwc_1234",
+			hStepNo: "_hStepNo_bzxwc_1247",
+			hStepName: "_hStepName_bzxwc_1248",
+			hStepMeta: "_hStepMeta_bzxwc_1249",
+			hStepTook: "_hStepTook_bzxwc_1250",
+			histBack: "_histBack_bzxwc_1",
+			hError: "_hError_bzxwc_1263",
+			zoomWrap: "_zoomWrap_bzxwc_1278",
+			zoomScrim: "_zoomScrim_bzxwc_1281",
+			zoom: "_zoom_bzxwc_1278",
+			zoomHead: "_zoomHead_bzxwc_1294",
+			zoomKicker: "_zoomKicker_bzxwc_1301",
+			zoomMeta: "_zoomMeta_bzxwc_1302",
+			zoomHint: "_zoomHint_bzxwc_1311",
+			zoomFiles: "_zoomFiles_bzxwc_1314",
+			zFile: "_zFile_bzxwc_1316",
+			zName: "_zName_bzxwc_1335",
+			zSize: "_zSize_bzxwc_1337",
+			zoomBody: "_zoomBody_bzxwc_1339",
+			zoomWarn: "_zoomWarn_bzxwc_1341",
+			reviewWrap: "_reviewWrap_bzxwc_1366",
+			reviewScrim: "_reviewScrim_bzxwc_1367",
+			review: "_review_bzxwc_1366",
+			reviewHead: "_reviewHead_bzxwc_1379",
+			reviewTitle: "_reviewTitle_bzxwc_1380",
+			reviewWho: "_reviewWho_bzxwc_1383",
+			reviewBody: "_reviewBody_bzxwc_1392",
+			reviewArea: "_reviewArea_bzxwc_1393",
+			reviewChips: "_reviewChips_bzxwc_1411",
+			reviewChip: "_reviewChip_bzxwc_1411",
+			reviewNote: "_reviewNote_bzxwc_1423",
+			reviewFrom: "_reviewFrom_bzxwc_1425",
+			zoomReview: "_zoomReview_bzxwc_1434",
+			reviewFoot: "_reviewFoot_bzxwc_1435",
+			stepStrip: "_stepStrip_bzxwc_1471",
+			headLabel: "_headLabel_bzxwc_1475",
+			stepChip: "_stepChip_bzxwc_1489",
+			scroll: "_scroll_bzxwc_1518"
+		};
 		//#endregion
 		//#region src/client/pipeline/pipeline-view.ts
 		/** The state a step is drawn in. */
@@ -7081,13 +7189,14 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/WorkbenchPipeline.tsx
 		/**
-		* The pipeline workbench: routes on the left, the chain in the middle, one step on the right.
+		* 流水线工作台：左边是这条流水线本身，右边是选中的这一步。
 		*
-		* Three zones that answer three different questions, and none of them duplicates another:
-		* the rail says which pipelines exist, the canvas says what the chain is doing, and the
-		* inspector says what one step produced, did, and is configured to do. Everything a step
-		* *is* lives in its card — the pipeline only holds an order — so this surface never edits a
-		* card's template; the inspector mounts the card's own page for that.
+		* 结构与 `docs/prototypes/workbench-pipeline-v2.html` 一一对应：面板头 → 两栏（画布 + 检查器）
+		* → 运行条，四个弹层（阅读器 / 运行记录 / 审核 / 选择器）都是面板内的覆盖层，不另开窗口。
+		* 样式逐条取自原型，只把原型的固定色板换成 DSH 令牌，于是插件跟 DSH 一起换肤。
+		*
+		* 步骤的“是什么”全在它自己的卡片里（模板、技能、模型、工作目录），流水线只记住顺序，
+		* 所以这里从不编辑卡片的模板：要改就进卡片自己的页面。
 		* @module dsh-workbench/client/WorkbenchPipeline
 		*/
 		/** How long a delete confirmation stays armed. */
@@ -7095,7 +7204,7 @@ window.__ModuleLoader__.load({
 		/**
 		* Render the pipeline workbench.
 		* @param props - stored pipelines, run engine, cards, transport, card views, and `t`.
-		* @returns the three-zone surface.
+		* @returns the two-column surface with its overlays.
 		*/
 		function WorkbenchPipeline(props) {
 			const { pipelines, run, facts, api, renderCard, onCreateCard, t } = props;
@@ -7104,23 +7213,32 @@ window.__ModuleLoader__.load({
 			const [tab, setTab] = (0, react.useState)("activity");
 			const [cards, setCards] = (0, react.useState)([]);
 			const [results, setResults] = (0, react.useState)([]);
-			const [menuFor, setMenuFor] = (0, react.useState)(void 0);
+			const [menuOpen, setMenuOpen] = (0, react.useState)(false);
+			const [stepMenu, setStepMenu] = (0, react.useState)(void 0);
 			const [confirmDelete, setConfirmDelete] = (0, react.useState)(void 0);
 			const [renaming, setRenaming] = (0, react.useState)(void 0);
-			const [titleMenu, setTitleMenu] = (0, react.useState)(false);
 			const [picker, setPicker] = (0, react.useState)(void 0);
 			const [pickerQuery, setPickerQuery] = (0, react.useState)("");
 			const [reader, setReader] = (0, react.useState)(void 0);
 			const [historyOpen, setHistoryOpen] = (0, react.useState)(false);
 			const [historyAt, setHistoryAt] = (0, react.useState)(void 0);
-			const [stepMenu, setStepMenu] = (0, react.useState)(void 0);
+			const [review, setReview] = (0, react.useState)(void 0);
+			const [reviewText, setReviewText] = (0, react.useState)("");
 			const active = (0, react.useMemo)(() => {
 				return pipelines.pipelines.find((pipeline) => pipeline.id === activeId) ?? pipelines.pipelines[0];
 			}, [activeId, pipelines.pipelines]);
-			const labelOf = (0, react.useCallback)((cardId) => {
-				const label = facts.find((entry) => entry.id === cardId)?.label ?? "";
-				return label.length === 0 ? cardId : label;
+			const menuFacts = (0, react.useMemo)(() => {
+				const seen = /* @__PURE__ */ new Set();
+				return facts.filter((fact) => {
+					if (seen.has(fact.id)) return false;
+					seen.add(fact.id);
+					return true;
+				});
 			}, [facts]);
+			const labelOf = (0, react.useCallback)((cardId) => {
+				const label = menuFacts.find((entry) => entry.id === cardId)?.label ?? "";
+				return label.length === 0 ? cardId : label;
+			}, [menuFacts]);
 			/** Read the stored cards and results, which every panel reads from. */
 			const reload = (0, react.useCallback)(async () => {
 				const read = await api.read();
@@ -7145,16 +7263,31 @@ window.__ModuleLoader__.load({
 				};
 			}, [confirmDelete]);
 			(0, react.useEffect)(() => {
-				if (menuFor === void 0 && !titleMenu) return;
+				if (!menuOpen && stepMenu === void 0) return;
 				const close = () => {
-					setMenuFor(void 0);
-					setTitleMenu(false);
+					setMenuOpen(false);
+					setStepMenu(void 0);
 				};
 				document.addEventListener("pointerdown", close);
 				return () => {
 					document.removeEventListener("pointerdown", close);
 				};
-			}, [menuFor, titleMenu]);
+			}, [menuOpen, stepMenu]);
+			const anyOverlay = reader !== void 0 || historyOpen || review !== void 0 || picker !== void 0;
+			(0, react.useEffect)(() => {
+				if (!anyOverlay) return;
+				const onKey = (event) => {
+					if (event.key !== "Escape") return;
+					setReader(void 0);
+					setHistoryOpen(false);
+					setReview(void 0);
+					setPicker(void 0);
+				};
+				document.addEventListener("keydown", onKey);
+				return () => {
+					document.removeEventListener("keydown", onKey);
+				};
+			}, [anyOverlay]);
 			const chain = run.chain !== void 0 && active !== void 0 && run.chain.pipelineId === active.id ? run.chain : void 0;
 			const running = chain?.phase === "running";
 			const history = (0, react.useMemo)(() => active === void 0 ? [] : run.history(active.id), [
@@ -7249,27 +7382,6 @@ window.__ModuleLoader__.load({
 					}
 				})();
 			}, [pipelines, t]);
-			if (reader !== void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.pagePipeline,
-				"data-reader": reader.cardId,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: workbench_module_default.readerBar,
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: workbench_module_default.ghostBtn,
-						"data-reader-back": "",
-						onClick: () => {
-							setReader(void 0);
-						},
-						children: t("pipeReaderBack")
-					})
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: workbench_module_default.readerBody,
-					children: renderCard(reader.cardId, "result", () => {
-						setReader(void 0);
-					})
-				})]
-			});
 			const stateText = (phase) => t(`pipeStepState_${stateView(phase).key}`);
 			const markOf = (phase) => MARK[stateView(phase).mark];
 			const chainState = chain === void 0 ? "idle" : chain.phase === "running" ? "running" : chain.phase === "failed" ? "failed" : chain.phase === "stopped" ? "stopped" : "done";
@@ -7286,269 +7398,240 @@ window.__ModuleLoader__.load({
 			};
 			const doneCount = chain === void 0 ? 0 : chain.steps.filter((step) => step.phase === "done").length;
 			const failedAt = chain?.failureIndex;
+			const runNoise = () => {
+				if (chain === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: active === void 0 || active.steps.length === 0 ? t("pipeNoSteps") : t("pipeNotRun") });
+				if (chain.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRunningStep", {
+					at: (chain.activeIndex ?? 0) + 1,
+					count: active?.steps.length ?? 0
+				}) });
+				if (chain.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeFailedAt", {
+					done: doneCount,
+					count: active?.steps.length ?? 0,
+					at: (failedAt ?? doneCount) + 1
+				}) });
+				if (chain.phase === "stopped") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeStopped", {
+					done: doneCount,
+					count: active?.steps.length ?? 0
+				}) });
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeAllDone", { count: active?.steps.length ?? 0 }) });
+			};
+			const openReader = (cardId) => {
+				setReader({ cardId });
+			};
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.pagePipeline,
+				className: `${pipeline_module_default.root} ${pipeline_module_default.panel}`,
 				"data-workbench-pipeline": "",
 				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: workbench_module_default.shell,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("nav", {
-								className: workbench_module_default.rail,
-								"data-rail": "",
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: workbench_module_default.railHead,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRailPipelines") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											className: workbench_module_default.railAction,
-											"data-new-pipeline": "",
-											onClick: createPipeline,
-											children: t("pipeNewPipeline")
-										})]
-									}),
-									pipelines.pipelines.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-										className: workbench_module_default.railEmpty,
-										children: t("pipeRailNoPipelines")
-									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-										className: workbench_module_default.railList,
-										children: pipelines.pipelines.map((pipeline) => {
-											const current = pipeline.id === active?.id;
-											const armed = confirmDelete === pipeline.id;
-											return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
-												className: workbench_module_default.railItem,
-												children: [
-													renaming === pipeline.id ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RenameField, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: pipeline_module_default.panelBody,
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: pipeline_module_default.pipelineView,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: pipeline_module_default.panes,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: pipeline_module_default.canvas,
+									"data-canvas": "",
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+											className: pipeline_module_default.canvasHead,
+											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												style: {
+													minWidth: 0,
+													flex: 1
+												},
+												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+													className: pipeline_module_default.canvasTitleRow,
+													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: renaming !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RenameField, {
 														t,
-														initial: pipeline.name,
+														initial: active?.name ?? "",
 														onCommit: (name) => {
 															setRenaming(void 0);
-															if (name !== "" && name !== pipeline.name) pipelines.rename(pipeline.id, name);
+															if (name !== "" && name !== active?.name) pipelines.rename(renaming, name);
 														},
 														onCancel: () => {
 															setRenaming(void 0);
 														}
 													}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 														type: "button",
-														className: current ? `${workbench_module_default.railRow} ${workbench_module_default.railRowCurrent}` : workbench_module_default.railRow,
+														className: pipeline_module_default.canvasTitleBtn,
+														"data-canvas-title": "",
+														"aria-expanded": menuOpen,
+														"aria-haspopup": "menu",
+														disabled: active === void 0,
+														onClick: (event) => {
+															event.stopPropagation();
+															setMenuOpen(!menuOpen);
+														},
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: active?.name ?? t("pipeNoPipeline") }), MARK.chev]
+													}) }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+														className: pipeline_module_default.chipState,
+														"data-canvas-state": chainState,
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: pipeline_module_default.dot,
+															"data-s": chainState
+														}), stateText(chainState)]
+													})]
+												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+													type: "button",
+													className: pipeline_module_default.canvasMeta,
+													"data-canvas-meta": "",
+													"aria-label": t("pipeHistoryTitle"),
+													disabled: active === void 0 || active.steps.length === 0,
+													onClick: () => {
+														setHistoryOpen(true);
+														setHistoryAt(void 0);
+													},
+													children: active === void 0 ? t("pipeMetaNoPipeline") : metaOf(active)
+												})]
+											}), menuOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.canvasMenu,
+												"data-title-menu": "",
+												role: "menu",
+												children: [
+													pipelines.pipelines.map((pipeline) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+														type: "button",
+														className: pipeline_module_default.menuRow,
+														role: "menuitem",
 														"data-pipeline-row": pipeline.id,
-														"aria-current": current,
+														"aria-current": pipeline.id === active?.id,
 														onClick: () => {
+															setMenuOpen(false);
 															setActiveId(pipeline.id);
 															setFocus(void 0);
 														},
 														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: workbench_module_default.railName,
+															className: pipeline_module_default.menuRowMain,
 															children: pipeline.name
 														}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: workbench_module_default.railCount,
+															className: pipeline_module_default.menuRowTail,
 															children: pipeline.steps.length
 														})]
-													}),
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+													}, pipeline.id)),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 														type: "button",
-														className: workbench_module_default.railDots,
-														"aria-label": t("pipeRailMenu"),
-														"aria-expanded": menuFor === pipeline.id,
-														onClick: (event) => {
-															event.stopPropagation();
-															setMenuFor(menuFor === pipeline.id ? void 0 : pipeline.id);
+														className: pipeline_module_default.menuRow,
+														role: "menuitem",
+														"data-new-pipeline": "",
+														onClick: () => {
+															setMenuOpen(false);
+															createPipeline();
 														},
-														children: "⋯"
+														children: [MARK.plus, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: pipeline_module_default.menuRowMain,
+															children: t("pipeNewPipeline")
+														})]
 													}),
-													menuFor === pipeline.id ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-														className: workbench_module_default.menu,
-														"data-pipeline-menu": pipeline.id,
-														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: pipeline_module_default.menuSep }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+														className: pipeline_module_default.menuSect,
+														children: t("pipeRailTasks")
+													}),
+													menuFacts.map((fact) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+														type: "button",
+														className: pipeline_module_default.menuRow,
+														role: "menuitem",
+														"data-card-row": fact.id,
+														onClick: () => {
+															setMenuOpen(false);
+															setFocus({
+																kind: "card",
+																cardId: fact.id
+															});
+															setTab("result");
+														},
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: pipeline_module_default.menuRowMain,
+															children: fact.label
+														}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: pipeline_module_default.menuRun,
+															children: MARK.play
+														})]
+													}, fact.id)),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+														type: "button",
+														className: pipeline_module_default.menuRow,
+														role: "menuitem",
+														"data-create-card": "",
+														onClick: () => {
+															setMenuOpen(false);
+															onCreateCard();
+														},
+														children: [MARK.plus, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: pipeline_module_default.menuRowMain,
+															children: t("pipeCreateCard")
+														})]
+													}),
+													active === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: pipeline_module_default.menuSep }),
+														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 															type: "button",
-															className: workbench_module_default.menuRow,
+															className: pipeline_module_default.menuRow,
+															role: "menuitem",
 															onClick: () => {
-																setMenuFor(void 0);
-																setRenaming(pipeline.id);
+																setMenuOpen(false);
+																setRenaming(active.id);
 															},
-															children: t("pipeRename")
-														}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+															children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: pipeline_module_default.menuRowMain,
+																children: t("pipeRename")
+															})
+														}),
+														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 															type: "button",
-															className: armed ? `${workbench_module_default.menuRow} ${workbench_module_default.menuRowDanger}` : workbench_module_default.menuRow,
+															className: confirmDelete === active.id ? `${pipeline_module_default.menuRow} ${pipeline_module_default.hError}` : pipeline_module_default.menuRow,
+															role: "menuitem",
 															"data-delete-pipeline": "",
 															onClick: () => {
-																if (!armed) {
-																	setConfirmDelete(pipeline.id);
+																if (confirmDelete !== active.id) {
+																	setConfirmDelete(active.id);
 																	return;
 																}
 																setConfirmDelete(void 0);
-																setMenuFor(void 0);
-																pipelines.remove(pipeline.id);
-																if (pipeline.id === active?.id) setFocus(void 0);
+																setMenuOpen(false);
+																pipelines.remove(active.id);
+																setFocus(void 0);
 															},
-															children: armed ? t("pipeDeleteConfirm") : t("pipeDelete")
-														})]
-													}) : null
-												]
-											}, pipeline.id);
-										})
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: workbench_module_default.railHead,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRailTasks") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											className: workbench_module_default.railAction,
-											"data-create-card": "",
-											onClick: onCreateCard,
-											children: t("pipeCreateCard")
-										})]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-										className: workbench_module_default.railList,
-										children: facts.map((fact) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-											className: workbench_module_default.railItem,
-											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-												type: "button",
-												className: focus?.kind === "card" && focus.cardId === fact.id ? `${workbench_module_default.railRow} ${workbench_module_default.railRowCurrent}` : workbench_module_default.railRow,
-												"data-card-row": fact.id,
-												onClick: () => {
-													setFocus({
-														kind: "card",
-														cardId: fact.id
-													});
-													setTab("result");
-												},
-												children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: workbench_module_default.railName,
-													children: fact.label
-												})
-											})
-										}, fact.id))
-									})
-								]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-								className: workbench_module_default.canvas,
-								"data-canvas": "",
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: workbench_module_default.canvasHead,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.canvasTitleWrap,
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: workbench_module_default.canvasTitleRow,
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-													type: "button",
-													className: workbench_module_default.canvasTitle,
-													"data-canvas-title": "",
-													"aria-expanded": titleMenu,
-													disabled: active === void 0,
-													onClick: (event) => {
-														event.stopPropagation();
-														setTitleMenu(!titleMenu);
-													},
-													children: [active?.name ?? t("pipeNoPipeline"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: workbench_module_default.chev,
-														children: MARK.chev
-													})]
-												}), active === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: workbench_module_default.stateChip,
-													"data-canvas-state": chainState,
-													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("i", {
-														className: workbench_module_default.dot,
-														"data-s": chainState
-													}), stateText(chainState)]
-												})]
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-												type: "button",
-												className: workbench_module_default.canvasMeta,
-												"data-canvas-meta": "",
-												disabled: active === void 0 || active.steps.length === 0,
-												onClick: () => {
-													setHistoryOpen(true);
-													setHistoryAt(void 0);
-												},
-												children: active === void 0 ? t("pipeMetaNoPipeline") : metaOf(active)
-											})]
-										}), titleMenu && active !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.menu,
-											"data-title-menu": "",
-											children: [
-												pipelines.pipelines.map((pipeline) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-													type: "button",
-													className: workbench_module_default.menuRow,
-													"aria-current": pipeline.id === active.id,
-													onClick: () => {
-														setTitleMenu(false);
-														setActiveId(pipeline.id);
-														setFocus(void 0);
-													},
-													children: [
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("i", {
-															className: workbench_module_default.dot,
-															"data-s": "idle"
-														}),
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: workbench_module_default.menuRowMain,
-															children: pipeline.name
-														}),
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: workbench_module_default.menuTail,
-															children: pipeline.steps.length
+															children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: pipeline_module_default.menuRowMain,
+																children: confirmDelete === active.id ? t("pipeDeleteConfirm") : t("pipeDelete")
+															})
 														})
-													]
-												}, pipeline.id)),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: workbench_module_default.menuSep }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: workbench_module_default.menuRow,
-													onClick: () => {
-														setTitleMenu(false);
-														createPipeline();
-													},
-													children: t("pipeNewPipeline")
-												}),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: workbench_module_default.menuRow,
-													onClick: () => {
-														setTitleMenu(false);
-														setRenaming(active.id);
-													},
-													children: t("pipeRename")
-												})
-											]
-										}) : null]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: workbench_module_default.canvasScroll,
-										children: active === void 0 || active.steps.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.emptyFlow,
-											"data-empty-pipeline": "",
-											children: [
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: workbench_module_default.emptyMark,
-													children: MARK.plus
-												}),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h4", { children: active === void 0 ? t("pipeNoPipeline") : t("pipeEmptyTitle") }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeEmptyBody") }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-													type: "button",
-													className: workbench_module_default.primaryBtn,
-													"data-add-step": "0",
-													onClick: () => {
-														if (active === void 0) return;
-														setPicker({ at: 0 });
-														setPickerQuery("");
-													},
-													children: [MARK.plus, t("pipeAddFirstStep")]
-												})
-											]
-										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.flow,
-											children: [
-												stepViews.map((step) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-													className: workbench_module_default.nodeWrap,
-													children: [step.index > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-														className: workbench_module_default.connector,
+													] })
+												]
+											}) : null]
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: `${pipeline_module_default.canvasScroll} ${pipeline_module_default.scroll}`,
+											children: active === void 0 || active.steps.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.emptyFlow,
+												"data-empty-pipeline": "",
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: pipeline_module_default.emptyMark,
+														children: MARK.plus
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h4", { children: active === void 0 ? t("pipeNoPipeline") : t("pipeEmptyTitle") }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeEmptyBody") }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+														type: "button",
+														className: `${pipeline_module_default.btn} ${pipeline_module_default.primary}`,
+														"data-add-step": "0",
+														onClick: () => {
+															if (active === void 0) return;
+															setPicker({ at: 0 });
+															setPickerQuery("");
+														},
+														children: [MARK.plus, t("pipeAddFirstStep")]
+													})
+												]
+											}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.flow,
+												children: [
+													stepViews.map((step) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [step.index > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+														className: pipeline_module_default.connector,
 														children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 															type: "button",
-															className: workbench_module_default.insertBtn,
+															className: pipeline_module_default.insertBtn,
 															"data-insert-step": step.index,
 															"aria-label": t("pipeInsertHere", { at: step.index + 1 }),
 															onClick: () => {
@@ -7558,7 +7641,8 @@ window.__ModuleLoader__.load({
 															children: MARK.plus
 														})
 													}) : null, /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-														className: step.index === selectedIndex ? `${workbench_module_default.node} ${workbench_module_default.nodeSelected}` : workbench_module_default.node,
+														className: pipeline_module_default.node,
+														"data-node": step.index,
 														"data-step-index": step.index,
 														"data-s": step.phase,
 														role: "button",
@@ -7569,6 +7653,7 @@ window.__ModuleLoader__.load({
 																kind: "step",
 																index: step.index
 															});
+															setStepMenu(void 0);
 														},
 														onKeyDown: (event) => {
 															if (event.key !== "Enter" && event.key !== " ") return;
@@ -7577,502 +7662,675 @@ window.__ModuleLoader__.load({
 																kind: "step",
 																index: step.index
 															});
+															setStepMenu(void 0);
 														},
 														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-															className: workbench_module_default.nodeTop,
+															className: pipeline_module_default.nodeTop,
 															children: [
 																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																	className: workbench_module_default.nodeIndex,
+																	className: pipeline_module_default.nodeIndex,
 																	children: String(step.index + 1).padStart(2, "0")
 																}),
 																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																	className: workbench_module_default.nodeTitle,
+																	className: pipeline_module_default.nodeTitle,
 																	children: step.label
 																}),
 																/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																	className: workbench_module_default.nodeState,
-																	"data-s": step.phase,
+																	className: pipeline_module_default.nodeState,
 																	children: [markOf(step.phase), stateText(step.phase)]
 																}),
 																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																	className: workbench_module_default.nodeDur,
+																	className: pipeline_module_default.nodeDur,
 																	children: step.phase === "running" ? "…" : formatDuration(step.tookMs)
 																})
 															]
 														}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-															className: workbench_module_default.nodeFoot,
+															className: pipeline_module_default.nodeFoot,
 															"data-s": step.phase,
 															children: [footOf(step, t), step.runNo === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: workbench_module_default.nodeRun,
+																className: pipeline_module_default.nodeRun,
 																title: t("pipeRunOf", { no: step.runNo }),
 																children: `#${String(step.runNo)}`
 															})]
 														})]
-													})]
-												}, `${step.cardId}-${String(step.index)}`)),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: workbench_module_default.connectorShort }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-													type: "button",
-													className: workbench_module_default.addStep,
-													"data-add-step": String(active.steps.length),
-													onClick: () => {
-														setPicker({ at: active.steps.length });
-														setPickerQuery("");
-													},
-													children: [
-														MARK.plus,
-														" ",
-														t("pipeAddStep")
-													]
-												})
-											]
-										})
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: workbench_module_default.runBar,
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-												className: workbench_module_default.segBar,
-												children: stepViews.map((step) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("i", { "data-s": step.phase }, `seg-${step.cardId}`))
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-												className: workbench_module_default.runNoise,
-												"data-run-noise": chain?.phase ?? "idle",
-												children: chain === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: active === void 0 || active.steps.length === 0 ? t("pipeNoSteps") : t("pipeNotRun") }) : chain.phase === "running" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRunningStep", {
-													at: (chain.activeIndex ?? 0) + 1,
-													count: active?.steps.length ?? 0
-												}) }) : chain.phase === "failed" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeFailedAt", {
-													done: doneCount,
-													count: active?.steps.length ?? 0,
-													at: (failedAt ?? doneCount) + 1
-												}) }) : chain.phase === "stopped" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeStopped", {
-													done: doneCount,
-													count: active?.steps.length ?? 0
-												}) }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeAllDone", { count: active?.steps.length ?? 0 }) })
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-												className: workbench_module_default.runActions,
-												children: running ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: workbench_module_default.ghostBtn,
-													"data-stop": "",
-													onClick: () => {
-														run.stop();
-													},
-													children: t("pipeStop")
-												}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-													type: "button",
-													className: workbench_module_default.primaryBtn,
-													"data-run-all": "",
-													disabled: active === void 0 || active.steps.length === 0,
-													onClick: () => {
-														if (active !== void 0) run.runAll(active);
-													},
-													children: [MARK.play, t("pipeRunAll")]
-												})
+													})] }, `${step.cardId}-${String(step.index)}`)),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: pipeline_module_default.connectorShort }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+														type: "button",
+														className: pipeline_module_default.addStep,
+														"data-add-step": String(active.steps.length),
+														onClick: () => {
+															setPicker({ at: active.steps.length });
+															setPickerQuery("");
+														},
+														children: [
+															MARK.plus,
+															" ",
+															t("pipeAddStep")
+														]
+													})
+												]
 											})
-										]
-									})
-								]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("aside", {
-								className: workbench_module_default.inspector,
-								"data-inspector": "",
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: workbench_module_default.inspHead,
-									children: [
+										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-											className: workbench_module_default.inspKicker,
-											"data-insp-kicker": "",
-											children: focus?.kind === "card" ? t("pipeCardKicker") : selected === void 0 ? t("pipeNoStepKicker") : t("pipeStepKicker", {
-												at: selected.index + 1,
-												count: active?.steps.length ?? 0,
-												name: active?.name ?? ""
-											})
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.inspTitleRow,
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
-												className: workbench_module_default.inspTitle,
-												"data-insp-title": "",
-												children: focus?.kind === "card" ? labelOf(focus.cardId) : selected?.label ?? t("pipeNoStep")
-											}), selected === void 0 || focus?.kind === "card" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												className: workbench_module_default.runOne,
-												"data-run-one": "",
-												disabled: running,
-												onClick: () => {
-													if (active !== void 0) run.runOne(active, selected.index);
-												},
-												children: [MARK.play, t("pipeRunOne")]
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-												type: "button",
-												className: workbench_module_default.iconBtn,
-												"aria-label": t("pipeStepMenu"),
-												"aria-expanded": stepMenu === selectedIndex,
-												"data-step-menu-btn": "",
-												onClick: () => {
-													setStepMenu(stepMenu === selectedIndex ? void 0 : selectedIndex);
-												},
-												children: "⋯"
-											})] })]
-										}),
-										selected === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.inspMeta,
-											"data-insp-meta": "",
-											children: [
-												selected.skill === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: selected.skill }),
-												selected.card?.model === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: `${selected.card.model.provider}/${selected.card.model.model}` }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: workbench_module_default.chipTag,
-													"data-s": selected.phase,
-													children: [markOf(selected.phase), stateText(selected.phase)]
-												})
-											]
-										}),
-										focus?.kind === "card" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-											className: workbench_module_default.inspTabs,
+											className: pipeline_module_default.stepStrip,
 											role: "tablist",
 											"aria-label": t("pipeTabsLabel"),
-											children: [
-												"activity",
-												"config",
-												"result"
-											].map((key) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+											children: stepViews.map((step) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 												type: "button",
 												role: "tab",
-												className: tab === key ? `${workbench_module_default.tab} ${workbench_module_default.tabActive}` : workbench_module_default.tab,
-												"data-insp-tab": key,
-												"aria-selected": tab === key,
-												tabIndex: tab === key ? 0 : -1,
+												className: pipeline_module_default.stepChip,
+												"data-s": step.phase,
+												"data-strip-step": step.index,
+												"aria-selected": step.index === selectedIndex,
 												onClick: () => {
-													setTab(key);
+													setFocus({
+														kind: "step",
+														index: step.index
+													});
 												},
-												children: [t(TAB_KEY[key]), key === "activity" && selected?.result !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", {
-													className: workbench_module_default.tabCount,
-													children: selected.result.activity?.length ?? 0
-												}) : null]
-											}, key))
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: String(step.index + 1).padStart(2, "0") }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: pipeline_module_default.dot,
+														"data-s": step.phase
+													}),
+													step.label
+												]
+											}, `strip-${step.cardId}`))
 										})
 									]
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: workbench_module_default.inspScroll,
-									children: [focus?.kind === "card" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: workbench_module_default.panelBody,
-										"data-panel": "card",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.cfgBlock,
-											children: [
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-													className: workbench_module_default.cfgBlockHead,
-													children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeCardPanel") })
-												}),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-													className: workbench_module_default.panelNote,
-													children: t("pipeCardPanelNote")
-												}),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: workbench_module_default.ghostBtn,
-													"data-open-card": "",
-													onClick: () => {
-														setReader({ cardId: focus.cardId });
-													},
-													children: t("pipeOpenResult")
-												})
-											]
-										})
-									}) : selected === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: workbench_module_default.panelBody,
-										"data-panel": "empty",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: workbench_module_default.stateBlock,
-											children: [
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeEmptyPanelTitle") }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeEmptyPanelBody") }),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-													type: "button",
-													className: workbench_module_default.ghostBtn,
-													"data-add-step": "0",
-													onClick: () => {
-														setPicker({ at: 0 });
-														setPickerQuery("");
-													},
-													children: [MARK.plus, t("pipeAddFirstStep")]
-												})
-											]
-										})
-									}) : tab === "activity" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: workbench_module_default.panelBody,
-										"data-panel": "activity",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityPanel, {
-											step: selected,
-											t,
-											onOpenCard: () => {
-												setReader({ cardId: selected.cardId });
-											}
-										})
-									}) : tab === "config" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: workbench_module_default.panelBody,
-										"data-panel": "config",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigPanel, {
-											step: selected,
-											shared: stepViews[0]?.card,
-											t,
-											onEdit: () => {
-												setReader({ cardId: selected.cardId });
-											}
-										})
-									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: workbench_module_default.panelBody,
-										"data-panel": "result",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ResultPanel, {
-											step: selected,
-											t,
-											onOpen: () => {
-												setReader({ cardId: selected.cardId });
-											},
-											onRun: () => {
-												if (active !== void 0) run.runOne(active, selected.index);
-											}
-										})
-									}), stepMenu !== void 0 && stepMenu === selectedIndex && selected !== void 0 && focus?.kind === "step" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: workbench_module_default.stepMenu,
-										"data-step-menu": "",
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("aside", {
+									className: pipeline_module_default.inspector,
+									"data-inspector": "",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: pipeline_module_default.inspHead,
 										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												className: workbench_module_default.menuRow,
-												"data-move-up": "",
-												disabled: selected.index === 0,
-												onClick: () => {
-													setStepMenu(void 0);
-													moveStep(selected.index, -1);
-												},
-												children: [MARK.up, t("pipeMoveUp")]
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+												className: pipeline_module_default.inspKicker,
+												"data-insp-kicker": "",
+												children: focus?.kind === "card" ? t("pipeCardKicker") : selected === void 0 ? t("pipeNoStepKicker") : t("pipeStepKicker", {
+													at: selected.index + 1,
+													count: active?.steps.length ?? 0,
+													name: active?.name ?? ""
+												})
 											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												className: workbench_module_default.menuRow,
-												"data-move-down": "",
-												disabled: selected.index === (active?.steps.length ?? 1) - 1,
-												onClick: () => {
-													setStepMenu(void 0);
-													moveStep(selected.index, 1);
-												},
-												children: [MARK.down, t("pipeMoveDown")]
+											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.inspTitleRow,
+												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
+													className: pipeline_module_default.inspTitle,
+													"data-insp-title": "",
+													children: focus?.kind === "card" ? labelOf(focus.cardId) : selected?.label ?? t("pipeNoStep")
+												}), selected === void 0 || focus?.kind === "card" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+													type: "button",
+													className: pipeline_module_default.runOne,
+													"data-run-one": "",
+													disabled: running,
+													onClick: () => {
+														if (active !== void 0) run.runOne(active, selected.index);
+													},
+													children: [MARK.play, t("pipeRunOne")]
+												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+													type: "button",
+													className: pipeline_module_default.iconBtn,
+													"aria-label": t("pipeStepMenu"),
+													"aria-haspopup": "menu",
+													"aria-expanded": stepMenu === selectedIndex,
+													"data-step-menu-btn": "",
+													onClick: () => {
+														setStepMenu(stepMenu === selectedIndex ? void 0 : selectedIndex);
+													},
+													children: MARK.dots
+												})] })]
 											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: workbench_module_default.menuSep }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												className: `${workbench_module_default.menuRow} ${workbench_module_default.menuRowDanger}`,
-												"aria-label": t("pipeRemoveStep"),
-												"data-remove-step": "",
-												onClick: () => {
-													setStepMenu(void 0);
-													removeStep(selected.index);
-												},
-												children: [MARK.trash, t("pipeRemoveStep")]
+											stepMenu !== void 0 && stepMenu === selectedIndex && selected !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.stepMenu,
+												role: "menu",
+												"data-step-menu": "",
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+														type: "button",
+														className: pipeline_module_default.stepMenuRow,
+														role: "menuitem",
+														"data-move-up": "",
+														disabled: selected.index === 0,
+														onClick: () => {
+															setStepMenu(void 0);
+															moveStep(selected.index, -1);
+														},
+														children: t("pipeMoveUp")
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+														type: "button",
+														className: pipeline_module_default.stepMenuRow,
+														role: "menuitem",
+														"data-move-down": "",
+														disabled: selected.index === (active?.steps.length ?? 1) - 1,
+														onClick: () => {
+															setStepMenu(void 0);
+															moveStep(selected.index, 1);
+														},
+														children: t("pipeMoveDown")
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: pipeline_module_default.stepMenuSep }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+														type: "button",
+														className: `${pipeline_module_default.stepMenuRow} ${pipeline_module_default.hError}`,
+														role: "menuitem",
+														"aria-label": t("pipeRemoveStep"),
+														"data-remove-step": "",
+														onClick: () => {
+															setStepMenu(void 0);
+															removeStep(selected.index);
+														},
+														children: t("pipeRemoveStep")
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+														className: pipeline_module_default.stepMenuNote,
+														children: t("pipeRemoveNote")
+													})
+												]
+											}) : null,
+											selected === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.inspMeta,
+												"data-insp-meta": "",
+												children: [
+													selected.skill === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
+														className: pipeline_module_default.mono,
+														children: selected.skill
+													}),
+													selected.card?.model === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: `${selected.card.model.provider}/${selected.card.model.model}` }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+														className: pipeline_module_default.chipTag,
+														"data-s": selected.phase,
+														children: [markOf(selected.phase), stateText(selected.phase)]
+													})
+												]
 											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: workbench_module_default.menuNote,
-												children: t("pipeRemoveNote")
+											focus?.kind === "card" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+												className: pipeline_module_default.inspTabs,
+												role: "tablist",
+												"aria-label": t("pipeTabsLabel"),
+												children: [
+													"activity",
+													"config",
+													"result"
+												].map((key) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+													type: "button",
+													role: "tab",
+													className: pipeline_module_default.inspTab,
+													"data-insp-tab": key,
+													"aria-selected": tab === key,
+													"aria-controls": `pipe-panel-${key}`,
+													tabIndex: tab === key ? 0 : -1,
+													onClick: () => {
+														setTab(key);
+													},
+													children: [t(TAB_KEY[key]), key === "activity" && selected?.result !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: selected.result.activity?.length ?? 0 }) : null]
+												}, key))
 											})
 										]
-									}) : null]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: `${pipeline_module_default.inspScroll} ${pipeline_module_default.scroll}`,
+										children: focus?.kind === "card" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.resultPanel,
+											"data-panel": "card",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.cfgBlock,
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+														className: pipeline_module_default.cfgBlockHead,
+														children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeCardPanel") })
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+														className: pipeline_module_default.hint,
+														children: t("pipeCardPanelNote")
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+														type: "button",
+														className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
+														"data-open-card": "",
+														onClick: () => {
+															openReader(focus.cardId);
+														},
+														children: t("pipeOpenResult")
+													})
+												]
+											})
+										}) : selected === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.resultPanel,
+											"data-panel": "empty",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: pipeline_module_default.stateBlock,
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeEmptyPanelTitle") }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeEmptyPanelBody") }),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+														type: "button",
+														className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
+														"data-add-step": "0",
+														onClick: () => {
+															setPicker({ at: 0 });
+															setPickerQuery("");
+														},
+														children: [MARK.plus, t("pipeAddFirstStep")]
+													})
+												]
+											})
+										}) : tab === "activity" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.activityPanel,
+											id: "pipe-panel-activity",
+											role: "tabpanel",
+											"data-panel": "activity",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityPanel, {
+												step: selected,
+												t,
+												onOpenCard: () => {
+													openReader(selected.cardId);
+												}
+											})
+										}) : tab === "config" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.configPanel,
+											id: "pipe-panel-config",
+											role: "tabpanel",
+											"data-panel": "config",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigPanel, {
+												step: selected,
+												shared: stepViews[0]?.card,
+												t,
+												onEdit: () => {
+													openReader(selected.cardId);
+												}
+											})
+										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.resultPanel,
+											id: "pipe-panel-result",
+											role: "tabpanel",
+											"data-panel": "result",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ResultPanel, {
+												step: selected,
+												t,
+												onOpen: () => {
+													openReader(selected.cardId);
+												},
+												onRun: () => {
+													if (active !== void 0) run.runOne(active, selected.index);
+												},
+												onReview: () => {
+													setReview({ cardId: selected.cardId });
+												}
+											})
+										})
+									})]
 								})]
-							})
-						]
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: pipeline_module_default.runbar,
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: pipeline_module_default.segBar,
+										children: stepViews.map((step) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("i", { "data-s": step.phase }, `seg-${step.cardId}`))
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: pipeline_module_default.runNoise,
+										"data-run-noise": chain?.phase ?? "idle",
+										children: runNoise()
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: pipeline_module_default.runActions,
+										children: running ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
+											"data-stop": "",
+											onClick: () => {
+												run.stop();
+											},
+											children: t("pipeStop")
+										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+											type: "button",
+											className: `${pipeline_module_default.btn} ${pipeline_module_default.primary}`,
+											"data-run-all": "",
+											disabled: active === void 0 || active.steps.length === 0,
+											onClick: () => {
+												if (active !== void 0) run.runAll(active);
+											},
+											children: [MARK.play, t("pipeRunAll")]
+										})
+									})
+								]
+							})]
+						})
 					}),
-					historyOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(Modal, {
-						onClose: () => {
-							setHistoryOpen(false);
-						},
-						labelledBy: "pipe-hist-title",
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.modalHead,
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.modalKicker,
-									id: "pipe-hist-title",
-									"data-hist-title": "",
-									children: historyAt === void 0 ? t("pipeHistoryTitle") : t("pipeHistoryRun", { no: history[historyAt]?.no ?? 0 })
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.modalMeta,
-									"data-hist-meta": "",
-									children: historyAt === void 0 ? history.length === 0 ? t("pipeHistoryEmptyMeta") : t("pipeHistoryCount", { count: history.length }) : history[historyAt] === void 0 ? "" : `${formatWhen(history[historyAt]?.startedAt ?? 0, Date.now())} · ${formatDuration(history[historyAt]?.tookMs)}`
-								}),
-								historyAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: workbench_module_default.ghostBtn,
-									onClick: () => {
-										setHistoryAt(void 0);
-									},
-									children: t("pipeHistoryBack")
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: workbench_module_default.iconBtn,
-									"aria-label": t("pipeClose"),
-									onClick: () => {
-										setHistoryOpen(false);
-									},
-									children: MARK.x
+					reader === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: pipeline_module_default.zoomWrap,
+						"data-reader": reader.cardId,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: pipeline_module_default.zoomScrim,
+							onClick: () => {
+								setReader(void 0);
+							}
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: pipeline_module_default.zoom,
+							role: "dialog",
+							"aria-modal": "true",
+							"aria-labelledby": "pipe-zoom-title",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: pipeline_module_default.zoomHead,
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: pipeline_module_default.zoomKicker,
+										id: "pipe-zoom-title",
+										children: t("pipeReaderTitle")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: pipeline_module_default.zoomMeta,
+										children: labelOf(reader.cardId)
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: pipeline_module_default.zoomHint,
+										children: t("pipeEscHint")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost} ${pipeline_module_default.zoomReview}`,
+										"data-review-open": "",
+										onClick: () => {
+											setReview({ cardId: reader.cardId });
+											setReviewText("");
+										},
+										children: t("pipeReviewTitle")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: pipeline_module_default.iconBtn,
+										"aria-label": t("pipeClose"),
+										"data-reader-back": "",
+										onClick: () => {
+											setReader(void 0);
+										},
+										children: MARK.x
+									})
+								]
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: pipeline_module_default.zoomBody,
+								children: renderCard(reader.cardId, "result", () => {
+									setReader(void 0);
 								})
-							]
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: workbench_module_default.modalBody,
-							children: historyAt === void 0 ? history.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: workbench_module_default.stateBlock,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeHistoryEmpty") })
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: workbench_module_default.histList,
-								children: history.map((entry, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+							})]
+						})]
+					}),
+					historyOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: pipeline_module_default.zoomWrap,
+						"data-history": "",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: pipeline_module_default.zoomScrim,
+							onClick: () => {
+								setHistoryOpen(false);
+							}
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: pipeline_module_default.zoom,
+							role: "dialog",
+							"aria-modal": "true",
+							"aria-labelledby": "pipe-hist-title",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: pipeline_module_default.zoomHead,
+								children: [
+									historyAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: pipeline_module_default.iconBtn,
+										"aria-label": t("pipeHistoryBack"),
+										onClick: () => {
+											setHistoryAt(void 0);
+										},
+										children: MARK.back
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: pipeline_module_default.zoomKicker,
+										id: "pipe-hist-title",
+										"data-hist-title": "",
+										children: historyAt === void 0 ? t("pipeHistoryTitle") : t("pipeHistoryRun", { no: history[historyAt]?.no ?? 0 })
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: pipeline_module_default.zoomMeta,
+										"data-hist-meta": "",
+										children: historyAt === void 0 ? history.length === 0 ? t("pipeHistoryEmptyMeta") : t("pipeHistoryCount", { count: history.length }) : history[historyAt] === void 0 ? "" : `${formatWhen(history[historyAt]?.startedAt ?? 0, Date.now())} · ${formatDuration(history[historyAt]?.tookMs)}`
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: pipeline_module_default.zoomHint,
+										children: t("pipeEscHint")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: pipeline_module_default.iconBtn,
+										"aria-label": t("pipeClose"),
+										onClick: () => {
+											setHistoryOpen(false);
+										},
+										children: MARK.x
+									})
+								]
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: pipeline_module_default.histBody,
+								children: historyAt === void 0 ? history.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: pipeline_module_default.stateBlock,
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeHistoryEmpty") })
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: history.map((entry, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 									type: "button",
-									className: workbench_module_default.histRow,
+									className: pipeline_module_default.histRow,
 									"data-hist-run": at,
 									onClick: () => {
 										setHistoryAt(at);
 									},
 									children: [
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: workbench_module_default.histNo,
+											className: pipeline_module_default.histNo,
 											children: `#${String(entry.no)}`
 										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: workbench_module_default.histWhen,
+											className: pipeline_module_default.histWhen,
 											children: formatWhen(entry.startedAt, Date.now())
 										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: workbench_module_default.histSum,
-											children: `${entry.steps.map((step) => labelOf(step.cardId)).join(" → ")}`
+											className: pipeline_module_default.histSum,
+											children: entry.steps.map((step) => labelOf(step.cardId)).join(" → ")
 										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: workbench_module_default.histTook,
+											className: pipeline_module_default.histTook,
 											children: formatDuration(entry.tookMs)
 										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: workbench_module_default.histBadge,
+											className: pipeline_module_default.histBadge,
 											"data-s": entry.phase,
 											children: entry.phase
 										})
 									]
-								}, `hist-${String(entry.no)}`))
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: workbench_module_default.histDetail,
-								children: (history[historyAt]?.steps ?? []).map((step, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: workbench_module_default.histStep,
+								}, `hist-${String(entry.no)}`)) }) : (history[historyAt]?.steps ?? []).map((step, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: pipeline_module_default.hStep,
 									children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 										type: "button",
-										className: workbench_module_default.histStepHead,
+										className: pipeline_module_default.hStepHead,
 										"data-hist-step": at,
 										onClick: () => {
 											setHistoryOpen(false);
-											setReader({ cardId: step.cardId });
+											openReader(step.cardId);
 										},
 										children: [
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.histStepNo,
+												className: pipeline_module_default.hStepNo,
 												children: String(at + 1)
 											}),
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.histStepName,
+												className: pipeline_module_default.hStepName,
 												children: labelOf(step.cardId)
 											}),
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.histStepMeta,
-												children: (() => {
-													const product = productOf(step.html);
-													if (product.kind === "directory") return product.path;
-													return product.kind === "inline" ? t("pipeInlineProduct") : t("pipeNoProduct");
-												})()
+												className: pipeline_module_default.hStepMeta,
+												children: productLine(step.html, t)
 											}),
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.histStepTook,
+												className: pipeline_module_default.hStepTook,
 												children: formatDuration(step.tookMs)
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.chev,
-												children: MARK.chev
 											})
 										]
 									})
 								}, `hist-step-${String(at)}`))
-							})
+							})]
 						})]
 					}) : null,
-					picker === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(Modal, {
-						onClose: () => {
-							setPicker(void 0);
-						},
-						labelledBy: "pipe-picker-title",
-						width: "narrow",
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.modalHead,
+					review === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: pipeline_module_default.reviewWrap,
+						"data-review": "",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: pipeline_module_default.reviewScrim,
+							onClick: () => {
+								setReview(void 0);
+							}
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: pipeline_module_default.review,
+							role: "dialog",
+							"aria-modal": "true",
+							"aria-label": t("pipeReviewTitle"),
 							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.modalKicker,
-									id: "pipe-picker-title",
-									"data-picker-title": "",
-									children: t("pipePickerTitle")
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: pipeline_module_default.reviewHead,
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: pipeline_module_default.reviewTitle,
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeReviewTitle") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: t("pipeReviewSubtitle") })]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: pipeline_module_default.reviewWho,
+										children: labelOf(review.cardId)
+									})]
 								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.modalMeta,
-									children: t("pipePickerAt", { at: picker.at + 1 })
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: pipeline_module_default.reviewBody,
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
+											className: pipeline_module_default.reviewArea,
+											rows: 3,
+											value: reviewText,
+											"data-review-text": "",
+											placeholder: t("pipeReviewPlaceholder"),
+											onChange: (event) => {
+												setReviewText(event.target.value);
+											}
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.reviewChips,
+											children: [
+												"pipeChipEdges",
+												"pipeChipTable",
+												"pipeChipShorter"
+											].map((key) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+												type: "button",
+												className: pipeline_module_default.reviewChip,
+												onClick: () => {
+													setReviewText((prev) => prev.trim() === "" ? t(key) : `${prev}，${t(key)}`);
+												},
+												children: t(key)
+											}, key))
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+											className: pipeline_module_default.reviewNote,
+											children: t("pipeReviewWarn")
+										})
+									]
 								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: workbench_module_default.iconBtn,
-									"aria-label": t("pipeClose"),
-									onClick: () => {
-										setPicker(void 0);
-									},
-									children: MARK.x
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: pipeline_module_default.reviewFoot,
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: pipeline_module_default.spacer }),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
+											onClick: () => {
+												setReview(void 0);
+											},
+											children: t("pipeCancel")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: `${pipeline_module_default.btn} ${pipeline_module_default.primary}`,
+											"data-review-submit": "",
+											disabled: reviewText.trim() === "",
+											onClick: () => {
+												const at = stepViews.findIndex((step) => step.cardId === review.cardId);
+												const instruction = reviewText.trim();
+												setReview(void 0);
+												setReviewText("");
+												if (active === void 0 || at < 0 || instruction === "") return;
+												setReader(void 0);
+												run.refine(active, at, instruction);
+											},
+											children: t("pipeRegenerate")
+										})
+									]
 								})
 							]
+						})]
+					}),
+					picker === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: pipeline_module_default.pickerWrap,
+						"data-picker": "",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: pipeline_module_default.pickerScrim,
+							onClick: () => {
+								setPicker(void 0);
+							}
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.modalBody,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-								className: workbench_module_default.searchField,
-								children: [MARK.search, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-									type: "text",
-									autoFocus: true,
-									value: pickerQuery,
-									"data-picker-search": "",
-									placeholder: t("pipePickerSearch"),
-									onChange: (event) => {
-										setPickerQuery(event.target.value);
-									}
+							className: pipeline_module_default.picker,
+							role: "dialog",
+							"aria-modal": "true",
+							"aria-labelledby": "pipe-picker-title",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: pipeline_module_default.pickerHead,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: pipeline_module_default.pickerTitle,
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										id: "pipe-picker-title",
+										"data-picker-title": "",
+										children: t("pipePickerTitle")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: t("pipePickerAt", { at: picker.at + 1 }) })]
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+									className: pipeline_module_default.searchField,
+									children: [MARK.search, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+										type: "text",
+										autoFocus: true,
+										value: pickerQuery,
+										"data-picker-search": "",
+										placeholder: t("pipePickerSearch"),
+										autoComplete: "off",
+										onChange: (event) => {
+											setPickerQuery(event.target.value);
+										}
+									})]
 								})]
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: workbench_module_default.pickerList,
-								children: [facts.filter((fact) => pickerQuery.trim() === "" ? true : fact.label.toLowerCase().includes(pickerQuery.trim().toLowerCase()) || fact.id.includes(pickerQuery.trim())).map((fact) => {
+								className: pipeline_module_default.pickerList,
+								children: [menuFacts.filter((fact) => pickerQuery.trim() === "" ? true : fact.label.toLowerCase().includes(pickerQuery.trim().toLowerCase()) || fact.id.includes(pickerQuery.trim())).map((fact) => {
 									const used = active?.steps.some((step) => step.cardId === fact.id) ?? false;
 									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 										type: "button",
-										className: workbench_module_default.pickerRow,
+										className: pipeline_module_default.pickerRow,
 										"data-pick-card": fact.id,
 										disabled: used,
 										onClick: () => {
 											insertStep(fact.id, picker.at);
 										},
 										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-											className: workbench_module_default.pickerRowMain,
+											className: pipeline_module_default.pickerRowMain,
 											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.pickerRowTitle,
+												className: pipeline_module_default.pickerRowTitle,
 												children: fact.label
 											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: workbench_module_default.pickerRowSub,
+												className: pipeline_module_default.pickerRowSub,
 												children: fact.id
 											})]
 										}), used ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: workbench_module_default.pickerUsed,
+											className: pipeline_module_default.pickerUsed,
 											children: t("pipePickerUsed")
 										}) : MARK.plus]
 									}, fact.id);
-								}), facts.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: workbench_module_default.panelNote,
+								}), menuFacts.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: pipeline_module_default.pickerEmpty,
 									children: t("pipePickerEmpty")
 								}) : null]
 							})]
@@ -8089,13 +8347,27 @@ window.__ModuleLoader__.load({
 		*/
 		function footOf(step, t) {
 			if (step.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [MARK.warn, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: step.failure ?? t("pipeFailed") })] });
-			if (step.phase === "queued") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeQueued") });
-			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeWorking") });
+			if (step.phase === "queued") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeQueued", { at: step.index }) });
+			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: pipeline_module_default.nodeProg,
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("i", {})
+			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeWorking") })] });
 			if (step.phase === "stopped") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeStepState_stopped") });
 			if (step.phase === "idle") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeNeverRan") });
 			if (step.product.kind === "directory") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: step.product.path });
 			if (step.product.kind === "inline") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: step.product.text });
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeNoProduct") });
+		}
+		/**
+		* Read one run step's product as a single line.
+		* @param html - the step's stored region.
+		* @param t - translator.
+		* @returns the path for a directory product, otherwise what the region is.
+		*/
+		function productLine(html, t) {
+			const product = productOf(html);
+			if (product.kind === "directory") return product.path;
+			return product.kind === "inline" ? t("pipeInlineProduct") : t("pipeNoProduct");
 		}
 		/** The marks a state is drawn with, so colour is never the only signal. */
 		var MARK = {
@@ -8166,7 +8438,7 @@ window.__ModuleLoader__.load({
 				viewBox: "0 0 16 16",
 				fill: "none",
 				stroke: "currentColor",
-				strokeWidth: "1.5",
+				strokeWidth: "1.6",
 				strokeLinecap: "round",
 				strokeLinejoin: "round",
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m4.4 6.4 3.6 3.4 3.6-3.4" })
@@ -8183,32 +8455,35 @@ window.__ModuleLoader__.load({
 					r: "4.4"
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m10.6 10.6 2.6 2.6" })]
 			}),
-			up: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+			dots: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 				viewBox: "0 0 16 16",
-				fill: "none",
-				stroke: "currentColor",
-				strokeWidth: "1.5",
-				strokeLinecap: "round",
-				strokeLinejoin: "round",
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8 12.6V3.6M4.2 7.2 8 3.4l3.8 3.8" })
+				fill: "currentColor",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+						cx: "3.4",
+						cy: "8",
+						r: "1.15"
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+						cx: "8",
+						cy: "8",
+						r: "1.15"
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+						cx: "12.6",
+						cy: "8",
+						r: "1.15"
+					})
+				]
 			}),
-			down: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+			back: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				viewBox: "0 0 16 16",
 				fill: "none",
 				stroke: "currentColor",
-				strokeWidth: "1.5",
+				strokeWidth: "1.6",
 				strokeLinecap: "round",
 				strokeLinejoin: "round",
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8 3.4v9M4.2 8.8 8 12.6l3.8-3.8" })
-			}),
-			trash: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
-				viewBox: "0 0 16 16",
-				fill: "none",
-				stroke: "currentColor",
-				strokeWidth: "1.4",
-				strokeLinecap: "round",
-				strokeLinejoin: "round",
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M2.8 4.4h10.4M6.2 4.4V2.9h3.6v1.5M4.1 4.4l.6 8.3a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.6-8.3" })
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9.6 3.6 5.2 8l4.4 4.4" })
 			})
 		};
 		/** Tab titles by tab. */
@@ -8222,48 +8497,48 @@ window.__ModuleLoader__.load({
 			const { step, t, onOpenCard } = props;
 			const activity = step.result?.activity ?? [];
 			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeActivityRunning") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeActivityRunningBody") })]
 			});
 			if (step.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				"data-tone": "danger",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeActivityFailed") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.failure ?? t("pipeNoProduct") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
-						className: workbench_module_default.ghostBtn,
+						className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
 						onClick: onOpenCard,
 						children: t("pipeOpenRuns")
 					})
 				]
 			});
 			if (activity.length === 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeActivityNone") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeActivityNoneBody") })]
 			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: workbench_module_default.actList,
+				className: pipeline_module_default.actList,
 				children: activity.map((entry, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: workbench_module_default.act,
+					className: pipeline_module_default.act,
 					"data-kind": entry.kind,
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: workbench_module_default.actIcon,
+						className: pipeline_module_default.actIcon,
 						children: entry.kind === "tool" ? MARK.dash : MARK.clock
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: workbench_module_default.actBody,
+						className: pipeline_module_default.actBody,
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.actTop,
+							className: pipeline_module_default.actTop,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.actName,
+								className: pipeline_module_default.actName,
 								children: entry.kind === "tool" ? entry.tool : entry.kind === "truncated" ? t("pipeActivityTruncated") : t("pipeActivityNarration")
 							}), entry.kind === "tool" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.actArg,
+								className: pipeline_module_default.actArg,
 								children: entry.argument
 							}) : null]
 						}), entry.kind === "tool" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: workbench_module_default.actMsg,
+							className: pipeline_module_default.actMsg,
 							children: entry.kind === "truncated" ? "" : entry.text
 						})]
 					})]
@@ -8277,50 +8552,50 @@ window.__ModuleLoader__.load({
 			const template = step.card?.template;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: workbench_module_default.cfgBlock,
+					className: pipeline_module_default.cfgBlock,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.cfgBlockHead,
+							className: pipeline_module_default.cfgBlockHead,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeCfgPipeline") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: t("pipeCfgPipelineNote") })]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.ruleRow,
+							className: pipeline_module_default.ruleRow,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleLabel,
+								className: pipeline_module_default.ruleLabel,
 								children: t("pipeCfgModel")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleValue,
+								className: pipeline_module_default.ruleValue,
 								children: shared?.model === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.hint,
+									className: pipeline_module_default.hint,
 									children: t("pipeCfgModelInherit")
 								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.val,
+									className: pipeline_module_default.val,
 									children: `${shared.model.provider}/${shared.model.model}`
 								})
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.ruleRow,
+							className: pipeline_module_default.ruleRow,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleLabel,
+								className: pipeline_module_default.ruleLabel,
 								children: t("pipeCfgPermission")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleValue,
+								className: pipeline_module_default.ruleValue,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.val,
+									className: pipeline_module_default.val,
 									children: t(permissionLabelKey(shared?.permission ?? "workspace-write"))
 								})
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.ruleRow,
+							className: pipeline_module_default.ruleRow,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleLabel,
+								className: pipeline_module_default.ruleLabel,
 								children: t("pipeCfgWorkspace")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleValue,
+								className: pipeline_module_default.ruleValue,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: `${workbench_module_default.val} ${workbench_module_default.mono}`,
+									className: `${pipeline_module_default.val} ${pipeline_module_default.mono}`,
 									children: shared?.workspace?.path ?? t("pipeCfgNoWorkspace")
 								})
 							})]
@@ -8328,37 +8603,37 @@ window.__ModuleLoader__.load({
 					]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: workbench_module_default.cfgBlock,
+					className: pipeline_module_default.cfgBlock,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.cfgBlockHead,
+							className: pipeline_module_default.cfgBlockHead,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeCfgStep") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: t("pipeCfgStepNote", { at: step.index + 1 }) })]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.ruleRow,
+							className: pipeline_module_default.ruleRow,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleLabel,
+								className: pipeline_module_default.ruleLabel,
 								children: t("pipeCfgSkill")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleValue,
+								className: pipeline_module_default.ruleValue,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: `${workbench_module_default.val} ${workbench_module_default.mono}`,
+									className: `${pipeline_module_default.val} ${pipeline_module_default.mono}`,
 									children: step.skill ?? t("pipeCfgNoSkill")
 								})
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.ruleRow,
+							className: pipeline_module_default.ruleRow,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: workbench_module_default.ruleLabel,
+								className: pipeline_module_default.ruleLabel,
 								children: t("pipeCfgFailure")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								className: workbench_module_default.ruleValue,
+								className: pipeline_module_default.ruleValue,
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.val,
+									className: pipeline_module_default.val,
 									children: t("pipeCfgFailureStop")
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.hint,
+									className: pipeline_module_default.hint,
 									children: t("pipeCfgFailureNote")
 								})]
 							})]
@@ -8366,12 +8641,12 @@ window.__ModuleLoader__.load({
 					]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: workbench_module_default.cfgBlock,
+					className: pipeline_module_default.cfgBlock,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.cfgBlockHead,
+							className: pipeline_module_default.cfgBlockHead,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeCfgTemplate") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								className: workbench_module_default.segTiny,
+								className: pipeline_module_default.segTiny,
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									"data-cfg-view": "preview",
@@ -8392,31 +8667,28 @@ window.__ModuleLoader__.load({
 							})]
 						}),
 						template === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: workbench_module_default.panelNote,
+							className: pipeline_module_default.hint,
 							children: t("pipeCfgNoTemplate")
-						}) : view === "preview" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: workbench_module_default.tplSlot,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: workbench_module_default.tplSlotLabel,
-								children: t("pipeCfgPreviewNote")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: workbench_module_default.tplSlotBox,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.tplSlotTag,
-									children: t("pipeCfgRegion")
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.tplSlotText,
-									children: t("pipeCfgRegionBody")
-								})]
+						}) : view === "preview" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: pipeline_module_default.tplSlotLabel,
+							children: t("pipeCfgPreviewNote")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: pipeline_module_default.tplSlotBox,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: pipeline_module_default.tplSlotTag,
+								children: t("pipeCfgRegion")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: pipeline_module_default.tplSlotText,
+								children: t("pipeCfgRegionBody")
 							})]
-						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
-							className: workbench_module_default.docSrc,
+						})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+							className: pipeline_module_default.docSrc,
 							"data-cfg-source": "",
 							children: template
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							type: "button",
-							className: workbench_module_default.ghostBtn,
+							className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
 							"data-edit-card": "",
 							onClick: onEdit,
 							children: t("pipeCfgEdit")
@@ -8427,118 +8699,94 @@ window.__ModuleLoader__.load({
 		}
 		/** What one step's result panel shows: what it handed over, and how to read it. */
 		function ResultPanel(props) {
-			const { step, t, onOpen, onRun } = props;
+			const { step, t, onOpen, onRun, onReview } = props;
 			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeResultRunning") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeResultRunningBody") })]
 			});
 			if (step.phase === "queued") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeResultQueued") }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeResultQueuedBody", { at: step.index + 1 }) }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeResultQueuedBody", { at: step.index }) }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
-						className: workbench_module_default.ghostBtn,
+						className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
 						onClick: onRun,
-						children: [MARK.play, t("pipeRunThisStep")]
+						children: t("pipeRunThisStep")
 					})
 				]
 			});
 			if (step.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				"data-tone": "danger",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeResultFailed") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.failure ?? t("pipeNoProduct") }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
-						className: workbench_module_default.ghostBtn,
+						className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
 						onClick: onRun,
-						children: [MARK.play, t("pipeRetryStep")]
+						children: t("pipeRetryStep")
 					})
 				]
 			});
 			if (step.phase === "idle" || step.result === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.stateBlock,
+				className: pipeline_module_default.stateBlock,
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeResultNone") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeResultNoneBody") }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
-						className: workbench_module_default.ghostBtn,
+						className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
 						onClick: onRun,
-						children: [MARK.play, t("pipeRunOne")]
+						children: t("pipeRunOne")
 					})
 				]
 			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.resBlock,
+				className: pipeline_module_default.resBlock,
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: workbench_module_default.cfgBlockHead,
+						className: pipeline_module_default.resBlockHead,
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeResultWhat") }), step.product.kind === "directory" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: step.product.path }) : null]
 					}),
 					step.result.editedAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: workbench_module_default.panelNote,
+						className: pipeline_module_default.revised,
 						"data-edited": "",
 						children: t("pipeResultEdited")
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: workbench_module_default.resList,
+						className: pipeline_module_default.resList,
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 							type: "button",
-							className: workbench_module_default.resItem,
+							className: pipeline_module_default.resItem,
 							"data-open-result": "",
 							onClick: onOpen,
-							children: [
-								MARK.dash,
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.resItemName,
-									children: step.product.kind === "directory" ? t("pipeResultOpenDir") : t("pipeResultOpenInline")
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.resItemSize,
-									children: formatWhen(step.result.executedAt, Date.now())
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: workbench_module_default.chev,
-									children: MARK.chev
-								})
-							]
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: pipeline_module_default.resItemName,
+								children: step.product.kind === "directory" ? t("pipeResultOpenDir") : t("pipeResultOpenInline")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: pipeline_module_default.resItemSize,
+								children: formatWhen(step.result.executedAt, Date.now())
+							})]
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: pipeline_module_default.resOpen,
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: `${pipeline_module_default.btn} ${pipeline_module_default.ghost}`,
+							"data-result-review": "",
+							onClick: onReview,
+							children: t("pipeRegenerate")
 						})
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: workbench_module_default.panelNote,
+						className: pipeline_module_default.hint,
 						children: t("pipeResultReadNote")
 					})
 				]
-			});
-		}
-		/** One overlay, scrim plus dialog, closed by Escape and by its scrim. */
-		function Modal(props) {
-			const { onClose, labelledBy, width, children } = props;
-			(0, react.useEffect)(() => {
-				const onKey = (event) => {
-					if (event.key === "Escape") onClose();
-				};
-				document.addEventListener("keydown", onKey);
-				return () => {
-					document.removeEventListener("keydown", onKey);
-				};
-			}, [onClose]);
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: workbench_module_default.modalWrap,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: workbench_module_default.scrim,
-					onClick: onClose
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: width === "narrow" ? `${workbench_module_default.modal} ${workbench_module_default.modalNarrow}` : workbench_module_default.modal,
-					role: "dialog",
-					"aria-modal": "true",
-					"aria-labelledby": labelledBy,
-					children
-				})]
 			});
 		}
 		/** The inline rename field: Enter or blur commits, Escape abandons. */
@@ -8547,9 +8795,10 @@ window.__ModuleLoader__.load({
 			const [value, setValue] = (0, react.useState)(initial);
 			const [abandoned, setAbandoned] = (0, react.useState)(false);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-				className: workbench_module_default.renameInput,
+				className: pipeline_module_default.renameInput,
 				value,
 				"aria-label": t("pipeRenameLabel"),
+				maxLength: 24,
 				autoFocus: true,
 				onChange: (event) => {
 					setValue(event.target.value);
