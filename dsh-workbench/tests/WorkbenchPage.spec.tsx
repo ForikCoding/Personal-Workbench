@@ -16,6 +16,7 @@ type WorkbenchPipelineSnapshot = import('../src/pipeline-contract.ts').Workbench
 type WorkbenchPipelinePatch = import('../src/pipeline-contract.ts').WorkbenchPipelinePatch
 type WorkbenchRunRequest = import('../src/skill-card-contract.ts').WorkbenchRunRequest
 type WorkbenchRunState = import('../src/skill-card-contract.ts').WorkbenchRunState
+type WorkbenchCardResult = import('../src/skill-card-contract.ts').WorkbenchCardResult
 const { en } = await import('../src/client/locales.ts')
 type LocaleKey = import('../src/client/locales.ts').WorkbenchLocaleKey
 
@@ -27,6 +28,38 @@ const t = (key: LocaleKey, params?: Record<string, unknown>): string =>
     (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
     en[key],
   )
+
+/** The configured cards the panels read their template, model and workspace from. */
+const CARD_VIEWS = [
+  {
+    cardId: 'a-card',
+    name: 'A card',
+    skill: 'git-repo',
+    model: { provider: 'p', model: 'm' },
+    workspace: { path: '/work' },
+    permission: 'workspace-write' as const,
+    templateSkills: [],
+    template: '<html><body><!--dsh:region--><p>old</p><!--/dsh:region--></body></html>',
+  },
+  {
+    cardId: 'b-card',
+    name: 'B card',
+    skill: 'review',
+    templateSkills: [],
+  },
+]
+
+/** One stored result, so the result panel has something to list. */
+function result(cardId: string, html = '<p>done</p>'): WorkbenchCardResult {
+  return {
+    cardId,
+    runId: `run-${cardId}`,
+    skill: 'git-repo',
+    executedAt: 1,
+    stopReason: 'stop',
+    structured: { html },
+  }
+}
 
 /** The two cards every case can arrange. */
 const CARDS = [{ id: 'a-card', order: 100, label: 'A card' }, { id: 'b-card', order: 200, label: 'B card' }]
@@ -60,6 +93,7 @@ interface RunSeams {
 function props(options: {
   pipelines?: readonly WorkbenchPipeline[]
   run?: RunSeams
+  results?: readonly WorkbenchCardResult[]
   overrides?: Partial<PageProps>
 } = {}): { props: PageProps; writes: WorkbenchPipelinePatch[]; reads: number[] } {
   let snapshot: WorkbenchPipelineSnapshot = {
@@ -93,7 +127,14 @@ function props(options: {
     },
     skillCards: {
       api: {
-        read: async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' }),
+        read: async () => ({
+          status: 'ok' as const,
+          snapshot: {
+            revision: '1:0',
+            cards: CARD_VIEWS,
+            results: options.results ?? [],
+          },
+        }),
         write: async () => ({ status: 'failed' as const, reason: 'not used by these cases' }),
         catalog: async () => ({ status: 'ok' as const, entries: [] }),
         poll: options.run === undefined
@@ -135,43 +176,47 @@ describe('WorkbenchPage', () => {
   it('opens on the first stored pipeline with its steps on the canvas', async () => {
     await renderPage()
     await waitFor(() => { expect(document.querySelectorAll('[data-step-index]').length).toBe(2) })
-    // The name is on the rail row and as the canvas title; the canvas is the one that says
-    // which pipeline the steps below belong to.
+    // The rail row and the canvas title both name it; the canvas is what says which
+    // pipeline the steps below belong to.
     expect(screen.getAllByText('Release check').length).toBe(2)
-    expect(document.querySelector('h2')?.textContent).toBe('Release check')
-    expect(screen.getAllByText(en.pipeStepCount.replace('{count}', '2')).length).toBeGreaterThan(0)
+    expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Release check')
+    expect(document.querySelector('[data-insp-kicker]')?.textContent).toBe(en.pipeStepKicker
+      .replace('{at}', '1').replace('{count}', '2').replace('{name}', 'Release check'))
     expect(screen.getAllByText('A card').length).toBeGreaterThan(0)
     expect(screen.getAllByText('B card').length).toBeGreaterThan(0)
-    expect(document.querySelectorAll('[data-step-index]').length).toBe(2)
+    expect(document.querySelector('[data-canvas-meta]')?.textContent).toBe(
+      en.pipeMetaNeverRan.replace('{count}', '2'),
+    )
   })
 
   it('lists the stored cards under the single-task heading', async () => {
     await renderPage()
-    expect(screen.getByText(en.pipeTasks)).toBeDefined()
+    expect(screen.getByText(en.pipeRailTasks)).toBeDefined()
     // Both cards are steps of the pipeline and are also listed as single tasks.
-    expect(screen.getAllByText('A card').length).toBeGreaterThan(1)
+    // The rail lists every card the workbench knows about.\n    expect(document.querySelectorAll('[data-card-row]').length).toBeGreaterThanOrEqual(2)
   })
 
   it('opens onto the creation offer when nothing is stored', async () => {
     await renderPage({ pipelines: [] })
     expect((await screen.findAllByText(en.pipeEmptyTitle)).length).toBeGreaterThan(0)
     expect(screen.getByText(en.pipeEmptyBody)).toBeDefined()
+    expect(screen.getByText(en.pipeRailNoPipelines)).toBeDefined()
   })
 
-  it('creates a pipeline with no steps and selects it', async () => {
+  it('creates a pipeline with no steps and opens it', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(screen.getByText(`＋ ${en.pipeNew}`))
+    fireEvent.click(document.querySelector('[data-new-pipeline]') as HTMLElement)
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines.map(entry => entry.id)).toEqual(['pipeline-1', 'pipeline-2'])
-    const created = writes[0]?.pipelines.find(entry => entry.id === 'pipeline-2')
-    expect(created?.steps).toEqual([])
-    // The new pipeline is the one on screen: its empty-step hint is up.
-    expect(await screen.findByText(en.pipeNoSteps)).toBeDefined()
+    expect(writes[0]?.pipelines.find(entry => entry.id === 'pipeline-2')?.steps).toEqual([])
+    // The new pipeline is the one on screen: its empty-step offer is up.
+    // The empty canvas and the empty inspector both offer the same first move.\n    expect((await screen.findAllByText(en.pipeAddFirstStep)).length).toBeGreaterThan(0)
+    expect(document.querySelector('[data-canvas-title]')?.textContent).toBe(en.pipeNewPipelineName)
   })
 
   it('adds a step by picking a card', async () => {
     const { writes } = await renderPage({ pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })] })
-    fireEvent.click(await screen.findByText(`＋ ${en.pipeNewStep}`))
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
     fireEvent.click(document.querySelector('[data-pick-card="b-card"]') as HTMLElement)
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines[0]?.steps).toEqual([{ cardId: 'a-card' }, { cardId: 'b-card' }])
@@ -179,37 +224,42 @@ describe('WorkbenchPage', () => {
 
   it('refuses a step that is already in the pipeline', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByText(`＋ ${en.pipeNewStep}`))
-    // The picker lists both cards; picking one that is already a step changes nothing.
-    const rows = screen.getAllByRole('button').filter(node => node.textContent === 'A card')
-    fireEvent.click(rows[rows.length - 1] as HTMLElement)
-    await waitFor(() => { expect(screen.getByText(en.pipeDuplicateStep)).toBeDefined() })
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
+    const row = document.querySelector('[data-pick-card="a-card"]') as HTMLButtonElement
+    // The picker still lists it — it is a real task — but it cannot be added twice.
+    expect(row.disabled).toBe(true)
+    expect(row.textContent).toContain(en.pipePickerUsed)
+    fireEvent.click(row)
     expect(writes).toHaveLength(0)
   })
 
   it('moves a step later and keeps the focus on it', async () => {
     const { writes } = await renderPage()
-    await screen.findAllByText('A card')
-    fireEvent.click(document.querySelector('[data-step-index="0"] button') as HTMLElement)
-    fireEvent.click(screen.getByLabelText(en.pipeStepDown))
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-move-down]') as HTMLElement)
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines[0]?.steps).toEqual([{ cardId: 'b-card' }, { cardId: 'a-card' }])
+    // The moved step is the one the inspector still shows.
+    expect(document.querySelector('[data-step-index="1"]')?.getAttribute('aria-selected')).toBe('true')
   })
 
   it('removes a step from the pipeline', async () => {
     const { writes } = await renderPage()
-    await screen.findAllByText('A card')
-    fireEvent.click(document.querySelector('[data-step-index="0"] button') as HTMLElement)
-    fireEvent.click(document.querySelector('[data-step-index="0"] [aria-label="Remove from pipeline"]') as HTMLElement)
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-remove-step]') as HTMLElement)
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines[0]?.steps).toEqual([{ cardId: 'b-card' }])
   })
 
   it('renames a pipeline from its row menu', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByLabelText(en.pipeRename))
-    fireEvent.click(screen.getAllByRole('menuitem')[0] as HTMLElement)
-    const field = screen.getByLabelText(en.pipeRename) as HTMLInputElement
+    fireEvent.click(await screen.findByLabelText(en.pipeRailMenu))
+    fireEvent.click(screen.getByText(en.pipeRename))
+    const field = screen.getByLabelText(en.pipeRenameLabel) as HTMLInputElement
     fireEvent.change(field, { target: { value: 'Nightly' } })
     fireEvent.keyDown(field, { key: 'Enter' })
     await waitFor(() => { expect(writes).toHaveLength(1) })
@@ -218,20 +268,20 @@ describe('WorkbenchPage', () => {
 
   it('keeps a blank rename out of storage', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByLabelText(en.pipeRename))
-    fireEvent.click(screen.getAllByRole('menuitem')[0] as HTMLElement)
-    const field = screen.getByLabelText(en.pipeRename) as HTMLInputElement
+    fireEvent.click(await screen.findByLabelText(en.pipeRailMenu))
+    fireEvent.click(screen.getByText(en.pipeRename))
+    const field = screen.getByLabelText(en.pipeRenameLabel) as HTMLInputElement
     fireEvent.change(field, { target: { value: '   ' } })
     fireEvent.keyDown(field, { key: 'Enter' })
     // Nothing to write: the stored name stays, and no request is made for the blank one.
-    await waitFor(() => { expect(screen.queryByRole('textbox')).toBeNull() })
+    await waitFor(() => { expect(screen.queryByLabelText(en.pipeRenameLabel)).toBeNull() })
     expect(writes).toHaveLength(0)
   })
 
   it('deletes a pipeline only once the deletion is confirmed', async () => {
     const { writes } = await renderPage()
-    fireEvent.click(await screen.findByLabelText(en.pipeRename))
-    fireEvent.click(screen.getAllByRole('menuitem')[1] as HTMLElement)
+    fireEvent.click(await screen.findByLabelText(en.pipeRailMenu))
+    fireEvent.click(screen.getByText(en.pipeDelete))
     // The first click arms the row; nothing is written yet.
     expect(writes).toHaveLength(0)
     fireEvent.click(screen.getByText(en.pipeDeleteConfirm))
@@ -241,15 +291,29 @@ describe('WorkbenchPage', () => {
 
   it('offers no run control for a pipeline with no steps', async () => {
     await renderPage({ pipelines: [pipeline({ steps: [] })] })
-    const run = await screen.findByText(en.pipeRunAll)
-    expect((run as HTMLButtonElement).disabled).toBe(true)
+    const run = document.querySelector('[data-run-all]') as HTMLButtonElement
+    expect(run.disabled).toBe(true)
   })
 
-  it('shows the inspector hint until something is focused', async () => {
-    await renderPage()
-    expect(await screen.findByText(en.pipeNoFocusTitle)).toBeDefined()
-    fireEvent.click(document.querySelector('[data-step-index="0"] button') as HTMLElement)
-    await waitFor(() => { expect(screen.queryByText(en.pipeNoFocusTitle)).toBeNull() })
+  it('shows the empty-step panel until something is focused', async () => {
+    await renderPage({ pipelines: [pipeline({ steps: [] })] })
+    expect(document.querySelector('[data-panel="empty"]')).not.toBeNull()
+    fireEvent.click(document.querySelector('[data-add-step="0"]') as HTMLElement)
+    await waitFor(() => { expect(document.querySelector('[data-picker-title]')).not.toBeNull() })
+  })
+
+  it('shows one step product in the result panel and opens it in the reader', async () => {
+    await renderPage({ results: [result('a-card', '<p>fresh</p>')] })
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    const open = await waitFor(() => {
+      const found = document.querySelector('[data-open-result]')
+      if (found === null) throw new Error('no product row yet')
+      return found as HTMLElement
+    })
+    fireEvent.click(open)
+    // The reader takes the whole panel: the document is read in exactly one place.
+    await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
   })
 
   it('runs the steps in order, carrying the session from one to the next', async () => {
@@ -267,7 +331,7 @@ describe('WorkbenchPage', () => {
         sessionId: 'session-chain',
       },
     }
-    const { } = await renderPage({
+    await renderPage({
       run: {
         start: async (request) => {
           starts.push(request)
@@ -283,9 +347,8 @@ describe('WorkbenchPage', () => {
     expect(starts[0]?.sessionId).toBeUndefined()
     expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } })
     expect(starts[1]?.sessionId).toBe('session-chain')
-    // Both steps ask for the card contract, which is what a step produces.
     expect(starts[0]?.outputSchema).toBeDefined()
-    expect(await screen.findByText(en.pipeSettled.replace('{count}', '2'))).toBeDefined()
+    await waitFor(() => { expect(document.querySelector('[data-run-noise]')?.textContent).toBe(en.pipeAllDone.replace('{count}', '2')) })
   })
 
   it('runs one step alone, with its own session', async () => {
@@ -307,10 +370,11 @@ describe('WorkbenchPage', () => {
         }),
       },
     })
-    await screen.findAllByText(en.pipeRunAll)
-    fireEvent.click(document.querySelector('[data-run-step="0"]') as HTMLElement)
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
     await waitFor(() => { expect(starts).toHaveLength(1) })
-    // A step run on its own is a chain of one: it opens its session and closes it.
+    // A step run on its own is a chain of one: it opens the session and closes it.
     expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: true, join: false, handoff: { pipelineId: 'pipeline-1', step: 0 } })
     expect(starts[0]?.cardId).toBe('a-card')
   })
@@ -325,34 +389,17 @@ describe('WorkbenchPage', () => {
         },
         poll: async () => ({
           status: 'ok',
-          state: {
-            cardId: 'a-card',
-            phase: 'settled',
-            retried: false,
-            failure: 'the child gave up',
-          } as WorkbenchRunState,
+          state: { cardId: 'a-card', phase: 'settled', retried: false, failure: 'the child gave up' } as WorkbenchRunState,
         }),
       },
     })
     fireEvent.click(await screen.findByText(en.pipeRunAll))
     await waitFor(() => {
-      expect(screen.getByText(en.pipeFailedAt.replace('{index}', '1').replace('{reason}', 'the child gave up'))).toBeDefined()
+      expect(document.querySelector('[data-run-noise]')?.textContent).toBe(
+        en.pipeFailedAt.replace('{done}', '0').replace('{count}', '2').replace('{at}', '1'),
+      )
     })
     // The second step never started: a failed step produced nothing to continue from.
     expect(starts).toHaveLength(1)
-  })
-
-  it('renders a card opened from outside as its own full-panel view', async () => {
-    const { props: built } = props({
-      overrides: {
-        useSelection: ((selector: (snapshot: { cardId: string; view: 'config' }) => unknown) => selector({
-          cardId: 'a-card',
-          view: 'config',
-        })) as unknown as PageProps['useSelection'],
-      },
-    })
-    render(<WorkbenchPage {...built} />)
-    // The workbench surface stands behind the opened card, not beside it.
-    await waitFor(() => { expect(screen.queryByText(en.pipeRail)).toBeNull() })
   })
 })

@@ -12,11 +12,12 @@
  * @module dsh-workbench/client/pipeline/pipeline-run
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { WORKBENCH_OUTPUT_SCHEMA } from '../../skill-card-contract.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../../pipeline-contract.ts'
 import type { WorkbenchRunState } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts'
+import type { PipelineRunEntry, PipelineRunStep } from './pipeline-view.ts'
 
 /** How one step of a chain stands. */
 export type PipelineStepPhase = 'idle' | 'queued' | 'running' | 'done' | 'failed' | 'stopped'
@@ -204,8 +205,17 @@ export async function runSteps(
   return ended('settled')
 }
 
+/** How many runs one pipeline keeps in this page, newest first. */
+const HISTORY_LIMIT = 20
+
+/** What a pipeline with no runs answers. */
+const EMPTY_HISTORY: readonly PipelineRunEntry[] = []
+
 /** How often a running step is polled. */
 const POLL_INTERVAL_MS = 1_200
+
+/** How many reads a chain waits for a run id the card no longer reports. */
+const MISS_LIMIT = 3
 
 /** What the run hook needs from its host. */
 export interface UsePipelineRunOptions {
@@ -237,6 +247,19 @@ export interface PipelineRunFace {
   runOne(pipeline: WorkbenchPipeline, index: number): void
   /** Stop the chain that is running, if one is. */
   stop(): void
+  /**
+   * Regenerate one step from a request about its result.
+   * @param pipeline - the pipeline the step belongs to.
+   * @param index - the step index.
+   * @param instruction - what to change.
+   */
+  refine(pipeline: WorkbenchPipeline, index: number, instruction: string): void
+  /**
+   * The runs this page has seen for one pipeline, newest first.
+   * @param pipelineId - the pipeline to read.
+   * @returns its runs; empty when it has not run here.
+   */
+  history(pipelineId: string): readonly PipelineRunEntry[]
 }
 
 /**
@@ -248,12 +271,77 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
   const { api, scopeSessionId } = options
   const pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS
   const [chain, setChain] = useState<PipelineChain | undefined>(undefined)
+  const [historyOf, setHistory] = useState<Record<string, PipelineRunEntry[]>>({})
   // One chain at a time: a second start supersedes the first, and the first notices at
   // its next seam by finding a different token.
   const token = useRef(0)
   const abort = useRef<AbortController | undefined>(undefined)
 
-  const start = useCallback((pipeline: WorkbenchPipeline, from: number, to: number) => {
+  // Leaving the surface ends the chain: a poll loop outliving its panel would keep asking
+  // the Host about a run nobody is watching, and never stop.
+  useEffect(() => () => { abort.current?.abort() }, [])
+
+  /**
+   * Record one finished run, with what each step left behind.
+   *
+   * The snapshot is read once, after the run, from the results the Host already stores: a
+   * run's own record has no history behind it, and the reader needs the region as it was.
+   * A read that fails still records the run — the step list is worth keeping even when the
+   * products can no longer be shown.
+   */
+  const finish = useCallback(async (
+    pipeline: WorkbenchPipeline,
+    result: ChainResult,
+    ask: { scope: PipelineRunEntry['scope']; instruction?: string; previous?: string },
+    from: number,
+    startedAt: number,
+  ) => {
+    const products = new Map<string, string>()
+    const read = await api.read()
+    if (read.status === 'ok') {
+      for (const stored of read.snapshot.results) {
+        const html = htmlOf(stored.structured)
+        if (html !== undefined && !products.has(stored.cardId)) products.set(stored.cardId, html)
+      }
+    }
+    const steps: PipelineRunStep[] = []
+    result.steps.forEach((outcome, index) => {
+      // A step the run did not reach has nothing to say about this run.
+      if (outcome.phase === 'idle') return
+      const cardId = pipeline.steps[index]?.cardId
+      if (cardId === undefined) return
+      const html = products.get(cardId)
+      steps.push({
+        cardId,
+        phase: outcome.phase,
+        ...outcome.tookMs === undefined ? {} : { tookMs: outcome.tookMs },
+        ...outcome.failure === undefined ? {} : { failure: outcome.failure },
+        ...html === undefined ? {} : { html },
+      })
+    })
+    const entry: PipelineRunEntry = {
+      no: 0,
+      startedAt,
+      tookMs: Date.now() - startedAt,
+      phase: result.phase === 'settled' ? 'settled' : result.phase === 'failed' ? 'failed' : 'stopped',
+      scope: ask.scope,
+      ...ask.scope === 'full' ? {} : { only: from },
+      ...ask.instruction === undefined ? {} : { instruction: ask.instruction },
+      steps,
+    }
+    setHistory(current => {
+      const list = current[pipeline.id] ?? []
+      const numbered: PipelineRunEntry = { ...entry, no: list.length + 1 }
+      return { ...current, [pipeline.id]: [numbered, ...list].slice(0, HISTORY_LIMIT) }
+    })
+  }, [api])
+
+  const start = useCallback((
+    pipeline: WorkbenchPipeline,
+    from: number,
+    to: number,
+    ask: { scope: PipelineRunEntry['scope']; instruction?: string; previous?: string },
+  ) => {
     if (pipeline.steps.length === 0 || from > to) return
     token.current += 1
     const mine = token.current
@@ -282,25 +370,30 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
           activeIndex: index,
         })
       },
-      start: async (_index, step, ask) => {
+      start: async (index, step, seam) => {
         const scope = scopeSessionId?.()
+        const regenerate = ask.previous !== undefined && ask.instruction !== undefined
         const result = await api.start({
           cardId: step.cardId,
           // A joining step names the session it continues; the first step names none and
           // the Host opens one for it. `join` states which of the two this is, so a chain
           // that lost its session is refused instead of quietly starting over.
-          ...ask.sessionId === undefined ? {} : { sessionId: ask.sessionId },
+          ...seam.sessionId === undefined ? {} : { sessionId: seam.sessionId },
           ...scope === undefined ? {} : { scopeSessionId: scope },
-          mode: {
-            kind: 'step',
-            terminal: ask.terminal,
-            join: ask.sessionId !== undefined,
-            // Which pipeline and step this is, so the run leaves a note the later steps can
-            // read when the conversation is gone. Sent on every step, joined or not: a note
-            // is written by every step, read only by one that cannot join.
-            handoff: { pipelineId: pipeline.id, step: _index },
-          },
-          ...ask.instruction === undefined ? {} : { instruction: ask.instruction },
+          mode: regenerate
+            // A regeneration is its own kind of run: it starts from the result the user is
+            // looking at, so it needs no session to continue and no hand-off to write.
+            ? { kind: 'refine', instruction: ask.instruction as string, previous: ask.previous as string }
+            : {
+                kind: 'step',
+                terminal: seam.terminal,
+                join: seam.sessionId !== undefined,
+                // Which pipeline and step this is, so the run leaves a note the later steps
+                // can read when the conversation is gone. Sent on every step, joined or
+                // not: a note is written by every step, read by one that cannot join.
+                handoff: { pipelineId: pipeline.id, step: index },
+              },
+          ...seam.instruction === undefined ? {} : { instruction: seam.instruction },
           outputSchema: WORKBENCH_OUTPUT_SCHEMA,
         })
         if (result.status === 'ok') {
@@ -322,16 +415,33 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
         ...result.sessionId === undefined ? {} : { sessionId: result.sessionId },
         ...result.failure === undefined ? {} : { failure: result.failure },
       })
+      void finish(pipeline, result, ask, from, startedAt)
     })
-  }, [api, pollIntervalMs, scopeSessionId])
+  }, [api, pollIntervalMs, scopeSessionId, finish])
 
   const runAll = useCallback((pipeline: WorkbenchPipeline) => {
-    start(pipeline, 0, pipeline.steps.length - 1)
+    start(pipeline, 0, pipeline.steps.length - 1, { scope: 'full' })
   }, [start])
 
   const runOne = useCallback((pipeline: WorkbenchPipeline, index: number) => {
-    start(pipeline, index, index)
+    start(pipeline, index, index, { scope: 'single' })
   }, [start])
+
+
+  const refine = useCallback((pipeline: WorkbenchPipeline, index: number, instruction: string) => {
+    void (async () => {
+      const read = await api.read()
+      if (read.status !== 'ok') return
+      const cardId = pipeline.steps[index]?.cardId
+      if (cardId === undefined) return
+      const stored = read.snapshot.results.find(entry => entry.cardId === cardId)
+      const previous = htmlOf(stored?.structured)
+      if (previous === undefined || previous.trim() === '') return
+      start(pipeline, index, index, { scope: 'refine', instruction, previous })
+    })()
+  }, [api, start])
+
+  const history = useCallback((pipelineId: string) => historyOf[pipelineId] ?? EMPTY_HISTORY, [historyOf])
 
   const stop = useCallback(() => {
     // Bumping the token is what makes the wait give up: the polling loop checks the
@@ -341,7 +451,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     setChain(current => current === undefined ? current : { ...current, phase: 'stopped' })
   }, [])
 
-  return { chain, runAll, runOne, stop }
+  return { chain, runAll, runOne, stop, refine, history }
 }
 
 /**
@@ -360,6 +470,7 @@ export async function settleRun(
   signal: AbortSignal,
   intervalMs: number,
 ): Promise<ChainSettleOutcome> {
+  let misses = 0
   for (;;) {
     if (signal.aborted) return { phase: 'cancelled' }
     const read = await api.poll(cardId, signal).catch(() => undefined)
@@ -370,6 +481,18 @@ export async function settleRun(
     const state = pickRun(read.state, runId)
     if (state !== undefined && (state.phase === 'settled' || state.phase === 'cancelled')) {
       return outcomeOf(state)
+    }
+    // A card reports its newest run, so the run a chain follows can fall out of the answer
+    // while it is still being read. Waiting for an id that will never come back would wait
+    // for as long as the panel is open, so after a few reads the card's own terminal state
+    // is taken as the answer: it is the truth about what that card last did.
+    if (state === undefined) {
+      misses += 1
+      if (misses >= MISS_LIMIT && (read.state.phase === 'settled' || read.state.phase === 'cancelled')) {
+        return outcomeOf(read.state)
+      }
+    } else {
+      misses = 0
     }
     await sleep(intervalMs)
   }
@@ -423,4 +546,18 @@ export function tookOf(ms: number): string {
   if (seconds < 60) return `${String(seconds)}s`
   const minutes = Math.floor(seconds / 60)
   return `${String(minutes)}m${String(seconds % 60).padStart(2, '0')}s`
+}
+/**
+ * The region a stored result carries.
+ *
+ * The output contract is `{ html }`, so a result's product is a string under that key. It
+ * is read defensively anyway: a record written by an older build has no such field, and a
+ * reader that assumed one would throw on a card nobody has re-run since.
+ * @param structured - the result's structured answer, when it kept one.
+ * @returns the region HTML, or undefined when the record carries none.
+ */
+function htmlOf(structured: unknown): string | undefined {
+  if (typeof structured !== 'object' || structured === null) return undefined
+  const value = (structured as { html?: unknown }).html
+  return typeof value === 'string' ? value : undefined
 }

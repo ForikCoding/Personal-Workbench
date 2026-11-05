@@ -220,6 +220,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
       <WorkbenchPipeline
         pipelines={pipelines}
         run={run}
+        api={skillCards.api}
         facts={facts}
         renderCard={renderCard}
         onCreateCard={createCard}

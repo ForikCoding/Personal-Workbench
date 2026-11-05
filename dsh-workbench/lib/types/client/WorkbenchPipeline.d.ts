@@ -1,19 +1,20 @@
 /**
- * The pipeline workbench: a rail of pipelines and single cards, a canvas of steps, and
- * an inspector showing the focused step.
+ * The pipeline workbench: routes on the left, the chain in the middle, one step on the right.
  *
- * The three zones are the panel's whole surface — there is no separate grid behind them.
- * A pipeline is an ordered list of cards, so a step is a card plus its position; the
- * cards themselves are configured, run and read through the same pages the panel already
- * had, which the inspector mounts rather than reimplements.
+ * Three zones that answer three different questions, and none of them duplicates another:
+ * the rail says which pipelines exist, the canvas says what the chain is doing, and the
+ * inspector says what one step produced, did, and is configured to do. Everything a step
+ * *is* lives in its card — the pipeline only holds an order — so this surface never edits a
+ * card's template; the inspector mounts the card's own page for that.
  * @module dsh-workbench/client/WorkbenchPipeline
  */
 import { type ReactNode } from 'react';
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts';
 import type { PipelineRunFace } from './pipeline/pipeline-run.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
+import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
-/** One card's full-panel views the inspector can mount. */
+/** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result';
 /** Props of the pipeline workbench. */
 export interface WorkbenchPipelineProps {
@@ -23,6 +24,8 @@ export interface WorkbenchPipelineProps {
     readonly run: PipelineRunFace;
     /** Cards the workbench knows about, as the rail lists them. */
     readonly facts: readonly WorkbenchCardFact[];
+    /** Transport, so a step's stored result can be read without threading it through the page. */
+    readonly api: WorkbenchSkillCardApi;
     /**
      * Mount one card's own view.
      * @param cardId - the card to show.
@@ -43,7 +46,7 @@ export interface WorkbenchPipelineProps {
 }
 /**
  * Render the pipeline workbench.
- * @param props - stored pipelines, run engine, cards, the inspector's card views, and `t`.
+ * @param props - stored pipelines, run engine, cards, transport, card views, and `t`.
  * @returns the three-zone surface.
  */
 export declare function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode;

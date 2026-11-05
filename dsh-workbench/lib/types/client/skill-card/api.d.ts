@@ -8,6 +8,7 @@
  * @module dsh-workbench/client/skill-card/api
  */
 import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchDirectoryStat, WorkbenchRunCapabilities, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+export type { WorkbenchCardConfigView, WorkbenchCardResult } from '../../skill-card-contract.ts';
 /** Fetch seam so tests can drive transport without a server. */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 /** Configuration and results the page renders from. */

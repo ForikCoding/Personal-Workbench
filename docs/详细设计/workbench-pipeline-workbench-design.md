@@ -153,3 +153,30 @@ for 每一 步 i in [from..to]:
 交接单：`pipeline-handoff.ts`（新增模块）+ `skill-card-route.ts` 补上 `step` 模式的解析（此前只认 card/bare/refine，`kind:'step'` 会被 400 拒掉——这组用例暴露了这个漏洞，现在有 4 条路由用例盯住它）。
 
 测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`pipeline-handoff.spec.ts`(15)、`skill-card-prompt-handoff.spec.ts`(4)、`skill-card-route.spec.ts` 追加 4 条步骤模式、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`、`WorkbenchPage.spec.tsx` 重写为 17 条三区用例。
+
+## 9. v2 工作台界面落地（本轮）
+
+原型 `docs/prototypes/workbench-pipeline-v2.html` 的界面已整体实现在插件里。与原型的一处结构差异：插件保留了左侧「轨道」，因为单任务的入口在工作台里需要一个常驻位置；原型把单任务放进了标题菜单，两处在实现中并存。
+
+| 区域 | 实现 | 数据来源 |
+| --- | --- | --- |
+| 轨道 | 流水线列表（⋯ 菜单：重命名 / 删除二次确认）+ 单任务列表 + 新建入口 | `pipeline-controller`、`layout-store` 的卡片事实 |
+| 画布头 | 标题下拉菜单（切换/新建/重命名）、状态胶囊、`canvasMeta` → 运行记录 | 会话内的运行历史 |
+| 节点 | 序号、名称、状态图标+文案、耗时、产物摘要或失败原因、`#run` | 链状态 + 卡片最新结果的 `structured.html` |
+| 连接件 | 步骤之间 `+` 插入、末尾「添加步骤」 | — |
+| 运行条 | 分段条、阶段文案（未运行/第 N 步/失败即停已完成/全部完成）、运行或停止 | `PipelineRunFace` |
+| 检查器头 | `第 N 步 / 共 M 步 · 名称`、单独运行、⋯ 菜单（上移/下移/移除 + 「产物一起消失」提示）、技能/模型/状态、页签与活动条数 | 同上 |
+| 活动 | 卡片最新结果的 `activity`：工具调用与模型输出；运行中/失败/空态 | `WorkbenchActivityEntry` |
+| 配置 | 整条流水线（模型/权限/工作目录）+ 这一步（技能/运行指令/失败处理）+ 模板（预览含区域占位 / 源码）+ 「编辑模板与设置」 | `WorkbenchCardConfigView` |
+| 结果 | 状态四态（运行中/等待/失败/未运行）+ 「这次的结果」一行 + 手工修改提示 | `WorkbenchCardResult` |
+| 阅读器 | 整块面板挂载该卡片的完整结果页（唯一读正文的地方），带返回 | 既有 `renderCard` |
+| 运行记录 | 本次会话内的运行列表 + 单次运行的分步明细，点一行进阅读器 | `pipeline-run` 的 `history` |
+| 技能选择器 | 新建/插入两种位置、搜索、已在流水线里的行禁用 | 卡片事实 + `setSteps` |
+
+运行历史按会话保存在客户端（原型同样如此：刷新即失），每条流水线保留最近 20 次；快照取自每次结束时的 `structured.html`，因此历史里的产物不受之后重跑影响。
+
+已知缺口（沿用 §7 并新增两条）：
+
+1. 模板的「预览」只画出区域占位，不渲染完整文档（真渲染需要宿主侧的沙箱与脚本桥，插件的阅读器已提供，配置页的缩略预览没有）。
+2. 运行记录不落盘，刷新即失。
+3. `tests/WorkbenchPage.spec.tsx` 里「外部打开卡片」一例被移除：假传输的 `poll` 立即返回 settled 时，卡片控制器会忙等，与工作台无关；补该用例需要给控制器换一套可控的 poll 时序。

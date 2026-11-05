@@ -19,6 +19,8 @@ import type {
   WorkbenchSkillCardPatch,
   WorkbenchSkillCatalogEntry,
 } from '../../skill-card-contract.ts'
+
+export type { WorkbenchCardConfigView, WorkbenchCardResult } from '../../skill-card-contract.ts'
 import {
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_CATALOG_PATH,

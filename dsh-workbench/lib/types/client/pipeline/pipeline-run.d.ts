@@ -13,6 +13,7 @@
  */
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../../pipeline-contract.ts';
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts';
+import type { PipelineRunEntry } from './pipeline-view.ts';
 /** How one step of a chain stands. */
 export type PipelineStepPhase = 'idle' | 'queued' | 'running' | 'done' | 'failed' | 'stopped';
 /** What one step of a chain did. */
@@ -156,6 +157,19 @@ export interface PipelineRunFace {
     runOne(pipeline: WorkbenchPipeline, index: number): void;
     /** Stop the chain that is running, if one is. */
     stop(): void;
+    /**
+     * Regenerate one step from a request about its result.
+     * @param pipeline - the pipeline the step belongs to.
+     * @param index - the step index.
+     * @param instruction - what to change.
+     */
+    refine(pipeline: WorkbenchPipeline, index: number, instruction: string): void;
+    /**
+     * The runs this page has seen for one pipeline, newest first.
+     * @param pipelineId - the pipeline to read.
+     * @returns its runs; empty when it has not run here.
+     */
+    history(pipelineId: string): readonly PipelineRunEntry[];
 }
 /**
  * Drive one pipeline run from the page.
