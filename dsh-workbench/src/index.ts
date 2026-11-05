@@ -16,6 +16,10 @@ import { WORKBENCH_LAYOUT_DOMAIN, WORKBENCH_LAYOUT_TABLE } from './layout-spec.t
 import { createWorkbenchLayoutHandler } from './layout-route.ts'
 import type { WorkbenchHostContext } from './layout-route.ts'
 import { WorkbenchLayoutService } from './layout-service.ts'
+import { WORKBENCH_PIPELINE_MAX_PIPELINES, WORKBENCH_PIPELINE_PATH } from './pipeline-contract.ts'
+import { WORKBENCH_PIPELINE_DOMAIN, WORKBENCH_PIPELINE_TABLE } from './pipeline-spec.ts'
+import { createWorkbenchPipelineHandler } from './pipeline-route.ts'
+import { WorkbenchPipelineService } from './pipeline-service.ts'
 import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_DIRECTORY_PATH, WORKBENCH_SKILL_CARD_FILES_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
 import type { WorkbenchSandboxMode } from './skill-card-contract.ts'
 import {
@@ -354,4 +358,42 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
       await domain.close()
     }
   }, 'workbench: skill card domain and route')
+
+  // Pipeline definitions get their own domain and route rather than riding on the card
+  // domain. They are a different lifetime: a pipeline outlives the cards in it, and a
+  // pipeline naming a card that was deleted is a definition to repair rather than a
+  // corrupt record — so one write must not be able to take a card's template with it.
+  ctx.effect(async () => {
+    const host = ctx as unknown as WorkbenchHostContext
+    const domain = await ctx.storageDomain.open(WORKBENCH_PIPELINE_DOMAIN)
+    let service: WorkbenchPipelineService
+    try {
+      service = new WorkbenchPipelineService({
+        domainName: domain.name,
+        table: domain.table(WORKBENCH_PIPELINE_TABLE),
+        events: {
+          on: (_event, listener) => ctx.on('domain/changed', change => { listener(change) }),
+        },
+        maxPipelines: WORKBENCH_PIPELINE_MAX_PIPELINES,
+        bootStamp: Date.now(),
+      })
+    } catch (error) {
+      await domain.close()
+      throw error
+    }
+    const disposeRoute = ctx.effect(() => host.webServer.register({
+      kind: 'exact',
+      path: WORKBENCH_PIPELINE_PATH,
+      handler: createWorkbenchPipelineHandler({
+        service,
+        fence: host.connection,
+        warn: message => { ctx.logger.warn(message) },
+      }),
+    }), 'workbench: pipeline route')
+    return async () => {
+      disposeRoute()
+      service.dispose()
+      await domain.close()
+    }
+  }, 'workbench: pipeline domain and route')
 }

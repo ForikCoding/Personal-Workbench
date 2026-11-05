@@ -1078,6 +1078,26 @@ export type WorkbenchRunMode =
     /** The region HTML the revision starts from, verbatim. */
     readonly previous: string
   }
+  /**
+   * Step run: one step of a pipeline, continuing the session the previous step used.
+   *
+   * A step fills its card's region exactly as a card run does — same template, same
+   * `{ html }` output contract, same record — and differs only in where it runs: in the
+   * session the pipeline's first step opened, named by
+   * {@link WorkbenchRunRequest.sessionId}. That is what lets the second step see what the
+   * first one did without a hand-off document, because the conversation is the hand-off.
+   *
+   * `join` says whether the session is one to continue or one to open. The first step of a
+   * chain has nothing to continue yet, so it opens a session exactly as a card run does;
+   * every step after it joins that session. Naming `join` rather than inferring it from a
+   * missing session is what keeps a later step from silently becoming the first: a chain
+   * that lost its session would otherwise run without the context it exists for.
+   *
+   * `terminal` marks the last step of the chain. Every intermediate step settles without
+   * archiving its session, because the next step continues it; the terminal one archives,
+   * so a pipeline that ran to its end leaves the session list as it found it.
+   */
+  | { readonly kind: 'step'; readonly terminal: boolean; readonly join: boolean }
 
 /** Client-to-Host run start. */
 export interface WorkbenchRunRequest {
@@ -1092,6 +1112,10 @@ export interface WorkbenchRunRequest {
    * per run — omits it, and the Host opens a fresh session for the run, exactly as for a
    * card run or a bare run: rooted at the card's workspace and archived once the run
    * settles. For card and bare runs it is simply absent.
+   *
+   * For a step run it is mandatory: it names the session the pipeline opened, and a step
+   * without one is refused rather than silently promoted into a fresh session — that
+   * promotion would be a step that ran without seeing the steps before it.
    */
   readonly sessionId?: string
   /**

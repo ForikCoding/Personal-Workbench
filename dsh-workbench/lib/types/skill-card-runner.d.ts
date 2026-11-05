@@ -370,9 +370,14 @@ export declare class WorkbenchSkillCardRunner {
      *
      * A session that is not archived is left that way: it is on screen because someone is in
      * it, and hiding a conversation the user has open is not this run's decision.
-     * @param sessionId - the session recorded on the result being refined.
+     * @param sessionId - the session the run continues: the one a refinement revises, or
+     * the one a pipeline step picks up from the step before it.
      * @param route - the route to install on a resumed agent that was persisted without
      * one; see {@link publishRunSession} for the warrant.
+     * @param preset - the agent preset to compose a resumed agent under.
+     * @param archive - what the session is owed when this run settles. Refinements leave the
+     * state they found; a pipeline step overrides it, because the pipeline owns the session
+     * and only its terminal step closes it.
      * @returns the resolved session, or why it could not be restored.
      */
     private attachRunSession;

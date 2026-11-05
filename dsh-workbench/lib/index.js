@@ -165,11 +165,11 @@ function createWorkbenchLayoutHandler(options) {
 			return;
 		}
 		if (request.method === "GET") {
-			sendJson(response, 200, responseBody$1(options.service.read()));
+			sendJson(response, 200, responseBody$2(options.service.read()));
 			return;
 		}
 		if (request.method === "PATCH") {
-			handlePatch$1(options, request, response);
+			handlePatch$2(options, request, response);
 			return;
 		}
 		response.statusCode = 405;
@@ -184,22 +184,22 @@ function createWorkbenchLayoutHandler(options) {
 * @param request - the PATCH request.
 * @param response - the response to own.
 */
-async function handlePatch$1(options, request, response) {
+async function handlePatch$2(options, request, response) {
 	try {
 		const body = await readJsonBody(request, WORKBENCH_LAYOUT_MAX_BODY_BYTES);
 		if (body.status === "too-large") throw new LayoutRequestError(413, "invalid-request", "request body is too large");
 		if (body.status === "invalid") throw new LayoutRequestError(400, "invalid-request", body.reason);
-		const patch = parsePatch$1(body.value, options.maxRecords);
+		const patch = parsePatch$2(body.value, options.maxRecords);
 		const result = await options.service.write(patch);
 		if (result.status === "invalid") {
 			sendError(response, 400, "invalid-request", result.reason);
 			return;
 		}
 		if (result.status === "conflict") {
-			sendJson(response, 409, responseBody$1(result.snapshot));
+			sendJson(response, 409, responseBody$2(result.snapshot));
 			return;
 		}
-		sendJson(response, 200, responseBody$1(result.snapshot));
+		sendJson(response, 200, responseBody$2(result.snapshot));
 	} catch (error) {
 		if (error instanceof LayoutRequestError) {
 			sendError(response, error.status, error.code, error.message);
@@ -217,7 +217,7 @@ async function handlePatch$1(options, request, response) {
 * @returns the validated patch.
 * @throws {LayoutRequestError} 400 on any field outside the contract.
 */
-function parsePatch$1(value, maxRecords) {
+function parsePatch$2(value, maxRecords) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new LayoutRequestError(400, "invalid-request", "body must be an object");
 	const body = value;
 	if (typeof body.baseRevision !== "string") throw new LayoutRequestError(400, "invalid-request", "baseRevision must be a string");
@@ -244,7 +244,7 @@ function parsePatch$1(value, maxRecords) {
 * @param snapshot - service snapshot.
 * @returns the wire body.
 */
-function responseBody$1(snapshot) {
+function responseBody$2(snapshot) {
 	return {
 		apiVersion: 1,
 		revision: snapshot.revision,
@@ -364,6 +364,386 @@ var WorkbenchLayoutService = class {
 			await run();
 		} catch (error) {
 			throw new WorkbenchLayoutStorageError(operation, error);
+		}
+	}
+};
+//#endregion
+//#region src/pipeline-contract.ts
+/**
+* Wire contract for the workbench's pipeline definitions.
+*
+* A pipeline is an ordered list of card ids. Each step runs the card it names, and the
+* card already carries the skill, template, directory, model and permission the step
+* needs — so a step is a reference plus, optionally, the instruction for that step.
+*
+* No run state lives here. A pipeline's runs are its cards' runs: this module stores
+* what the user arranged, never what happened.
+* @module dsh-workbench/pipeline-contract
+*/
+/** Private route this plugin serves pipeline definitions on. */
+const WORKBENCH_PIPELINE_PATH = "/api/workbench/pipeline";
+/** Maximum length of one step's own instruction. */
+const WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH = 2e3;
+/** Body ceiling for a pipeline write. */
+const WORKBENCH_PIPELINE_MAX_BODY_BYTES = 64 * 1024;
+/**
+* Whether a value is a usable pipeline identity.
+*
+* Same slug rule as a card id: these are storage keys and record keys, and two rules for
+* "a safe key" is one rule too many.
+* @param value - candidate identity.
+* @returns whether the value may be used as a pipeline id.
+*/
+function isWorkbenchPipelineId(value) {
+	return isWorkbenchCardId(value);
+}
+/**
+* Validate a decoded pipeline list against the wire contract.
+*
+* One validator for both halves on purpose: the route and the service are two places a
+* list can arrive from, and a second copy of these rules would be a second answer.
+* @param value - decoded `pipelines` array.
+* @returns the normalized list, or the first reason it is not storable.
+*/
+function parseWorkbenchPipelines(value) {
+	if (!Array.isArray(value)) return invalid("pipelines must be an array");
+	if (value.length > 64) return invalid(`a workspace may hold ${String(64)} pipelines, this one carries ${String(value.length)}`);
+	const seen = /* @__PURE__ */ new Set();
+	const pipelines = [];
+	for (const [index, raw] of value.entries()) {
+		const parsed = parseOne(raw, index);
+		if ("status" in parsed) return parsed;
+		if (seen.has(parsed.id)) return invalid(`pipeline id ${JSON.stringify(parsed.id)} appears twice`);
+		seen.add(parsed.id);
+		pipelines.push(parsed);
+	}
+	return pipelines;
+}
+/**
+* Validate one pipeline.
+* @param raw - candidate value.
+* @param index - position in the list, for the reason text.
+* @returns the normalized pipeline, or the reason it is not storable.
+*/
+function parseOne(raw, index) {
+	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return invalid(`pipeline at index ${String(index)} must be an object`);
+	const candidate = raw;
+	if (typeof candidate.id !== "string" || !isWorkbenchPipelineId(candidate.id)) return invalid(`pipeline at index ${String(index)} needs a namespaced id`);
+	const id = candidate.id;
+	if (typeof candidate.name !== "string") return invalid(`pipeline ${JSON.stringify(id)} needs a name`);
+	const name = candidate.name.trim();
+	if (name.length === 0) return invalid(`pipeline ${JSON.stringify(id)} needs a non-empty name`);
+	if (name.length > 60) return invalid(`pipeline ${JSON.stringify(id)} has a name longer than ${String(60)} characters`);
+	if (typeof candidate.updatedAt !== "number" || !Number.isFinite(candidate.updatedAt) || candidate.updatedAt < 0) return invalid(`pipeline ${JSON.stringify(id)} needs a finite updatedAt`);
+	const steps = parseSteps(candidate.steps, id);
+	if ("status" in steps) return steps;
+	return {
+		id,
+		name,
+		steps,
+		updatedAt: candidate.updatedAt
+	};
+}
+/**
+* Validate one pipeline's step list.
+* @param value - candidate `steps` value.
+* @param pipelineId - owning pipeline, for the reason text.
+* @returns the normalized steps, or the reason they are not storable.
+*/
+function parseSteps(value, pipelineId) {
+	if (!Array.isArray(value)) return invalid(`pipeline ${JSON.stringify(pipelineId)} needs a steps array`);
+	if (value.length > 32) return invalid(`pipeline ${JSON.stringify(pipelineId)} carries ${String(value.length)} steps, above the ${String(32)} limit`);
+	const steps = [];
+	for (const [index, raw] of value.entries()) {
+		if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return invalid(`step ${String(index)} of pipeline ${JSON.stringify(pipelineId)} must be an object`);
+		const step = raw;
+		if (typeof step.cardId !== "string" || !isWorkbenchCardId(step.cardId)) return invalid(`step ${String(index)} of pipeline ${JSON.stringify(pipelineId)} needs a card id`);
+		if (step.instruction === void 0) {
+			steps.push({ cardId: step.cardId });
+			continue;
+		}
+		if (typeof step.instruction !== "string") return invalid(`step ${String(index)} of pipeline ${JSON.stringify(pipelineId)} has a non-string instruction`);
+		const instruction = step.instruction.trim();
+		if (instruction.length > 2e3) return invalid(`step ${String(index)} of pipeline ${JSON.stringify(pipelineId)} has an instruction longer than ${String(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH)} characters`);
+		steps.push(instruction.length === 0 ? { cardId: step.cardId } : {
+			cardId: step.cardId,
+			instruction
+		});
+	}
+	return steps;
+}
+/**
+* Build one invalid result.
+* @param reason - what is wrong.
+* @returns the failure carrying that reason.
+*/
+function invalid(reason) {
+	return {
+		status: "invalid",
+		reason
+	};
+}
+//#endregion
+//#region src/pipeline-spec.ts
+/**
+* The workbench pipeline storage domain.
+*
+* Pipelines are durable user arrangements, not run state: one record per pipeline,
+* keyed by its id, holding the name and the ordered steps. A record the current schema
+* cannot read is moved aside and skipped rather than blocking startup, so one bad
+* document never costs the workbench.
+* @module dsh-workbench/pipeline-spec
+*/
+/** Table name holding one record per pipeline. */
+const WORKBENCH_PIPELINE_TABLE = "pipelines";
+/** Stored step schema: a card reference plus, optionally, this step's own instruction. */
+const workbenchPipelineStepSchema = z.object({
+	cardId: z.string().min(1).max(64),
+	instruction: z.string().max(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH).optional()
+});
+/**
+* Stored record schema.
+*
+* The name and the step list are the whole record; the identity is the table key. An
+* `updatedAt` that a document happens not to carry validates into a record without one
+* only if the field is optional — it is required here, because a stored pipeline with no
+* timestamp is a record this version cannot place, and backupping it is the honest
+* outcome rather than inventing a date.
+*/
+const workbenchPipelineSchema = z.object({
+	name: z.string().min(1).max(60),
+	steps: z.array(workbenchPipelineStepSchema).max(32),
+	updatedAt: z.number().finite().nonnegative()
+});
+/**
+* Pipeline domain declaration.
+*
+* `per-record` plus `backup-and-skip` for the same reason the layout domain uses it: the
+* domain layer rejects an unreadable `global` singleton unconditionally, so keeping
+* pipelines in a table is what makes one unreadable pipeline survivable.
+*/
+const WORKBENCH_PIPELINE_DOMAIN = defineDomain({
+	name: "workbench_pipeline",
+	version: 1,
+	layout: "per-record",
+	invalidRecords: "backup-and-skip",
+	tables: { [WORKBENCH_PIPELINE_TABLE]: domainTable(workbenchPipelineSchema) }
+});
+//#endregion
+//#region src/pipeline-route.ts
+/** Failure carrying the response status a handler must send. */
+var PipelineRequestError = class extends Error {
+	status;
+	code;
+	/**
+	* @param status - HTTP status to send.
+	* @param code - error code in the response body.
+	* @param message - operator-facing reason.
+	*/
+	constructor(status, code, message) {
+		super(message);
+		this.status = status;
+		this.code = code;
+		this.name = "PipelineRequestError";
+	}
+};
+/**
+* Build the route handler for {@link import('./pipeline-contract.ts').WORKBENCH_PIPELINE_PATH}.
+* @param options - service, fence, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchPipelineHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method === "GET") {
+			sendJson(response, 200, responseBody$1(options.service.read()));
+			return;
+		}
+		if (request.method === "PATCH") {
+			handlePatch$1(options, request, response);
+			return;
+		}
+		response.statusCode = 405;
+		response.setHeader("allow", "GET, PATCH");
+		response.setHeader("cache-control", "no-store");
+		response.end();
+	};
+}
+/**
+* Read, validate, and apply one write.
+* @param options - route dependencies.
+* @param request - the PATCH request.
+* @param response - the response to own.
+*/
+async function handlePatch$1(options, request, response) {
+	try {
+		const body = await readJsonBody(request, WORKBENCH_PIPELINE_MAX_BODY_BYTES);
+		if (body.status === "too-large") throw new PipelineRequestError(413, "invalid-request", "request body is too large");
+		if (body.status === "invalid") throw new PipelineRequestError(400, "invalid-request", body.reason);
+		const patch = parsePatch$1(body.value);
+		const result = await options.service.write(patch);
+		if (result.status === "invalid") {
+			sendError(response, 400, "invalid-request", result.reason);
+			return;
+		}
+		if (result.status === "conflict") {
+			sendJson(response, 409, responseBody$1(result.snapshot));
+			return;
+		}
+		sendJson(response, 200, responseBody$1(result.snapshot));
+	} catch (error) {
+		if (error instanceof PipelineRequestError) {
+			sendError(response, error.status, error.code, error.message);
+			return;
+		}
+		const detail = error instanceof Error ? error.message : String(error);
+		options.warn(`workbench pipeline write failed: ${detail}`);
+		sendError(response, 500, "storage-failure", "pipeline storage failed");
+	}
+}
+/**
+* Validate a decoded write against the wire contract.
+* @param value - decoded body.
+* @returns the validated patch.
+* @throws {PipelineRequestError} 400 on any field outside the contract.
+*/
+function parsePatch$1(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new PipelineRequestError(400, "invalid-request", "body must be an object");
+	const body = value;
+	if (typeof body.baseRevision !== "string") throw new PipelineRequestError(400, "invalid-request", "baseRevision must be a string");
+	const pipelines = parseWorkbenchPipelines(body.pipelines);
+	if ("status" in pipelines) throw new PipelineRequestError(400, "invalid-request", pipelines.reason);
+	return {
+		baseRevision: body.baseRevision,
+		pipelines
+	};
+}
+/**
+* Project a snapshot onto the response body.
+* @param snapshot - service snapshot.
+* @returns the wire body.
+*/
+function responseBody$1(snapshot) {
+	return {
+		apiVersion: 1,
+		revision: snapshot.revision,
+		pipelines: snapshot.pipelines
+	};
+}
+//#endregion
+//#region src/pipeline-service.ts
+/** Errors raised while writing a pipeline, carrying the route's error code. */
+var WorkbenchPipelineStorageError = class extends Error {
+	operation;
+	/**
+	* @param operation - the storage operation that failed.
+	* @param cause - the underlying failure.
+	*/
+	constructor(operation, cause) {
+		super(`workbench pipeline ${operation} failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+		this.operation = operation;
+		this.name = "WorkbenchPipelineStorageError";
+	}
+};
+/** Pipeline read/write service over one storage domain table. */
+var WorkbenchPipelineService = class {
+	options;
+	changeCount = 0;
+	disposeChange;
+	/**
+	* @param options - domain name, table, event source, caps, and boot stamp.
+	*/
+	constructor(options) {
+		this.options = options;
+		this.disposeChange = options.events.on("domain/changed", (change) => {
+			if (change.domain !== options.domainName) return;
+			this.changeCount += 1;
+		});
+	}
+	/** Current revision: boot stamp plus the number of durable changes seen. */
+	get revision() {
+		return `${String(this.options.bootStamp)}:${String(this.changeCount)}`;
+	}
+	/**
+	* Read the complete stored set.
+	* @returns pipelines ordered by id, with the current revision.
+	*/
+	read() {
+		const pipelines = [];
+		for (const [id, record] of this.options.table.entries()) pipelines.push({
+			id,
+			name: record.name,
+			steps: record.steps,
+			updatedAt: record.updatedAt
+		});
+		pipelines.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+		return {
+			apiVersion: 1,
+			pipelines,
+			revision: this.revision
+		};
+	}
+	/**
+	* Apply one write.
+	*
+	* A write whose `baseRevision` is not current is refused without storing anything, and
+	* answered with the state the client has to reconcile against.
+	* @param patch - the complete set plus the revision it was based on.
+	* @returns the write outcome.
+	*/
+	async write(patch) {
+		if (patch.baseRevision !== this.revision) return {
+			status: "conflict",
+			snapshot: this.read()
+		};
+		const parsed = parseWorkbenchPipelines(patch.pipelines);
+		if ("status" in parsed) return {
+			status: "invalid",
+			reason: parsed.reason
+		};
+		const limit = Math.min(this.options.maxPipelines, 64);
+		if (parsed.length > limit) return {
+			status: "invalid",
+			reason: `this deployment stores ${String(limit)} pipelines, the write carries ${String(parsed.length)}`
+		};
+		const keeping = new Set(parsed.map((pipeline) => pipeline.id));
+		const removing = [];
+		for (const [id] of this.options.table.entries()) if (!keeping.has(id)) removing.push(id);
+		removing.sort();
+		for (const id of removing) await this.run("delete", () => this.options.table.delete(id));
+		const ordered = [...parsed].sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+		for (const pipeline of ordered) {
+			const record = {
+				name: pipeline.name,
+				steps: pipeline.steps,
+				updatedAt: pipeline.updatedAt
+			};
+			await this.run("put", () => this.options.table.put(pipeline.id, record));
+		}
+		return {
+			status: "written",
+			snapshot: this.read()
+		};
+	}
+	/** Stop observing domain changes. Idempotent. */
+	dispose() {
+		this.disposeChange();
+	}
+	/**
+	* Run one storage operation, naming the failing operation in the error.
+	* @param operation - operation discriminant.
+	* @param run - the storage call.
+	* @returns resolution after the call settles.
+	*/
+	async run(operation, run) {
+		try {
+			await run();
+		} catch (error) {
+			throw new WorkbenchPipelineStorageError(operation, error);
 		}
 	}
 };
@@ -1979,7 +2359,8 @@ var WorkbenchSkillCardRunner = class {
 		const instruction = mode.kind === "card" ? request.instruction?.trim() : void 0;
 		const carried = instruction === void 0 || instruction === "" ? void 0 : instruction;
 		if (mode.kind === "card" && carried === void 0 && request.payload === void 0 && effectiveWorkbenchInstructionMode(selection.instructionMode) === "required") return reject("instruction-missing", "this card requires an instruction before it can run");
-		const refineSessionId = mode.kind === "refine" ? request.sessionId : void 0;
+		const carryoverSessionId = mode.kind === "refine" || mode.kind === "step" ? request.sessionId : void 0;
+		if (mode.kind === "step" && mode.join && carryoverSessionId === void 0) return reject("invalid-request", "a joining step must name the session its pipeline opened");
 		const model = selection.model;
 		const pinned = model === void 0 ? {} : { model };
 		let inputOf;
@@ -2030,8 +2411,8 @@ var WorkbenchSkillCardRunner = class {
 		const found = await this.options.statDirectory(workspacePath);
 		if (!found.exists || !found.isDirectory) return reject("workspace-invalid", `the workspace directory "${workspacePath}" does not exist or is not a directory`);
 		if (this.congested()) return reject("run-in-progress", "the concurrency limit is reached");
-		if (refineSessionId !== void 0) {
-			if (this.sessionBusy(refineSessionId) !== void 0) return reject("run-in-progress", `session "${refineSessionId}" is already running`);
+		if (carryoverSessionId !== void 0) {
+			if (this.sessionBusy(carryoverSessionId) !== void 0) return reject("run-in-progress", `session "${carryoverSessionId}" is already running`);
 		}
 		const scopeAgent = request.scopeSessionId === void 0 ? void 0 : this.options.host.agents.get(request.scopeSessionId);
 		const scopeRoute = scopeAgent === void 0 ? void 0 : scopeAgent.options !== void 0 && scopeAgent.options.provider !== void 0 && scopeAgent.options.model !== void 0 ? {
@@ -2043,7 +2424,7 @@ var WorkbenchSkillCardRunner = class {
 		const startedAt = this.now();
 		let session;
 		try {
-			const resolved = refineSessionId === void 0 ? await this.openRunSession(request.cardId, workspacePath, startedAt, runRoute, runPreset) : await this.attachRunSession(refineSessionId, runRoute, runPreset);
+			const resolved = carryoverSessionId === void 0 ? await this.openRunSession(request.cardId, workspacePath, startedAt, runRoute, runPreset, mode.kind === "step" ? mode.terminal : true) : await this.attachRunSession(carryoverSessionId, runRoute, runPreset, mode.kind === "step" ? mode.terminal ? "always" : "never" : "as-found");
 			if (resolved.status === "rejected") return resolved;
 			session = resolved.session;
 		} catch (error) {
@@ -2325,7 +2706,7 @@ var WorkbenchSkillCardRunner = class {
 	* @throws {WorkbenchSandboxModeError} when the mode cannot be applied; the agent is
 	* released first, so a refused start leaves nothing running under no mode.
 	*/
-	async openRunSession(cardId, cwd, startedAt, route, preset) {
+	async openRunSession(cardId, cwd, startedAt, route, preset, archive = true) {
 		const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission);
 		const handle = await this.publishRunSession(cardId, cwd, startedAt, route, preset);
 		try {
@@ -2336,7 +2717,7 @@ var WorkbenchSkillCardRunner = class {
 		}
 		return {
 			status: "resolved",
-			session: this.ownedSession(handle.agent, handle)
+			session: this.ownedSession(handle.agent, handle, archive)
 		};
 	}
 	/**
@@ -2350,12 +2731,17 @@ var WorkbenchSkillCardRunner = class {
 	*
 	* A session that is not archived is left that way: it is on screen because someone is in
 	* it, and hiding a conversation the user has open is not this run's decision.
-	* @param sessionId - the session recorded on the result being refined.
+	* @param sessionId - the session the run continues: the one a refinement revises, or
+	* the one a pipeline step picks up from the step before it.
 	* @param route - the route to install on a resumed agent that was persisted without
 	* one; see {@link publishRunSession} for the warrant.
+	* @param preset - the agent preset to compose a resumed agent under.
+	* @param archive - what the session is owed when this run settles. Refinements leave the
+	* state they found; a pipeline step overrides it, because the pipeline owns the session
+	* and only its terminal step closes it.
 	* @returns the resolved session, or why it could not be restored.
 	*/
-	async attachRunSession(sessionId, route, preset) {
+	async attachRunSession(sessionId, route, preset, archive = "as-found") {
 		let owned;
 		let agent = this.options.host.agents.get(sessionId);
 		if (agent === void 0) {
@@ -2378,9 +2764,10 @@ var WorkbenchSkillCardRunner = class {
 			if (owned !== void 0) await this.releaseAgent(owned);
 			return reject("session-not-live", `session "${sessionId}" could not be restored for the run: ${messageOf(error)}`);
 		}
+		const settleArchived = archive === "always" ? true : archive === "never" ? false : archived;
 		return {
 			status: "resolved",
-			session: this.ownedSession(agent, owned, archived)
+			session: this.ownedSession(agent, owned, settleArchived)
 		};
 	}
 	/**
@@ -4208,6 +4595,41 @@ function apply(ctx, config) {
 			await domain.close();
 		};
 	}, "workbench: skill card domain and route");
+	ctx.effect(async () => {
+		const host = ctx;
+		const domain = await ctx.storageDomain.open(WORKBENCH_PIPELINE_DOMAIN);
+		let service;
+		try {
+			service = new WorkbenchPipelineService({
+				domainName: domain.name,
+				table: domain.table(WORKBENCH_PIPELINE_TABLE),
+				events: { on: (_event, listener) => ctx.on("domain/changed", (change) => {
+					listener(change);
+				}) },
+				maxPipelines: 64,
+				bootStamp: Date.now()
+			});
+		} catch (error) {
+			await domain.close();
+			throw error;
+		}
+		const disposeRoute = ctx.effect(() => host.webServer.register({
+			kind: "exact",
+			path: WORKBENCH_PIPELINE_PATH,
+			handler: createWorkbenchPipelineHandler({
+				service,
+				fence: host.connection,
+				warn: (message) => {
+					ctx.logger.warn(message);
+				}
+			})
+		}), "workbench: pipeline route");
+		return async () => {
+			disposeRoute();
+			service.dispose();
+			await domain.close();
+		};
+	}, "workbench: pipeline domain and route");
 }
 //#endregion
 export { Config, apply, inject, name };

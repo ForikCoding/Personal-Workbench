@@ -1473,3 +1473,79 @@ describe('teardown', () => {
     expect(fake.disposedAgents).toEqual([fake.createdAgents[0]?.id])
   })
 })
+
+describe('pipeline steps', () => {
+  /**
+   * A step request continuing one session.
+   * @param sessionId - the session the pipeline opened.
+   * @param terminal - whether this step is the last of its chain.
+   * @returns the request.
+   */
+  function step(sessionId: string, terminal = false): WorkbenchRunRequest {
+    return request({ mode: { kind: 'step', terminal, join: true }, sessionId })
+  }
+
+  it('refuses a joining step that names no session, without creating one', async () => {
+    // A step promoted into a fresh session would be a step that ran without seeing the
+    // steps before it, which is the one thing a pipeline exists to avoid.
+    const { runner, fake } = setup()
+    const outcome = await runner.start(request({ mode: { kind: 'step', terminal: false, join: true } }))
+    expect(outcome).toMatchObject({ status: 'rejected', code: 'invalid-request' })
+    expect(fake.createdAgents).toHaveLength(0)
+    expect(fake.activations).toHaveLength(0)
+  })
+
+  it('opens a session for the first step of a chain, which has none to join', async () => {
+    const { runner, fake, saved } = setup()
+    const outcome = await runner.start(request({ mode: { kind: 'step', terminal: false, join: false } }))
+    expect(outcome.status).toBe('started')
+    const state = await settle(runner)
+    expect(state?.phase).toBe('settled')
+    expect(fake.createdAgents).toHaveLength(1)
+    expect(saved[0]?.record.sessionId).toBe(fake.createdAgents[0]?.id)
+    // Intermediate: the session is handed on to the next step rather than archived.
+    expect(fake.archivedSessions).not.toContain(fake.createdAgents[0]?.id)
+  })
+
+  it('runs a step in the session its pipeline opened', async () => {
+    const { runner, fake, saved } = setup({ live: false, persistedSessionIds: ['session-pipeline'] })
+    const outcome = await runner.start(step('session-pipeline'))
+    expect(outcome.status).toBe('started')
+    const state = await settle(runner)
+    expect(state?.phase).toBe('settled')
+    // Re-attached rather than created: the whole point is that the conversation continues.
+    expect(fake.resumedSessions).toEqual(['session-pipeline'])
+    expect(fake.createdAgents).toHaveLength(0)
+    expect(saved[0]?.record.sessionId).toBe('session-pipeline')
+    // A step is a card run everywhere else, including the output contract it demands.
+    expect(fake.activations[0]?.request.outputSchema).toBeDefined()
+  })
+
+  it('leaves an intermediate step’s session open for the next step', async () => {
+    const { runner, fake } = setup({ live: false, persistedSessionIds: ['session-pipeline'] })
+    await runner.start(step('session-pipeline', false))
+    await settle(runner)
+    expect(fake.archivedSessions).not.toContain('session-pipeline')
+  })
+
+  it('archives the session its terminal step closes', async () => {
+    const { runner, fake } = setup({ live: false, persistedSessionIds: ['session-pipeline'] })
+    await runner.start(step('session-pipeline', true))
+    await settle(runner)
+    expect(fake.archivedSessions).toContain('session-pipeline')
+  })
+
+  it('restores an archived session before stepping into it, then re-archives it', async () => {
+    // The harness refuses a model step to an archived session, so a terminal step of a
+    // chain restored from disk has to lift the archive first — and put it back after.
+    const { runner, fake } = setup({
+      live: false,
+      persistedSessionIds: ['session-pipeline'],
+      archivedSessionIds: ['session-pipeline'],
+    })
+    await runner.start(step('session-pipeline', true))
+    await settle(runner)
+    expect(fake.unarchivedSessions).toEqual(['session-pipeline'])
+    expect(fake.archivedSessions).toContain('session-pipeline')
+  })
+})

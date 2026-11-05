@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { WORKBENCH_PANEL_ID } from './workbench-panel.ts'
 import { createWorkbenchLayoutApi } from './layout-api.ts'
+import { createWorkbenchPipelineApi } from './pipeline-api.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchCardSelection } from './contract.ts'
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
@@ -47,6 +48,7 @@ export type {
 export type { WorkbenchLocaleKey } from './locales.ts'
 export type { WorkbenchCardFact, WorkbenchOrder } from './layout-store.ts'
 export type { WorkbenchLayoutApi, WorkbenchReadResult, WorkbenchWriteResult } from './layout-api.ts'
+export type { WorkbenchPipelineApi } from './pipeline-api.ts'
 export type { WorkbenchLayoutActions, WorkbenchLayoutController, WorkbenchLayoutView } from './layout-controller.ts'
 
 /** Locale namespace owned by this plugin. */
@@ -114,6 +116,8 @@ export interface WorkbenchPanelFace {
   }
   /** Layout transport. */
   readonly api: ReturnType<typeof createWorkbenchLayoutApi>
+  /** Pipeline-definition transport: what the rail lists and stores. */
+  readonly pipelines: ReturnType<typeof createWorkbenchPipelineApi>
   /** Skill card transport, for the full-panel views the grid opens into. */
   readonly skillCards: {
     /** Configuration and run transport. */
@@ -175,6 +179,7 @@ export function apply(ctx: ClientContext): void {
   // card.
   const documents = createWorkbenchDocumentBinder({ t })
   const api = createWorkbenchLayoutApi()
+  const pipelineApi = createWorkbenchPipelineApi()
   const skillCardApi = createWorkbenchSkillCardApi()
   // The model directory is read through a getter rather than captured: the service is
   // injected scoped below, so a composition without it simply answers "no model known",
@@ -267,6 +272,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): WorkbenchPanelFace => ({
       hooks: { cards, selection },
       api,
+      pipelines: pipelineApi,
       skillCards: { api: skillCardApi, runSessionId, pickerSessionId, models, workspacePicker, documents },
       closeCard,
       openCard,

@@ -116,6 +116,16 @@ type RunSessionOutcome =
   | { readonly status: 'resolved'; readonly session: RunSession }
   | RejectedStart
 
+/**
+ * What a settled run does with the session it continued.
+ *
+ * `as-found` restores the state the session arrived in, which is the refinement rule: a
+ * session the user has open stays open, and one this feature archived is archived again.
+ * The two pipeline rules exist because the pipeline, not the run, owns the session: an
+ * intermediate step hands it on and must not close it, and the terminal step closes it.
+ */
+type SessionArchivePolicy = 'as-found' | 'always' | 'never'
+
 /** What one card is configured to run. */
 export interface WorkbenchCardSelection {
   /** Selected skill; absent means the card is unconfigured. */
@@ -542,12 +552,23 @@ export class WorkbenchSkillCardRunner {
       && effectiveWorkbenchInstructionMode(selection.instructionMode) === 'required') {
       return reject('instruction-missing', 'this card requires an instruction before it can run')
     }
-    // A refinement continues the session the revised document came from, so a request names
-    // that one when the record carries it. A record stored before the workbench kept one
-    // per run has none, and where no session is named the run falls back to a fresh one of
-    // its own, exactly as a card run does — there is no earlier conversation to continue,
-    // and refusing would shut off 重新生成 on every old result.
-    const refineSessionId = mode.kind === 'refine' ? request.sessionId : undefined
+    // Two modes continue a session instead of opening one: a refinement continues the
+    // session the revised document came from, and a pipeline step continues the session
+    // its pipeline opened. Neither changes anything else about the run — a step carries
+    // the same template and answers with the same `{ html }` as a card run.
+    //
+    // A refine of a record stored before the workbench kept one session per run names
+    // none, and falls back to a fresh session of its own exactly as a card run does:
+    // there is no earlier conversation to continue, and refusing would shut off 重新生成
+    // on every old result. A step makes the same fallback for the same reason, but says so:
+    // a joining step naming no session is refused, because a step promoted into a fresh
+    // session would be a step that ran without seeing the steps before it.
+    const carryoverSessionId = mode.kind === 'refine' || mode.kind === 'step'
+      ? request.sessionId
+      : undefined
+    if (mode.kind === 'step' && mode.join && carryoverSessionId === undefined) {
+      return reject('invalid-request', 'a joining step must name the session its pipeline opened')
+    }
     // A document is what every mode but a bare run fills, so the template is answered here,
     // before a session is published: a card that lost its template is refused without
     // creating one. What the prompt says depends on the run's own agent, which does not
@@ -650,10 +671,10 @@ export class WorkbenchSkillCardRunner {
     // A refinement continues one session; a plain run opens its own. Refusing a second
     // refinement of a session already being run is what keeps one conversation one
     // conversation — the earlier check is here so the refusal costs no session.
-    if (refineSessionId !== undefined) {
-      const busy = this.sessionBusy(refineSessionId)
+    if (carryoverSessionId !== undefined) {
+      const busy = this.sessionBusy(carryoverSessionId)
       if (busy !== undefined) {
-        return reject('run-in-progress', `session "${refineSessionId}" is already running`)
+        return reject('run-in-progress', `session "${carryoverSessionId}" is already running`)
       }
     }
     // The route the run's own session runs on: the card's named route, or the naming
@@ -690,9 +711,24 @@ export class WorkbenchSkillCardRunner {
     const startedAt = this.now()
     let session: RunSession
     try {
-      const resolved = refineSessionId === undefined
-        ? await this.openRunSession(request.cardId, workspacePath, startedAt, runRoute, runPreset)
-        : await this.attachRunSession(refineSessionId, runRoute, runPreset)
+      const resolved = carryoverSessionId === undefined
+        ? await this.openRunSession(
+            request.cardId,
+            workspacePath,
+            startedAt,
+            runRoute,
+            runPreset,
+            // A card run and a refinement archive their own session when they settle; a
+            // step opening the chain hands it to the next step instead, so only the
+            // terminal step of a chain closes the session it published.
+            mode.kind === 'step' ? mode.terminal : true,
+          )
+        : await this.attachRunSession(
+            carryoverSessionId,
+            runRoute,
+            runPreset,
+            mode.kind === 'step' ? (mode.terminal ? 'always' : 'never') : 'as-found',
+          )
       if (resolved.status === 'rejected') return resolved
       session = resolved.session
     } catch (error) {
@@ -1042,6 +1078,7 @@ export class WorkbenchSkillCardRunner {
     startedAt: number,
     route: WorkbenchCardModel | undefined,
     preset: string | undefined,
+    archive = true,
   ): Promise<RunSessionOutcome> {
     const mode = effectiveWorkbenchSandboxMode(this.options.selection(cardId).permission)
     const handle = await this.publishRunSession(cardId, cwd, startedAt, route, preset)
@@ -1054,7 +1091,7 @@ export class WorkbenchSkillCardRunner {
       await this.releaseAgent(handle)
       throw error
     }
-    return { status: 'resolved', session: this.ownedSession(handle.agent, handle) }
+    return { status: 'resolved', session: this.ownedSession(handle.agent, handle, archive) }
   }
 
   /**
@@ -1068,15 +1105,21 @@ export class WorkbenchSkillCardRunner {
    *
    * A session that is not archived is left that way: it is on screen because someone is in
    * it, and hiding a conversation the user has open is not this run's decision.
-   * @param sessionId - the session recorded on the result being refined.
+   * @param sessionId - the session the run continues: the one a refinement revises, or
+   * the one a pipeline step picks up from the step before it.
    * @param route - the route to install on a resumed agent that was persisted without
    * one; see {@link publishRunSession} for the warrant.
+   * @param preset - the agent preset to compose a resumed agent under.
+   * @param archive - what the session is owed when this run settles. Refinements leave the
+   * state they found; a pipeline step overrides it, because the pipeline owns the session
+   * and only its terminal step closes it.
    * @returns the resolved session, or why it could not be restored.
    */
   private async attachRunSession(
     sessionId: string,
     route: WorkbenchCardModel | undefined,
     preset: string | undefined,
+    archive: SessionArchivePolicy = 'as-found',
   ): Promise<RunSessionOutcome> {
     let owned: WorkbenchAgentHandle | undefined
     let agent = this.options.host.agents.get(sessionId)
@@ -1104,7 +1147,16 @@ export class WorkbenchSkillCardRunner {
         return reject('session-not-live', `session "${sessionId}" could not be restored for the run: ${messageOf(error)}`)
       }
     }
-    return { status: 'resolved', session: this.ownedSession(agent, owned, archived) }
+    // What the run owes the session when it settles. `as-found` is the refinement rule:
+    // restore the archive state the session arrived with. A pipeline step overrides it,
+    // because the session's owner left this run — an intermediate step hands the session
+    // to the next one and must not archive it, and only the terminal step closes it.
+    const settleArchived = archive === 'always'
+      ? true
+      : archive === 'never'
+        ? false
+        : archived
+    return { status: 'resolved', session: this.ownedSession(agent, owned, settleArchived) }
   }
 
   /**

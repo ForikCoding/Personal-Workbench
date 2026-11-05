@@ -1,41 +1,42 @@
 /**
- * The workbench panel page: its head, the card grid, and the two empty states.
+ * The workbench panel page: its head, and the pipeline workbench below it.
  *
- * The page owns the layout controller and hands the grid plain data, so the
- * grid stays a rendering surface and the card shells stay independent of it.
+ * The panel is one surface with two states. Normally it is the pipeline workbench — the
+ * rail, the canvas and the inspector. When something outside the panel opens a card's own
+ * view (a card action whose target is another card), that view takes the whole surface and
+ * the workbench stands behind it, which is what the injected `selection` says.
  * @module dsh-workbench/client/WorkbenchPage
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { WorkbenchCardGrid } from './WorkbenchCardGrid.tsx'
-import { useWorkbenchLayout } from './layout-controller.ts'
-import type { WorkbenchLayoutApi } from './layout-api.ts'
+import { usePipelines } from './pipeline-controller.ts'
+import { usePipelineRun } from './pipeline/pipeline-run.ts'
+import { WorkbenchPipeline } from './WorkbenchPipeline.tsx'
+import type { WorkbenchPipelineApi } from './pipeline-api.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
-import type { WorkbenchCardSelection, WorkbenchCardsOwnerProps } from './contract.ts'
+import type { WorkbenchCardSelection } from './contract.ts'
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
 import type { WorkbenchCardSnapshot } from './skill-card/api.ts'
 import type { WorkbenchModelSeat } from './skill-card/model.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import type { WorkbenchScriptBinder } from './skill-card/render.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
-import { WorkbenchCreateCard } from './WorkbenchCreateCard.tsx'
-import type { WorkbenchCardType } from './WorkbenchCreateCard.tsx'
 import { SkillCardConfigPage, SkillCardResultPage, SkillCardRunsPage } from './skill-card/SkillCardPages.tsx'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import css from './workbench.module.css'
 
-/** Cards plus the transport the page drives, as the registration injects them. */
+/** Cards plus the transports the page drives, as the registration injects them. */
 export interface WorkbenchPageInjected {
   /** Card facts and the full-panel selection. */
   readonly hooks: {
     readonly cards: ObservableSnapshot<readonly WorkbenchCardFact[]>
     readonly selection: ObservableSnapshot<WorkbenchCardSelection | undefined>
   }
-  /** Layout transport. */
-  readonly api: WorkbenchLayoutApi
-  /** Skill card transport, for the full-panel views the grid opens into. */
+  /** Pipeline-definition transport. */
+  readonly pipelines: WorkbenchPipelineApi
+  /** Skill card transport, for the card views the inspector mounts. */
   readonly skillCards: {
     readonly api: WorkbenchSkillCardApi
     /**
@@ -66,7 +67,7 @@ export interface WorkbenchPageInjected {
      */
     readonly documents?: WorkbenchScriptBinder | undefined
   }
-  /** Return to the grid from whichever full-panel view is open. */
+  /** Leave a card's full-panel view and return to the workbench. */
   readonly closeCard: () => void
   /**
    * Open one of a card's full-panel views.
@@ -96,17 +97,7 @@ export type WorkbenchPageProps =
 /** Owner where a user-created card instance sorts before any stored position. */
 const INSTANCE_ORDER_BASE = 10_000
 
-/**
- * Card types the workbench offers.
- *
- * Only the skill card creates anything today; the other two are listed so the user
- * can see they are planned rather than absent.
- */
-const CARD_TYPE_SKILL = 'skill'
-const CARD_TYPE_TEST = 'test'
-const CARD_TYPE_MEMORY = 'memory'
-
-/** One stored card, as the page needs it to lay a grid out. */
+/** One stored card, as the page needs it to lay the rail out. */
 interface WorkbenchStoredCard {
   readonly id: string
   readonly name: string | undefined
@@ -123,23 +114,22 @@ function storedCardsFrom(cards: readonly { readonly cardId: string; readonly nam
 
 /**
  * Render the workbench page.
- * @param props - owner props, card render share, injected cards and transport, and `t`.
+ * @param props - owner props, injected cards and transports, and `t`.
  * @returns the page element.
  */
 export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
-  const { useCards, useSelection, api, skillCards, closeCard, openCard, renderSlot, t, usePanelInfo } = props
+  const { useCards, useSelection, skillCards, pipelines: pipelineApi, closeCard, openCard, t } = props
   const cards = useCards(snapshot => snapshot)
   const selection = useSelection(snapshot => snapshot)
-  const active = usePanelInfo(info => info.activePanelId === 'workbench')
-  // User-created card instances are stored data, not slot registrations: the ledger
-  // says which card TYPES exist, and the stored records say which instances of them
-  // the user made. Only the extra instances are collected here; a stored record for
-  // a registered card is that card, already in `cards`.
+  // User-created card instances are stored data, not slot registrations: the ledger says
+  // which card TYPES exist, and the stored records say which instances of them the user
+  // made. Only the extra instances are collected here; a stored record for a registered
+  // card is that card, already in `cards`.
   const [stored, setStored] = useState<readonly WorkbenchStoredCard[]>([])
   const [revision, setRevision] = useState('')
-  // A read that lands after a write would republish the older snapshot and the new
-  // card would vanish. Every application of state takes a ticket, and a read only
-  // applies while it still holds the newest one.
+  // A read that lands after a write would republish the older snapshot and the new card
+  // would vanish. Every application of state takes a ticket, and a read only applies
+  // while it still holds the newest one.
   const tickets = useRef(0)
   const applySnapshot = useCallback((snapshot: WorkbenchCardSnapshot) => {
     tickets.current += 1
@@ -156,13 +146,11 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
   }, [applySnapshot, skillCards.api])
   useEffect(() => { reloadInstances() }, [reloadInstances, selection])
   const facts = useMemo<readonly WorkbenchCardFact[]>(() => {
-    // Only the stored cards are cards. The registered skill card is a renderer for
-    // that type, not a card of its own: leaving it in would keep a deleted card on
-    // the grid with nothing behind it, and removing the last card would still show
-    // one.
+    // Only the stored cards are cards. The registered skill card is a renderer for that
+    // type, not a card of its own: leaving it in would keep a deleted card in the rail
+    // with nothing behind it, and removing the last card would still show one.
     const registered = cards.filter(card => card.id !== SKILL_CARD_ID)
-    // Ordered after every registered card: an instance has no declared order, and
-    // the layout store's own positions take over once the user moves it.
+    // Ordered after every registered card: an instance has no declared order.
     const extra = stored.map((instance, index) => ({
       id: instance.id,
       order: INSTANCE_ORDER_BASE + index,
@@ -171,10 +159,17 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     return [...registered, ...extra]
   }, [cards, stored])
 
-  const createCard = useCallback((type: string) => {
-    if (type !== CARD_TYPE_SKILL) return
+  const labelOf = useMemo(() => {
+    const labels = new Map(facts.map(card => [card.id, card.label]))
+    return (id: string): string => {
+      const label = labels.get(id)
+      return label === undefined || label.length === 0 ? id : label
+    }
+  }, [facts])
+
+  const createCard = useCallback(() => {
     // The id only has to be unique and stable. The name is a starting point the user
-    // renames on the card's own configuration page, so this entry stays one decision.
+    // renames on the card's own configuration view, so this entry stays one decision.
     const taken = new Set(facts.map(card => card.id))
     let index = 1
     while (taken.has(`${SKILL_CARD_ID}-${String(index)}`)) index += 1
@@ -185,67 +180,53 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
       name: `${t('cardTypeSkill')} ${String(index)}`,
     }).then((result) => {
       if (result.status !== 'ok') return
-      // The write answers with the state it committed, so the new card appears
-      // without a second read.
+      // The write answers with the state it committed, so the new card appears without
+      // a second read.
       applySnapshot(result.snapshot)
     })
   }, [applySnapshot, facts, revision, skillCards.api, t])
 
-  const cardTypes = useMemo<readonly WorkbenchCardType[]>(() => [
-    { id: CARD_TYPE_SKILL, label: t('cardTypeSkill'), enabled: true },
-    { id: CARD_TYPE_TEST, label: t('cardTypeTest'), enabled: false },
-    { id: CARD_TYPE_MEMORY, label: t('cardTypeMemory'), enabled: false },
-  ], [t])
-  const { view, actions } = useWorkbenchLayout(facts, api, active)
-  const labelOf = useMemo(() => {
-    const labels = new Map(facts.map(card => [card.id, card.label]))
-    return (id: string): string => {
-      const label = labels.get(id)
-      return label === undefined || label.length === 0 ? id : label
+  const pipelines = usePipelines(pipelineApi)
+  const run = usePipelineRun({ api: skillCards.api, scopeSessionId: skillCards.runSessionId })
+
+  const renderCard = useCallback((cardId: string, view: 'config' | 'runs' | 'result', onBack: () => void): ReactNode => {
+    // The inspector's three tabs are the card's own views, mounted rather than
+    // reimplemented: the result view keeps its preview, its source and its 重新生成, and
+    // the Setup view keeps the template editor. `onBack` is the inspector's own
+    // "return to the activity tab", so a view that offers a back control lands on the
+    // step's run history rather than leaving the panel.
+    const page = {
+      api: skillCards.api,
+      cardId,
+      runSessionId: skillCards.runSessionId,
+      ...skillCards.pickerSessionId === undefined ? {} : { pickerSessionId: skillCards.pickerSessionId },
+      models: skillCards.models,
+      workspacePicker: skillCards.workspacePicker,
+      fallbackTitle: labelOf(cardId),
+      openCard,
+      t,
+      ...skillCards.documents === undefined ? {} : { documents: skillCards.documents },
+      onBack,
     }
-  }, [facts])
+    if (view === 'result') return <SkillCardResultPage {...page} />
+    if (view === 'runs') return <SkillCardRunsPage {...page} />
+    return <SkillCardConfigPage {...page} />
+  }, [labelOf, openCard, skillCards, t])
 
-  const notice = view.write.phase === 'failed'
-    ? `${t('writeFailed')}${view.write.message === undefined ? '' : ` · ${view.write.message === 'merged' ? t('mergedElsewhere') : view.write.message}`}`
-    : undefined
-
-  // A user-created instance is not its own slot entry: the registered skill card
-  // entry renders it, told which instance it is rendering.
-  const registered = useMemo(() => new Set(cards.map(card => card.id)), [cards])
-  const renderEntry = (id: string, owner: WorkbenchCardsOwnerProps): ReactNode =>
-    registered.has(id)
-      ? renderSlot('workbench.cards', owner, { only: id })
-      : renderSlot('workbench.cards', { ...owner, cardId: id }, { only: SKILL_CARD_ID })
-
-  // The panel is one surface with three states: the grid, a card's result, and a
-  // card's configuration. A card opens one of the last two through the injected
-  // opener, so the card and the page never share a React tree.
+  // A card action that targets another card still takes the whole surface: it is a
+  // navigation, and the workbench behind it must not keep stealing the click.
   const content = selection === undefined
     ? (
-      // The grid always renders. The creation entry lives in it, so an empty card
-      // list is the normal first-run state: replacing the grid with an empty state
-      // took the only way to create the first card with it.
-      <WorkbenchCardGrid
-        view={view}
-        actions={actions}
-        renderEntry={renderEntry}
-        announce={(id, index) => t('announceMoved', { title: labelOf(id), index })}
-        notice={notice}
-        onCardsChanged={reloadInstances}
-        trailing={(
-          <WorkbenchCreateCard
-            types={cardTypes}
-            onCreate={createCard}
-            label={t('createCard')}
-            unavailableLabel={t('createCardCancel')}
-          />
-        )}
+      <WorkbenchPipeline
+        pipelines={pipelines}
+        run={run}
+        facts={facts}
+        renderCard={renderCard}
+        onCreateCard={createCard}
+        t={t}
       />
     )
     : (() => {
-      // Each view builds its own page props because navigation differs: the result
-      // view's back returns to the run history, while the history and the configuration
-      // return to the grid. The run a result view opens travels as selection.runId.
       const page = {
         api: skillCards.api,
         cardId: selection.cardId,
@@ -268,11 +249,10 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     })()
 
   return (
-    <div className={css.page}>
+    <div className={selection === undefined ? `${css.page} ${css.pagePipeline}` : css.page}>
       {/* Every view of the workbench carries the workbench's own title, including the
           card pages: they are views of this panel, not separate destinations, and the
-          card's own head (back control, name) sits below it. Without it a card page
-          started flush at the top edge and read as a different place. */}
+          card's own head sits below it. */}
       <header className={css.pageHead}>
         <div>
           <h1 className={css.pageTitle}>{t('title')}</h1>

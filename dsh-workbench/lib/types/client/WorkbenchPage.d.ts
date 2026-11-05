@@ -1,14 +1,16 @@
 /**
- * The workbench panel page: its head, the card grid, and the two empty states.
+ * The workbench panel page: its head, and the pipeline workbench below it.
  *
- * The page owns the layout controller and hands the grid plain data, so the
- * grid stays a rendering surface and the card shells stay independent of it.
+ * The panel is one surface with two states. Normally it is the pipeline workbench — the
+ * rail, the canvas and the inspector. When something outside the panel opens a card's own
+ * view (a card action whose target is another card), that view takes the whole surface and
+ * the workbench stands behind it, which is what the injected `selection` says.
  * @module dsh-workbench/client/WorkbenchPage
  */
 import { type ReactNode } from 'react';
-import { type ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
-import type { WorkbenchLayoutApi } from './layout-api.ts';
+import type { WorkbenchPipelineApi } from './pipeline-api.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
 import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
@@ -16,16 +18,16 @@ import type { WorkbenchModelSeat } from './skill-card/model.ts';
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts';
 import type { WorkbenchScriptBinder } from './skill-card/render.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
-/** Cards plus the transport the page drives, as the registration injects them. */
+/** Cards plus the transports the page drives, as the registration injects them. */
 export interface WorkbenchPageInjected {
     /** Card facts and the full-panel selection. */
     readonly hooks: {
         readonly cards: ObservableSnapshot<readonly WorkbenchCardFact[]>;
         readonly selection: ObservableSnapshot<WorkbenchCardSelection | undefined>;
     };
-    /** Layout transport. */
-    readonly api: WorkbenchLayoutApi;
-    /** Skill card transport, for the full-panel views the grid opens into. */
+    /** Pipeline-definition transport. */
+    readonly pipelines: WorkbenchPipelineApi;
+    /** Skill card transport, for the card views the inspector mounts. */
     readonly skillCards: {
         readonly api: WorkbenchSkillCardApi;
         /**
@@ -56,7 +58,7 @@ export interface WorkbenchPageInjected {
          */
         readonly documents?: WorkbenchScriptBinder | undefined;
     };
-    /** Return to the grid from whichever full-panel view is open. */
+    /** Leave a card's full-panel view and return to the workbench. */
     readonly closeCard: () => void;
     /**
      * Open one of a card's full-panel views.
@@ -79,7 +81,7 @@ export type WorkbenchPageProps = PropsRuntime<'main'> & PropsRenderSlots<'workbe
 };
 /**
  * Render the workbench page.
- * @param props - owner props, card render share, injected cards and transport, and `t`.
+ * @param props - owner props, injected cards and transports, and `t`.
  * @returns the page element.
  */
 export declare function WorkbenchPage(props: WorkbenchPageProps): ReactNode;

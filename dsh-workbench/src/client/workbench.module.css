@@ -173,3 +173,654 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   The pipeline workbench: a rail of pipelines and single cards, a canvas of
+   steps, and an inspector that mounts one card's own views.
+
+   Three fixed columns rather than one flowing column: the rail is a list, the
+   canvas is a sequence, and the inspector is a document — each scrolls on its
+   own, so a long run history never pushes the canvas out of view.
+   --------------------------------------------------------------------------- */
+
+/* The page's own frame when it hosts the shell: the shell scrolls internally, so
+   the page must not scroll as well. */
+.pagePipeline {
+  align-items: stretch;
+  gap: 12px;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+
+.shell {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr);
+  box-sizing: border-box;
+  min-height: 0;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  /* Below the panel's own minimum the inspector is what has to survive: the rail
+     folds away and the canvas narrows, because a pipeline you cannot read is worse
+     than one you cannot switch. */
+  .shell {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+
+  .rail {
+    display: none;
+  }
+}
+
+/* --- rail ---------------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 10px 8px;
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: auto;
+}
+
+.railHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px 2px;
+}
+
+.railTitle {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.railAction,
+.linkBtn {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.railAction:hover,
+.linkBtn:hover {
+  background: var(--dsw-alias-bg-fill-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.railAction:focus-visible,
+.linkBtn:focus-visible,
+.menuBtn:focus-visible,
+.toolBtn:focus-visible,
+.stepBadge:focus-visible,
+.stepMain:focus-visible,
+.railRowMain:focus-visible,
+.railRowTask:focus-visible,
+.tab:focus-visible,
+.primaryBtn:focus-visible,
+.stopBtn:focus-visible,
+.addStep:focus-visible,
+.pickerRow:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+
+.railList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.railEmpty {
+  margin: 0;
+  padding: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.railRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+}
+
+.railRowActive {
+  background: var(--dsw-alias-bg-fill-hover);
+}
+
+.railRowMain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.railRowTask {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.railRowTask:hover,
+.railRowMain:hover {
+  background: var(--dsw-alias-bg-fill-hover);
+}
+
+.railRowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railCount {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.menuBtn {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.menuBtn:hover {
+  background: var(--dsw-alias-bg-fill-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.menu {
+  position: absolute;
+  z-index: 2;
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);
+}
+
+.menuRow {
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuRow:hover {
+  background: var(--dsw-alias-bg-fill-hover);
+}
+
+.menuRowDanger {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.renameInput {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-brand-primary);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* --- canvas -------------------------------------------------------------- */
+
+.canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 12px 12px 16px;
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  overflow: auto;
+}
+
+.canvasHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.canvasTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.canvasTitle {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+}
+
+.canvasMeta,
+.canvasHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.canvasHint {
+  padding: 8px 2px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.runBar {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.primaryBtn,
+.stopBtn {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dsw-alias-brand-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.06);
+}
+
+.primaryBtn:disabled {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.stopBtn {
+  background: none;
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.chainLine {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chainLineFailed {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.stepList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 6px 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.stepSelected {
+  border-color: var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.stepRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stepBadge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepMain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stepName {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepNameMissing {
+  color: var(--dsw-alias-label-tertiary);
+  text-decoration: line-through;
+}
+
+.stepSub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.stepAsk {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepTook {
+  font-variant-numeric: tabular-nums;
+}
+
+.chip {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.chipIdle {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chipQueued {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chipRunning {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);
+  color: var(--dsw-alias-brand-primary);
+}
+
+.chipDone {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
+  color: var(--dsw-alias-label-primary);
+}
+
+.chipFailed {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.chipStopped {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The per-step controls appear on hover or focus: a canvas of six steps showing six
+   toolbars reads as a settings form rather than as an order of operations. */
+.stepTools {
+  display: flex;
+  gap: 4px;
+  padding-left: 28px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.step:hover .stepTools,
+.step:focus-within .stepTools,
+.stepSelected .stepTools {
+  opacity: 1;
+}
+
+.toolBtn {
+  padding: 1px 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.toolBtn:hover {
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.connector {
+  display: block;
+  width: 1px;
+  height: 10px;
+  margin: 2px 0 2px 14px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.addStep {
+  padding: 6px 10px;
+  border: 1px dashed var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.addStep:hover {
+  border-color: var(--dsw-alias-brand-primary);
+  border-style: solid;
+  color: var(--dsw-alias-label-primary);
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.pickerHead {
+  padding: 2px 6px 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.pickerRow {
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerRow:hover {
+  background: var(--dsw-alias-bg-fill-hover);
+}
+
+.pickerEmpty {
+  margin: 0;
+  padding: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- inspector ----------------------------------------------------------- */
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 0;
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.tab {
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tabActive {
+  border-bottom-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+/* The mounted card view brings its own padding and its own scroller; this box only
+   has to give it a bounded height so it can own both. */
+.tabBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabBody > * {
+  min-height: 0;
+}
+
+.noFocus {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 40px 16px;
+  text-align: center;
+}
