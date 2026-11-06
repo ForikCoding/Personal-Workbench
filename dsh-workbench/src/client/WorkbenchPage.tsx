@@ -24,6 +24,8 @@ import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import type { WorkbenchScriptBinder } from './skill-card/render.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
 import { SkillCardConfigPage, SkillCardResultPage, SkillCardRunsPage } from './skill-card/SkillCardPages.tsx'
+import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
+import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import css from './workbench.module.css'
 
@@ -186,6 +188,52 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     })
   }, [applySnapshot, facts, revision, skillCards.api, t])
 
+  // The add-step picker lists what this session can actually invoke, so the catalogue is
+  // read here — where the session is known — and handed to the pipeline to draw. It is
+  // re-read whenever a picker opens, because a skill installed mid-session belongs in the
+  // next list.
+  const [catalog, setCatalog] = useState<readonly WorkbenchSkillCatalogEntry[]>([])
+  const [catalogStatus, setCatalogStatus] = useState<WorkbenchCatalogStatus>('idle')
+  const [catalogFailure, setCatalogFailure] = useState<string | undefined>(undefined)
+  const catalogTicket = useRef(0)
+  const reloadCatalog = useCallback(() => {
+    catalogTicket.current += 1
+    const mine = catalogTicket.current
+    setCatalogStatus('loading')
+    void skillCards.api.catalog(skillCards.runSessionId()).then((result) => {
+      if (catalogTicket.current !== mine) return
+      if (result.status === 'ok') {
+        setCatalog(result.entries.filter(entry => entry.userInvocable))
+        setCatalogStatus('ready')
+        setCatalogFailure(undefined)
+        return
+      }
+      setCatalogStatus('failed')
+      setCatalogFailure(result.code)
+    })
+  }, [skillCards.api, skillCards.runSessionId])
+  useEffect(() => { reloadCatalog() }, [reloadCatalog])
+
+  /**
+   * Make the card one skill runs as, so a picked skill becomes a step.
+   *
+   * A step holds a card id, not a skill, because the card is where the template, model and
+   * workspace live. The name starts as the skill's own name, which is what the step then
+   * shows; the user can rename it on the card.
+   * @param skill - the picked skill.
+   * @returns the new card's id, or undefined when the write failed.
+   */
+  const createCardForSkill = useCallback(async (skill: string): Promise<string | undefined> => {
+    const taken = new Set(facts.map(card => card.id))
+    let index = 1
+    while (taken.has(`${SKILL_CARD_ID}-${String(index)}`)) index += 1
+    const cardId = `${SKILL_CARD_ID}-${String(index)}`
+    const result = await skillCards.api.write({ baseRevision: revision, cardId, name: skill, skill })
+    if (result.status !== 'ok') return undefined
+    applySnapshot(result.snapshot)
+    return cardId
+  }, [applySnapshot, facts, revision, skillCards.api])
+
   const pipelines = usePipelines(pipelineApi)
   const run = usePipelineRun({ api: skillCards.api, scopeSessionId: skillCards.runSessionId })
 
@@ -224,6 +272,11 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         facts={facts}
         renderCard={renderCard}
         onCreateCard={createCard}
+        catalog={catalog}
+        catalogStatus={catalogStatus}
+        catalogFailure={catalogFailure}
+        onCatalogNeeded={reloadCatalog}
+        createCardForSkill={createCardForSkill}
         t={t}
       />
     )

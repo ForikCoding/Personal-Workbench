@@ -1143,7 +1143,7 @@
 .wb-pickerRow:hover svg { color: var(--accent); }
 .wb-pickerRowMain { flex: 1; min-width: 0; }
 .wb-pickerRowTitle { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wb-pickerRowSub { display: block; margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-pickerRowDesc { display: block; margin-top: 1px; font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-pickerEmpty { padding: 16px 8px; text-align: center; color: var(--ink4); font-size: 12px; }
 
 /* ------------------------------------------------------------ 运行记录 */

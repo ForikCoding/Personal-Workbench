@@ -19,6 +19,8 @@ import type { PipelineRunEntry, StepProduct } from './pipeline/pipeline-view.ts'
 import { formatDuration, formatWhen, productOf, stateView } from './pipeline/pipeline-view.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
+import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
+import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
@@ -58,6 +60,25 @@ export interface WorkbenchPipelineProps {
   /** Create a new single card, from the menu's own entry. */
   readonly onCreateCard: () => void
   /**
+   * Installed skills the add-step picker offers.
+   *
+   * A step is a skill bound to a card, so the picker lists the skills this session can
+   * actually invoke rather than the cards already made: picking one is what makes a step.
+   */
+  readonly catalog: readonly WorkbenchSkillCatalogEntry[]
+  /** Whether that catalogue has been read yet. */
+  readonly catalogStatus: WorkbenchCatalogStatus
+  /** Why the catalogue could not be read, when it could not; `session-not-live` is its own case. */
+  readonly catalogFailure: string | undefined
+  /** Ask for the catalogue again, which a picker that is about to open its list does. */
+  readonly onCatalogNeeded: () => void
+  /**
+   * Create the card one skill runs as.
+   * @param skill - the skill to bind the new card to.
+   * @returns the new card's id, or undefined when the card could not be created.
+   */
+  readonly createCardForSkill: (skill: string) => Promise<string | undefined>
+  /**
    * Translate one workbench string.
    * @param key - dictionary key.
    * @param params - optional template parameters.
@@ -92,7 +113,10 @@ interface StepView {
  * @returns the two-column surface with its overlays.
  */
 export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
-  const { pipelines, run, facts, api, renderCard, onCreateCard, t } = props
+  const {
+    pipelines, run, facts, api, renderCard, onCreateCard, t,
+    catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill,
+  } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
   const [tab, setTab] = useState<InspectorTab>('activity')
@@ -161,9 +185,18 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
 
   // The menus close on the next click anywhere, which is what a menu has to do. The
   // dialogs close on Escape and their scrim instead.
+  //
+  // A pointerdown *inside* an open menu is the first half of a click on one of its rows,
+  // so it must not close anything: the menu would be unmounted before the click landed and
+  // every row in it — rename, delete, move step — would silently do nothing.
   useEffect(() => {
     if (!menuOpen && stepMenu === undefined) return
-    const close = (): void => { setMenuOpen(false); setStepMenu(undefined) }
+    const close = (event: PointerEvent): void => {
+      const from = event.target
+      if (from instanceof Element && from.closest('[data-title-menu], [data-step-menu]') !== null) return
+      setMenuOpen(false)
+      setStepMenu(undefined)
+    }
     document.addEventListener('pointerdown', close)
     return () => { document.removeEventListener('pointerdown', close) }
   }, [menuOpen, stepMenu])
@@ -231,6 +264,32 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const selectedIndex = focus?.kind === 'step' ? focus.index : 0
   const selected = stepViews[selectedIndex]
 
+  // A skill already on a step is listed but not addable: the same skill twice would leave
+  // the run history unable to say which step produced what.
+  const usedSkills = useMemo<ReadonlySet<string>>(() => {
+    const used = new Set<string>()
+    for (const step of stepViews) if (step.skill !== undefined) used.add(step.skill)
+    return used
+  }, [stepViews])
+
+  const pickerRows = useMemo<readonly WorkbenchSkillCatalogEntry[]>(() => {
+    const query = pickerQuery.trim().toLowerCase()
+    if (query === '') return catalog
+    return catalog.filter(entry => (
+      entry.name.toLowerCase().includes(query)
+      || entry.description.toLowerCase().includes(query)
+    ))
+  }, [catalog, pickerQuery])
+
+  /** What the picker says instead of rows: a catalogue on its way, one that failed, or no match. */
+  const pickerEmptyText = (): string => {
+    if (catalogStatus === 'idle' || catalogStatus === 'loading') return t('skillCardCatalogLoading')
+    if (catalogStatus === 'failed') {
+      return t(catalogFailure === 'session-not-live' ? 'skillCardNoSession' : 'skillCardCatalogFailed')
+    }
+    return pickerQuery.trim() === '' ? t('skillCardCatalogEmpty') : t('pipePickerEmpty')
+  }
+
   const writeSteps = useCallback(async (steps: readonly WorkbenchPipelineStep[]) => {
     if (active === undefined) return
     await pipelines.setSteps(active.id, steps)
@@ -246,6 +305,26 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     await writeSteps(next)
     setFocus({ kind: 'step', index: at })
   }, [active, writeSteps])
+
+  /** Open the picker at one slot, and make sure the skills it lists are the current ones. */
+  const openPicker = useCallback((at: number) => {
+    onCatalogNeeded()
+    setPicker({ at })
+    setPickerQuery('')
+  }, [onCatalogNeeded])
+
+  /**
+   * Turn one picked skill into a step: the card is what carries the skill, so the card is
+   * made first and the step is the new card's place in the pipeline.
+   * @param skill - the picked skill.
+   */
+  const addSkillStep = useCallback(async (skill: string) => {
+    if (picker === undefined) return
+    const at = picker.at
+    const cardId = await createCardForSkill(skill)
+    if (cardId === undefined) return
+    await insertStep(cardId, at)
+  }, [createCardForSkill, insertStep, picker])
 
   const moveStep = useCallback(async (index: number, delta: number) => {
     if (active === undefined) return
@@ -516,10 +595,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             type="button"
                             className={`${css.btn} ${css.primary}`}
                             data-add-step="0"
-                            onClick={() => {
-                              setPicker({ at: 0 })
-                              setPickerQuery('')
-                            }}
+                            onClick={() => { openPicker(0) }}
                           >
                             {MARK.plus}
                             {t('pipeAddFirstStep')}
@@ -539,7 +615,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                                   className={css.insertBtn}
                                   data-insert-step={step.index}
                                   aria-label={t('pipeInsertHere', { at: step.index + 1 })}
-                                  onClick={() => { setPicker({ at: step.index }); setPickerQuery('') }}
+                                  onClick={() => { openPicker(step.index) }}
                                 >
                                   {MARK.plus}
                                 </button>
@@ -590,7 +666,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                         type="button"
                         className={css.addStep}
                         data-add-step={String(active.steps.length)}
-                        onClick={() => { setPicker({ at: active.steps.length }); setPickerQuery('') }}
+                        onClick={() => { openPicker(active.steps.length) }}
                       >
                         {MARK.plus} {t('pipeAddStep')}
                       </button>
@@ -1044,32 +1120,27 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 </label>
               </div>
               <div className={css.pickerList}>
-                {menuFacts
-                  .filter(fact => pickerQuery.trim() === ''
-                    ? true
-                    : fact.label.toLowerCase().includes(pickerQuery.trim().toLowerCase())
-                      || fact.id.includes(pickerQuery.trim()))
-                  .map(fact => {
-                    const used = active?.steps.some(step => step.cardId === fact.id) ?? false
-                    return (
-                      <button
-                        key={fact.id}
-                        type="button"
-                        className={css.pickerRow}
-                        data-pick-card={fact.id}
-                        disabled={used}
-                        onClick={() => { void insertStep(fact.id, picker.at) }}
-                      >
-                        <span className={css.pickerRowMain}>
-                          <span className={css.pickerRowTitle}>{fact.label}</span>
-                          <span className={css.pickerRowSub}>{fact.id}</span>
-                        </span>
-                        {used ? <span className={css.pickerUsed}>{t('pipePickerUsed')}</span> : MARK.plus}
-                      </button>
-                    )
-                  })}
-                {menuFacts.length === 0
-                  ? <p className={css.pickerEmpty}>{t('pipePickerEmpty')}</p>
+                {pickerRows.map(entry => {
+                  const used = usedSkills.has(entry.name)
+                  return (
+                    <button
+                      key={entry.name}
+                      type="button"
+                      className={css.pickerRow}
+                      data-pick-skill={entry.name}
+                      disabled={used}
+                      onClick={() => { void addSkillStep(entry.name) }}
+                    >
+                      <span className={css.pickerRowMain}>
+                        <span className={css.pickerRowTitle}>{entry.name}</span>
+                        <span className={css.pickerRowDesc}>{entry.description}</span>
+                      </span>
+                      {used ? <span className={css.pickerUsed}>{t('pipePickerUsed')}</span> : MARK.plus}
+                    </button>
+                  )
+                })}
+                {pickerRows.length === 0
+                  ? <p className={css.pickerEmpty}>{pickerEmptyText()}</p>
                   : null}
               </div>
             </div>

@@ -116,8 +116,8 @@ export declare const css: {
     readonly pickerHead: "wb-pickerHead";
     readonly pickerList: "wb-pickerList";
     readonly pickerRow: "wb-pickerRow";
+    readonly pickerRowDesc: "wb-pickerRowDesc";
     readonly pickerRowMain: "wb-pickerRowMain";
-    readonly pickerRowSub: "wb-pickerRowSub";
     readonly pickerRowTitle: "wb-pickerRowTitle";
     readonly pickerScrim: "wb-pickerScrim";
     readonly pickerTitle: "wb-pickerTitle";

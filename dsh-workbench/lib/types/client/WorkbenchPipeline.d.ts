@@ -14,6 +14,8 @@ import './pipeline.css';
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts';
 import type { PipelineRunFace } from './pipeline/pipeline-run.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
+import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts';
+import type { WorkbenchCatalogStatus } from './skill-card/controller.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 /** One card's full-panel views the reader can mount. */
@@ -38,6 +40,25 @@ export interface WorkbenchPipelineProps {
     readonly renderCard: (cardId: string, view: CardView, onBack: () => void) => ReactNode;
     /** Create a new single card, from the menu's own entry. */
     readonly onCreateCard: () => void;
+    /**
+     * Installed skills the add-step picker offers.
+     *
+     * A step is a skill bound to a card, so the picker lists the skills this session can
+     * actually invoke rather than the cards already made: picking one is what makes a step.
+     */
+    readonly catalog: readonly WorkbenchSkillCatalogEntry[];
+    /** Whether that catalogue has been read yet. */
+    readonly catalogStatus: WorkbenchCatalogStatus;
+    /** Why the catalogue could not be read, when it could not; `session-not-live` is its own case. */
+    readonly catalogFailure: string | undefined;
+    /** Ask for the catalogue again, which a picker that is about to open its list does. */
+    readonly onCatalogNeeded: () => void;
+    /**
+     * Create the card one skill runs as.
+     * @param skill - the skill to bind the new card to.
+     * @returns the new card's id, or undefined when the card could not be created.
+     */
+    readonly createCardForSkill: (skill: string) => Promise<string | undefined>;
     /**
      * Translate one workbench string.
      * @param key - dictionary key.

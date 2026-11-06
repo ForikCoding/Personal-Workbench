@@ -17,6 +17,9 @@ type WorkbenchPipelinePatch = import('../src/pipeline-contract.ts').WorkbenchPip
 type WorkbenchRunRequest = import('../src/skill-card-contract.ts').WorkbenchRunRequest
 type WorkbenchRunState = import('../src/skill-card-contract.ts').WorkbenchRunState
 type WorkbenchCardResult = import('../src/skill-card-contract.ts').WorkbenchCardResult
+type WorkbenchSkillCardPatch = import('../src/skill-card-contract.ts').WorkbenchSkillCardPatch
+type WorkbenchCardSnapshot = import('../src/client/skill-card/api.ts').WorkbenchCardSnapshot
+type WorkbenchCatalogRead = import('../src/client/skill-card/api.ts').WorkbenchCatalogRead
 const { en } = await import('../src/client/locales.ts')
 type LocaleKey = import('../src/client/locales.ts').WorkbenchLocaleKey
 
@@ -64,6 +67,13 @@ function result(cardId: string, html = '<p>done</p>'): WorkbenchCardResult {
 /** The two cards every case can arrange. */
 const CARDS = [{ id: 'a-card', order: 100, label: 'A card' }, { id: 'b-card', order: 200, label: 'B card' }]
 
+/** What the session says it can invoke: the two the cards already hold, plus one free. */
+const SKILLS = [
+  { name: 'design-doc', description: 'Write a design document', userInvocable: true },
+  { name: 'git-repo', description: 'Work with a repository', userInvocable: true },
+  { name: 'review', description: 'Review a change', userInvocable: true },
+]
+
 /**
  * One stored pipeline over those cards.
  * @param overrides - fields the case varies.
@@ -94,15 +104,29 @@ function props(options: {
   pipelines?: readonly WorkbenchPipeline[]
   run?: RunSeams
   results?: readonly WorkbenchCardResult[]
+  catalog?: () => Promise<WorkbenchCatalogRead>
   overrides?: Partial<PageProps>
-} = {}): { props: PageProps; writes: WorkbenchPipelinePatch[]; reads: number[] } {
+} = {}): {
+  props: PageProps
+  writes: WorkbenchPipelinePatch[]
+  cardWrites: WorkbenchSkillCardPatch[]
+  reads: number[]
+} {
   let snapshot: WorkbenchPipelineSnapshot = {
     apiVersion: 1,
     revision: '1:0',
     pipelines: options.pipelines ?? [pipeline()],
   }
   const writes: WorkbenchPipelinePatch[] = []
+  const cardWrites: WorkbenchSkillCardPatch[] = []
   const reads: number[] = []
+  // The card store the config views read and the picker writes: creating a step's card
+  // goes through the same transport as the card pages, so the fake has to hold state.
+  let cardSnapshot: WorkbenchCardSnapshot = {
+    revision: '1:0',
+    cards: [...CARD_VIEWS],
+    results: options.results ?? [],
+  }
   const merged = {
     usePanelInfo: ((selector: (info: { activePanelId: string | null }) => unknown) => selector({ activePanelId: 'workbench' })) as PageProps['usePanelInfo'],
     useCards: ((selector: (snapshot: typeof CARDS) => unknown) => selector(CARDS)) as PageProps['useCards'],
@@ -127,16 +151,25 @@ function props(options: {
     },
     skillCards: {
       api: {
-        read: async () => ({
-          status: 'ok' as const,
-          snapshot: {
-            revision: '1:0',
-            cards: CARD_VIEWS,
-            results: options.results ?? [],
-          },
-        }),
-        write: async () => ({ status: 'failed' as const, reason: 'not used by these cases' }),
-        catalog: async () => ({ status: 'ok' as const, entries: [] }),
+        read: async () => ({ status: 'ok' as const, snapshot: cardSnapshot }),
+        write: async (patch: WorkbenchSkillCardPatch) => {
+          cardWrites.push(patch)
+          cardSnapshot = {
+            revision: `${cardSnapshot.revision}+1`,
+            cards: [
+              ...cardSnapshot.cards.filter(card => card.cardId !== patch.cardId),
+              {
+                cardId: patch.cardId,
+                name: patch.name ?? patch.cardId,
+                ...patch.skill === undefined || patch.skill === null ? {} : { skill: patch.skill },
+                templateSkills: [],
+              },
+            ],
+            results: cardSnapshot.results,
+          }
+          return { status: 'ok' as const, snapshot: cardSnapshot }
+        },
+        catalog: options.catalog ?? (async () => ({ status: 'ok' as const, entries: SKILLS })),
         poll: options.run === undefined
           ? async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' })
           : options.run.poll,
@@ -157,7 +190,7 @@ function props(options: {
     t,
     ...options.overrides ?? {},
   } as unknown as PageProps
-  return { props: merged, writes, reads }
+  return { props: merged, writes, cardWrites, reads }
 }
 
 /**
@@ -222,23 +255,47 @@ describe('WorkbenchPage', () => {
     expect(document.querySelector('[data-canvas-title]')?.textContent).toBe(en.pipeNewPipelineName)
   })
 
-  it('adds a step by picking a card', async () => {
-    const { writes } = await renderPage({ pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })] })
+  it('offers the skills this session can invoke, not the cards already made', async () => {
+    await renderPage()
     fireEvent.click(await screen.findByText(en.pipeAddStep))
-    fireEvent.click(document.querySelector('[data-pick-card="b-card"]') as HTMLElement)
-    await waitFor(() => { expect(writes).toHaveLength(1) })
-    expect(writes[0]?.pipelines[0]?.steps).toEqual([{ cardId: 'a-card' }, { cardId: 'b-card' }])
+    expect(document.querySelector('[data-pick-skill="design-doc"]')).not.toBeNull()
+    // A card is what a picked skill becomes, so the picker never asks for one.
+    expect(document.querySelector('[data-pick-card]')).toBeNull()
   })
 
-  it('refuses a step that is already in the pipeline', async () => {
+  it('adds a step by picking a skill, which becomes the step\'s card', async () => {
+    const { writes, cardWrites } = await renderPage({ pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })] })
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
+    fireEvent.click(document.querySelector('[data-pick-skill="design-doc"]') as HTMLElement)
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
+    // One card per picked skill, named after it, holding it.
+    expect(cardWrites[0]).toMatchObject({ name: 'design-doc', skill: 'design-doc' })
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    expect(writes[0]?.pipelines[0]?.steps).toEqual([
+      { cardId: 'a-card' },
+      { cardId: cardWrites[0]?.cardId },
+    ])
+  })
+
+  it('refuses a skill that is already in the pipeline', async () => {
     const { writes } = await renderPage()
     fireEvent.click(await screen.findByText(en.pipeAddStep))
-    const row = document.querySelector('[data-pick-card="a-card"]') as HTMLButtonElement
-    // The picker still lists it — it is a real task — but it cannot be added twice.
+    const row = document.querySelector('[data-pick-skill="git-repo"]') as HTMLButtonElement
+    // The picker still lists it — the skill exists — but it cannot be added twice.
     expect(row.disabled).toBe(true)
     expect(row.textContent).toContain(en.pipePickerUsed)
     fireEvent.click(row)
     expect(writes).toHaveLength(0)
+  })
+
+  it('says why the picker has nothing to offer when the catalogue cannot be read', async () => {
+    await renderPage({
+      catalog: async () => ({ status: 'failed' as const, code: 'session-not-live', message: 'no agent' }),
+    })
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
+    expect(document.querySelector('[data-picker-title]')).not.toBeNull()
+    // Opening the picker re-reads the catalogue, so the failure arrives a tick later.
+    expect(await screen.findByText(en.skillCardNoSession)).toBeDefined()
   })
 
   it('moves a step later and keeps the focus on it', async () => {
@@ -272,6 +329,19 @@ describe('WorkbenchPage', () => {
     fireEvent.keyDown(field, { key: 'Enter' })
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines[0]?.name).toBe('Nightly')
+  })
+
+  it('keeps the title menu alive through the pointerdown that starts a click on its rows', async () => {
+    // A browser sends pointerdown before click; a bare fireEvent.click skips it. The
+    // document-level "close on the next pointerdown" listener used to unmount the row in
+    // between, so rename and delete worked in jsdom and did nothing in the app.
+    await renderPage()
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
+    const rename = screen.getByText(en.pipeRename)
+    fireEvent.pointerDown(rename)
+    expect(document.querySelector('[data-title-menu]')).not.toBeNull()
+    fireEvent.click(rename)
+    expect(screen.getByLabelText(en.pipeRenameLabel)).not.toBeNull()
   })
 
   it('keeps a blank rename out of storage', async () => {
