@@ -10,6 +10,7 @@
  * @module dsh-workbench/client/WorkbenchPipeline
  */
 import { type ReactNode } from 'react';
+import './pipeline.css';
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts';
 import type { PipelineRunFace } from './pipeline/pipeline-run.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';

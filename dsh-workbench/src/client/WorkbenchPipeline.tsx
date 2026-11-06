@@ -11,7 +11,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import css from './pipeline.module.css'
+import './pipeline.css'
+import css from './pipeline-classes.ts'
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts'
 import type { PipelineRunFace, PipelineStepPhase } from './pipeline/pipeline-run.ts'
 import type { PipelineRunEntry, StepProduct } from './pipeline/pipeline-view.ts'
@@ -880,7 +881,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                   : (
                     <button
                       type="button"
-                      className={css.iconBtn}
+                      className={`${css.iconBtn} ${css.histBack}`}
                       aria-label={t('pipeHistoryBack')}
                       onClick={() => { setHistoryAt(undefined) }}
                     >

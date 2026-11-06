@@ -90,7 +90,7 @@ interface WorkbenchPipeline {
 
 宿主侧：`src/pipeline-contract.ts`、`src/pipeline-service.ts`、`src/pipeline-route.ts`、`src/index.ts`（注册路由与服务）、`src/client/pipeline-controller.ts`、`src/client/pipeline-client.ts`。
 
-客户端：`src/client/WorkbenchPipeline.tsx`（两栏 + 弹层）、`src/client/pipeline/pipeline-run.ts`（链执行）、`src/client/pipeline/pipeline-view.ts`（状态与产物的读法）、`src/client/pipeline.module.css`（原型样式 + DSH 令牌）。
+客户端：`src/client/WorkbenchPipeline.tsx`（两栏 + 弹层）、`src/client/pipeline/pipeline-run.ts`（链执行）、`src/client/pipeline/pipeline-view.ts`（状态与产物的读法）、`src/client/pipeline.css`（原型样式 + DSH 令牌）、`src/client/pipeline-classes.ts`（类名常量）。
 
 测试：`pipeline-contract.spec.ts`(11)、`pipeline-service.spec.ts`(12)、`pipeline-route.spec.ts`(11)、`pipeline-run.spec.ts`(9)、`pipeline-handoff.spec.ts`(15)、`skill-card-prompt-handoff.spec.ts`(4)、`skill-card-route.spec.ts` 追加 4 条步骤模式、`skill-card-runner.spec.ts` 追加 6 条 `pipeline steps`、`WorkbenchPage.spec.tsx` 17 条（画布、检查器、弹层、运行）。
 
@@ -99,9 +99,11 @@ interface WorkbenchPipeline {
 原型 `docs/prototypes/workbench-pipeline-v2.html` 是这一轮的规格书，实现方式改成**逐条移植**，不再「照着感觉重画」：
 
 - 结构：`.panel` → `.panelBody` → `.pipelineView` → `.panes`（`.canvas` + `.inspector`）+ `.runbar`，四个弹层（`.zoomWrap` / `.histBody` / `.reviewWrap` / `.pickerWrap`）都是 `.panel` 的子节点。原型里**没有左侧轨道**：流水线列表、单任务列表、新建/重命名/删除全在标题菜单（`#canvasMenu`）里，插件照此执行，轨道已删除。
-- 样式：`src/client/pipeline.module.css` 由原型的 `<style>` 整段搬来（选择器、数值、间距、圆角、阴影都不动），只做两处改写：原型写在 `body[data-theme]` 上的两套固定色板换成 DSH 令牌映射（见 §3.2），原型页面的 demo 外壳（`.protoBar`、`.app`、`body`）删掉，根节点作用域收到 `.root` 上。
-- 令牌映射：`--base`→`--dsw-alias-bg-base`、`--pane`→`-bg-base`、`--recess`→`-bg-layer-2`、`--hover`→`-bg-fill-hover`、`--ink/2/3`→`-label-primary/secondary/tertiary`、`--hairline`/`--divider`→`-border-l1`、`--idle`/`--scroll`→`-border-l2`、`--accent`→`-brand-primary`、`--danger`→`-state-error-primary`、`--primary-bg`→`-label-primary`、`--primary-ink`→`-bg-base`；`--success`/`--warn` 与阴影保留原值（DSH 没有同义令牌）。
-- 页面框架：`.pagePipeline` 去掉页面级左右留白与间距，面板自己铺满；页面头保留（工作台标题 + 副标题是插件自己的），并补一条 `.5px` 下边线，与原型 `.panelHead` 的分隔一致。
+- 样式：`src/client/pipeline.css` 由原型的 `<style>` 整段搬来（选择器、数值、间距、圆角、阴影都不动），只做三处改写：①原型写在 `body[data-theme]` 上的两套固定色板换成 DSH 令牌（见下）；②原型页面的 demo 外壳（`.protoBar`、`.app`、`body`、`html`）删掉，`*{box-sizing}` 与 `[hidden]` 两条全局规则收到 `.wb-root` 上；③类名统一加 `wb-` 前缀。
+- **类名是字面量，不经过 CSS Modules 哈希**：`pipeline-classes.ts` 导出一个 `{ canvasHead: 'wb-canvasHead', … }` 的常量对象，组件照旧写 `css.canvasHead`，但 DOM 里出现的就是 `.wb-canvasHead`，和样式表里的选择器一字不差。这么做是因为插件的样式与宿主同处一张表：哈希名一旦与样式表里的名字失配（换了构建、浏览器缓存了旧样式表、或样式被打包成独立文件而版本没对齐），元素会带着一个没人应答的类名渲染——**静默地少掉 padding、少掉高度**，控制台里一个字都没有，只能靠截图反推。字面量名让这种失配不可能发生，代价是要自己维护前缀命名空间。
+- 令牌映射：`--base`/`--pane`/`--card-bg`→`--dsw-alias-bg-base`（原型里这三者同为白，两栏之间只靠一条竖线分界，不要给检查器垫底灰）；`--hover`→`-bg-fill-hover`；`--ink/2/3/4`→`-label-primary/secondary/tertiary/tertiary`；`--accent`→`-brand-primary`；`--danger`→`-state-error-primary`；`--primary-bg`→`-label-primary`；`--primary-ink`→`-bg-base`。**浅色主题下 `-border-l1` 只有约 2% 的黑（`#f5f5f5`），等于没有线**，所以 `--hairline`（10% 墨）`--divider`（8%）`--idle`（17%）`--scroll`（14%）`--recess`/`--rail`（3%）一律用 `color-mix(in srgb, var(--dsw-alias-label-primary) N%, transparent)` 按原型的 `rgba(0,0,0,.1)`、`.08`、`#d4d4d4`、`#dcdcdc`、`#f9fafb` 复刻浓度；深浅主题自动成立，不再依赖宿主的边框令牌取值。`--success`/`--warn` 与阴影保留原值（DSH 没有同义令牌）。
+- 页面框架：面板自己画头（`.panelHead`：工作台 + 新建流水线 + 运行，58px，`.5px` 下边线），`.pagePipeline` 只保留一行 `minmax(0,1fr)` 的栅格且不留内边距，保证面板拿到确定高度、`.runbar` 不会被挤出可视区；页面头（`h1` + 副标题）只在卡片页出现，流水线面板不再重复一个标题。
+- 断点用容器查询（`@container panel`），因为面板宽度 ≠ 视口宽度：≥1200 画布 312、900–1199 画布 280、700–899 画布 248、<700 切横向步骤条并把面板头压到 52px。
 
 | 区域 | 实现 | 数据来源 |
 | --- | --- | --- |
@@ -120,6 +122,17 @@ interface WorkbenchPipeline {
 | 任务选择器 | `.pickerWrap`：新建/插入两种位置、搜索、已在流水线里的行禁用 | 卡片事实 + `setSteps` |
 
 运行历史按会话保存在客户端（原型同样如此：刷新即失），每条流水线保留最近 20 次；快照取自每次结束时的 `structured.html`，因此历史里的产物不受之后重跑影响。
+
+### 9.1 怎么核对「像不像原型」
+
+插件的样式最终要落在宿主的真实 DOM 里，而宿主只肯给一张截图。这一轮把核对方式从「对着截图反推」换成「自己把页面渲染出来」：
+
+1. 一个临时 vitest 用例把真实组件挂到 jsdom 上，用桩 props 喂出目标状态，`document.body.innerHTML` 去掉哈希后写到磁盘（`surface.html`）；
+2. 把 `pipeline.css`、`workbench.module.css` 原文 + 一份 DSH 令牌桩（`-bg-base`/`-label-primary` 等按主题实际取值）拼成一页 `index.html`，用宿主列的形状（一个定高的 flex 列）把它包住；
+3. `chrome --headless --screenshot` 出图直接看，`chrome --headless --dump-dom` 加一段 `getBoundingClientRect()` 脚本读盒子（`.panel`/`.panelHead`/`.panes`/`.canvas`/`.runbar` 的 x/y/w/h 与 padding）；
+4. 同一页在几个断点宽度下各跑一遍，就能看出哪条规则没生效，不用等下一张截图。
+
+结论：`WorkbenchPipeline` 的 DOM 与 `pipeline.css` 在真实 Chrome 里渲染出的盒子与原型一致（面板头 58、画布 312、运行条 46 且始终在可视区内）。所以此后面板「看起来少了几条 padding / 少了运行条」这类现象，先怀疑类名或样式表有没有加载，而不是再改数值。
 
 已知缺口（沿用 §7 并新增两条）：
 
