@@ -18,6 +18,10 @@
   11. 同名技能不允许重复加入（重复会让运行记录按技能反查步骤时错位）
    12. 顶部多了「场景」切换：有步骤 / 0 步流水线 / 没有流水线。后两种是没有工作流时的样子——
        第一次打开工作台的人，看到的应该是「还没有流水线」，不该是别人的五步示例
+   13. 步骤有「未运行」这个状态了：第四种场景（未运行）三步都没跑过，节点是虚线框 + 空心序号，
+       检查器说「这一步还没有运行过」并给一个「运行这一步」，不再借用「空结果」的样子
+   14. 步骤能就地改名：检查器 ⋯ →「重命名这一步」，节点标题变输入框，回车保存 / Esc 放弃
+   15. 移除一步改成点两次确认（和删除流水线同一规矩），第二次的提示写出将被移除的名字
 -->
 <html lang="zh-CN">
 <head>
@@ -378,6 +382,11 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .node[data-s="done"]::before { background: var(--success); }
 .node[data-s="running"]::before { background: var(--accent); }
 .node[data-s="failed"]::before { background: var(--danger); }
+/* 还没跑过：虚线框 + 空心序号，跟跑过的实线卡片一眼分开（颜色之外的第二条线索） */
+.node[data-s="idle"] { border-style: dashed; }
+.node[data-s="idle"] .nodeIndex { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink4); }
+.node[data-s="idle"] .nodeState { color: var(--ink3); }
+.node[data-s="idle"] .nodeDur { color: var(--ink4); }
 .node:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .node[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent-soft); }
 
@@ -401,6 +410,22 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 步骤就地改名：占的是标题那一格，样式跟着标题走，只多一圈强调边 */
+.nodeTitleEdit {
+  flex: 1 1 0;
+  min-width: 40px;
+  margin: -3px 0;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-base);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 .nodeState {
   margin-left: auto;
@@ -1634,6 +1659,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   <div class="pbSeg" id="sceneSeg" aria-label="场景">
     <button type="button" data-scene="steps" aria-pressed="true">有步骤</button>
     <button type="button" data-scene="zero" aria-pressed="false">0 步流水线</button>
+<button type="button" data-scene="idle" aria-pressed="false">未运行</button>
     <button type="button" data-scene="none" aria-pressed="false">没有流水线</button>
   </div>
 </div>
@@ -1816,6 +1842,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>',
     warn: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l5.6 9.8H2.4z"/><path d="M8 6.2v3.2M8 11.2v.1"/></svg>',
     plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>',
+    edit: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 2.9l2.5 2.5-7.3 7.3-3.2.7.7-3.2z"/><path d="M9.2 4.3l2.5 2.5"/></svg>',
     file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z"/><path d="M9.2 2.4v3.2h3.2"/></svg>',
     folder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 5.2a1 1 0 0 1 1-1h2.6l1.2 1.6h5.4a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1z"/></svg>',
     search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7.2" cy="7.2" r="4.4"/><path d="m10.6 10.6 2.6 2.6"/></svg>',
@@ -2266,6 +2293,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     resTab: 'preview',
     fileIdx: 0,
     stepMenu: false,
+    stepRename: null,      // 正在就地改名的那一步（下标）；null = 没在改名
+    stepRenameDraft: null, // 改名的草稿：重渲染时输入框里还是这几个字
+    confirmStepDel: false, // 移除这一步的第二次确认
     reviewOpen: false,
     reviewAt: 0,
     reviewFromSnapshot: false,
@@ -2286,8 +2316,12 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // 属性里的值还要管引号：任务名是用户敲的，一个引号不能把 input 撑破
+  const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const taskName = (skill) => (TASKS.find(t => t.skill === skill) || {}).name || skill;
+  // 步骤的名字可以改：改名只改承载它的那张卡片，技能本身不动
+  const stageName = (st) => (st && st.name) || taskName(st ? st.skill : '');
 
   /*
    * 单任务的最后一次运行。
@@ -2413,6 +2447,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 
     // 运行条
     renderRunbar(flow);
+
+    // 改名框被重渲染冲掉时把焦点放回去：草稿存在 state 里，字不会丢
+    if (state.stepRename !== null) focusStepRename();
   }
 
   function renderStepStrip(flow) {
@@ -2423,20 +2460,23 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       <button class="stepChip" type="button" data-strip="${i}"
               data-s="${st.status}" aria-selected="${i === state.sel}">
         <b>${String(i + 1).padStart(2, '0')}</b>
-        <span>${esc(taskName(st.skill))}</span>
+        <span>${esc(stageName(st))}</span>
         <span class="dot" data-s="${st.status}"></span>
       </button>`).join('');
   }
 
   function nodeHtml(st, i, total) {
     const selected = i === state.sel;
+    const renaming = state.stepRename === i;
     const done = st.status === 'done';
     const failed = st.status === 'failed';
     const running = st.status === 'running';
     const queued = st.status === 'queued';
 
     let foot;
-    if (done) {
+    if (renaming) {
+      foot = `<span>回车保存 · Esc 放弃</span>`;
+    } else if (done) {
       // 整块节点都可点，轨道上不再塞「查看」按钮跟产出摘要抢宽度
       // 产物来自哪一次：整链跑就是 #4，单点重跑过就是 #5，逐步骤看得见
       foot = `<span>${esc(st.summary)}</span>${st.run ? `<span class="nodeRun" title="这一步的产物来自第 ${st.run} 次运行">#${st.run}</span>` : ''}`;
@@ -2457,7 +2497,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       <div class="node" role="button" tabindex="0" data-node="${i}" data-s="${st.status}" aria-selected="${selected}">
         <div class="nodeTop">
           <span class="nodeIndex">${String(i + 1).padStart(2, '0')}</span>
-          <span class="nodeTitle">${esc(taskName(st.skill))}</span>
+          ${renaming
+            ? `<input class="nodeTitleEdit" id="stepRenameInput" type="text" value="${escAttr(state.stepRenameDraft ?? stageName(st))}" autocomplete="off" spellcheck="false" aria-label="任务名称">`
+            : `<span class="nodeTitle">${esc(stageName(st))}</span>`}
           <span class="nodeState">${stateIcon}${STAGE_TEXT[st.status]}</span>
           <span class="nodeDur" ${running ? 'data-timer="stage"' : ''}>${running ? stageElapsed(st) : esc(st.dur)}</span>
         </div>
@@ -2503,7 +2545,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       noise.innerHTML = `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span>`;
       $('#stopBtn').hidden = true;
     } else {
-      noise.innerHTML = `<span>未运行</span>`;
+      noise.innerHTML = `<span>${flow.stages.length} 步都还没跑过</span><span>·</span><span>点右上角「运行」按顺序跑完</span>`;
       $('#stopBtn').hidden = true;
     }
   }
@@ -2554,7 +2596,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       ? `<span>单独运行 · 不属于任何流水线</span>`
       : `<span>第 <b>${i + 1}</b> 步 / 共 ${flow.stages.length} 步 · ${esc(flow.name)}</span>`;
 
-    $('#inspTitle').textContent = taskName(st.skill);
+    $('#inspTitle').textContent = stageName(st);
     $('#runOneBtn').hidden = false;
     $('#inspMeta').hidden = false;
     $('#inspMeta').innerHTML = `
@@ -2607,10 +2649,15 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         ${SVG.down}<span>下移一位</span>
       </button>
       <div class="stepMenuSep"></div>
-      <button class="stepMenuRow" type="button" data-step="remove" data-danger="1">
-        ${SVG.trash}<span>从流水线中移除</span>
+      <button class="stepMenuRow" type="button" data-step="rename">
+        ${SVG.edit}<span>重命名这一步</span>
       </button>
-      <div class="stepMenuNote">移除后这一步的产物会一起从结果里消失</div>`;
+      <button class="stepMenuRow" type="button" data-step="remove" data-danger="1">
+        ${SVG.trash}<span>${state.confirmStepDel ? '再点一次确认移除' : '从流水线中移除'}</span>
+      </button>
+      <div class="stepMenuNote">${state.confirmStepDel
+        ? `将移除「${esc(stageName(flow.stages[i]))}」，这一步的产物会一起从结果里消失`
+        : '移除后这一步的产物会一起从结果里消失'}</div>`;
   }
 
   /** 这一步有没有可看的结果：目录里有文件，或者区域里有内容。 */
@@ -2700,7 +2747,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     // 审核针对这一步的**全部产出**，不是某一个文件，所以这里不点名文件
     $('#reviewWho').textContent = [
       flow.isTask ? null : `第 ${i + 1} 步`,
-      taskName(st.skill),
+      stageName(st),
     ].filter(Boolean).join(' · ');
 
     // 从快照进来的要说清后果：那条记录不会变，改的是这一步的现在
@@ -2809,8 +2856,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     reviewBtn.title = snap ? '提要求，重新生成这一步（会新产生一次运行）' : '提要求，重新生成这一份';
 
     $('#zoomTitle').textContent = (!snap && flow.isTask)
-      ? taskName(st.skill)
-      : `第 ${i + 1} 步 · ${taskName(st.skill)}`;
+      ? stageName(st)
+      : `第 ${i + 1} 步 · ${stageName(st)}`;
 
     // 看到的是哪一份货，标题旁边就得写清楚
     const runTag = snap ? `#${snap.no} ` : (st.run ? `#${st.run} · ` : '');
@@ -3069,12 +3116,20 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     renderAll();
   }
 
+  /** 移除一步是破坏性动作：先问一次，再点一次才真的移除，和删除流水线一个规矩。 */
   function removeStage() {
     const flow = current();
     if (flow.isTask) return;
     const p = PIPELINES.find(x => x.id === state.focus.id);
     const i = Math.min(state.sel, p.stages.length - 1);
     if (i < 0) return;
+    if (!state.confirmStepDel) {
+      state.confirmStepDel = true;
+      renderStepMenu();
+      window.setTimeout(() => { if (state.confirmStepDel) { state.confirmStepDel = false; renderStepMenu(); } }, 4000);
+      return;
+    }
+    state.confirmStepDel = false;
     p.stages.splice(i, 1);
     // 移除后选中位置顺延，越界则回退
     state.sel = Math.max(0, Math.min(i, p.stages.length - 1));
@@ -3138,9 +3193,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         <div class="resultBar">${chipHtml('idle')}</div>
         <div class="docPad">
           <div class="stateBlock">
-            <h6>这个任务还没有结果</h6>
+            <h6>这一步还没有运行过</h6>
             <p>${esc((TASKS.find(t => t.skill === st.skill) || {}).desc || '')}</p>
-            <button class="btn ghost" type="button" data-run-node="${i}" style="margin-top:2px">${SVG.play}<span>单独运行</span></button>
+            <p style="color:var(--ink4)">点「运行这一步」只跑它；按顺序跑整条用右下角的运行按钮。</p>
+            <button class="btn ghost" type="button" data-run-node="${i}" style="margin-top:2px">${SVG.play}<span>运行这一步</span></button>
           </div>
         </div>`;
       return;
@@ -3419,7 +3475,7 @@ ${region}
       <div class="cfgBlock">
         <div class="cfgBlockHead">
           <span>${flow.isTask ? '这条任务' : '这一步'}</span>
-          <em>${flow.isTask ? esc(taskName(st.skill)) : `第 ${i + 1} 步 · ${esc(taskName(st.skill))}`}</em>
+          <em>${flow.isTask ? esc(stageName(st)) : `第 ${i + 1} 步 · ${esc(stageName(st))}`}</em>
         </div>
         <div class="ruleRow">
           <span class="ruleLabel">技能</span>
@@ -3557,7 +3613,7 @@ ${region}
   function selectNode(i) {
     const flow = current();
     if (i < 0 || i >= flow.stages.length) return;
-    if (i !== state.sel) { state.fileIdx = 0; state.stepMenu = false; }
+    if (i !== state.sel) { state.fileIdx = 0; state.stepMenu = false; state.confirmStepDel = false; }
     state.sel = i;
     renderCanvas();
     renderInspector();
@@ -3639,6 +3695,50 @@ ${region}
     renderAll();
   }
 
+  /** 开始就地改这一条步骤的名字。 */
+  function startStepRename() {
+    const flow = current();
+    if (flow.isTask || flow.stages.length === 0) return;
+    const i = Math.min(state.sel, flow.stages.length - 1);
+    state.stepRename = i;
+    state.stepRenameDraft = stageName(flow.stages[i]);
+    state.stepMenu = false;
+    state.confirmStepDel = false;
+    renderAll();
+    focusStepRename(true);
+  }
+
+  /**
+   * 把改名框里的字存进去。
+   * @param {boolean} save 是否保存；Esc 或点外面放弃时传 false
+   */
+  function commitStepRename(save) {
+    if (state.stepRename === null) return;
+    const i = state.stepRename;
+    const draft = String(state.stepRenameDraft ?? '').trim();
+    state.stepRename = null;
+    state.stepRenameDraft = null;
+    const p = PIPELINES.find(x => x.id === state.focus.id);
+    const st = p && p.stages[i];
+    if (save && st && draft && draft !== stageName(st)) {
+      st.name = draft;
+      p.updated = '刚刚';
+    }
+    renderAll();
+  }
+
+  /** 焦点放回改名框；刚打开时全选，重渲染回来时只把光标挪到末尾。 */
+  function focusStepRename(fresh) {
+    const input = $('#stepRenameInput');
+    if (!input) return;
+    if (document.activeElement !== input) input.focus();
+    if (fresh) input.select();
+    else {
+      const n = input.value.length;
+      input.setSelectionRange(n, n);
+    }
+  }
+
   /** 删除是一条破坏性动作：先问一次，再点一次才真的删。 */
   function deleteCurrentPipe() {
     if (state.focus.kind !== 'pipeline') return;
@@ -3707,6 +3807,9 @@ ${region}
     state.renaming = false;
     state.stepMenu = false;
     state.confirmDel = false;
+    state.stepRename = null;
+    state.stepRenameDraft = null;
+    state.confirmStepDel = false;
     state.fileIdx = 0;
     state.inspTab = 'activity';
     if (scene === 'steps') {
@@ -3717,6 +3820,18 @@ ${region}
       let p = PIPELINES.find(x => x.id === '__zero');
       if (!p) {
         p = { id: '__zero', name: '新流水线', updated: '刚刚', state: 'idle', total: null, stages: [] };
+        PIPELINES.unshift(p);
+      }
+      state.focus = { kind: 'pipeline', id: p.id };
+      state.sel = 0;
+    } else if (scene === 'idle') {
+      // 还没跑过的流水线：三步全「未运行」。这个状态天天见，但没有一处能看它长什么样
+      let p = PIPELINES.find(x => x.id === '__idle');
+      if (!p) {
+        p = {
+          id: '__idle', name: '会话续期（还没跑）', updated: '还没跑过', state: 'idle', total: null,
+          stages: ['requirements-scoping', 'design-doc', 'codegen'].map(makeStage),
+        };
         PIPELINES.unshift(p);
       }
       state.focus = { kind: 'pipeline', id: p.id };
@@ -3740,6 +3855,19 @@ ${region}
     }
     const node = e.target.closest('[data-node]');
     if (node) { selectNode(Number(node.dataset.node)); }
+  });
+
+  // 就地改任务名：input 只存草稿（重渲染不丢字），回车或失焦保存，Esc 放弃
+  $('#flow').addEventListener('input', (e) => {
+    if (e.target.id === 'stepRenameInput') state.stepRenameDraft = e.target.value;
+  });
+  $('#flow').addEventListener('focusout', (e) => {
+    if (e.target.id === 'stepRenameInput') commitStepRename(true);
+  });
+  $('#flow').addEventListener('keydown', (e) => {
+    if (e.target.id !== 'stepRenameInput') return;
+    if (e.key === 'Enter') { e.preventDefault(); commitStepRename(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); commitStepRename(false); }
   });
   $('#stepStrip').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-strip]');
@@ -3942,6 +4070,7 @@ ${region}
   $('#stepMoreBtn').addEventListener('click', (e) => {
     e.stopPropagation();
     state.stepMenu = !state.stepMenu;
+    if (!state.stepMenu) state.confirmStepDel = false;
     renderStepMenu();
   });
   $('#stepMenu').addEventListener('click', (e) => {
@@ -3949,8 +4078,9 @@ ${region}
     if (!row || row.disabled) return;
     e.stopPropagation();
     const act = row.dataset.step;
-    if (act === 'up') moveStage(-1);
-    else if (act === 'down') moveStage(1);
+    if (act === 'up') { state.confirmStepDel = false; moveStage(-1); }
+    else if (act === 'down') { state.confirmStepDel = false; moveStage(1); }
+    else if (act === 'rename') startStepRename();
     else if (act === 'remove') removeStage();
   });
 
