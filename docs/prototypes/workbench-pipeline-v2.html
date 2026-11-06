@@ -16,6 +16,8 @@
    9. 模板预览不再用骨架条——骨架是"加载中"的语言，这里是"这块位置是空的"
   10. 连接线上的 + 改成悬停 / 聚焦才出现，底部「添加步骤」仍然常驻
   11. 同名技能不允许重复加入（重复会让运行记录按技能反查步骤时错位）
+   12. 顶部多了「场景」切换：有步骤 / 0 步流水线 / 没有流水线。后两种是没有工作流时的样子——
+       第一次打开工作台的人，看到的应该是「还没有流水线」，不该是别人的五步示例
 -->
 <html lang="zh-CN">
 <head>
@@ -294,6 +296,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 }
 .canvasTitleBtn svg { width: 13px; height: 13px; flex: none; color: var(--ink3); }
 .canvasTitleBtn:hover svg { color: var(--ink); }
+/* 还没有流水线时，标题只是栏名，不是一个能点出菜单的入口 */
+#canvasTitlePlain { cursor: default; }
 .chipState {
   display: inline-flex;
   align-items: center;
@@ -1626,6 +1630,12 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     <button type="button" data-w="760" aria-pressed="false">760 断点</button>
     <button type="button" data-w="424" aria-pressed="false">424 右面板</button>
   </div>
+  <span class="pbTitle">场景</span>
+  <div class="pbSeg" id="sceneSeg" aria-label="场景">
+    <button type="button" data-scene="steps" aria-pressed="true">有步骤</button>
+    <button type="button" data-scene="zero" aria-pressed="false">0 步流水线</button>
+    <button type="button" data-scene="none" aria-pressed="false">没有流水线</button>
+  </div>
 </div>
 
 <div class="app" id="app" style="--panel-w:1280px">
@@ -1652,6 +1662,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
               <div style="min-width:0;flex:1">
                 <div class="canvasTitleRow">
                   <span id="canvasTitleWrap">
+                    <span class="canvasTitleBtn" id="canvasTitlePlain" hidden>流水线</span>
                     <button class="canvasTitleBtn" type="button" id="titleBtn">
                       <span id="canvasTitle">需求到交付</span>
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4.4 6.4 3.6 3.4 3.6-3.4"/></svg>
@@ -2250,6 +2261,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     inspTab: 'activity',
     theme: 'light',
     width: 1280,
+    // steps 一条正常的流水线 / zero 有流水线但还没有步骤 / none 一条流水线都没有
+    scene: 'steps',
     resTab: 'preview',
     fileIdx: 0,
     stepMenu: false,
@@ -2284,7 +2297,13 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
    */
   const TASK_RESULTS = {};
 
+  /*
+   * 「还没有流水线」不是一种流水线，是画布上什么都还没有。
+   * 用一个哨兵走同一套渲染：名字用栏名，没有步骤，状态 idle。
+   */
+  const NO_PIPELINE = { id: '__none', name: '流水线', state: 'idle', stages: [], updated: '—', none: true };
   const current = () => {
+    if (state.scene === 'none') return NO_PIPELINE;
     if (state.focus.kind === 'task') {
       const t = TASKS.find(x => x.skill === state.focus.id);
       const r = TASK_RESULTS[t.skill];
@@ -2322,8 +2341,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     const flow = current();
     $('#canvasTitle').textContent = flow.name;
     // 改名进行中：标题位置换成输入框，一个控件只做一件事
-    const renaming = state.renaming && !flow.isTask;
-    $('#titleBtn').hidden = renaming;
+    const renaming = state.renaming && !flow.isTask && !flow.none;
+    // 还没有流水线：标题就是栏名，不给一个点不出东西的箭头
+    $('#canvasTitlePlain').hidden = !flow.none;
+    $('#titleBtn').hidden = Boolean(renaming) || Boolean(flow.none);
     $('#renameInput').hidden = !renaming;
 
     const badge = $('#canvasState');
@@ -2336,14 +2357,16 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     }
 
     // 单任务没有流水线运行记录，所以这行对它是纯文字（disabled），不是入口
-    $('#canvasMeta').disabled = Boolean(flow.isTask);
+    $('#canvasMeta').disabled = Boolean(flow.isTask) || Boolean(flow.none);
     const runs = runsOf(flow);
-    $('#canvasMeta').textContent = flow.isTask
+    $('#canvasMeta').textContent = flow.none
+      ? '新建一条流水线开始'
+      : flow.isTask
       ? (flow.updated && flow.updated !== '—'
           ? `单独运行 · 最近一次 ${flow.updated} · 不写入任何流水线`
           : '单独运行 · 不写入任何流水线 · 改完可直接运行')
       : flow.stages.length === 0
-        ? '0 个步骤 · 串行执行，失败即停 · 还没有步骤'
+        ? '0 个步骤 · 串行执行，失败即停'
         : runs.length
           ? `最近运行 ${runLabel(runs[0])} · ${flow.stages.length} 个步骤 · ${flow.updated} 更新`
           : `${flow.stages.length} 个步骤 · 串行执行，失败即停 · 还没跑过`;
@@ -2351,6 +2374,19 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     // 顶部横向步骤条（窄面板时替代竖轨道）
     renderStepStrip(flow);
 
+    // 一条流水线都没有：这一步该做的是「造一条」，不是「往里放第一步」
+    if (flow.none) {
+      $('#flow').innerHTML = `
+        <div class="emptyFlow">
+          <span class="emptyMark">${SVG.plus}</span>
+          <h4>还没有流水线</h4>
+          <p>一条流水线把若干张卡片按顺序串起来：前一步的产出自动成为后一步的输入。</p>
+          <button class="btn primary" type="button" id="createPipeBtn">${SVG.plus}<span>新建流水线</span></button>
+        </div>`;
+      renderStepStrip(flow);
+      renderRunbar(flow);
+      return;
+    }
     // 流程
     if (flow.stages.length === 0) {
       $('#flow').innerHTML = `
@@ -2433,8 +2469,12 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     const bar = $('#segBar');
     const noise = $('#runNoise');
     // 运行中把「运行」按下去也没用，索性按下去就不可点，省得以为在排队
-    $('#runAllBtn').disabled = flow.state === 'running';
-    $('#runAllBtn').title = flow.state === 'running' ? '正在运行，先停止或等它跑完' : '运行整条流水线';
+    // 没有步骤时按「运行」什么都不会发生，索性按不下去
+    const noSteps = flow.stages.length === 0;
+    $('#runAllBtn').disabled = flow.state === 'running' || noSteps;
+    $('#runAllBtn').title = flow.state === 'running'
+      ? '正在运行，先停止或等它跑完'
+      : noSteps ? '先加一个步骤' : '运行整条流水线';
     if (flow.isTask) {
       bar.innerHTML = '';
       noise.innerHTML = '<span>单任务 · 不排队</span>';
@@ -2472,17 +2512,18 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   function renderInspector() {
     const flow = current();
 
-    // 空流水线：没有步骤可选，检查器给一段说明，不假装有内容
+    // 没有步骤可选（还没有流水线，或者流水线是空的）：给一段说明，不假装有内容。
+    // 加第一步的按钮只在画布上出现一次——同一屏放两个一样的按钮，看起来像两件事。
     if (flow.stages.length === 0) {
-      $('#inspKicker').innerHTML = `<span>${esc(flow.name)} · 还没有步骤</span>`;
+      $('#inspKicker').innerHTML = '<span>这条流水线还没有步骤</span>';
       $('#inspTitle').textContent = '未选择步骤';
-      $('#inspMeta').innerHTML = `<span>选中一个步骤后，这里显示它的结果、活动与配置</span>`;
+      $('#runOneBtn').hidden = true;
+      $('#inspMeta').innerHTML = '';
+      $('#inspMeta').hidden = true;
       $('#actCount').textContent = '0';
-      // 空流水线没有步骤可讲。但内容既然显示在「结果」里，那个 tab 就得是选中的，
-      // 否则标签栏说"什么都没选"，下面却有东西
-      state.inspTab = 'result';
+      // 页签不强行切走：空态下三个页签说的是同一句话，切到哪都一样
       $$('.inspTab').forEach(b => {
-        const on = b.dataset.itab === 'result';
+        const on = b.dataset.itab === state.inspTab;
         b.setAttribute('aria-selected', String(on));
         b.setAttribute('tabindex', on ? '0' : '-1');
       });
@@ -2493,8 +2534,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         <div class="docPad">
           <div class="stateBlock">
             <h6>先加一个步骤</h6>
-            <p>每个步骤就是一个技能。加进来以后，这里会显示它的运行结果。</p>
-            <button class="btn ghost" type="button" data-add-first="1" style="margin-top:2px">${SVG.plus}<span>添加第一个步骤</span></button>
+            <p>每个步骤就是一张卡片。加进来以后，这里显示它的结果、活动与配置。</p>
           </div>
         </div>`;
       $('#inspScroll').scrollTop = 0;
@@ -2515,6 +2555,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       : `<span>第 <b>${i + 1}</b> 步 / 共 ${flow.stages.length} 步 · ${esc(flow.name)}</span>`;
 
     $('#inspTitle').textContent = taskName(st.skill);
+    $('#runOneBtn').hidden = false;
+    $('#inspMeta').hidden = false;
     $('#inspMeta').innerHTML = `
       <code>${esc(st.skill)}</code><span>·</span><span>${esc(flow.model || 'deepseek-chat')}</span>
       ${chipHtml(st.status)}`;
@@ -3630,6 +3672,8 @@ ${region}
       if (p.stages.some(s => s.skill === skill)) { closePicker(); return; }
       p.stages.splice(at, 0, makeStage(skill));
       state.sel = at;
+      // 一旦放进了步骤，这一屏就不再是「0 步流水线」了
+      if (state.scene !== 'steps') { state.scene = 'steps'; syncSceneSeg(); }
     }
     closePicker();
     renderAll();
@@ -3652,12 +3696,44 @@ ${region}
     $('#app').style.setProperty('--panel-w', state.width + 'px');
     $$('#widthSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
+  // 场景：没有工作流的时候，这一屏长什么样
+  function syncSceneSeg() {
+    $$('#sceneSeg button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.scene === state.scene)));
+  }
+
+  function applyScene(scene) {
+    state.scene = scene;
+    state.menuOpen = false;
+    state.renaming = false;
+    state.stepMenu = false;
+    state.confirmDel = false;
+    state.fileIdx = 0;
+    state.inspTab = 'activity';
+    if (scene === 'steps') {
+      state.focus = { kind: 'pipeline', id: 'req-to-ship' };
+      state.sel = 2;
+    } else if (scene === 'zero') {
+      // 0 步流水线 = 刚建好、还没放步骤。真造一条进列表，加步骤 / 改名 / 删除才都有东西可操作。
+      let p = PIPELINES.find(x => x.id === '__zero');
+      if (!p) {
+        p = { id: '__zero', name: '新流水线', updated: '刚刚', state: 'idle', total: null, stages: [] };
+        PIPELINES.unshift(p);
+      }
+      state.focus = { kind: 'pipeline', id: p.id };
+      state.sel = 0;
+    }
+    renderAll();
+    syncSceneSeg();
+  }
+
+  $$('#sceneSeg button').forEach(b => b.addEventListener('click', () => { applyScene(b.dataset.scene); }));
 
   // 画布：节点 / 插入 / 添加 / 展开菜单
   $('#flow').addEventListener('click', (e) => {
     const insert = e.target.closest('[data-insert]');
     if (insert) { openPicker(Number(insert.dataset.insert)); return; }
 
+    if (e.target.closest('#createPipeBtn')) { state.scene = 'zero'; syncSceneSeg(); newPipeline(); return; }
     if (e.target.closest('#addStepBtn')) {
       openPicker(current().isTask ? 0 : current().stages.length);
       return;
@@ -3784,7 +3860,6 @@ ${region}
       renderInspector();
       return;
     }
-    if (e.target.closest('[data-add-first]')) { openPicker(0, 'new'); return; }
     const runNode = e.target.closest('[data-run-node]');
     if (runNode) { flashRun(Number(runNode.dataset.runNode)); }
   });
@@ -3880,7 +3955,11 @@ ${region}
   });
 
   // 页头动作
-  $('#newPipelineBtn').addEventListener('click', () => newPipeline());
+  $('#newPipelineBtn').addEventListener('click', () => {
+    state.scene = 'zero';
+    syncSceneSeg();
+    newPipeline();
+  });
   $('#runAllBtn').addEventListener('click', () => startRun());
   $('#stopBtn').addEventListener('click', () => stopRun());
 
