@@ -26,8 +26,10 @@
   --card-bg: var(--dsw-alias-bg-base);
   --recess: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
 
-  /* 交互 */
-  --hover: var(--dsw-alias-bg-fill-hover);
+  /* 交互。宿主的 hover 底色叫 -interactive-bg-hover（rgba(38,49,72,.06) / rgba(255,255,255,.08)），
+     正是原型 --hover 的两个值；此前挂的 -bg-fill-hover 在宿主里根本没有定义，
+     var() 失效又不报错，于是标签底色、空态方块、各行 hover 一律变成透明。 */
+  --hover: var(--dsw-alias-interactive-bg-hover);
   --hover-strong: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
 
   /* 文字 */
@@ -35,7 +37,9 @@
 
   --ink: var(--dsw-alias-label-primary);
   --ink2: var(--dsw-alias-label-secondary);
-  --ink3: var(--dsw-alias-label-tertiary);
+  /* 原型 ink3（浅色 rgb(92,97,103)）比 ink2 再深一点，宿主的 -label-tertiary 在浅色里是
+     rgb(129,133,140)（比 secondary 还浅），只有 -label-secondary 对得上；深色下会略亮，认了。 */
+  --ink3: var(--dsw-alias-label-secondary);
   --ink4: var(--dsw-alias-label-tertiary);
 
   /* 分隔与边框。宿主给的 border-l1 在浅色主题里只有百分之二的黑，等于没有；
@@ -44,7 +48,10 @@
   --divider: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);
 
   /* 强调与状态 */
-  --accent: var(--dsw-alias-brand-primary);
+  /* -brand-primary 在宿主浅色主题里是 rgb(15,17,21)（近黑），原型是蓝的：选中的页签、
+     下划线、运行中的分段条全靠它，黑着就等于没强调。-state-business-primary 是宿主的强调蓝
+     （浅色 rgb(65,118,230)，深色 rgb(122,170,255)——和原型深色精确相同）。 */
+  --accent: var(--dsw-alias-state-business-primary);
   --accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);
   --accent-wash: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent);
   --success: #22c55e;

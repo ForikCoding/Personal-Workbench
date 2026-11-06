@@ -102,7 +102,7 @@ interface WorkbenchPipeline {
 - 空态：原型顶部的「场景」把三种情况都画了出来——有步骤 / 0 步流水线 / 没有流水线。实现里对应 `active === undefined` 与 `active.steps.length === 0`：前者标题是栏名 `流水线`（不可点、没有箭头）、meta 是「新建一条流水线开始」、画布里给的是「新建流水线」；后者给的是「添加第一个步骤」。检查器两种空态共用一段说明（`pipeEmptyPanelTitle` / `pipeEmptyPanelBody`，不再放第二个添加按钮），`单独运行` 与步骤菜单在空态下不出现，运行条只有一句「还没有步骤」，页头「运行」置灰。
 - 样式：`src/client/pipeline.css` 由原型的 `<style>` 整段搬来（选择器、数值、间距、圆角、阴影都不动），只做三处改写：①原型写在 `body[data-theme]` 上的两套固定色板换成 DSH 令牌（见下）；②原型页面的 demo 外壳（`.protoBar`、`.app`、`body`、`html`）删掉，`*{box-sizing}` 与 `[hidden]` 两条全局规则收到 `.wb-root` 上；③类名统一加 `wb-` 前缀。
 - **类名是字面量，不经过 CSS Modules 哈希**：`pipeline-classes.ts` 导出一个 `{ canvasHead: 'wb-canvasHead', … }` 的常量对象，组件照旧写 `css.canvasHead`，但 DOM 里出现的就是 `.wb-canvasHead`，和样式表里的选择器一字不差。这么做是因为插件的样式与宿主同处一张表：哈希名一旦与样式表里的名字失配（换了构建、浏览器缓存了旧样式表、或样式被打包成独立文件而版本没对齐），元素会带着一个没人应答的类名渲染——**静默地少掉 padding、少掉高度**，控制台里一个字都没有，只能靠截图反推。字面量名让这种失配不可能发生，代价是要自己维护前缀命名空间。
-- 令牌映射：`--base`/`--pane`/`--card-bg`→`--dsw-alias-bg-base`（原型里这三者同为白，两栏之间只靠一条竖线分界，不要给检查器垫底灰）；`--hover`→`-bg-fill-hover`；`--ink/2/3/4`→`-label-primary/secondary/tertiary/tertiary`；`--accent`→`-brand-primary`；`--danger`→`-state-error-primary`；`--primary-bg`→`-label-primary`；`--primary-ink`→`-bg-base`。**浅色主题下 `-border-l1` 只有约 2% 的黑（`#f5f5f5`），等于没有线**，所以 `--hairline`（10% 墨）`--divider`（8%）`--idle`（17%）`--scroll`（14%）`--recess`/`--rail`（3%）一律用 `color-mix(in srgb, var(--dsw-alias-label-primary) N%, transparent)` 按原型的 `rgba(0,0,0,.1)`、`.08`、`#d4d4d4`、`#dcdcdc`、`#f9fafb` 复刻浓度；深浅主题自动成立，不再依赖宿主的边框令牌取值。`--success`/`--warn` 与阴影保留原值（DSH 没有同义令牌）。
+- 令牌映射：`--base`/`--pane`/`--card-bg`→`--dsw-alias-bg-base`（原型里这三者同为白，两栏之间只靠一条竖线分界，不要给检查器垫底灰）；`--hover`→`-interactive-bg-hover`（`rgba(38,49,72,.06)` / `rgba(255,255,255,.08)`，和原型的 `--hover` 两个值逐字相同）；`--ink`→`-label-primary`；`--ink2`→`-label-secondary`（浅色 `rgb(97,102,107)`，与原型相同）；`--ink3`→`-label-secondary`（原型的 ink3 比 ink2 再深一点，宿主的 `-label-tertiary` 反而更浅，只有 secondary 对得上）；`--ink4`→`-label-tertiary`（浅色 `rgb(129,133,140)`，比原型的 `rgb(111,116,122)` 亮 18，宿主没有更窄的灰）；`--accent`→`-state-business-primary`（浅色 `rgb(65,118,230)`、深色 `rgb(122,170,255)`；原型深色是 `rgb(122,170,255)`，精确相同，浅色原型更暗一档 `rgb(47,98,214)`）；`--danger`→`-state-error-primary`；`--primary-bg`→`-label-primary`；`--primary-ink`→`-bg-base`。**浅色主题下 `-border-l1` 只有约 2% 的黑（`#f5f5f5`），等于没有线**，所以 `--hairline`（10% 墨）`--divider`（8%）`--idle`（17%）`--scroll`（14%）`--recess`/`--rail`（3%）一律用 `color-mix(in srgb, var(--dsw-alias-label-primary) N%, transparent)` 按原型的 `rgba(0,0,0,.1)`、`.08`、`#d4d4d4`、`#dcdcdc`、`#f9fafb` 复刻浓度；深浅主题自动成立，不再依赖宿主的边框令牌取值。`--success`/`--warn` 与阴影保留原值（DSH 没有同义令牌）。
 - 页面框架：面板自己画头（`.panelHead`：工作台 + 新建流水线 + 运行，58px，`.5px` 下边线），`.pagePipeline` 只保留一行 `minmax(0,1fr)` 的栅格且不留内边距，保证面板拿到确定高度、`.runbar` 不会被挤出可视区；页面头（`h1` + 副标题）只在卡片页出现，流水线面板不再重复一个标题。
 - 断点用容器查询（`@container panel`），因为面板宽度 ≠ 视口宽度：≥1200 画布 312、900–1199 画布 280、700–899 画布 248、<700 切横向步骤条并把面板头压到 52px。
 
@@ -134,6 +134,8 @@ interface WorkbenchPipeline {
 4. 同一页在几个断点宽度下各跑一遍，就能看出哪条规则没生效，不用等下一张截图。
 
 结论：`WorkbenchPipeline` 的 DOM 与 `pipeline.css` 在真实 Chrome 里渲染出的盒子与原型一致（面板头 58、画布 312、运行条 46 且始终在可视区内）。所以此后面板「看起来少了几条 padding / 少了运行条」这类现象，先怀疑类名或样式表有没有加载，而不是再改数值。
+
+令牌名写错不会报错：`var(--x)` 里的 `--x` 没定义时整条声明按 `unset` 处理，浏览器既不警告也不回退。此前 `--hover` 挂在宿主并不存在的 `-bg-fill-hover` 上，于是状态标签的底色、空态虚线框里的方块、各行的 hover 底色全是透明的——面板「看着平」的根因就在这里。改完顺手把 `src/client/**/*.css` 里所有 `var(--dsw-*)` 对着 `design-platform.css` 过了一遍：`workbench.module.css` 还有 6 处 `-bg-fill-hover`、`skill-card.module.css` 还有 1 处 `-bg-fill-hover` 与 3 处 `-border-primary`/`-border-secondary`（宿主只有 `-border-l1..l4`），都属于同一类，**这轮没有动**，等确认后再一起换。
 
 已知缺口（沿用 §7 并新增两条）：
 
