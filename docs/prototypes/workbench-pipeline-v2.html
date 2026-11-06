@@ -18,8 +18,8 @@
   11. 同名技能不允许重复加入（重复会让运行记录按技能反查步骤时错位）
    12. 顶部多了「场景」切换：有步骤 / 0 步流水线 / 没有流水线。后两种是没有工作流时的样子——
        第一次打开工作台的人，看到的应该是「还没有流水线」，不该是别人的五步示例
-   13. 任务状态补上「从未运行」：以前只说「未运行」，分不清"跑过又停了"还是"一次都没跑过"。
-       第四种场景（从未运行）三步都没启动过，节点是虚线框 + 空心序号，流水线那一级说「还没启动」
+   13. 任务状态补上「待运行」：以前只说「未运行」，分不清"跑过又停了"还是"一次都没跑过"。
+       待运行 = 一次都没启动过（虚线框 + 空心序号 + 脚注「还没启动过」），跑过又停的是「已停止」
    14. 步骤能就地改名：检查器 ⋯ →「重命名这一步」，节点标题变输入框，回车保存 / Esc 放弃
    15. 移除一步改成点两次确认（和删除流水线同一规矩），第二次的提示写出将被移除的名字
 -->
@@ -382,7 +382,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .node[data-s="done"]::before { background: var(--success); }
 .node[data-s="running"]::before { background: var(--accent); }
 .node[data-s="failed"]::before { background: var(--danger); }
-/* 还没跑过：虚线框 + 空心序号，跟跑过的实线卡片一眼分开（颜色之外的第二条线索） */
+/* 待运行：虚线框 + 空心序号，跟跑过的实线卡片一眼分开（颜色之外的第二条线索） */
 .node[data-s="idle"] { border-style: dashed; }
 .node[data-s="idle"] .nodeIndex { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink4); }
 .node[data-s="idle"] .nodeState { color: var(--ink3); }
@@ -1659,7 +1659,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   <div class="pbSeg" id="sceneSeg" aria-label="场景">
     <button type="button" data-scene="steps" aria-pressed="true">有步骤</button>
     <button type="button" data-scene="zero" aria-pressed="false">0 步流水线</button>
-<button type="button" data-scene="idle" aria-pressed="false">从未运行</button>
+<button type="button" data-scene="idle" aria-pressed="false">待运行</button>
     <button type="button" data-scene="none" aria-pressed="false">没有流水线</button>
   </div>
 </div>
@@ -2131,10 +2131,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     },
   ];
 
-  // 「未运行」看不出是"跑过又停了"还是"一次都没跑过"，所以 idle 说成「从未运行」；
-  // 流水线那一级说「还没启动」——同一种状态，主语不同，话就不同
-  const STAGE_TEXT = { done: '完成', running: '运行中', failed: '失败', queued: '排队中', idle: '从未运行', stopped: '已停止' };
-  const pipeStateText = (s) => (s === 'idle' ? '还没启动' : STAGE_TEXT[s]);
+  // 「未运行」看不出是"跑过又停了"还是"一次都没跑过"。一次都没跑过的是「待运行」：
+  // 它已经在队列该在的位置上，只是还没轮到它启动。跑过又停的叫「已停止」。
+  const STAGE_TEXT = { done: '完成', running: '运行中', failed: '失败', queued: '排队中', idle: '待运行', stopped: '已停止' };
+  const pipeStateText = (s) => STAGE_TEXT[s] || '待运行';
 
   /* ============================================================ 状态 */
   // 历史运行里的旧版正文。挂在 DOC 上是为了走同一条渲染路径，但它们只属于那一次运行，
@@ -2406,7 +2406,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         ? '0 个步骤 · 串行执行，失败即停'
         : runs.length
           ? `最近运行 ${runLabel(runs[0])} · ${flow.stages.length} 个步骤 · ${flow.updated} 更新`
-          : `${flow.stages.length} 个步骤 · 串行执行，失败即停 · 还没启动`;
+          : `${flow.stages.length} 个步骤 · 串行执行，失败即停 · 待运行`;
 
     // 顶部横向步骤条（窄面板时替代竖轨道）
     renderStepStrip(flow);
@@ -2548,7 +2548,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       noise.innerHTML = `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span>`;
       $('#stopBtn').hidden = true;
     } else {
-      noise.innerHTML = `<span>还没启动</span><span>·</span><span>${flow.stages.length} 步都从未运行 · 点右上角「运行」按顺序跑完</span>`;
+      noise.innerHTML = `<span>待运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
       $('#stopBtn').hidden = true;
     }
   }
@@ -3196,7 +3196,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         <div class="resultBar">${chipHtml('idle')}</div>
         <div class="docPad">
           <div class="stateBlock">
-            <h6>这一步从未运行</h6>
+            <h6>这一步待运行</h6>
             <p>${esc((TASKS.find(t => t.skill === st.skill) || {}).desc || '')}</p>
             <p style="color:var(--ink4)">还没启动过：点「运行这一步」只跑它，按顺序跑整条用右下角的运行按钮。</p>
             <button class="btn ghost" type="button" data-run-node="${i}" style="margin-top:2px">${SVG.play}<span>运行这一步</span></button>
@@ -3828,11 +3828,11 @@ ${region}
       state.focus = { kind: 'pipeline', id: p.id };
       state.sel = 0;
     } else if (scene === 'idle') {
-      // 还没跑过的流水线：三步全「未运行」。这个状态天天见，但没有一处能看它长什么样
+      // 还没跑过的流水线：三步全「待运行」。这个状态天天见，但没有一处能看它长什么样
       let p = PIPELINES.find(x => x.id === '__idle');
       if (!p) {
         p = {
-          id: '__idle', name: '会话续期（还没启动）', updated: '还没启动', state: 'idle', total: null,
+          id: '__idle', name: '会话续期（待运行）', updated: '还没启动', state: 'idle', total: null,
           stages: ['requirements-scoping', 'design-doc', 'codegen'].map(makeStage),
         };
         PIPELINES.unshift(p);
