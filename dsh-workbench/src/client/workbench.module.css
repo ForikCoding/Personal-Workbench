@@ -183,20 +183,24 @@
    own, so a long run history never pushes the canvas out of view.
    --------------------------------------------------------------------------- */
 
-/* The page's own frame when it hosts the pipeline: the surface divides itself into
-   columns and a run bar, so the page must not add a gutter or scroll as well. The
-   head keeps its own inset, and gains the hairline the panel's own head carries. */
+/* The page's own frame when it hosts the pipeline: the surface is one panel that fills
+   it exactly — own head, two columns, run bar — so the page adds no gutter, no gap and
+   no scrollbar of its own. `position: relative` is what the panel anchors to: it covers
+   the whole page whatever height the host hands down, so the run bar cannot fall below
+   the fold. */
 .pagePipeline {
+  /* One grid row sized `minmax(0, 1fr)`: the panel is handed the page's exact height and
+     may be shorter than its content, which is what keeps the run bar on screen. A flex
+     column would have sized the panel to its content instead, and clipped the bar. */
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 0;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   padding: 0;
-}
-
-.pagePipeline .pageHead {
-  flex: none;
-  padding: 18px clamp(18px, 3vw, 28px) 14px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  position: relative;
 }
 
 .shell {

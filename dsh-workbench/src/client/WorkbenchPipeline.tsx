@@ -321,6 +321,30 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
 
   return (
     <div className={`${css.root} ${css.panel}`} data-workbench-pipeline="">
+      {/* 面板头：整块面板唯一的一行标题，动作靠右，和原型一样 58px */}
+      <header className={css.panelHead}>
+        <h1>{t('title')}</h1>
+        <div className={css.headSpacer} />
+        <button
+          type="button"
+          className={`${css.btn} ${css.ghost}`}
+          data-head-new-pipeline=""
+          onClick={createPipeline}
+        >
+          {MARK.plus}
+          <span className={css.headLabel}>{t('pipeNewPipeline')}</span>
+        </button>
+        <button
+          type="button"
+          className={`${css.btn} ${css.primary}`}
+          data-run-all=""
+          disabled={running || active === undefined || active.steps.length === 0}
+          onClick={() => { if (active !== undefined) run.runAll(active) }}
+        >
+          {MARK.play}
+          <span className={css.headLabel}>{t('pipeRunAll')}</span>
+        </button>
+      </header>
       <div className={css.panelBody}>
         <section className={css.pipelineView}>
           <div className={css.panes}>
@@ -342,23 +366,24 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             onCancel={() => { setRenaming(undefined) }}
                           />
                           )
-                        : (
-                          <button
-                            type="button"
-                            className={css.canvasTitleBtn}
-                            data-canvas-title=""
-                            aria-expanded={menuOpen}
-                            aria-haspopup="menu"
-                            disabled={active === undefined}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setMenuOpen(!menuOpen)
-                            }}
-                          >
-                            <span>{active?.name ?? t('pipeNoPipeline')}</span>
-                            {MARK.chev}
-                          </button>
-                          )}
+                        : active === undefined
+                          ? <span className={css.canvasTitleBtn}>{t('pipeColumnLabel')}</span>
+                          : (
+                            <button
+                              type="button"
+                              className={css.canvasTitleBtn}
+                              data-canvas-title=""
+                              aria-expanded={menuOpen}
+                              aria-haspopup="menu"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setMenuOpen(!menuOpen)
+                              }}
+                            >
+                              <span>{active.name}</span>
+                              {MARK.chev}
+                            </button>
+                            )}
                     </span>
                     <span className={css.chipState} data-canvas-state={chainState}>
                       <span className={css.dot} data-s={chainState} />
@@ -468,23 +493,37 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
               <div className={`${css.canvasScroll} ${css.scroll}`}>
                 {active === undefined || active.steps.length === 0
                   ? (
+                    // 没流水线和流水线没步骤是两件事：前者要造一条，后者要往里放第一步。
                     <div className={css.emptyFlow} data-empty-pipeline="">
                       <span className={css.emptyMark}>{MARK.plus}</span>
                       <h4>{active === undefined ? t('pipeNoPipeline') : t('pipeEmptyTitle')}</h4>
-                      <p>{t('pipeEmptyBody')}</p>
-                      <button
-                        type="button"
-                        className={`${css.btn} ${css.primary}`}
-                        data-add-step="0"
-                        onClick={() => {
-                          if (active === undefined) return
-                          setPicker({ at: 0 })
-                          setPickerQuery('')
-                        }}
-                      >
-                        {MARK.plus}
-                        {t('pipeAddFirstStep')}
-                      </button>
+                      <p>{active === undefined ? t('pipeEmptyPipelineBody') : t('pipeEmptyBody')}</p>
+                      {active === undefined
+                        ? (
+                          <button
+                            type="button"
+                            className={`${css.btn} ${css.primary}`}
+                            data-new-pipeline=""
+                            onClick={createPipeline}
+                          >
+                            {MARK.plus}
+                            {t('pipeNewPipeline')}
+                          </button>
+                          )
+                        : (
+                          <button
+                            type="button"
+                            className={`${css.btn} ${css.primary}`}
+                            data-add-step="0"
+                            onClick={() => {
+                              setPicker({ at: 0 })
+                              setPickerQuery('')
+                            }}
+                          >
+                            {MARK.plus}
+                            {t('pipeAddFirstStep')}
+                          </button>
+                          )}
                     </div>
                     )
                   : (
@@ -725,19 +764,12 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                     )
                   : selected === undefined
                     ? (
+                      // 加第一步的入口只在画布上给一个：同一屏上放两个相同的按钮，
+                      // 看起来像两件事。
                       <div className={css.resultPanel} data-panel="empty">
                         <div className={css.stateBlock}>
                           <h6>{t('pipeEmptyPanelTitle')}</h6>
                           <p>{t('pipeEmptyPanelBody')}</p>
-                          <button
-                            type="button"
-                            className={`${css.btn} ${css.ghost}`}
-                            data-add-step="0"
-                            onClick={() => { setPicker({ at: 0 }); setPickerQuery('') }}
-                          >
-                            {MARK.plus}
-                            {t('pipeAddFirstStep')}
-                          </button>
                         </div>
                       </div>
                       )
@@ -786,6 +818,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
             <div className={css.runNoise} data-run-noise={chain?.phase ?? 'idle'}>
               {runNoise()}
             </div>
+            {/* 运行在面板头，停止只在跑的时候出现：两个开关不同时在屏幕上 */}
             <div className={css.runActions}>
               {running
                 ? (
@@ -793,18 +826,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                     {t('pipeStop')}
                   </button>
                   )
-                : (
-                  <button
-                    type="button"
-                    className={`${css.btn} ${css.primary}`}
-                    data-run-all=""
-                    disabled={active === undefined || active.steps.length === 0}
-                    onClick={() => { if (active !== undefined) run.runAll(active) }}
-                  >
-                    {MARK.play}
-                    {t('pipeRunAll')}
-                  </button>
-                  )}
+                : null}
             </div>
           </div>
         </section>

@@ -199,15 +199,21 @@ describe('WorkbenchPage', () => {
 
   it('opens onto the creation offer when nothing is stored', async () => {
     await renderPage({ pipelines: [] })
-    expect((await screen.findAllByText(en.pipeEmptyTitle)).length).toBeGreaterThan(0)
-    expect(screen.getByText(en.pipeEmptyBody)).toBeDefined()
-    expect(document.querySelector('[data-canvas-title]')?.textContent).toBe(en.pipeNoPipeline)
+    // The canvas is not named after a pipeline, because there is none to name: the column
+    // carries its own label and the whole column is the creation offer.
+    expect(await screen.findByText(en.pipeNoPipeline)).toBeDefined()
+    expect(screen.getByText(en.pipeEmptyPipelineBody)).toBeDefined()
+    expect(document.querySelector('[data-canvas-title]')).toBeNull()
+    expect(document.querySelector('[data-empty-pipeline] [data-new-pipeline]')).not.toBeNull()
   })
 
   it('creates a pipeline with no steps and opens it', async () => {
     const { writes } = await renderPage()
     fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
-    fireEvent.click(await screen.findByText(en.pipeNewPipeline))
+    // The menu's entry, not the panel head's button: both create a pipeline, and the menu
+    // is what a user opens first.
+    await waitFor(() => { expect(document.querySelector('[data-title-menu]')).not.toBeNull() })
+    fireEvent.click(document.querySelector('[data-title-menu] [data-new-pipeline]') as HTMLElement)
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines.map(entry => entry.id)).toEqual(['pipeline-1', 'pipeline-2'])
     expect(writes[0]?.pipelines.find(entry => entry.id === 'pipeline-2')?.steps).toEqual([])

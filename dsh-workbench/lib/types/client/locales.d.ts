@@ -231,9 +231,11 @@ export declare const zh: {
     pipeNewPipelineName: string;
     pipeCreateCard: string;
     pipeNoPipeline: string;
+    pipeColumnLabel: string;
     pipeNoSteps: string;
     pipeEmptyTitle: string;
     pipeEmptyBody: string;
+    pipeEmptyPipelineBody: string;
     pipeAddFirstStep: string;
     pipeAddStep: string;
     pipeInsertHere: string;

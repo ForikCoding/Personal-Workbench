@@ -251,15 +251,19 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
 
   return (
     <div className={selection === undefined ? `${css.page} ${css.pagePipeline}` : css.page}>
-      {/* Every view of the workbench carries the workbench's own title, including the
-          card pages: they are views of this panel, not separate destinations, and the
-          card's own head sits below it. */}
-      <header className={css.pageHead}>
-        <div>
-          <h1 className={css.pageTitle}>{t('title')}</h1>
-          <p className={css.pageIntro}>{t('subtitle')}</p>
-        </div>
-      </header>
+      {/* The pipeline surface draws its own head — the title sits in the same 58px bar
+          as its two actions, the way the panel is laid out. Card pages keep this one:
+          they are views of the workbench, not separate destinations. */}
+      {selection === undefined
+        ? null
+        : (
+          <header className={css.pageHead}>
+            <div>
+              <h1 className={css.pageTitle}>{t('title')}</h1>
+              <p className={css.pageIntro}>{t('subtitle')}</p>
+            </div>
+          </header>
+          )}
       {content}
     </div>
   )

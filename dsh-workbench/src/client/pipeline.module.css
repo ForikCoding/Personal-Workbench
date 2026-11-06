@@ -13,7 +13,8 @@
 
   /* 底色：面板、凹槽、卡片 */
   --base: var(--dsw-alias-bg-base);
-  --pane: var(--dsw-alias-bg-base);
+  /* 检查器与运行条比画布低一层：两栏要有分界，不能并成一张白纸 */
+  --pane: var(--dsw-alias-bg-layer-1);
   --rail: var(--dsw-alias-bg-layer-1);
   --card-bg: var(--dsw-alias-bg-base);
   --recess: var(--dsw-alias-bg-layer-2);
@@ -105,8 +106,11 @@
 
 
 /* -------------------------------------------------------------------- 面板 */
+/* 高度由宿主那一格给死（见 workbench.module.css 的 .pagePipeline 网格行）：
+   .panel 只负责把这一格分给 面板头 / 两栏 / 运行条，自己绝不被内容撑高 */
 .panel {
   flex: 1;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
