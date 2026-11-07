@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { WorkbenchScriptBinder } from '../src/client/skill-card/render.ts'
 import {
   WORKBENCH_RESULT_HEADLINE_MAX_LENGTH,
   bindDocumentScript,
@@ -242,6 +243,36 @@ describe('workbench skill card render', () => {
       })
       return root
     }
+
+    it('tells the document which file the app opened it for', () => {
+      // The result tab's file rows are the reason: the row names a file, and the only thing
+      // that can act on the name is the document's own script. Absent means "no preference",
+      // so a document that never hears the field keeps showing its default.
+      const inputs: (string | undefined)[] = []
+      const host = document.createElement('div')
+      document.body.append(host)
+      const root = host.attachShadow({ mode: 'open' })
+      const bind: WorkbenchScriptBinder = (input) => {
+        inputs.push(input.openFile)
+        return {
+          cardId: input.cardId,
+          ...input.openFile === undefined ? {} : { openFile: input.openFile },
+          root: input.root,
+          host: input.host,
+          files: {
+            list: async () => ({ path: '', entries: [], truncated: false }),
+            read: async () => ({ path: '', text: '', bytes: 0 }),
+          },
+          markdown: { render: async () => {} },
+        }
+      }
+      renderTemplate(root, '<p>a</p><script>void 0</script>', {
+        cardId: 'card-a',
+        openFile: 'docs/设计/概要.md',
+        bind,
+      })
+      expect(inputs[0]).toBe('docs/设计/概要.md')
+    })
 
     it('keeps the document’s script and hands it the card’s binding', () => {
       // The script element is re-created rather than parsed, which is what makes it run; the

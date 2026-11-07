@@ -96,6 +96,13 @@ export interface SkillCardPageProps {
      * composition without the document route does.
      */
     readonly documents?: WorkbenchScriptBinder | undefined;
+    /**
+     * The file the app opened this result for, when it named one.
+     *
+     * A request handed to the document's own script, not a decision made here: the template
+     * that lists a directory decides what to show first.
+     */
+    readonly openFile?: string | undefined;
 }
 /**
  * Render the card's run history in the whole display column.

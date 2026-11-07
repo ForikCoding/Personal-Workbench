@@ -112,6 +112,14 @@ export interface WorkbenchScriptBinding {
     readonly cardId: string;
     /** The run the document shows, when it shows one. */
     readonly runId?: string | undefined;
+    /**
+     * The file the app opened this document for, when it named one.
+     *
+     * A request, not a decision: a document that lists a directory decides for itself what to
+     * show, and this is how the result tab's "open that file" reaches it. A template that
+     * ignores it still renders, showing whatever it would have shown anyway.
+     */
+    readonly openFile?: string | undefined;
     /** The root the document was rendered into. */
     readonly root: ShadowRoot;
     /** The element that root belongs to. */
@@ -150,6 +158,8 @@ export interface WorkbenchScriptBinding {
 export type WorkbenchScriptBinder = (input: {
     readonly cardId: string;
     readonly runId?: string | undefined;
+    /** The file the app asked this document to open on. */
+    readonly openFile?: string | undefined;
     readonly root: ShadowRoot;
     readonly host: Element;
 }) => WorkbenchScriptBinding;
@@ -159,6 +169,8 @@ export interface WorkbenchRenderRuntime {
     readonly cardId: string;
     /** The run it shows, when it shows one. */
     readonly runId?: string | undefined;
+    /** The file the app asked this document to open on. */
+    readonly openFile?: string | undefined;
     /** Builds the binding each script sees. */
     readonly bind: WorkbenchScriptBinder;
 }

@@ -55,6 +55,36 @@ export declare function formatWhen(at: number, now: number): string;
  */
 export declare function dayOf(at: number, now: number): string;
 /**
+ * Read the directory a document points at.
+ *
+ * The pointer is the template's own statement that this card's results are files in a
+ * directory, and it sits outside the region so a run cannot remove it. A run's stored region
+ * may carry one too — that is how results written before the pointer moved are still read.
+ * @param document - a template, or a stored region.
+ * @returns the directory the document points at, or undefined when it points at none.
+ */
+export declare function pointerPath(document: string | undefined): string | undefined;
+/**
+ * The directory a step's result covers.
+ *
+ * Asked of the card's template first: the template is where the pointer belongs, and it is
+ * the only place a run cannot overwrite. The stored region is the second answer, so results
+ * from before the pointer moved out of the region keep their file list.
+ * @param template - the card's template as stored; absent when it has none.
+ * @param product - what the run's own region produced.
+ * @returns the directory to list, or undefined when this result is not a directory's files.
+ */
+export declare function resultDirectory(template: string | undefined, product: StepProduct): string | undefined;
+/**
+ * A byte count as the row beside a file name shows it.
+ *
+ * One decimal above a kilobyte and none below it: a listing is read for its shape, and
+ * `56.5 KB` beside a name says as much as `57812` does without being counted out.
+ * @param bytes - the size to label; absent or not positive gives an empty label.
+ * @returns the label, empty when there is no size to show.
+ */
+export declare function formatBytes(bytes: number | undefined): string;
+/**
  * Read what a step produced out of the result it stored.
  *
  * A run returns the region of its card's document, so the region is what "produced" means

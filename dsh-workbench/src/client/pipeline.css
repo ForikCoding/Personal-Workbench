@@ -724,6 +724,8 @@
 .wb-resItem > svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }
 .wb-resItemName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-resItemSize { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }
+/* 目录读不到时的原因：没有这一行，这一步看起来只是「目录里没有文件」 */
+.wb-resProblem { margin: 2px 0 0; font-size: 11.5px; line-height: 17px; color: var(--danger); }
 /* 箭头朝右 = 进去读，不是展开 */
 .wb-resItem > svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }
 /* 无目录的步骤：没有清单可列，就一个按钮进去读。摘要那行在区块标题右边 */

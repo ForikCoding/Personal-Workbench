@@ -344,7 +344,12 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
   const pipelines = usePipelines(pipelineApi)
   const run = usePipelineRun({ api: skillCards.api, scopeSessionId: skillCards.runSessionId })
 
-  const renderCard = useCallback((cardId: string, view: 'config' | 'runs' | 'result', onBack: () => void): ReactNode => {
+  const renderCard = useCallback((
+    cardId: string,
+    view: 'config' | 'runs' | 'result',
+    onBack: () => void,
+    openFile?: string,
+  ): ReactNode => {
     // The inspector's three tabs are the card's own views, mounted rather than
     // reimplemented: the result view keeps its preview, its source and its 重新生成, and
     // the Setup view keeps the template editor. `onBack` is the inspector's own
@@ -361,6 +366,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
       openCard,
       t,
       ...skillCards.documents === undefined ? {} : { documents: skillCards.documents },
+      ...openFile === undefined ? {} : { openFile },
       onBack,
     }
     if (view === 'result') return <SkillCardResultPage {...page} />

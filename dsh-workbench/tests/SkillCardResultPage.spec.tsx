@@ -126,6 +126,7 @@ function pageApi(options: {
     cancel: async () => {},
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
     statDirectory: async () => ({ status: 'ok', stat: options.directory ?? PRESENT_DIRECTORY }),
+    listFiles: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
   }
 }
 

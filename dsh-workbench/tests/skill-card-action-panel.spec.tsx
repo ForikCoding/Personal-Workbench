@@ -213,6 +213,8 @@ function fixture(options: {
     },
     cancel: async () => {},
     saveResult: async () => ({ status: 'unavailable', reason: 'no edit is stored here' }),
+    // One result row per file is the panel's own read; these cases are about clicks.
+    listFiles: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
     // The default directory is there; any other path is not, unless a case names more. A click
     // refused for where it would run is its own case, and the rest of these cases must not
     // trip over it.

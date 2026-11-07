@@ -240,6 +240,8 @@ export interface SkillCardBodyProps {
   readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined
   /** Builds the binding the rendered document's own script receives. */
   readonly documents?: WorkbenchScriptBinder | undefined
+  /** The file the app opened this body for, when it named one. */
+  readonly openFile?: string | undefined
 }
 
 /**
@@ -251,8 +253,8 @@ export interface SkillCardBodyProps {
  * @param props - the view, `t`, and the click outlet.
  * @returns the body element.
  */
-export function SkillCardBody({ view, cardId, t, onAction, documents }: SkillCardBodyProps): ReactNode {
-  return <div className={css.body}>{cardContent(view, cardId, t, onAction, documents)}</div>
+export function SkillCardBody({ view, cardId, t, onAction, documents, openFile }: SkillCardBodyProps): ReactNode {
+  return <div className={css.body}>{cardContent(view, cardId, t, onAction, documents, openFile)}</div>
 }
 
 /**
@@ -262,6 +264,7 @@ export function SkillCardBody({ view, cardId, t, onAction, documents }: SkillCar
  * @param t - translator.
  * @param onAction - click outlet for buttons the document carries.
  * @param documents - binding factory for the rendered document's own script.
+ * @param openFile - the file the app asked the document to open on.
  * @returns the content element.
  */
 function cardContent(
@@ -270,6 +273,7 @@ function cardContent(
   t: (key: WorkbenchLocaleKey) => string,
   onAction: ((event: WorkbenchActionEvent) => void) | undefined,
   documents: WorkbenchScriptBinder | undefined,
+  openFile: string | undefined,
 ): ReactNode {
   if (view.status === 'loading') {
     return <Notice title={t('skillCardLoading')} body={t('skillCardLoadingBody')} />
@@ -331,6 +335,7 @@ function cardContent(
       onAction={onAction}
       cardId={cardId}
       runId={view.result.runId}
+      openFile={openFile}
       documents={documents}
     />
   )

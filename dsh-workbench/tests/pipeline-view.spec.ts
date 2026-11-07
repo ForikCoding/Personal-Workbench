@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChainPhase, PipelineStepPhase } from '../src/client/pipeline/pipeline-run.ts'
 import type { PipelineRunEntry, PipelineRunStep } from '../src/client/pipeline/pipeline-view.ts'
-import { resumeFrom, standOf } from '../src/client/pipeline/pipeline-view.ts'
+import { formatBytes, resultDirectory, resumeFrom, standOf } from '../src/client/pipeline/pipeline-view.ts'
 
 /** One recorded step. */
 const ran = (phase: PipelineStepPhase): PipelineRunStep => ({ cardId: 'card', phase })
@@ -144,5 +144,46 @@ describe('resumeFrom', () => {
     expect(resumeFrom(['done', 'failed'])).toBe(1)
     expect(resumeFrom(['stopped', 'done'])).toBe(0)
     expect(resumeFrom(['done', 'queued'])).toBe(1)
+  })
+})
+
+describe('resultDirectory', () => {
+  const template = '<div data-dsh-files="docs/设计" hidden></div><!-- template-begin --><p>x</p><!-- template-end -->'
+
+  it('reads the directory from the template, which a run cannot overwrite', () => {
+    // A run's region replaces the marked block and nothing else, so the pointer that decides
+    // what the result tab lists lives in the template's skeleton.
+    expect(resultDirectory(template, { kind: 'inline', text: 'done' })).toBe('docs/设计')
+  })
+
+  it('prefers the template over a pointer the run left in its own region', () => {
+    // Stored side by side, the template is the current statement and the region is history.
+    expect(resultDirectory(template, { kind: 'directory', path: 'docs/旧' })).toBe('docs/设计')
+  })
+
+  it('falls back to the region, so results written before the pointer moved still list', () => {
+    expect(resultDirectory(undefined, { kind: 'directory', path: 'docs/旧' })).toBe('docs/旧')
+    expect(resultDirectory('', { kind: 'directory', path: 'docs/旧' })).toBe('docs/旧')
+  })
+
+  it('answers nothing when neither names a directory', () => {
+    expect(resultDirectory(undefined, { kind: 'inline', text: 'done' })).toBeUndefined()
+    expect(resultDirectory('<p>no pointer</p>', { kind: 'none' })).toBeUndefined()
+    expect(resultDirectory(template, { kind: 'none' })).toBe('docs/设计')
+  })
+})
+
+describe('formatBytes', () => {
+  it('labels the sizes a listing shows', () => {
+    expect(formatBytes(57812)).toBe('56.5 KB')
+    expect(formatBytes(512)).toBe('512 B')
+    expect(formatBytes(1024)).toBe('1.0 KB')
+    expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB')
+  })
+
+  it('shows nothing where there is no size to show', () => {
+    // A directory carries no size, and a Host that does not report one must not draw `0 B`.
+    expect(formatBytes(undefined)).toBe('')
+    expect(formatBytes(0)).toBe('')
   })
 })

@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createWorkbenchSkillCardApi, parseRunResponse, parseSnapshot } from '../src/client/skill-card/api.ts'
 import type { FetchLike } from '../src/client/skill-card/api.ts'
-import { WORKBENCH_SKILL_CARD_RESULT_PATH } from '../src/skill-card-contract.ts'
+import { WORKBENCH_SKILL_CARD_FILES_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH } from '../src/skill-card-contract.ts'
 
 /**
  * Build a JSON response.
@@ -226,5 +226,58 @@ describe('parseSnapshot', () => {
       },
     }
     expect(parseRunResponse(state)?.result?.sessionId).toBe('workbench-skill-card-7')
+  })
+})
+
+describe('createWorkbenchSkillCardApi.listFiles', () => {
+  /** One route body naming two files and a directory. */
+  const LISTED = {
+    apiVersion: 1,
+    kind: 'directory',
+    path: 'docs/设计',
+    truncated: false,
+    entries: [
+      { name: '需求.md', path: 'docs/设计/需求.md', type: 'file', size: 57812 },
+      { name: '子目录', path: 'docs/设计/子目录', type: 'directory' },
+    ],
+  }
+
+  it('asks the files route for this card and this directory, and returns the listing', async () => {
+    const fetcher = vi.fn<FetchLike>(async () => json(200, LISTED))
+    const api = createWorkbenchSkillCardApi({ fetcher })
+    const read = await api.listFiles('skill-card', 'docs/设计')
+    expect(read).toEqual({ status: 'ok', listing: { path: 'docs/设计', entries: LISTED.entries, truncated: false } })
+    const [url] = fetcher.mock.calls[0] ?? []
+    // The card is part of the question: a directory path alone names nothing without it.
+    expect(String(url).startsWith(WORKBENCH_SKILL_CARD_FILES_PATH)).toBe(true)
+    expect(String(url)).toContain('cardId=skill-card')
+    expect(String(url)).toContain(`path=${encodeURIComponent('docs/设计')}`)
+  })
+
+  it('states a refusal instead of throwing, and keeps the Host’s words', async () => {
+    const fetcher = vi.fn<FetchLike>(async () => json(403, {
+      error: { code: 'outside-workspace', message: 'that path is not in this card’s workspace' },
+    }))
+    const api = createWorkbenchSkillCardApi({ fetcher })
+    await expect(api.listFiles('skill-card', '../etc')).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'that path is not in this card’s workspace',
+    })
+  })
+
+  it('reports a body outside the contract rather than listing half of it', async () => {
+    const fetcher = vi.fn<FetchLike>(async () => json(200, { ...LISTED, truncated: 'no' }))
+    const api = createWorkbenchSkillCardApi({ fetcher })
+    await expect(api.listFiles('skill-card', 'docs/设计')).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'listing response did not match the contract',
+    })
+  })
+
+  it('reports a transport that failed as unavailable, not as an empty directory', async () => {
+    const fetcher = vi.fn<FetchLike>(async () => { throw new Error('offline') })
+    const api = createWorkbenchSkillCardApi({ fetcher })
+    const read = await api.listFiles('skill-card', 'docs/设计')
+    expect(read.status).toBe('unavailable')
   })
 })

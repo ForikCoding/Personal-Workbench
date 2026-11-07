@@ -16,7 +16,7 @@ import css from './pipeline-classes.ts'
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts'
 import type { PipelineRunFace, PipelineStepPhase } from './pipeline/pipeline-run.ts'
 import type { PipelineRunEntry, PipelineStand, StepProduct } from './pipeline/pipeline-view.ts'
-import { formatDuration, formatWhen, productOf, resumeFrom, standOf, stateView } from './pipeline/pipeline-view.ts'
+import { formatBytes, formatDuration, formatWhen, productOf, resultDirectory, resumeFrom, standOf, stateView } from './pipeline/pipeline-view.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
@@ -28,6 +28,7 @@ import { ShadowHtml } from './skill-card/ShadowHtml.tsx'
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
+  WorkbenchFilesRead,
   WorkbenchSkillCardApi,
 } from './skill-card/api.ts'
 import { permissionLabelKey } from './skill-card/permission.ts'
@@ -35,7 +36,7 @@ import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
 
-import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts'
+import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchFileEntry, WorkbenchSandboxMode } from '../skill-card-contract.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 
 /** One card's full-panel views the reader can mount. */
@@ -64,7 +65,7 @@ export interface WorkbenchPipelineProps {
    * @param onBack - what its back control returns to.
    * @returns the view.
    */
-  readonly renderCard: (cardId: string, view: CardView, onBack: () => void) => ReactNode
+  readonly renderCard: (cardId: string, view: CardView, onBack: () => void, openFile?: string) => ReactNode
   /** Create a new single card, from the menu's own entry. */
   readonly onCreateCard: () => void
   /**
@@ -260,7 +261,11 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [pickerQuery, setPickerQuery] = useState('')
   /** Why the step the user just picked was not added, stated in the picker that asked. */
   const [pickerProblem, setPickerProblem] = useState<string | undefined>(undefined)
-  const [reader, setReader] = useState<{ readonly cardId: string } | undefined>(undefined)
+  // `file` is the file the result tab asked to see: the reader opens the card's result view,
+  // and that view's template decides whether it starts on this file or on its own default.
+  const [reader, setReader] = useState<
+    { readonly cardId: string; readonly file?: string } | undefined
+  >(undefined)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyAt, setHistoryAt] = useState<number | undefined>(undefined)
   const [review, setReview] = useState<{ readonly cardId: string } | undefined>(undefined)
@@ -770,7 +775,9 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     )
   }
 
-  const openReader = (cardId: string): void => { setReader({ cardId }) }
+  const openReader = (cardId: string, file?: string): void => {
+    setReader(file === undefined ? { cardId } : { cardId, file })
+  }
 
   return (
     <div className={`${css.root} ${css.panel}`} data-workbench-pipeline="">
@@ -1336,7 +1343,9 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             <ResultPanel
                               step={selected}
                               t={t}
-                              onOpen={() => { openReader(selected.cardId) }}
+                              template={cards.find(card => card.cardId === selected.cardId)?.template}
+                              listFiles={api.listFiles}
+                              onOpen={(file) => { openReader(selected.cardId, file) }}
                               onRun={() => { if (active !== undefined) run.runOne(active, selected.index) }}
                             />
                           </div>
@@ -1401,7 +1410,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 </button>
               </div>
               <div className={css.zoomBody}>
-                {renderCard(reader.cardId, 'result', () => { setReader(undefined) })}
+                {renderCard(reader.cardId, 'result', () => { setReader(undefined) }, reader.file)}
               </div>
             </div>
           </div>
@@ -1982,10 +1991,13 @@ function ConfigPanel(props: {
 function ResultPanel(props: {
   readonly step: StepView
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  readonly onOpen: () => void
+  /** The card's template: where a directory result states which directory it covers. */
+  readonly template?: string | undefined
+  readonly listFiles: (cardId: string, path: string) => Promise<WorkbenchFilesRead>
+  readonly onOpen: (file?: string) => void
   readonly onRun: () => void
 }): ReactNode {
-  const { step, t, onOpen, onRun } = props
+  const { step, t, template, listFiles, onOpen, onRun } = props
   if (step.phase === 'running') {
     return (
       <div className={css.stateBlock}>
@@ -2025,34 +2037,122 @@ function ResultPanel(props: {
   // 没有目录就是一行「查看结果」加摘要。时间不在这儿：它属于活动，正文属于阅读器。
   const product = step.product
   const summary = product.kind === 'inline' && product.text !== '' ? product.text : t('pipeInlineProduct')
+  // 目录先问模板：指针写在模板里，才不会被这次运行盖掉（区域每次都被替换）
+  const dir = resultDirectory(template, product)
   return (
     <div className={css.resBlock}>
       <div className={css.resBlockHead}>
         <span>{t('pipeResultWhat')}</span>
-        {product.kind === 'directory' ? <em>{product.path}</em> : null}
+        {dir === undefined ? null : <em>{dir}</em>}
       </div>
       {step.result.editedAt === undefined ? null : (
         <p className={css.revised} data-edited="">{t('pipeResultEdited')}</p>
       )}
       <div className={css.resList}>
-        {product.kind === 'directory'
+        {dir === undefined
           ? (
-            <button type="button" className={css.resItem} data-open-result="" onClick={onOpen}>
-              {MARK.file}
-              <span className={css.resItemName}>{baseName(product.path)}</span>
-              {MARK.chev}
-            </button>
-            )
-          : (
-            <button type="button" className={css.resOpen} data-open-result="" onClick={onOpen}>
+            <button type="button" className={css.resOpen} data-open-result="" onClick={() => { onOpen() }}>
               {MARK.file}
               <span>{t('pipeResultOpenInline')}</span>
               <em data-result-summary="">{summary}</em>
               {MARK.chev}
             </button>
+            )
+          : (
+            <ResultFiles
+              cardId={step.cardId}
+              dir={dir}
+              t={t}
+              listFiles={listFiles}
+              onOpen={onOpen}
+            />
             )}
       </div>
     </div>
+  )
+}
+
+/**
+ * One row per file the result's directory holds, and the row that opens the reader.
+ *
+ * The directory is listed once and the rows are drawn from it, because "3 个文件" is a fact
+ * the panel would otherwise state without naming them. Reading is the first state rather
+ * than a spinner: the directory row is already a working way into the reader, so the list
+ * arriving late replaces a usable row instead of gating it.
+ */
+function ResultFiles(props: {
+  readonly cardId: string
+  readonly dir: string
+  readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
+  readonly listFiles: (cardId: string, path: string) => Promise<WorkbenchFilesRead>
+  readonly onOpen: (file?: string) => void
+}): ReactNode {
+  const { cardId, dir, t, listFiles, onOpen } = props
+  const [read, setRead] = useState<
+    | { readonly phase: 'reading' }
+    | { readonly phase: 'ready'; readonly files: readonly WorkbenchFileEntry[] }
+    | { readonly phase: 'failed'; readonly reason: string }
+  >({ phase: 'reading' })
+
+  useEffect(() => {
+    let live = true
+    setRead({ phase: 'reading' })
+    void listFiles(cardId, dir).then(result => {
+      if (!live) return
+      if (result.status !== 'ok') {
+        setRead({ phase: 'failed', reason: result.reason })
+        return
+      }
+      // 目录不算文件：这一行说的是「交了什么文件」，而一个子目录要开的东西在下一层
+      setRead({ phase: 'ready', files: result.listing.entries.filter(entry => entry.type === 'file') })
+    })
+    return () => { live = false }
+  }, [cardId, dir, listFiles])
+
+  const wholeDirectory = (
+    <button type="button" className={css.resItem} data-open-result="" onClick={() => { onOpen() }}>
+      {MARK.file}
+      <span className={css.resItemName}>{baseName(dir)}</span>
+      {MARK.chev}
+    </button>
+  )
+
+  if (read.phase !== 'ready' || read.files.length === 0) {
+    // 还没读到、读不到、目录里确实没有文件：都给这一行，阅读器至少进得去；
+    // 读不到要说出为什么，否则这一步看起来只是「没有文件」。
+    return (
+      <>
+        {wholeDirectory}
+        {read.phase === 'failed'
+          ? (
+            <p className={css.resProblem} data-files-problem="">
+              {t('pipeResultFilesProblem', { reason: read.reason })}
+            </p>
+            )
+          : null}
+      </>
+    )
+  }
+
+  return (
+    <>
+      {read.files.map(entry => (
+        <button
+          key={entry.path}
+          type="button"
+          className={css.resItem}
+          data-result-file={entry.path}
+          onClick={() => { onOpen(entry.path) }}
+        >
+          {MARK.file}
+          <span className={css.resItemName}>{entry.name}</span>
+          {entry.size === undefined
+            ? null
+            : <em className={css.resItemSize} data-result-size="">{formatBytes(entry.size)}</em>}
+          {MARK.chev}
+        </button>
+      ))}
+    </>
   )
 }
 

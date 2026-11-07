@@ -139,6 +139,7 @@ export const css = {
   resItem: 'wb-resItem',
   resItemName: 'wb-resItemName',
   resItemSize: 'wb-resItemSize',
+  resProblem: 'wb-resProblem',
   resList: 'wb-resList',
   resOpen: 'wb-resOpen',
   resultBar: 'wb-resultBar',

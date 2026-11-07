@@ -372,6 +372,13 @@ export interface SkillCardPageProps {
    * composition without the document route does.
    */
   readonly documents?: WorkbenchScriptBinder | undefined
+  /**
+   * The file the app opened this result for, when it named one.
+   *
+   * A request handed to the document's own script, not a decision made here: the template
+   * that lists a directory decides what to show first.
+   */
+  readonly openFile?: string | undefined
 }
 
 /** The three ways the result page lets a user change what it shows. */
@@ -755,7 +762,7 @@ function RunHistoryRow({
  * @returns the result page.
  */
 export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t, documents } = props
+  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t, documents, openFile } = props
   // The face's own naming rule, reused so an action declaration can address this card
   // by the title the user actually reads on it.
   const cardTitle = useCallback(
@@ -960,6 +967,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
                       t={t}
                       onAction={actions.click}
                       documents={documents}
+                      openFile={openFile}
                     />
                   </div>
                 )}

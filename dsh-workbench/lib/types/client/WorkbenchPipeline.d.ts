@@ -40,7 +40,7 @@ export interface WorkbenchPipelineProps {
      * @param onBack - what its back control returns to.
      * @returns the view.
      */
-    readonly renderCard: (cardId: string, view: CardView, onBack: () => void) => ReactNode;
+    readonly renderCard: (cardId: string, view: CardView, onBack: () => void, openFile?: string) => ReactNode;
     /** Create a new single card, from the menu's own entry. */
     readonly onCreateCard: () => void;
     /**

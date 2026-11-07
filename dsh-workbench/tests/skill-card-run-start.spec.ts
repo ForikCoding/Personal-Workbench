@@ -39,6 +39,8 @@ function api(start: (request: WorkbenchRunRequest) => Promise<WorkbenchRunStart>
       // The directory check belongs to the page that gates its own run control; a start
       // issued from another card's button carries no directory of its own.
       statDirectory: async () => ({ status: 'unavailable', reason: 'not used' }),
+      // Nor does it list directories: the result rows are the panel's, not a start's.
+      listFiles: async () => ({ status: 'unavailable', reason: 'not used' }),
       start: async (request) => {
         recording.requests.push(request)
         return await start(request)

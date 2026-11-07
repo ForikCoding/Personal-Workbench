@@ -7,7 +7,7 @@
  * typed value.
  * @module dsh-workbench/client/skill-card/api
  */
-import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchDirectoryStat, WorkbenchRunCapabilities, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
+import type { WorkbenchCardConfigView, WorkbenchCardResult, WorkbenchDirectoryStat, WorkbenchFilesListing, WorkbenchRunCapabilities, WorkbenchRunRequest, WorkbenchRunState, WorkbenchSkillCardPatch, WorkbenchSkillCatalogEntry } from '../../skill-card-contract.ts';
 export type { WorkbenchCardConfigView, WorkbenchCardResult } from '../../skill-card-contract.ts';
 /** Fetch seam so tests can drive transport without a server. */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -98,6 +98,20 @@ export type WorkbenchDirectoryStatRead = {
     readonly status: 'unavailable';
     readonly reason: string;
 };
+/**
+ * Outcome of one directory listing.
+ *
+ * A listing rather than a throw, for the same reason the directory check is one: the panel
+ * that asks is drawing rows, and "no rows and why" is a shape it can render. A directory
+ * that could not be read is not the same fact as an empty one, so the two stay apart.
+ */
+export type WorkbenchFilesRead = {
+    readonly status: 'ok';
+    readonly listing: WorkbenchFilesListing;
+} | {
+    readonly status: 'unavailable';
+    readonly reason: string;
+};
 /** Outcome of storing one hand-edited result. */
 export type WorkbenchResultWrite = {
     readonly status: 'ok';
@@ -175,6 +189,17 @@ export interface WorkbenchSkillCardApi {
      * @returns the three facts, or why the check could not be answered.
      */
     statDirectory(path: string, signal?: AbortSignal): Promise<WorkbenchDirectoryStatRead>;
+    /**
+     * List one directory in a card's workspace.
+     *
+     * The result tab names the files a run produced, so the panel asks for the directory the
+     * card's template points at once and draws a row per file from the answer.
+     * @param cardId - the card whose workspace is read.
+     * @param path - path within that workspace; empty for the workspace itself.
+     * @param signal - caller-owned cancellation.
+     * @returns the listing, or why it could not be read.
+     */
+    listFiles(cardId: string, path: string, signal?: AbortSignal): Promise<WorkbenchFilesRead>;
 }
 /** What the API needs from its host. */
 export interface WorkbenchSkillCardApiOptions {

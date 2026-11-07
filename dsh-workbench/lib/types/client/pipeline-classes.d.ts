@@ -138,6 +138,7 @@ export declare const css: {
     readonly resItem: "wb-resItem";
     readonly resItemName: "wb-resItemName";
     readonly resItemSize: "wb-resItemSize";
+    readonly resProblem: "wb-resProblem";
     readonly resList: "wb-resList";
     readonly resOpen: "wb-resOpen";
     readonly resultBar: "wb-resultBar";

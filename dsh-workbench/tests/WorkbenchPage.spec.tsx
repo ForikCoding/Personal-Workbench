@@ -8,6 +8,9 @@ import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker, noWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
 import type { WorkbenchWorkspacePicker } from '../src/client/skill-card/workspace-picker.ts'
+import type { WorkbenchCardConfigView, WorkbenchFilesRead } from '../src/client/skill-card/api.ts'
+import type { WorkbenchFileEntry } from '../src/skill-card-contract.ts'
+import type { WorkbenchScriptBinder } from '../src/client/skill-card/render.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
@@ -34,8 +37,13 @@ const t = (key: LocaleKey, params?: Record<string, unknown>): string =>
     en[key],
   )
 
-/** The configured cards the panels read their template, model and workspace from. */
-const CARD_VIEWS = [
+/**
+ * The configured cards the panels read their template, model and workspace from.
+ *
+ * A tuple rather than an array: a case that swaps one card's template spreads `CARD_VIEWS[0]`,
+ * and an element type that may be undefined would make that spread a different shape.
+ */
+const CARD_VIEWS: readonly [WorkbenchCardConfigView, WorkbenchCardConfigView] = [
   {
     cardId: 'a-card',
     name: 'A card',
@@ -108,7 +116,7 @@ function props(options: {
   results?: readonly WorkbenchCardResult[]
   catalog?: () => Promise<WorkbenchCatalogRead>
   /** The stored cards the transport holds; the default pair is enough for most cases. */
-  cardViews?: typeof CARD_VIEWS
+  cardViews?: readonly WorkbenchCardConfigView[]
   /** Whether card writes land; false models a store that refuses the change. */
   cardWriteLands?: boolean
   /**
@@ -122,6 +130,20 @@ function props(options: {
   pipelineMovedSinceLoad?: boolean
   /** The directory chooser this page offers; the default answers one path. */
   picker?: WorkbenchWorkspacePicker
+  /**
+   * What listing a step's result directory answers.
+   *
+   * The default is an empty directory: most cases are about what the panel draws, not about
+   * the rows a listing produces, and an unexpected read would otherwise fail them.
+   */
+  listFiles?: (cardId: string, path: string) => Promise<WorkbenchFilesRead>
+  /**
+   * The binder a rendered card document's script receives.
+   *
+   * jsdom runs no script it is handed, so what a template's code would see is observed here:
+   * the binder is the one place the document's inputs pass through on their way to it.
+   */
+  documents?: WorkbenchScriptBinder
   overrides?: Partial<PageProps>
 } = {}): {
   props: PageProps
@@ -216,7 +238,12 @@ function props(options: {
         cancel: async () => {},
         saveResult: async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' }),
         statDirectory: async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' }),
+        listFiles: options.listFiles ?? (async (_cardId: string, path: string) => ({
+          status: 'ok' as const,
+          listing: { path, entries: [], truncated: false },
+        })),
       },
+      ...options.documents === undefined ? {} : { documents: options.documents },
       runSessionId: () => 'session-user',
       models: fakeModelSeat(),
       workspacePicker: options.picker ?? fakeWorkspacePicker().picker,
@@ -854,6 +881,153 @@ describe('WorkbenchPage', () => {
     // The reader takes the whole panel: the document is read in exactly one place.
     await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
   })
+
+  it('draws one row per file the result directory holds, with each file’s size', async () => {
+    // The template says where this card's results live; the listing says what is in there.
+    // Together they are the three rows the prototype draws instead of one row for the folder.
+    const files: WorkbenchFileEntry[] = [
+      { name: '需求.md', path: 'docs/设计/需求.md', type: 'file', size: 57812 },
+      { name: '概要.md', path: 'docs/设计/概要.md', type: 'file', size: 36635 },
+      { name: '子目录', path: 'docs/设计/子目录', type: 'directory' },
+    ]
+    await renderPage({
+      results: [result('a-card', '<p>fresh</p>')],
+      cardViews: [
+        { ...CARD_VIEWS[0], template: '<div data-dsh-files="docs/设计"></div><!-- template-begin --><p>x</p><!-- template-end -->' },
+        CARD_VIEWS[1],
+      ],
+      listFiles: async (_cardId, path) => ({
+        status: 'ok',
+        listing: { path, entries: files, truncated: false },
+      }),
+    })
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-result-file]')).toHaveLength(2)
+    })
+    const rows = [...document.querySelectorAll('[data-result-file]')]
+    expect(rows.map(row => row.querySelector('.wb-resItemName')?.textContent))
+      .toEqual(['需求.md', '概要.md'])
+    // Size beside the name, in the unit a person reads it in.
+    expect(rows[0]?.querySelector('[data-result-size]')?.textContent).toBe('56.5 KB')
+    expect(rows[1]?.querySelector('[data-result-size]')?.textContent).toBe('35.8 KB')
+    // A directory in the listing is not a file this step handed over: no row, no size.
+    expect(rows.some(row => row.textContent?.includes('子目录'))).toBe(false)
+  })
+
+  it('opens the reader on the file whose row was clicked, and tells the document which', async () => {
+    // `dsh.openFile` is the whole mechanism: the row names a file, and the document the reader
+    // mounts is handed that name. A template that ignores it still renders its own default.
+    // A document is only handed a binding while it has a script to run, so this template
+    // carries one: the script is the code that would read `dsh.openFile`.
+    const asked: (string | undefined)[] = []
+    const documents: WorkbenchScriptBinder = (input) => {
+      asked.push(input.openFile)
+      return {
+        cardId: input.cardId,
+        ...input.openFile === undefined ? {} : { openFile: input.openFile },
+        root: input.root,
+        host: input.host,
+        files: {
+          list: async () => ({ path: '', entries: [], truncated: false }),
+          read: async () => ({ path: '', text: '', bytes: 0 }),
+        },
+        markdown: { render: async () => {} },
+      }
+    }
+    await renderPage({
+      results: [result('a-card', '<p>fresh</p>')],
+      documents,
+      cardViews: [
+        {
+          ...CARD_VIEWS[0],
+          template: [
+            '<div data-dsh-files="docs/设计"></div>',
+            '<!-- template-begin --><p>x</p><!-- template-end -->',
+            '<script>void 0</script>',
+          ].join(''),
+        },
+        CARD_VIEWS[1],
+      ],
+      listFiles: async (_cardId, path) => ({
+        status: 'ok',
+        listing: {
+          path,
+          entries: [
+            { name: '需求.md', path: 'docs/设计/需求.md', type: 'file', size: 10 },
+            { name: '概要.md', path: 'docs/设计/概要.md', type: 'file', size: 20 },
+          ],
+          truncated: false,
+        },
+      }),
+    })
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    const second = await waitFor(() => {
+      const row = document.querySelector('[data-result-file="docs/设计/概要.md"]')
+      if (row === null) throw new Error('the second file row is not there yet')
+      return row as HTMLElement
+    })
+    fireEvent.click(second)
+    await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
+    // The document the reader mounted was told which file to open on — not the first one.
+    await waitFor(() => { expect(asked).toContain('docs/设计/概要.md') })
+    // The click named the second file, not the first the listing happens to hold.
+    expect(asked.at(-1)).toBe('docs/设计/概要.md')
+  })
+
+  it('says why the directory could not be listed, and still opens the reader on the folder', async () => {
+    // A listing that failed must not read as an empty directory, and must not take away the
+    // one row that gets the user into the reader.
+    const asked: (string | undefined)[] = []
+    const documents: WorkbenchScriptBinder = (input) => {
+      asked.push(input.openFile)
+      return {
+        cardId: input.cardId,
+        root: input.root,
+        host: input.host,
+        files: {
+          list: async () => ({ path: '', entries: [], truncated: false }),
+          read: async () => ({ path: '', text: '', bytes: 0 }),
+        },
+        markdown: { render: async () => {} },
+      }
+    }
+    await renderPage({
+      results: [result('a-card', '<p>fresh</p>')],
+      documents,
+      cardViews: [
+        {
+          ...CARD_VIEWS[0],
+          template: [
+            '<div data-dsh-files="docs/设计"></div>',
+            '<!-- template-begin --><p>x</p><!-- template-end -->',
+            '<script>void 0</script>',
+          ].join(''),
+        },
+        CARD_VIEWS[1],
+      ],
+      listFiles: async () => ({ status: 'unavailable', reason: 'the workspace is gone' }),
+    })
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    const problem = await waitFor(() => {
+      const found = document.querySelector('[data-files-problem]')
+      if (found === null) throw new Error('no problem line yet')
+      return found
+    })
+    expect(problem.textContent).toBe(en.pipeResultFilesProblem.replace('{reason}', 'the workspace is gone'))
+    expect(document.querySelectorAll('[data-result-file]')).toHaveLength(0)
+    const folder = document.querySelector('[data-open-result]')
+    expect(folder).not.toBeNull()
+    fireEvent.click(folder as HTMLElement)
+    await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
+    // Opening the folder names no file: the document shows whatever it shows by default.
+    await waitFor(() => { expect(asked).toHaveLength(1) })
+    expect(asked[0]).toBeUndefined()
+  })
+
 
   it('draws a non-file result the way the prototype does: one row, its summary, nothing else', async () => {
     await renderPage({ results: [result('a-card', '<p>fresh</p>')] })

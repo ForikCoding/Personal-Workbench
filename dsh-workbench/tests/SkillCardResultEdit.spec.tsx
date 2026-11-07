@@ -142,6 +142,7 @@ function fixture(options: {
     // The directory the fixture's card is pointed at, when it has one. A check for a card
     // without a workspace is never answered, because there is no path to check.
     statDirectory: async () => ({ status: 'ok', stat: PRESENT_DIRECTORY }),
+    listFiles: async () => ({ status: 'unavailable', reason: 'not used by these cases' }),
     saveResult: async (cardId, runId, html) => {
       recorded.saves.push({ cardId, runId, html })
       if (options.save !== undefined) return await options.save(cardId, runId, html)

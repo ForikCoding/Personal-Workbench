@@ -36,6 +36,8 @@ export interface ShadowHtmlProps {
     readonly cardId?: string | undefined;
     /** The run the document shows, when the page knows it. */
     readonly runId?: string | undefined;
+    /** The file the app opened this document for, when it named one. */
+    readonly openFile?: string | undefined;
     /** Builds the binding each rendered document's script receives. */
     readonly documents?: WorkbenchScriptBinder | undefined;
 }
@@ -44,4 +46,4 @@ export interface ShadowHtmlProps {
  * @param props - the document, the host class, the action handler, and the document runtime.
  * @returns the host element.
  */
-export declare function ShadowHtml({ html, className, onAction, cardId, runId, documents }: ShadowHtmlProps): ReactNode;
+export declare function ShadowHtml({ html, className, onAction, cardId, runId, openFile, documents }: ShadowHtmlProps): ReactNode;

@@ -13,7 +13,8 @@
  */
 import type { WorkbenchLocaleKey } from '../locales.ts';
 import type { WorkbenchScriptBinder } from './render.ts';
-import type { WorkbenchFileErrorCode, WorkbenchFilesListing, WorkbenchFilesText } from '../../skill-card-contract.ts';
+export { parseListing, parseText } from './files-wire.ts';
+import type { WorkbenchFileErrorCode } from '../../skill-card-contract.ts';
 /** Fetch seam so tests can drive the route without a server. */
 export type DocumentFetch = (input: string, init?: RequestInit) => Promise<Response>;
 /** What the binder needs from its owner. */
@@ -47,15 +48,3 @@ export declare class WorkbenchDocumentError extends Error {
  * @returns the binder.
  */
 export declare function createWorkbenchDocumentBinder(options: WorkbenchDocumentBinderOptions): WorkbenchScriptBinder;
-/**
- * Validate one listing body.
- * @param value - the decoded body.
- * @returns the listing, or undefined when a field is outside the contract.
- */
-export declare function parseListing(value: unknown): WorkbenchFilesListing | undefined;
-/**
- * Validate one file body.
- * @param value - the decoded body.
- * @returns the file, or undefined when a field is outside the contract.
- */
-export declare function parseText(value: unknown): WorkbenchFilesText | undefined;

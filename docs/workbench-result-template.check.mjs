@@ -4,7 +4,8 @@
  * 不能证的部分：影子根里的 CSS 与 markdown 排版（那需要浏览器）。
  * 能证的部分：区域标记可定位、目录指针在区域之外、内容策略不违例、
  *            脚本里没有看不见影子根的选择器、真目录能被列出并读回、
- *            默认打开第一个、点第三个真的换了正文、空目录与读不到目录的两种情况。
+ *            默认打开第一个、点第三个真的换了正文、空目录与读不到目录的两种情况、
+ *            dsh.openFile 点了哪个就开哪个、对不上退回第一个。
  *
  * 跑法：node docs/workbench-result-template.check.mjs
  */
@@ -414,6 +415,53 @@ process.stdout.write('\n10. 指针被删掉\n')
   check('没有去列目录、也没有读文件', touched.length === 0, touched.join(', ') || '一次都没调')
   check('容器都摘掉，区域自己显示自己', view.head.parent === null
     && view.filesEl.parent === null && view.bodyEl.parent === null)
+}
+
+/* ─────────────── 11. 工作台点了哪一行，就打开哪个文件 ─────────────── */
+
+process.stdout.write('\n11. dsh.openFile 指定开头\n')
+{
+  const view = buildRoot()
+  const renders = []
+  const expected = listCardDirectory(DIR).entries.filter(entry => /\.md$/i.test(entry.name))
+  const wanted = expected[2]
+  run({
+    root: view.root,
+    openFile: wanted.path,
+    files: {
+      list: async requested => listCardDirectory(requested),
+      read: async requested => readCardFile(requested),
+    },
+    markdown: { render: async (element, text) => { renders.push({ element, text }) } },
+  }, fakeDocument)
+  await settle()
+
+  const chips = view.filesEl.querySelectorAll('.file')
+  check('打开的是被点的那一个', renders.length === 1
+    && renders[0].text === readCardFile(wanted.path).text, wanted.name)
+  check('选中态也落在它身上', chips[2]?.getAttribute('aria-pressed') === 'true'
+    && chips[0]?.getAttribute('aria-pressed') === 'false', '第三个选中、第一个取消')
+}
+
+{
+  const view = buildRoot()
+  const renders = []
+  const expected = listCardDirectory(DIR).entries.filter(entry => /\.md$/i.test(entry.name))
+  run({
+    root: view.root,
+    // 名字对不上（模板换了目录、文件被删）：退回第一个，不能什么都不显示
+    openFile: DIR + '/这个文件不存在.md',
+    files: {
+      list: async requested => listCardDirectory(requested),
+      read: async requested => readCardFile(requested),
+    },
+    markdown: { render: async (element, text) => { renders.push({ element, text }) } },
+  }, fakeDocument)
+  await settle()
+
+  check('对不上就退回第一个', renders.length === 1
+    && renders[0].text === readCardFile(expected[0].path).text,
+  renders.length ? '渲染了第一个' : '未渲染')
 }
 
 process.stdout.write(failures === 0 ? '\n全部通过。\n' : `\n${failures} 项失败。\n`)

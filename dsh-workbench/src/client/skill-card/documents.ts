@@ -19,14 +19,17 @@ import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchLocaleKey } from '../locales.ts'
 import type { WorkbenchScriptBinder, WorkbenchScriptBinding } from './render.ts'
+// The bodies the route answers with are validated in one lean module, because the panel
+// reads the same listing through the card API and must not drag React along to do it.
+import { parseListing, parseText } from './files-wire.ts'
+
+export { parseListing, parseText } from './files-wire.ts'
 import type {
-  WorkbenchFileEntry,
   WorkbenchFileErrorCode,
   WorkbenchFilesListing,
   WorkbenchFilesText,
 } from '../../skill-card-contract.ts'
 import {
-  WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_FILES_PATH,
 } from '../../skill-card-contract.ts'
 
@@ -239,47 +242,6 @@ function failureOf(body: unknown): { readonly code?: string; readonly message?: 
   }
 }
 
-/**
- * Validate one listing body.
- * @param value - the decoded body.
- * @returns the listing, or undefined when a field is outside the contract.
- */
-export function parseListing(value: unknown): WorkbenchFilesListing | undefined {
-  if (typeof value !== 'object' || value === null) return undefined
-  const body = value as { apiVersion?: unknown; kind?: unknown; path?: unknown; entries?: unknown; truncated?: unknown }
-  if (body.apiVersion !== WORKBENCH_SKILL_CARD_API_VERSION || body.kind !== 'directory') return undefined
-  if (typeof body.path !== 'string' || !Array.isArray(body.entries)) return undefined
-  if (typeof body.truncated !== 'boolean') return undefined
-  const entries: WorkbenchFileEntry[] = []
-  for (const raw of body.entries) {
-    if (typeof raw !== 'object' || raw === null) return undefined
-    const entry = raw as { name?: unknown; path?: unknown; type?: unknown; size?: unknown }
-    if (typeof entry.name !== 'string' || typeof entry.path !== 'string') return undefined
-    if (entry.type !== 'directory' && entry.type !== 'file' && entry.type !== 'other') return undefined
-    if (entry.size !== undefined && typeof entry.size !== 'number') return undefined
-    entries.push({
-      name: entry.name,
-      path: entry.path,
-      type: entry.type,
-      ...entry.size === undefined ? {} : { size: entry.size },
-    })
-  }
-  return { path: body.path, entries, truncated: body.truncated }
-}
-
-/**
- * Validate one file body.
- * @param value - the decoded body.
- * @returns the file, or undefined when a field is outside the contract.
- */
-export function parseText(value: unknown): WorkbenchFilesText | undefined {
-  if (typeof value !== 'object' || value === null) return undefined
-  const body = value as { apiVersion?: unknown; kind?: unknown; path?: unknown; text?: unknown; bytes?: unknown }
-  if (body.apiVersion !== WORKBENCH_SKILL_CARD_API_VERSION || body.kind !== 'file') return undefined
-  if (typeof body.path !== 'string' || typeof body.text !== 'string') return undefined
-  if (typeof body.bytes !== 'number') return undefined
-  return { path: body.path, text: body.text, bytes: body.bytes }
-}
 
 /** Copy the application's Markdown chrome needs, built once per translator. */
 const LABEL_CACHE = new WeakMap<(key: WorkbenchLocaleKey) => string, MarkdownLabels>()

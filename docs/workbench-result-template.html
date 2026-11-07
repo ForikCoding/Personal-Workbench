@@ -18,6 +18,8 @@
     样式块里只要引用了外部地址，整个 style 块会被丢掉。
   · 区域里的 script 会被剥掉，行为只能写在模板自己的 script 里。
   · 节点要用 dsh.root 找。文档渲染在影子根里，document.querySelector 会静默返回 null。
+  · 工作台的结果 tab 点某一行的文件时，那个路径在 dsh.openFile 里；这里优先打开它，
+    名字对不上（改了目录、文件删了）就退回第一个文件。
   · 卡片本身不给内边距，留白得模板自己写。
 -->
 <style>
@@ -260,7 +262,16 @@
         filesEl.append(button);
       });
 
-      open(docs[0]);   // 没有点击时默认打开第一个
+      // 工作台的结果 tab 里点的是某一行的文件：dsh.openFile 就是那个名字，打开它。
+      // 找不到这个名字（模板换了目录、文件被删了）就退回第一个，不让读者对着空白。
+      var wanted = dsh.openFile;
+      var first = docs[0];
+      if (wanted) {
+        for (var i = 0; i < docs.length; i++) {
+          if (docs[i].path === wanted || docs[i].name === wanted) { first = docs[i]; break; }
+        }
+      }
+      open(first);
     }).catch(function (error) {
       // 目录读不到（没配工作区、路径写错…）：说清楚，别让这一步看着像空的
       headEl.remove();

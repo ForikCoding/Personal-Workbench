@@ -110,6 +110,8 @@ export interface SkillCardBodyProps {
     readonly onAction?: ((event: WorkbenchActionEvent) => void) | undefined;
     /** Builds the binding the rendered document's own script receives. */
     readonly documents?: WorkbenchScriptBinder | undefined;
+    /** The file the app opened this body for, when it named one. */
+    readonly openFile?: string | undefined;
 }
 /**
  * Render the card's content.
@@ -120,7 +122,7 @@ export interface SkillCardBodyProps {
  * @param props - the view, `t`, and the click outlet.
  * @returns the body element.
  */
-export declare function SkillCardBody({ view, cardId, t, onAction, documents }: SkillCardBodyProps): ReactNode;
+export declare function SkillCardBody({ view, cardId, t, onAction, documents, openFile }: SkillCardBodyProps): ReactNode;
 /**
  * Choose the status line for a higher-priority fact.
  * @param code - the failure code.

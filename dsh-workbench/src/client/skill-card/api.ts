@@ -12,6 +12,7 @@ import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
   WorkbenchDirectoryStat,
+  WorkbenchFilesListing,
   WorkbenchRunCapabilities,
   WorkbenchRunPhase,
   WorkbenchRunRequest,
@@ -21,10 +22,14 @@ import type {
 } from '../../skill-card-contract.ts'
 
 export type { WorkbenchCardConfigView, WorkbenchCardResult } from '../../skill-card-contract.ts'
+// One parser for one wire shape: the document route and this read answer with the same
+// listing, so validating it twice would let the two drift.
+import { parseListing } from './files-wire.ts'
 import {
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_CATALOG_PATH,
   WORKBENCH_SKILL_CARD_DIRECTORY_PATH,
+  WORKBENCH_SKILL_CARD_FILES_PATH,
   WORKBENCH_SKILL_CARD_PATH,
   WORKBENCH_SKILL_CARD_RESULT_PATH,
   WORKBENCH_SKILL_CARD_RUN_PATH,
@@ -107,6 +112,17 @@ export type WorkbenchDirectoryStatRead =
   | { readonly status: 'ok'; readonly stat: WorkbenchDirectoryStat }
   | { readonly status: 'unavailable'; readonly reason: string }
 
+/**
+ * Outcome of one directory listing.
+ *
+ * A listing rather than a throw, for the same reason the directory check is one: the panel
+ * that asks is drawing rows, and "no rows and why" is a shape it can render. A directory
+ * that could not be read is not the same fact as an empty one, so the two stay apart.
+ */
+export type WorkbenchFilesRead =
+  | { readonly status: 'ok'; readonly listing: WorkbenchFilesListing }
+  | { readonly status: 'unavailable'; readonly reason: string }
+
 /** Outcome of storing one hand-edited result. */
 export type WorkbenchResultWrite =
   | {
@@ -181,6 +197,17 @@ export interface WorkbenchSkillCardApi {
    * @returns the three facts, or why the check could not be answered.
    */
   statDirectory(path: string, signal?: AbortSignal): Promise<WorkbenchDirectoryStatRead>
+  /**
+   * List one directory in a card's workspace.
+   *
+   * The result tab names the files a run produced, so the panel asks for the directory the
+   * card's template points at once and draws a row per file from the answer.
+   * @param cardId - the card whose workspace is read.
+   * @param path - path within that workspace; empty for the workspace itself.
+   * @param signal - caller-owned cancellation.
+   * @returns the listing, or why it could not be read.
+   */
+  listFiles(cardId: string, path: string, signal?: AbortSignal): Promise<WorkbenchFilesRead>
 }
 
 /** Queue depth above which the oldest waiting change is dropped. */
@@ -425,6 +452,35 @@ export function createWorkbenchSkillCardApi(options: WorkbenchSkillCardApiOption
       return stat === undefined
         ? { status: 'unavailable', reason: 'directory response did not match the contract' }
         : { status: 'ok', stat }
+    },
+
+    async listFiles(cardId, path, signal) {
+      const query = `?cardId=${encodeURIComponent(cardId)}&path=${encodeURIComponent(path)}`
+      let response: Response
+      try {
+        response = await fetcher(`${WORKBENCH_SKILL_CARD_FILES_PATH}${query}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          redirect: 'error',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          ...signal === undefined ? {} : { signal },
+        })
+      } catch (error) {
+        return { status: 'unavailable', reason: `skill card request failed: ${messageOf(error)}` }
+      }
+      const body = await readJson(response)
+      if (!response.ok) {
+        const error = errorOf(body)
+        return {
+          status: 'unavailable',
+          reason: error?.message ?? `skill card route answered ${String(response.status)}`,
+        }
+      }
+      const listing = parseListing(body)
+      return listing === undefined
+        ? { status: 'unavailable', reason: 'listing response did not match the contract' }
+        : { status: 'ok', listing }
     },
   }
 }
