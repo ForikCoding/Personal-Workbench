@@ -22,6 +22,8 @@
        待运行 = 一次都没启动过（虚线框 + 空心序号 + 脚注「还没启动过」），跑过又停的是「已停止」
    14. 步骤能就地改名：检查器 ⋯ →「重命名这一步」，节点标题变输入框，回车保存 / Esc 放弃
    15. 移除一步改成点两次确认（和删除流水线同一规矩），第二次的提示写出将被移除的名字
+   16. 配置页每一行都能改：工作目录、技能、运行指令、失败处理不再是死文字——换技能这一步
+       就改名，运行指令跟着换成该技能的默认值（也能自己写），失败处理的说明跟着选择变
 -->
 <html lang="zh-CN">
 <head>
@@ -1045,6 +1047,26 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   cursor: pointer;
 }
 .ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 能改的行：路径和指令是文本，给输入框，样式和下拉对齐 */
+.ruleInput,
+.ruleArea {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  padding: 5px 8px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.ruleInput { font-family: var(--f-mono); }
+.ruleArea { max-width: 100%; line-height: 1.5; resize: vertical; }
+.ruleInput:hover,
+.ruleArea:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }
+.ruleInput:focus-visible,
+.ruleArea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .ruleRow {
   display: flex;
@@ -1863,16 +1885,20 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   };
 
   /* ============================================================ 数据 */
+  // instruction 是这个技能的"运行指令"默认值：配置里那行可以改，改的是这一步。
   const TASKS = [
-    { skill: 'requirements-scoping', name: '需求拆解', desc: '把一句诉求拆成可验收的子任务' },
-    { skill: 'design-doc', name: '详细设计', desc: '按模板产出实现级设计文档' },
-    { skill: 'codegen', name: '代码实现', desc: '按设计文档改代码并自测' },
-    { skill: 'unit-test', name: '单元测试', desc: '补测试用例并跑通' },
-    { skill: 'code-review', name: '变更审查', desc: '按团队规范审一遍 diff' },
-    { skill: 'doc-writer', name: '写文档', desc: '把结果整理成可交付文档' },
-    { skill: 'weekly-report', name: '周报汇总', desc: '汇总本周提交与缺陷' },
-    { skill: 'regression-check', name: '回归验证', desc: '按清单跑回归用例' },
+    { skill: 'requirements-scoping', name: '需求拆解', desc: '把一句诉求拆成可验收的子任务', instruction: '把诉求拆成可验收的子任务，每条写清验收标准。' },
+    { skill: 'design-doc', name: '详细设计', desc: '按模板产出实现级设计文档', instruction: '按模板产出实现级设计文档，接口、表结构、异常路径都要写到。' },
+    { skill: 'codegen', name: '代码实现', desc: '按设计文档改代码并自测', instruction: '按详细设计改代码并自测，产物写成一页变更摘要。' },
+    { skill: 'unit-test', name: '单元测试', desc: '补测试用例并跑通', instruction: '补测试用例并跑通，失败用例写明原因。' },
+    { skill: 'code-review', name: '变更审查', desc: '按团队规范审一遍 diff', instruction: '按团队规范审一遍 diff，问题按严重程度列出。' },
+    { skill: 'doc-writer', name: '写文档', desc: '把结果整理成可交付文档', instruction: '把结果整理成可交付文档，一页写完，不留待补。' },
+    { skill: 'weekly-report', name: '周报汇总', desc: '汇总本周提交与缺陷', instruction: '汇总本周提交与缺陷，按项目分组。' },
+    { skill: 'regression-check', name: '回归验证', desc: '按清单跑回归用例', instruction: '按清单跑回归用例，通过的跳过，失败的写清现象。' },
   ];
+
+  // 工作目录是整条流水线的默认值：改一次，每一步跟着
+  const DEFAULT_WORKSPACE = 'D:\\Git\\my-project';
 
   const DOC = {
     scoping: `
@@ -2344,6 +2370,14 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
    * 「还没有流水线」不是一种流水线，是画布上什么都还没有。
    * 用一个哨兵走同一套渲染：名字用栏名，没有步骤，状态 idle。
    */
+  // 手写的那几条流水线没写全运行指令 / 失败处理：配置页要能改它们，先把默认值补齐，
+  // 否则打开配置就是一个空框。
+  PIPELINES.forEach(p => (p.stages || []).forEach(st => {
+    const task = TASKS.find(t => t.skill === st.skill);
+    if (st.instruction === undefined) st.instruction = (task || {}).instruction || '按这个技能的要求做完，产物写成一页摘要。';
+    if (st.fail === undefined) st.fail = '停止后续步骤';
+  }));
+
   const NO_PIPELINE = { id: '__none', name: '流水线', state: 'idle', stages: [], updated: '—', none: true };
   const current = () => {
     if (state.scene === 'none') return NO_PIPELINE;
@@ -2377,7 +2411,13 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 
   /** 新插入的步骤：还没跑，也没有产物。 */
   function makeStage(skill) {
-    return { skill, status: 'idle', dur: '—', summary: '', files: [], acts: [] };
+    const task = TASKS.find(t => t.skill === skill);
+    // 运行指令和失败处理是**这一步**的事，所以存在步骤上，不是全局常量
+    return {
+      skill, status: 'idle', dur: '—', summary: '', files: [], acts: [],
+      instruction: (task || {}).instruction || '按这个技能的要求做完，产物写成一页摘要。',
+      fail: '停止后续步骤',
+    };
   }
 
   /* ============================================================ 画布 */
@@ -3476,7 +3516,10 @@ ${region}
         </div>
         <div class="ruleRow">
           <span class="ruleLabel">工作目录</span>
-          <span class="ruleValue"><span class="val mono">D:\\Git\\my-project</span></span>
+          <span class="ruleValue">
+            <input class="ruleInput" type="text" data-cfg="workspace" value="${esc(flow.workspace || DEFAULT_WORKSPACE)}" spellcheck="false" aria-label="工作目录">
+            <span class="hint">每一步都跑在这个目录里</span>
+          </span>
         </div>
       </div>`;
 
@@ -3489,15 +3532,28 @@ ${region}
         </div>
         <div class="ruleRow">
           <span class="ruleLabel">技能</span>
-          <span class="ruleValue"><span class="val mono">${esc(st.skill)}</span><span class="hint">${esc((TASKS.find(t => t.skill === st.skill) || {}).desc || '这条技能没有说明')}</span></span>
+          <span class="ruleValue">
+            <select class="ruleSelect" data-cfg="skill" aria-label="技能">
+              ${TASKS.map(t => `<option value="${esc(t.skill)}"${t.skill === st.skill ? ' selected' : ''}>${esc(t.name)} · ${esc(t.skill)}</option>`).join('')}
+            </select>
+            <span class="hint">${esc((TASKS.find(t => t.skill === st.skill) || {}).desc || '这条技能没有说明')}</span>
+          </span>
         </div>
         <div class="ruleRow">
           <span class="ruleLabel">运行指令</span>
-          <span class="ruleValue"><span class="val">按详细设计改代码并自测，产物写成一页变更摘要。</span></span>
+          <span class="ruleValue">
+            <textarea class="ruleArea" rows="2" data-cfg="instruction" aria-label="运行指令" spellcheck="false">${esc(st.instruction || '')}</textarea>
+            <span class="hint">这句话会跟着这一步一起交给技能</span>
+          </span>
         </div>
         <div class="ruleRow">
           <span class="ruleLabel">失败处理</span>
-          <span class="ruleValue"><span class="val">停止后续步骤</span><span class="hint">串行编排，失败即停</span></span>
+          <span class="ruleValue">
+            <select class="ruleSelect" data-cfg="fail" aria-label="失败处理">
+              ${['停止后续步骤', '继续后续步骤'].map(v => `<option value="${esc(v)}"${v === (st.fail || '停止后续步骤') ? ' selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+            <span class="hint">${(st.fail || '停止后续步骤') === '停止后续步骤' ? '串行编排，失败即停' : '这一步失败也接着跑后面的'}</span>
+          </span>
         </div>
       </div>
 
@@ -3972,14 +4028,41 @@ ${region}
     tabs[next].focus();
   });
 
-  // 配置里的下拉是真的能改的：改的是整条流水线的默认值
+  // 配置里的控件是真的能改的：模型/权限/工作目录是整条流水线的，技能/指令/失败处理是这一步的
   $('#configPanel').addEventListener('change', (e) => {
     const sel = e.target.closest('[data-cfg]');
     if (!sel) return;
     const flow = current();
-    if (sel.dataset.cfg === 'model') flow.model = sel.value;
-    else if (sel.dataset.cfg === 'perm') flow.perm = sel.value;
+    const st = (flow.stages || [])[state.sel];
+    switch (sel.dataset.cfg) {
+      case 'model': flow.model = sel.value; break;
+      case 'perm': flow.perm = sel.value; break;
+      case 'workspace': flow.workspace = sel.value.trim(); break;
+      case 'skill':
+        if (st) {
+          st.skill = sel.value;
+          // 指令跟着技能换回默认值：留着上一个技能的话，跑的就是另一件事了
+          const task = TASKS.find(t => t.skill === sel.value);
+          st.instruction = (task || {}).instruction || st.instruction;
+          delete st.name;
+        }
+        break;
+      case 'instruction': if (st) st.instruction = sel.value; break;
+      case 'fail': if (st) st.fail = sel.value; break;
+      default: return;
+    }
     renderInspector();
+    if (sel.dataset.cfg === 'skill' || sel.dataset.cfg === 'fail') renderCanvas();
+  });
+
+  // 边打边存，但不重渲染：重渲染会把光标顶回去
+  $('#configPanel').addEventListener('input', (e) => {
+    const el = e.target.closest('[data-cfg]');
+    if (!el) return;
+    const flow = current();
+    const st = (flow.stages || [])[state.sel];
+    if (el.dataset.cfg === 'workspace') flow.workspace = el.value;
+    else if (el.dataset.cfg === 'instruction' && st) st.instruction = el.value;
   });
 
   // 检查器内按钮
