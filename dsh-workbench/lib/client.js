@@ -749,7 +749,7 @@ window.__ModuleLoader__.load({
 			pipeEmptyPanelTitle: "先加一个步骤",
 			pipeEmptyPanelBody: "每个步骤就是一张卡片。加进来以后，这里显示它的结果、活动与配置。",
 			pipeActivityRunning: "正在运行",
-			pipeActivityRunningBody: "跑完这里会列出它调用了什么、说了什么。",
+			pipeActivityRunningBody: "它还没调用工具。做了什么，会一条条出现在这里。",
 			pipeActivityFailed: "这一步失败了",
 			pipeActivityNone: "还没有活动记录",
 			pipeActivityNoneBody: "这一步没有留下调用记录。跑一次之后，这里会列出它的每一步动作。",
@@ -1153,7 +1153,7 @@ window.__ModuleLoader__.load({
 			pipeEmptyPanelTitle: "Add a step first",
 			pipeEmptyPanelBody: "Every step is a card. Once one is in, this shows its result, activity and config.",
 			pipeActivityRunning: "Running",
-			pipeActivityRunningBody: "What it called and said will be listed here once it finishes.",
+			pipeActivityRunningBody: "It has called nothing yet. Whatever it does shows up here as it happens.",
 			pipeActivityFailed: "This step failed",
 			pipeActivityNone: "No activity recorded",
 			pipeActivityNoneBody: "This step left no trace. After one run, its every action is listed here.",
@@ -6691,6 +6691,21 @@ window.__ModuleLoader__.load({
 				});
 				return ended("stopped");
 			};
+			/**
+			* A step's final outcome, carrying the trace it accumulated while it ran.
+			*
+			* Kept rather than dropped at the end: the stored result is fetched after the chain
+			* settles, and a trace that vanished for that moment would leave the step reading as one
+			* that did nothing. The panel still prefers the stored result once it arrives — that list
+			* is the complete one, including the last poll before the run reported itself finished.
+			*/
+			const settledOutcome = (index, outcome) => {
+				const trace = outcomes[index]?.activity;
+				return trace === void 0 ? outcome : {
+					...outcome,
+					activity: trace
+				};
+			};
 			for (let index = from; index <= to; index += 1) {
 				const step = steps[index];
 				if (step === void 0) continue;
@@ -6707,12 +6722,12 @@ window.__ModuleLoader__.load({
 					...step.instruction === void 0 ? {} : { instruction: step.instruction }
 				});
 				if (started.status === "refused") {
-					const failed = {
+					const failed = settledOutcome(index, {
 						phase: "failed",
 						startedAt,
 						tookMs: seams.now() - startedAt,
 						failure: started.reason
-					};
+					});
 					outcomes[index] = failed;
 					seams.onStep(index, failed);
 					return {
@@ -6721,29 +6736,38 @@ window.__ModuleLoader__.load({
 						failure: started.reason
 					};
 				}
-				const settled = await seams.settle(step.cardId, started.runId, seams.signal);
+				const settled = await seams.settle(step.cardId, started.runId, seams.signal, (state) => {
+					const outcome = outcomes[index];
+					if (outcome === void 0 || outcome.phase !== "running" || state.activity === void 0) return;
+					const live = {
+						...outcome,
+						activity: state.activity
+					};
+					outcomes[index] = live;
+					seams.onStep(index, live);
+				});
 				const tookMs = seams.now() - startedAt;
 				const runId = started.runId === void 0 ? {} : { runId: started.runId };
 				if (seams.signal.aborted || settled.phase === "cancelled") {
-					const interrupted = {
+					const interrupted = settledOutcome(index, {
 						phase: "stopped",
 						startedAt,
 						tookMs,
 						...runId
-					};
+					});
 					outcomes[index] = interrupted;
 					seams.onStep(index, interrupted);
 					return stopped();
 				}
 				if (settled.phase === "failed" || settled.failure !== void 0) {
 					const reason = settled.failure ?? "the run failed";
-					const failed = {
+					const failed = settledOutcome(index, {
 						phase: "failed",
 						startedAt,
 						tookMs,
 						failure: reason,
 						...runId
-					};
+					});
 					outcomes[index] = failed;
 					seams.onStep(index, failed);
 					return {
@@ -6753,13 +6777,13 @@ window.__ModuleLoader__.load({
 					};
 				}
 				sessionId = settled.sessionId ?? sessionId;
-				const done = {
+				const done = settledOutcome(index, {
 					phase: "done",
 					startedAt,
 					tookMs,
 					...runId,
 					...settled.sessionId === void 0 ? {} : { sessionId: settled.sessionId }
-				};
+				});
 				outcomes[index] = done;
 				seams.onStep(index, done);
 			}
@@ -6942,7 +6966,7 @@ window.__ModuleLoader__.load({
 							reason: result.reason
 						};
 					},
-					settle: async (cardId, runId, signal) => await settleRun(api, cardId, runId, signal, pollIntervalMs)
+					settle: async (cardId, runId, signal, onProgress) => await settleRun(api, cardId, runId, signal, pollIntervalMs, onProgress)
 				}).then((result) => {
 					if (grace.current !== void 0) {
 						clearTimeout(grace.current);
@@ -7048,9 +7072,10 @@ window.__ModuleLoader__.load({
 		* @param runId - the run to follow; absent follows the card's newest run.
 		* @param signal - cancellation.
 		* @param intervalMs - how long to wait between reads.
+		* @param onProgress - called with each read of a run that is still going.
 		* @returns how the run ended.
 		*/
-		async function settleRun(api, cardId, runId, signal, intervalMs) {
+		async function settleRun(api, cardId, runId, signal, intervalMs, onProgress) {
 			let misses = 0;
 			for (;;) {
 				if (signal.aborted) return { phase: "cancelled" };
@@ -7062,6 +7087,7 @@ window.__ModuleLoader__.load({
 				};
 				const state = pickRun(read.state, runId);
 				if (state !== void 0 && (state.phase === "settled" || state.phase === "cancelled")) return outcomeOf(state);
+				if (state !== void 0) onProgress?.(state);
 				if (state === void 0) {
 					misses += 1;
 					if (misses >= MISS_LIMIT && (read.state.phase === "settled" || read.state.phase === "cancelled")) return outcomeOf(read.state);
@@ -7836,6 +7862,7 @@ window.__ModuleLoader__.load({
 						html,
 						card,
 						result,
+						live: chainStep?.activity,
 						runNo: producing?.no,
 						runScope: producing?.scope ?? keptScope
 					};
@@ -7850,6 +7877,7 @@ window.__ModuleLoader__.load({
 			]);
 			const selectedIndex = focus?.kind === "step" ? focus.index : 0;
 			const selected = stepViews[selectedIndex];
+			const traceCount = selected === void 0 ? 0 : (selected.live ?? selected.result?.activity ?? []).length;
 			const usedSkills = (0, react.useMemo)(() => {
 				const used = /* @__PURE__ */ new Set();
 				for (const step of stepViews) if (step.skill !== void 0) used.add(step.skill);
@@ -8736,7 +8764,7 @@ window.__ModuleLoader__.load({
 													onClick: () => {
 														setTab(key);
 													},
-													children: [t(TAB_KEY[key]), key === "activity" && selected?.result !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: selected.result.activity?.length ?? 0 }) : null]
+													children: [t(TAB_KEY[key]), key === "activity" && traceCount !== 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: traceCount }) : null]
 												}, key))
 											})
 										]
@@ -9388,11 +9416,13 @@ window.__ModuleLoader__.load({
 		/** What one step's activity panel shows: what it did, in order. */
 		function ActivityPanel(props) {
 			const { step, t, onOpenCard } = props;
-			const activity = step.result?.activity ?? [];
-			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: css.stateBlock,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeActivityRunning") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeActivityRunningBody") })]
-			});
+			const activity = step.phase === "running" ? step.live ?? [] : step.result?.activity ?? step.live ?? [];
+			if (step.phase === "running") {
+				if (activity.length === 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: css.stateBlock,
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeActivityRunning") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeActivityRunningBody") })]
+				});
+			}
 			if (step.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: css.stateBlock,
 				"data-tone": "danger",

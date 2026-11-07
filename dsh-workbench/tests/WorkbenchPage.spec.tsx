@@ -1266,6 +1266,45 @@ describe('WorkbenchPage', () => {
       .toBe(en.pipeRunningStep.replace('{at}', '1').replace('{count}', '2'))
   })
 
+  it('lists what the child is doing while the run is still going', async () => {
+    // The activity tab used to say “跑完之后这里会列出…” and meant it: the chain polled the
+    // run, read its state, and threw the trace away, keeping only the verdict. The Host
+    // sends the trace on every read of a run in flight, so the panel now has it while the
+    // work happens. This poll never settles — there is nothing to wait for.
+    await renderPage({
+      run: {
+        start: async (request) => ({
+          status: 'ok',
+          state: { cardId: request.cardId, phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+        poll: async () => ({
+          status: 'ok',
+          state: {
+            cardId: 'a-card',
+            phase: 'running',
+            retried: false,
+            runId: 'run-1',
+            activity: [
+              { kind: 'tool', tool: 'read', argument: 'src/a.ts' },
+              { kind: 'text', text: '读完了，开始写。' },
+            ],
+          } as WorkbenchRunState,
+        }),
+      },
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await waitFor(() => {
+      expect(document.querySelector('[data-panel="activity"] [data-kind="tool"]')?.textContent).toContain('read')
+    })
+    expect(document.querySelector('[data-panel="activity"] [data-kind="text"]')?.textContent)
+      .toContain('读完了，开始写。')
+    // The count on the tab says the same thing the list does, mid-run.
+    expect(document.querySelector('[data-insp-tab="activity"] em')?.textContent).toBe('2')
+    // And the sentence that promised the list later is not on screen at all.
+    expect(screen.queryByText(en.pipeActivityRunningBody)).toBeNull()
+  })
+
   it('stops the work at the Host, not just the watching', async () => {
     const cancels: { cardId: string; runId?: string }[] = []
     let stopped = false

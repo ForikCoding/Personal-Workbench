@@ -12,6 +12,7 @@
  * @module dsh-workbench/client/pipeline/pipeline-run
  */
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../../pipeline-contract.ts';
+import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts';
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts';
 import type { PipelineRunEntry } from './pipeline-view.ts';
 /** How one step of a chain stands. */
@@ -30,6 +31,14 @@ export interface ChainStepOutcome {
     readonly sessionId?: string;
     /** Why it failed, when it did. */
     readonly failure?: string;
+    /**
+     * What the run's child has done so far, oldest first; absent until it has done anything.
+     *
+     * Written on every poll while the step runs, so the activity panel lists the work as it
+     * happens rather than after it. The same list settles into the stored result, which is
+     * what the panel reads once the step is over.
+     */
+    readonly activity?: readonly WorkbenchActivityEntry[];
 }
 /**
  * How the whole chain ended, or that it is on its way to being stopped.
@@ -103,9 +112,11 @@ export interface ChainSeams {
      * @param cardId - the card whose run it is.
      * @param runId - the run's identity, when the start named one.
      * @param signal - cancellation; an aborted wait resolves as cancelled.
+     * @param onProgress - called with each read while the run is still going, so the panel can
+     *   show the work as it happens instead of only its end.
      * @returns how the run ended.
      */
-    settle(cardId: string, runId: string | undefined, signal: AbortSignal): Promise<ChainSettleOutcome>;
+    settle(cardId: string, runId: string | undefined, signal: AbortSignal, onProgress: (state: WorkbenchRunState) => void): Promise<ChainSettleOutcome>;
     /**
      * Report one step's new state.
      * @param index - step index.
@@ -215,9 +226,10 @@ export declare function usePipelineRun(options: UsePipelineRunOptions): Pipeline
  * @param runId - the run to follow; absent follows the card's newest run.
  * @param signal - cancellation.
  * @param intervalMs - how long to wait between reads.
+ * @param onProgress - called with each read of a run that is still going.
  * @returns how the run ended.
  */
-export declare function settleRun(api: WorkbenchSkillCardApi, cardId: string, runId: string | undefined, signal: AbortSignal, intervalMs: number): Promise<ChainSettleOutcome>;
+export declare function settleRun(api: WorkbenchSkillCardApi, cardId: string, runId: string | undefined, signal: AbortSignal, intervalMs: number, onProgress?: (state: WorkbenchRunState) => void): Promise<ChainSettleOutcome>;
 /**
  * Render a duration the way the canvas shows it.
  * @param ms - milliseconds.

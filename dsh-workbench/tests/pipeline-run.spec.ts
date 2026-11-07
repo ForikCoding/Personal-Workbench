@@ -83,6 +83,36 @@ describe('runSteps', () => {
     ])
   })
 
+  it('carries the run’s trace into the step while it is still running', async () => {
+    // What the panel draws mid-run comes from here: a poll of a run that has not settled is
+    // reported as the step's activity, with the step's phase left alone.
+    const built = seams()
+    const seen: ChainStepOutcome[] = []
+    const trace = [
+      { kind: 'tool', tool: 'read', argument: 'src/a.ts' },
+      { kind: 'text', text: 'starting' },
+    ] as const
+    const result = await runSteps(STEPS, 0, 0, {
+      ...built.seams,
+      onStep: (_index, outcome) => { seen.push(outcome) },
+      settle: async (_cardId, _runId, _signal, onProgress) => {
+        onProgress({ cardId: 'skill-card-1', phase: 'running', retried: false, activity: trace })
+        // A second read still carrying the old trace must not resurrect anything: the step's
+        // phase is what decides, and it is still running.
+        onProgress({ cardId: 'skill-card-1', phase: 'running', retried: false, activity: trace })
+        return { phase: 'settled', sessionId: 'session-1' }
+      },
+    })
+    expect(result.phase).toBe('settled')
+    const live = seen.filter(outcome => outcome.phase === 'running' && outcome.activity !== undefined)
+    expect(live).toHaveLength(2)
+    expect(live[1]?.activity).toBe(trace)
+    // The settled step keeps the last trace it saw. The stored result supersedes it once it
+    // is fetched, but between the chain settling and that fetch the panel has something to
+    // draw rather than an empty tab that reads as "it did nothing".
+    expect(result.steps[0]?.activity).toBe(trace)
+  })
+
   it('stops at the step whose run failed, and starts nothing after it', async () => {
     const built = seams({ failAt: 1 })
     const result = await runSteps(STEPS, 0, 2, built.seams)

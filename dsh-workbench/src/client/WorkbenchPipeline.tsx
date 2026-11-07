@@ -36,7 +36,7 @@ import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
 
-import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchFileEntry, WorkbenchSandboxMode } from '../skill-card-contract.ts'
+import type { WorkbenchActivityEntry, WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchFileEntry, WorkbenchSandboxMode } from '../skill-card-contract.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 
 /** One card's full-panel views the reader can mount. */
@@ -223,6 +223,13 @@ interface StepView {
   readonly html: string | undefined
   readonly card: WorkbenchCardConfigView | undefined
   readonly result: WorkbenchCardResult | undefined
+  /**
+   * What the run in flight has done so far; absent once it is over.
+   *
+   * A running step has no stored result yet, so this is the only trace there is while it
+   * works. The stored result takes over the moment the step settles.
+   */
+  readonly live: readonly WorkbenchActivityEntry[] | undefined
   /** Which run of this pipeline last produced the step's product, when one is known. */
   readonly runNo: number | undefined
   /** What that run covered: the whole chain, this step, or this step again on request. */
@@ -424,6 +431,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
         html,
         card,
         result,
+        live: chainStep?.activity,
         runNo: producing?.no,
         runScope: producing?.scope ?? keptScope,
       }
@@ -432,6 +440,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
 
   const selectedIndex = focus?.kind === 'step' ? focus.index : 0
   const selected = stepViews[selectedIndex]
+  // The badge counts what the tab is about to show, so a step in flight carries a count too.
+  const traceCount = selected === undefined ? 0 : (selected.live ?? selected.result?.activity ?? []).length
 
   // A skill already on a step is listed but not addable: the same skill twice would leave
   // the run history unable to say which step produced what.
@@ -1322,9 +1332,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                           onClick={() => { setTab(key) }}
                         >
                           {t(TAB_KEY[key])}
-                          {key === 'activity' && selected?.result !== undefined
-                            ? <em>{selected.result.activity?.length ?? 0}</em>
-                            : null}
+                          {key === 'activity' && traceCount !== 0 ? <em>{traceCount}</em> : null}
                         </button>
                       ))}
                     </div>
@@ -1751,14 +1759,24 @@ function ActivityPanel(props: {
   readonly onOpenCard: () => void
 }): ReactNode {
   const { step, t, onOpenCard } = props
-  const activity = step.result?.activity ?? []
+  // While it runs, the poll's own trace is the truth: a step re-run would otherwise show the
+  // previous run's list until this one settled. Once it is over, the stored result wins,
+  // because that list also carries the last poll before the run reported itself finished;
+  // the chain's copy is what keeps the panel from blinking empty in between.
+  const activity = step.phase === 'running'
+    ? step.live ?? []
+    : step.result?.activity ?? step.live ?? []
   if (step.phase === 'running') {
-    return (
-      <div className={css.stateBlock}>
-        <h6>{t('pipeActivityRunning')}</h6>
-        <p>{t('pipeActivityRunningBody')}</p>
-      </div>
-    )
+    // Nothing to list yet is the only case that gets a sentence instead of a list. Once the
+    // child has done something, the same rows the finished step shows appear here, live.
+    if (activity.length === 0) {
+      return (
+        <div className={css.stateBlock}>
+          <h6>{t('pipeActivityRunning')}</h6>
+          <p>{t('pipeActivityRunningBody')}</p>
+        </div>
+      )
+    }
   }
   if (step.phase === 'failed') {
     return (

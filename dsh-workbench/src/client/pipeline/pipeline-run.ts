@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { WORKBENCH_OUTPUT_SCHEMA } from '../../skill-card-contract.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../../pipeline-contract.ts'
-import type { WorkbenchRunState } from '../../skill-card-contract.ts'
+import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts'
 import type { PipelineRunEntry, PipelineRunStep } from './pipeline-view.ts'
 
@@ -36,6 +36,14 @@ export interface ChainStepOutcome {
   readonly sessionId?: string
   /** Why it failed, when it did. */
   readonly failure?: string
+  /**
+   * What the run's child has done so far, oldest first; absent until it has done anything.
+   *
+   * Written on every poll while the step runs, so the activity panel lists the work as it
+   * happens rather than after it. The same list settles into the stored result, which is
+   * what the panel reads once the step is over.
+   */
+  readonly activity?: readonly WorkbenchActivityEntry[]
 }
 
 /**
@@ -114,9 +122,16 @@ export interface ChainSeams {
    * @param cardId - the card whose run it is.
    * @param runId - the run's identity, when the start named one.
    * @param signal - cancellation; an aborted wait resolves as cancelled.
+   * @param onProgress - called with each read while the run is still going, so the panel can
+   *   show the work as it happens instead of only its end.
    * @returns how the run ended.
    */
-  settle(cardId: string, runId: string | undefined, signal: AbortSignal): Promise<ChainSettleOutcome>
+  settle(
+    cardId: string,
+    runId: string | undefined,
+    signal: AbortSignal,
+    onProgress: (state: WorkbenchRunState) => void,
+  ): Promise<ChainSettleOutcome>
   /**
    * Report one step's new state.
    * @param index - step index.
@@ -194,6 +209,18 @@ export async function runSteps(
     })
     return ended('stopped')
   }
+  /**
+   * A step's final outcome, carrying the trace it accumulated while it ran.
+   *
+   * Kept rather than dropped at the end: the stored result is fetched after the chain
+   * settles, and a trace that vanished for that moment would leave the step reading as one
+   * that did nothing. The panel still prefers the stored result once it arrives — that list
+   * is the complete one, including the last poll before the run reported itself finished.
+   */
+  const settledOutcome = (index: number, outcome: ChainStepOutcome): ChainStepOutcome => {
+    const trace = outcomes[index]?.activity
+    return trace === undefined ? outcome : { ...outcome, activity: trace }
+  }
   for (let index = from; index <= to; index += 1) {
     const step = steps[index]
     if (step === undefined) continue
@@ -207,36 +234,43 @@ export async function runSteps(
       ...step.instruction === undefined ? {} : { instruction: step.instruction },
     })
     if (started.status === 'refused') {
-      const failed: ChainStepOutcome = { phase: 'failed', startedAt, tookMs: seams.now() - startedAt, failure: started.reason }
+      const failed = settledOutcome(index, { phase: 'failed', startedAt, tookMs: seams.now() - startedAt, failure: started.reason })
       outcomes[index] = failed
       seams.onStep(index, failed)
       return { ...ended('failed'), failureIndex: index, failure: started.reason }
     }
-    const settled = await seams.settle(step.cardId, started.runId, seams.signal)
+    const settled = await seams.settle(step.cardId, started.runId, seams.signal, (state) => {
+      // The step keeps its own phase; what a read adds is what the child has done so far.
+      const outcome = outcomes[index]
+      if (outcome === undefined || outcome.phase !== 'running' || state.activity === undefined) return
+      const live: ChainStepOutcome = { ...outcome, activity: state.activity }
+      outcomes[index] = live
+      seams.onStep(index, live)
+    })
     const tookMs = seams.now() - startedAt
     const runId = started.runId === undefined ? {} : { runId: started.runId }
     if (seams.signal.aborted || settled.phase === 'cancelled') {
-      const interrupted: ChainStepOutcome = { phase: 'stopped', startedAt, tookMs, ...runId }
+      const interrupted = settledOutcome(index, { phase: 'stopped', startedAt, tookMs, ...runId })
       outcomes[index] = interrupted
       seams.onStep(index, interrupted)
       return stopped()
     }
     if (settled.phase === 'failed' || settled.failure !== undefined) {
       const reason = settled.failure ?? 'the run failed'
-      const failed: ChainStepOutcome = { phase: 'failed', startedAt, tookMs, failure: reason, ...runId }
+      const failed = settledOutcome(index, { phase: 'failed', startedAt, tookMs, failure: reason, ...runId })
       outcomes[index] = failed
       seams.onStep(index, failed)
       return { ...ended('failed'), failureIndex: index, failure: reason }
     }
     // The step's own session, which the next step joins. A settled step always has one.
     sessionId = settled.sessionId ?? sessionId
-    const done: ChainStepOutcome = {
+    const done = settledOutcome(index, {
       phase: 'done',
       startedAt,
       tookMs,
       ...runId,
       ...settled.sessionId === undefined ? {} : { sessionId: settled.sessionId },
-    }
+    })
     outcomes[index] = done
     seams.onStep(index, done)
   }
@@ -495,7 +529,9 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
         if (result.status === 'rejected') return { status: 'refused', reason: result.message }
         return { status: 'refused', reason: result.reason }
       },
-      settle: async (cardId, runId, signal) => await settleRun(api, cardId, runId, signal, pollIntervalMs),
+      settle: async (cardId, runId, signal, onProgress) => (
+        await settleRun(api, cardId, runId, signal, pollIntervalMs, onProgress)
+      ),
     }).then((result) => {
       if (grace.current !== undefined) { clearTimeout(grace.current); grace.current = undefined }
       inflight.current = undefined
@@ -608,6 +644,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
  * @param runId - the run to follow; absent follows the card's newest run.
  * @param signal - cancellation.
  * @param intervalMs - how long to wait between reads.
+ * @param onProgress - called with each read of a run that is still going.
  * @returns how the run ended.
  */
 export async function settleRun(
@@ -616,6 +653,7 @@ export async function settleRun(
   runId: string | undefined,
   signal: AbortSignal,
   intervalMs: number,
+  onProgress?: (state: WorkbenchRunState) => void,
 ): Promise<ChainSettleOutcome> {
   let misses = 0
   for (;;) {
@@ -629,6 +667,9 @@ export async function settleRun(
     if (state !== undefined && (state.phase === 'settled' || state.phase === 'cancelled')) {
       return outcomeOf(state)
     }
+    // Still running: this read is the only view of the work the panel can get, and dropping
+    // it is what left the activity tab empty until the run was over.
+    if (state !== undefined) onProgress?.(state)
     // A card reports its newest run, so the run a chain follows can fall out of the answer
     // while it is still being read. Waiting for an id that will never come back would wait
     // for as long as the panel is open, so after a few reads the card's own terminal state
