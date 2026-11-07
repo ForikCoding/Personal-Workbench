@@ -726,6 +726,8 @@ window.__ModuleLoader__.load({
 			pipeRunState_stopped: "已停止",
 			pipeScopeOnly: "仅 {name}",
 			pipeScopeRefined: "{name} · 重新生成",
+			pipeRunOfSingleNo: "单步",
+			pipeRunOfSingleNoTitle: "这一步是单独跑的，运行记录不在本页",
 			pipeQueued: "等待前一步完成",
 			pipeWorking: "正在生成",
 			pipeNeverRan: "还没启动过",
@@ -1115,6 +1117,8 @@ window.__ModuleLoader__.load({
 			pipeRunState_stopped: "Stopped",
 			pipeScopeOnly: "only {name}",
 			pipeScopeRefined: "{name} · regenerated",
+			pipeRunOfSingleNo: "on its own",
+			pipeRunOfSingleNoTitle: "This step ran on its own; the run record is not on this page",
 			pipeQueued: "Waiting for the step before it",
 			pipeWorking: "Writing",
 			pipeNeverRan: "Not started yet",
@@ -6735,6 +6739,7 @@ window.__ModuleLoader__.load({
 				const startedAt = Date.now();
 				const initial = {
 					pipelineId: pipeline.id,
+					scope: ask.scope,
 					startedAt,
 					steps: pipeline.steps.map((_unused, index) => index < from || index > to ? { phase: "idle" } : { phase: "queued" }),
 					activeIndex: from,
@@ -6756,6 +6761,7 @@ window.__ModuleLoader__.load({
 					start: async (index, step, seam) => {
 						const scope = scopeSessionId?.();
 						const regenerate = ask.previous !== void 0 && ask.instruction !== void 0;
+						const cover = ask.scope === "refine" ? "single" : ask.scope;
 						const result = await api.start({
 							cardId: step.cardId,
 							...seam.sessionId === void 0 ? {} : { sessionId: seam.sessionId },
@@ -6763,14 +6769,19 @@ window.__ModuleLoader__.load({
 							mode: regenerate ? {
 								kind: "refine",
 								instruction: ask.instruction,
-								previous: ask.previous
+								previous: ask.previous,
+								handoff: {
+									pipelineId: pipeline.id,
+									step: index
+								}
 							} : {
 								kind: "step",
 								terminal: seam.terminal,
 								join: seam.sessionId !== void 0,
 								handoff: {
 									pipelineId: pipeline.id,
-									step: index
+									step: index,
+									scope: cover
 								}
 							},
 							...seam.instruction === void 0 ? {} : { instruction: seam.instruction },
@@ -7290,7 +7301,13 @@ window.__ModuleLoader__.load({
 				if (whole.phase === "settled") return "done";
 			}
 			if (stepCount === 0 || doneCount === 0) return "idle";
-			return runs.length === 0 ? "kept" : "solo";
+			if (runs.length > 0) return "solo";
+			const scopes = input.scopes ?? [];
+			const failedAt = input.failedAt ?? -1;
+			if (failedAt >= 0 && scopes[failedAt] === "full") return "failed";
+			if (doneCount === stepCount && scopes.every((scope) => scope === "full")) return "done";
+			if (scopes.some((scope) => scope !== void 0)) return "solo";
+			return "kept";
 		}
 		/**
 		* Where a whole run would start: the first step that does not hold a result.
@@ -7539,6 +7556,7 @@ window.__ModuleLoader__.load({
 					const chainStep = chain?.steps[index];
 					const phase = chainStep !== void 0 && chainStep.phase !== "idle" ? chainStep.phase : result === void 0 ? "idle" : "done";
 					const producing = history.find((entry) => entry.steps.some((item) => item.cardId === step.cardId && item.phase === "done"));
+					const keptScope = result?.pipeline?.id === active.id ? result.pipeline.scope : void 0;
 					return {
 						index,
 						cardId: step.cardId,
@@ -7552,7 +7570,7 @@ window.__ModuleLoader__.load({
 						card,
 						result,
 						runNo: producing?.no,
-						runScope: producing?.scope
+						runScope: producing?.scope ?? keptScope
 					};
 				});
 			}, [
@@ -7699,7 +7717,7 @@ window.__ModuleLoader__.load({
 			}, [pipelines, t]);
 			const stateText = (phase) => t(`pipeStepState_${stateView(phase).key}`);
 			const markOf = (phase) => MARK[stateView(phase).mark];
-			const chainWhole = chain !== void 0 && active !== void 0 && chain.steps.length === active.steps.length && chain.steps.every((step) => step.phase !== "idle");
+			const chainWhole = chain !== void 0 && active !== void 0 && chain.pipelineId === active.id && chain.scope === "full";
 			const stepCount = active?.steps.length ?? 0;
 			const doneCount = stepViews.filter((step) => step.phase === "done").length;
 			const failedAt = chain?.failureIndex ?? stepViews.findIndex((step) => step.phase === "failed");
@@ -7710,7 +7728,9 @@ window.__ModuleLoader__.load({
 					phase: chain.phase,
 					whole: chainWhole
 				} },
-				runs: history
+				runs: history,
+				scopes: stepViews.map((step) => step.runScope),
+				failedAt: stepViews.findIndex((step) => step.phase === "failed")
 			});
 			const alone = stepViews.filter((step) => step.phase === "done" && step.runScope !== "full").map((step) => step.index + 1);
 			const resumeAt = resumeFrom(stepViews.map((step) => step.phase));
@@ -7727,7 +7747,11 @@ window.__ModuleLoader__.load({
 			const standOfId = (pipeline) => {
 				if (pipeline.id === active?.id) return stand;
 				const mine = chain !== void 0 && chain.pipelineId === pipeline.id ? chain : void 0;
-				const whole = mine !== void 0 && mine.steps.length === pipeline.steps.length && mine.steps.every((step) => step.phase !== "idle");
+				const whole = mine !== void 0 && mine.scope === "full";
+				const scopes = pipeline.steps.map((step) => {
+					const result = results.find((entry) => entry.cardId === step.cardId);
+					return result?.pipeline?.id === pipeline.id ? result.pipeline.scope : void 0;
+				});
 				return standOf({
 					stepCount: pipeline.steps.length,
 					doneCount: pipeline.steps.filter((step) => results.some((entry) => entry.cardId === step.cardId)).length,
@@ -7735,7 +7759,9 @@ window.__ModuleLoader__.load({
 						phase: mine.phase,
 						whole
 					} },
-					runs: run.history(pipeline.id)
+					runs: run.history(pipeline.id),
+					scopes,
+					failedAt: pipeline.steps.findIndex((step) => results.some((entry) => entry.cardId === step.cardId && entry.failure !== void 0))
 				});
 			};
 			/**
@@ -8176,10 +8202,15 @@ window.__ModuleLoader__.load({
 														}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 															className: css.nodeFoot,
 															"data-s": step.phase,
-															children: [stepRename === step.index ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRenameHint") }) : footOf(step, t), step.runNo === void 0 ? null : step.runScope === "full" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															children: [stepRename === step.index ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRenameHint") }) : footOf(step, t), step.runScope === "full" && step.runNo !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 																className: css.nodeRun,
 																title: t("pipeRunOf", { no: step.runNo }),
 																children: `#${String(step.runNo)}`
+															}) : step.runScope === void 0 ? null : step.runNo === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.nodeRun,
+																"data-solo": "1",
+																title: t("pipeRunOfSingleNoTitle"),
+																children: t("pipeRunOfSingleNo")
 															}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 																className: css.nodeRun,
 																"data-solo": "1",

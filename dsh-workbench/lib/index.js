@@ -1165,6 +1165,23 @@ const workbenchActivityEntrySchema = z.discriminatedUnion("kind", [
 * to have the revision run in the session the result came from. Dropping it on load would
 * leave every past result unrefinable, with nothing on screen to say why.
 */
+/**
+* Stored schema for where a result came from.
+*
+* The panel reads it after a reload to say how a step's product was made — a run of the
+* whole chain or a run of that step alone — so it is a fact about the product and follows
+* the same rule as the rest of the record: written by the store, declared here, or lost on
+* the next load and reported as "already has a result" forever.
+*/
+const workbenchResultPipelineSchema = z.object({
+	id: z.string(),
+	step: z.number().int().nonnegative(),
+	scope: z.enum([
+		"full",
+		"single",
+		"refine"
+	]).optional()
+});
 const workbenchResultSchema = z.object({
 	runId: z.string().optional(),
 	sessionId: z.string().optional(),
@@ -1179,7 +1196,8 @@ const workbenchResultSchema = z.object({
 	failure: z.string().optional(),
 	failureCode: z.string().optional(),
 	editedAt: z.number().finite().nonnegative().optional(),
-	activity: z.array(workbenchActivityEntrySchema).optional()
+	activity: z.array(workbenchActivityEntrySchema).optional(),
+	pipeline: workbenchResultPipelineSchema.optional()
 });
 /**
 * Present a zod schema as the domain table's schema type.
@@ -2821,6 +2839,7 @@ var WorkbenchSkillCardRunner = class {
 		}
 		const agent = session.agent;
 		const scope = scopeAgent;
+		const provenance = provenanceOf(mode);
 		const run = {
 			cardId: request.cardId,
 			runId: this.nextRunId(request.cardId, startedAt),
@@ -2830,6 +2849,7 @@ var WorkbenchSkillCardRunner = class {
 			...carried === void 0 ? {} : { instruction: carried },
 			workspace: workspacePath,
 			...mode.kind === "step" && mode.handoff !== void 0 ? { handoff: mode.handoff } : {},
+			...provenance === void 0 ? {} : { pipeline: provenance },
 			session,
 			phase: "running",
 			retried: false,
@@ -3371,7 +3391,7 @@ var WorkbenchSkillCardRunner = class {
 			const result = await activation.result;
 			const runId = run.runId;
 			const sessionId = run.session.id;
-			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId, run.workspace) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId, input.kind === "card" ? run.instruction : input.instruction, run.workspace);
+			const stored = input.kind === "bare" ? toBareRecord(input.skill, result, this.now(), input.model, runId, sessionId, run.workspace) : toResultRecord(input.skill, result, this.now(), input.model, runId, sessionId, input.kind === "card" ? run.instruction : input.instruction, run.workspace, run.pipeline);
 			const record = result.stopReason === "error" && stored.diagnostic === void 0 && run.childError !== void 0 ? {
 				...stored,
 				diagnostic: run.childError
@@ -3543,6 +3563,31 @@ function toCatalogEntry(skill) {
 	};
 }
 /**
+* Read where a run belongs from the mode it was started with.
+*
+* A step run carries the pipeline, the step and — when the caller said — what it covers; a
+* revision carries only the first two, because revising a step is not running the pipeline
+* and the reader must not think a chain ran. A card or bare run belongs nowhere.
+* @param mode - the run's mode.
+* @returns the provenance to store, or undefined when the run is not a pipeline's.
+*/
+function provenanceOf(mode) {
+	if (mode.kind === "refine") {
+		if (mode.handoff === void 0) return void 0;
+		return {
+			id: mode.handoff.pipelineId,
+			step: mode.handoff.step,
+			scope: "refine"
+		};
+	}
+	if (mode.kind !== "step" || mode.handoff === void 0) return void 0;
+	return {
+		id: mode.handoff.pipelineId,
+		step: mode.handoff.step,
+		...mode.handoff.scope === void 0 ? {} : { scope: mode.handoff.scope }
+	};
+}
+/**
 * Project one child result onto the stored record.
 * @param skill - the skill that ran.
 * @param result - the child's terminal result.
@@ -3552,9 +3597,10 @@ function toCatalogEntry(skill) {
 * @param sessionId - the session the run executed in.
 * @param instruction - what the user told the run to do, when the run carried one.
 * @param workspace - the directory this run happened in.
+* @param pipeline - which pipeline step this run is, when a panel started it.
 * @returns the stored record.
 */
-function toResultRecord(skill, result, executedAt, model, runId, sessionId, instruction, workspace) {
+function toResultRecord(skill, result, executedAt, model, runId, sessionId, instruction, workspace, pipeline) {
 	const text = textOf(result.output);
 	return {
 		runId,
@@ -3563,6 +3609,7 @@ function toResultRecord(skill, result, executedAt, model, runId, sessionId, inst
 		executedAt,
 		stopReason: result.stopReason,
 		workspace,
+		...pipeline === void 0 ? {} : { pipeline },
 		...model === void 0 ? {} : { model },
 		...instruction === void 0 ? {} : { instruction },
 		...result.structured === void 0 ? {} : { structured: result.structured },
@@ -4258,10 +4305,12 @@ function parseRefineMode(mode) {
 	if (mode.instruction.length > 2e3) throw new SkillCardRequestError(400, "invalid-request", "mode.instruction is longer than the limit");
 	if (typeof mode.previous !== "string") throw new SkillCardRequestError(400, "invalid-request", "mode.previous must be a string");
 	if (Buffer.byteLength(mode.previous, "utf8") > 65536) throw new SkillCardRequestError(413, "too-large", "mode.previous exceeds the byte limit");
+	const handoff = parseStepHandoff(mode.handoff);
 	return {
 		kind: "refine",
 		instruction: mode.instruction,
-		previous: mode.previous
+		previous: mode.previous,
+		...handoff === void 0 ? {} : { handoff }
 	};
 }
 /**
@@ -4304,9 +4353,11 @@ function parseStepHandoff(value) {
 	const handoff = value;
 	if (typeof handoff.pipelineId !== "string" || handoff.pipelineId === "" || handoff.pipelineId.length > 64) throw new SkillCardRequestError(400, "invalid-request", "mode.handoff.pipelineId must be a pipeline id");
 	if (typeof handoff.step !== "number" || !Number.isInteger(handoff.step) || handoff.step < 0 || handoff.step >= 64) throw new SkillCardRequestError(400, "invalid-request", "mode.handoff.step must be a step index");
+	if (handoff.scope !== void 0 && handoff.scope !== "full" && handoff.scope !== "single") throw new SkillCardRequestError(400, "invalid-request", "mode.handoff.scope must be full or single");
 	return {
 		pipelineId: handoff.pipelineId,
-		step: handoff.step
+		step: handoff.step,
+		...handoff.scope === void 0 ? {} : { scope: handoff.scope }
 	};
 }
 /**
@@ -4776,7 +4827,8 @@ function trimResult(record, maxBytes) {
 		...record.sessionId === void 0 ? {} : { sessionId: record.sessionId },
 		...record.instruction === void 0 ? {} : { instruction: record.instruction },
 		...record.failure === void 0 ? {} : { failure: record.failure },
-		...record.failureCode === void 0 ? {} : { failureCode: record.failureCode }
+		...record.failureCode === void 0 ? {} : { failureCode: record.failureCode },
+		...record.pipeline === void 0 ? {} : { pipeline: record.pipeline }
 	};
 	const withStructured = record.structured === void 0 ? base : {
 		...base,

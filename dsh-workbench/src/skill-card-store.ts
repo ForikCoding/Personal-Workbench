@@ -723,6 +723,9 @@ function trimResult(record: WorkbenchResultRecord, maxBytes: number): WorkbenchR
     // happened. It is one short sentence, so it is never the thing that gets shed.
     ...record.failure === undefined ? {} : { failure: record.failure },
     ...record.failureCode === undefined ? {} : { failureCode: record.failureCode },
+    // And where it came from: three short fields, and the only thing left that says how the
+    // step's product was made once the panel's own run history is gone.
+    ...record.pipeline === undefined ? {} : { pipeline: record.pipeline },
   }
   const withStructured: WorkbenchResultRecord = record.structured === undefined
     ? base

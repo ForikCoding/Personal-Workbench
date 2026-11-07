@@ -316,6 +316,29 @@ describe('workbench storage schemas', () => {
     expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(result)
   })
 
+  it('keeps where a result came from across a load', () => {
+    // The pipeline panel reads this instead of its own run history once that history is
+    // gone, so a load that dropped it would report a step run alone as an unexplained
+    // result — for good.
+    const result = {
+      runId: '1792940383334',
+      skill: 'git-repo',
+      executedAt: 1,
+      stopReason: 'completed',
+      structured: { html: '<p>a</p>' },
+      pipeline: { id: 'pipeline-1', step: 2, scope: 'single' },
+    }
+    const parsed = workbenchResultSchema.parse(result)
+    expect(parsed).toEqual(result)
+    expect(workbenchResultSchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(result)
+    // A step but no scope is still readable: a request from an older client named the step
+    // and never said what it covered.
+    expect(workbenchResultSchema.parse({ ...result, pipeline: { id: 'pipeline-1', step: 2 } })).toEqual({
+      ...result,
+      pipeline: { id: 'pipeline-1', step: 2 },
+    })
+  })
+
   it('accepts a result written before the workbench kept a session per run', () => {
     // Every result stored before this field existed has none. The reader keeps it — it is
     // still a result the card shows — and only a refinement of it is refused, which is a

@@ -17,9 +17,11 @@ import type {
   WorkbenchInstructionMode,
   WorkbenchResultRecord,
   WorkbenchRunPhase,
+  WorkbenchRunMode,
   WorkbenchRunRequest,
   WorkbenchRunState,
   WorkbenchPipelineHandoff,
+  WorkbenchResultPipeline,
   WorkbenchSandboxMode,
   WorkbenchSkillCardErrorCode,
   WorkbenchSkillCatalogEntry,
@@ -270,6 +272,13 @@ interface RunRecord {
   readonly workspace: string
   /** Which pipeline and step this run is, when it is one, for the note it leaves. */
   readonly handoff?: WorkbenchPipelineHandoff
+  /**
+   * Which pipeline step this run is and what it covered, for the stored record.
+   *
+   * Separate from {@link RunRecord.handoff} because a revision carries where it belongs
+   * without leaving a note: the record needs the provenance, the pipeline needs no note.
+   */
+  readonly pipeline?: WorkbenchResultPipeline
   /**
    * What the user told this run to do, verbatim; absent when it carried none.
    *
@@ -793,6 +802,9 @@ export class WorkbenchSkillCardRunner {
     // project layers.
     const scope = scopeAgent
 
+    // Where this run belongs, kept for the record it will leave: a step run says what it
+    // covered, a revision says it was one, and a run a panel did not start says nothing.
+    const provenance = provenanceOf(mode)
     const run: RunRecord = {
       cardId: request.cardId,
       runId: this.nextRunId(request.cardId, startedAt),
@@ -804,6 +816,7 @@ export class WorkbenchSkillCardRunner {
       // card's directory — which for an invocation from another card is another folder.
       workspace: workspacePath,
       ...mode.kind === 'step' && mode.handoff !== undefined ? { handoff: mode.handoff } : {},
+      ...provenance === undefined ? {} : { pipeline: provenance },
       session,
       phase: 'running',
       retried: false,
@@ -1498,6 +1511,7 @@ await this.finish(run, outcome)
             sessionId,
             input.kind === 'card' ? run.instruction : input.instruction,
             run.workspace,
+            run.pipeline,
           )
       // The child faulted and the provider authored nothing: its own report is the
       // only diagnostic there is, and the failure text reads from the record.
@@ -1706,6 +1720,28 @@ function toCatalogEntry(skill: {
 }
 
 /**
+ * Read where a run belongs from the mode it was started with.
+ *
+ * A step run carries the pipeline, the step and — when the caller said — what it covers; a
+ * revision carries only the first two, because revising a step is not running the pipeline
+ * and the reader must not think a chain ran. A card or bare run belongs nowhere.
+ * @param mode - the run's mode.
+ * @returns the provenance to store, or undefined when the run is not a pipeline's.
+ */
+function provenanceOf(mode: WorkbenchRunMode): WorkbenchResultPipeline | undefined {
+  if (mode.kind === 'refine') {
+    if (mode.handoff === undefined) return undefined
+    return { id: mode.handoff.pipelineId, step: mode.handoff.step, scope: 'refine' }
+  }
+  if (mode.kind !== 'step' || mode.handoff === undefined) return undefined
+  return {
+    id: mode.handoff.pipelineId,
+    step: mode.handoff.step,
+    ...mode.handoff.scope === undefined ? {} : { scope: mode.handoff.scope },
+  }
+}
+
+/**
  * Project one child result onto the stored record.
  * @param skill - the skill that ran.
  * @param result - the child's terminal result.
@@ -1715,6 +1751,7 @@ function toCatalogEntry(skill: {
  * @param sessionId - the session the run executed in.
  * @param instruction - what the user told the run to do, when the run carried one.
  * @param workspace - the directory this run happened in.
+ * @param pipeline - which pipeline step this run is, when a panel started it.
  * @returns the stored record.
  */
 function toResultRecord(
@@ -1726,6 +1763,7 @@ function toResultRecord(
   sessionId: string,
   instruction: string | undefined,
   workspace: string,
+  pipeline: WorkbenchResultPipeline | undefined,
 ): WorkbenchResultRecord {
   const text = textOf(result.output)
   return {
@@ -1735,6 +1773,7 @@ function toResultRecord(
     executedAt,
     stopReason: result.stopReason,
     workspace,
+    ...pipeline === undefined ? {} : { pipeline },
     ...model === undefined ? {} : { model },
     ...instruction === undefined ? {} : { instruction },
     ...result.structured === undefined ? {} : { structured: result.structured },

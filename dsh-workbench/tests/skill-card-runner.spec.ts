@@ -1535,6 +1535,40 @@ describe('pipeline steps', () => {
     expect(fake.archivedSessions).toContain('session-pipeline')
   })
 
+  it('records which step a run filled and what it covered', async () => {
+    // The panel cannot answer for the run once its own history is gone, so the record has to:
+    // "this product came from a run of this step alone" is the difference between reading the
+    // step as one that ran on its own and as one nobody can account for.
+    const { runner, saved } = setup({ live: false, persistedSessionIds: ['session-pipeline'] })
+    await runner.start(request({
+      mode: {
+        kind: 'step',
+        terminal: true,
+        join: true,
+        handoff: { pipelineId: 'pipeline-1', step: 2, scope: 'single' },
+      },
+      sessionId: 'session-pipeline',
+    }))
+    await settle(runner)
+    expect(saved[0]?.record.pipeline).toEqual({ id: 'pipeline-1', step: 2, scope: 'single' })
+  })
+
+  it('records a revision as one, not as a run of the pipeline', async () => {
+    // 重新生成 revisits one step's document: a record that said "full" would make a panel
+    // reopened later read the whole chain as having run again.
+    const { runner, saved } = setup()
+    await runner.start(request({
+      mode: {
+        kind: 'refine',
+        instruction: '把表格列顺序调一下',
+        previous: '<p>a</p>',
+        handoff: { pipelineId: 'pipeline-1', step: 1 },
+      },
+    }))
+    await settle(runner)
+    expect(saved[0]?.record.pipeline).toEqual({ id: 'pipeline-1', step: 1, scope: 'refine' })
+  })
+
   it('restores an archived session before stepping into it, then re-archives it', async () => {
     // The harness refuses a model step to an archived session, so a terminal step of a
     // chain restored from disk has to lift the archive first — and put it back after.

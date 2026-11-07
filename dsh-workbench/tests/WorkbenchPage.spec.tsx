@@ -766,9 +766,9 @@ describe('WorkbenchPage', () => {
     fireEvent.click(await screen.findByText(en.pipeRunAll))
     await waitFor(() => { expect(starts).toHaveLength(2) })
     // The first step opens the chain; the second joins the session the first settled in.
-    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0 } })
+    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0, scope: 'full' } })
     expect(starts[0]?.sessionId).toBeUndefined()
-    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } })
+    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1, scope: 'full' } })
     expect(starts[1]?.sessionId).toBe('session-chain')
     expect(starts[0]?.outputSchema).toBeDefined()
     // Finished runs say how long they took; the number is timing, so only its frame is fixed.
@@ -822,7 +822,7 @@ describe('WorkbenchPage', () => {
     await waitFor(() => { expect(starts).toHaveLength(2) })
     expect(starts[1]?.cardId).toBe('b-card')
     expect(starts[1]?.sessionId).toBe('session-one')
-    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } })
+    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1, scope: 'full' } })
     // And the pipeline is done once the run that covered the rest of it settled.
     await waitFor(() => {
       expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
@@ -834,6 +834,29 @@ describe('WorkbenchPage', () => {
     expect(rows.length).toBe(2)
     expect(rows[1]?.textContent).toContain(en.pipeScopeOnly.replace('{name}', 'A card'))
     expect(rows[1]?.textContent).toContain(en.pipeRunState_ok)
+  })
+
+  it('still says a step ran on its own after the page forgot the run', async () => {
+    // The product records what produced it, and that record outlives the panel's own run
+    // history: a step run alone keeps reading as one after a reload, while the run number
+    // it can no longer name is simply not claimed.
+    await renderPage({
+      results: [{
+        ...result('a-card'),
+        pipeline: { id: 'pipeline-1', step: 0, scope: 'single' },
+      }],
+      pipelines: [{ id: 'pipeline-1', name: 'P', steps: [{ cardId: 'a-card' }], updatedAt: 1 }],
+    })
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_solo)
+    })
+    expect(document.querySelector('[data-run-noise]')?.textContent).toBe([
+      en.pipeBarSoloHead,
+      en.pipeBarSoloWhich.replace('{steps}', '1'),
+      en.pipeBarSoloNextAll,
+    ].join('·'))
+    expect(document.querySelector('[data-seg="0"]')?.getAttribute('data-s')).toBe('solo')
+    expect(document.querySelector('[data-step-index="0"]')?.textContent).toContain(en.pipeRunOfSingleNo)
   })
 
   it('says what it knows when steps hold results but nothing ran here', async () => {
@@ -873,8 +896,9 @@ describe('WorkbenchPage', () => {
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
     await waitFor(() => { expect(starts).toHaveLength(1) })
-    // A step run on its own is a chain of one: it opens the session and closes it.
-    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: true, join: false, handoff: { pipelineId: 'pipeline-1', step: 0 } })
+    // A step run on its own is a chain of one: it opens the session and closes it, and it
+    // says it covers that step alone — the request is the only place that fact is recorded.
+    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: true, join: false, handoff: { pipelineId: 'pipeline-1', step: 0, scope: 'single' } })
     expect(starts[0]?.cardId).toBe('a-card')
   })
 

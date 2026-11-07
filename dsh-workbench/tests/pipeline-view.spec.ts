@@ -95,6 +95,28 @@ describe('standOf', () => {
     expect(standOf({ stepCount: 3, doneCount: 1, runs: [] })).toBe('kept')
   })
 
+  it('reads a reopened panel the way its products were made', () => {
+    // The product kept its provenance even though the panel lost the run, and the pipeline
+    // is the only step of it: a run of that step alone is not a run of the pipeline, which
+    // is the reading a count of touched steps would get wrong.
+    expect(standOf({ stepCount: 1, doneCount: 1, runs: [], scopes: ['single'] })).toBe('solo')
+    expect(standOf({ stepCount: 2, doneCount: 1, runs: [], scopes: ['single', undefined] })).toBe('solo')
+  })
+
+  it('is done when every product says a whole run made it', () => {
+    expect(standOf({ stepCount: 2, doneCount: 2, runs: [], scopes: ['full', 'full'] })).toBe('done')
+  })
+
+  it('is failed when the step that failed says it failed inside a whole run', () => {
+    expect(standOf({ stepCount: 2, doneCount: 1, failedAt: 1, runs: [], scopes: ['full', 'full'] })).toBe('failed')
+  })
+
+  it('will not call a reopened panel done on a mixture it cannot account for', () => {
+    // A step refined after a whole run says "refine": the chain is not known to have
+    // finished as one thing, so the panel says what it can see and no more.
+    expect(standOf({ stepCount: 2, doneCount: 2, runs: [], scopes: ['full', 'refine'] })).toBe('solo')
+  })
+
   it('counts a review regeneration as something that was not a whole run', () => {
     expect(standOf({
       stepCount: 3,

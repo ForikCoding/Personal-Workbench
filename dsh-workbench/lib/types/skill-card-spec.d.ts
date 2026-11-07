@@ -111,31 +111,6 @@ export declare const workbenchActivityEntrySchema: z.ZodDiscriminatedUnion<[z.Zo
     kind: z.ZodLiteral<"truncated">;
     dropped: z.ZodNumber;
 }, z.core.$strip>], "kind">;
-/**
- * Stored schema for one result.
- *
- * `stopReason` stays a plain string because the upstream stop reasons are
- * merge-extensible; closing the union here would reject a value a future
- * provider legitimately reports.
- *
- * `editedAt` is declared here in the same change that writes it. A field the store
- * writes and this schema does not know is dropped on the next load, which reads to the
- * user as "it saved, then reverted after a restart" — the bug that once lost card names.
- *
- * `model` is declared for the same reason: the runner stamps the route it ran on, and a
- * result that silently lost it would put the user back to guessing which model produced
- * what they are reading.
- *
- * `activity` follows the same rule, and it is the fifth field added this way. The runner
- * writes the trace and 运行详情 renders it after the run, so a schema that did not declare
- * it would show the stream while the run is live and then lose every line of it on the
- * next load — a trace that vanishes is worse than no trace, because the card looks like a
- * run that used no tools.
- *
- * `sessionId` is the sixth, and the only one another control reads: 重新生成 sends it back
- * to have the revision run in the session the result came from. Dropping it on load would
- * leave every past result unrefinable, with nothing on screen to say why.
- */
 export declare const workbenchResultSchema: z.ZodObject<{
     runId: z.ZodOptional<z.ZodString>;
     sessionId: z.ZodOptional<z.ZodString>;
@@ -167,6 +142,15 @@ export declare const workbenchResultSchema: z.ZodObject<{
         kind: z.ZodLiteral<"truncated">;
         dropped: z.ZodNumber;
     }, z.core.$strip>], "kind">>>;
+    pipeline: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        step: z.ZodNumber;
+        scope: z.ZodOptional<z.ZodEnum<{
+            full: "full";
+            single: "single";
+            refine: "refine";
+        }>>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 /**
  * Skill card domain declaration.

@@ -148,6 +148,22 @@ export const workbenchActivityEntrySchema = z.discriminatedUnion('kind', [
  * to have the revision run in the session the result came from. Dropping it on load would
  * leave every past result unrefinable, with nothing on screen to say why.
  */
+/**
+ * Stored schema for where a result came from.
+ *
+ * The panel reads it after a reload to say how a step's product was made — a run of the
+ * whole chain or a run of that step alone — so it is a fact about the product and follows
+ * the same rule as the rest of the record: written by the store, declared here, or lost on
+ * the next load and reported as "already has a result" forever.
+ */
+const workbenchResultPipelineSchema = z.object({
+  id: z.string(),
+  step: z.number().int().nonnegative(),
+  // A plain enum of the three known readings: a scope from a newer build is not worth
+  // refusing a whole result over, and the reader already treats an unknown one as unknown.
+  scope: z.enum(['full', 'single', 'refine']).optional(),
+})
+
 export const workbenchResultSchema = z.object({
   // Declared in the same change that started writing it, for the exact reason this
   // comment block keeps repeating: the runner stores the run id and the reader names
@@ -192,6 +208,9 @@ export const workbenchResultSchema = z.object({
   failureCode: z.string().optional(),
   editedAt: z.number().finite().nonnegative().optional(),
   activity: z.array(workbenchActivityEntrySchema).optional(),
+  // The seventh field added this way, and the one the pipeline panel reads instead of its
+  // own run history once that history is gone.
+  pipeline: workbenchResultPipelineSchema.optional(),
 })
 
 /**

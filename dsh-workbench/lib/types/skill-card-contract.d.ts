@@ -619,6 +619,28 @@ export interface WorkbenchTemplateRecord {
     readonly html: string;
 }
 /**
+ * Which pipeline step produced a result, and how much of the pipeline that run covered.
+ *
+ * Kept on the result because the panel outlives its own memory: after a reload it has no
+ * run history left to read, so a product made by a run of one step alone and a product
+ * made by a run of the whole chain looked identical — and the panel reported the first as
+ * "already has a result" while the user had just pressed 单独运行. The record is the one
+ * place that survives, so it says what it knows.
+ */
+export interface WorkbenchResultPipeline {
+    /** Pipeline identity, as the client stores it. */
+    readonly id: string;
+    /** Zero-based step index within that pipeline. */
+    readonly step: number;
+    /**
+     * What the run covered: the whole chain, this step alone, or this step again on request.
+     *
+     * Absent for a run whose request did not say, which is every run started before the
+     * panel sent it; a reader then knows the step but not the scope.
+     */
+    readonly scope?: 'full' | 'single' | 'refine';
+}
+/**
  * One stored execution result.
  *
  * `stopReason` is a plain string rather than a closed union: the upstream stop
@@ -684,6 +706,14 @@ export interface WorkbenchResultRecord {
      * reader then falls back to the card's own.
      */
     readonly workspace?: string;
+    /**
+     * Which pipeline step produced this record, and what that run covered.
+     *
+     * Absent for a run no panel started, and for every record written before the field
+     * existed — a reader then treats the product's provenance as unknown rather than
+     * assuming it came from a run of the whole chain.
+     */
+    readonly pipeline?: WorkbenchResultPipeline;
     /** Provider-authored failure detail, if any. */
     readonly diagnostic?: string;
     /**
@@ -950,6 +980,14 @@ export type WorkbenchRunMode =
     readonly instruction: string;
     /** The region HTML the revision starts from, verbatim. */
     readonly previous: string;
+    /**
+     * Which pipeline step is being revised, when a panel started the run.
+     *
+     * Carried only so the revision's record says how the step's product was made. Unlike a
+     * step run's hand-off it writes no note: a revision of one document has nothing to tell
+     * the next step that the document does not already say.
+     */
+    readonly handoff?: WorkbenchPipelineHandoff;
 }
 /**
  * Step run: one step of a pipeline, continuing the session the previous step used.
@@ -990,6 +1028,14 @@ export interface WorkbenchPipelineHandoff {
     readonly pipelineId: string;
     /** Zero-based step index within that pipeline. */
     readonly step: number;
+    /**
+     * What this run covers: the whole pipeline, or this step alone.
+     *
+     * The panel needs it because a step run on its own and the same step inside a whole run
+     * leave the same kind of record otherwise, and the two mean different things about the
+     * pipeline. Absent for a request that did not say.
+     */
+    readonly scope?: 'full' | 'single';
 }
 /** Client-to-Host run start. */
 export interface WorkbenchRunRequest {

@@ -960,7 +960,7 @@ function parseRunMode(value: unknown): WorkbenchRunMode {
  * @throws {SkillCardRequestError} 400 when a field is outside the contract, 413 when
  * the previous result exceeds its byte budget.
  */
-function parseRefineMode(mode: { instruction?: unknown; previous?: unknown }): WorkbenchRunMode {
+function parseRefineMode(mode: { instruction?: unknown; previous?: unknown; handoff?: unknown }): WorkbenchRunMode {
   if (typeof mode.instruction !== 'string' || mode.instruction.trim() === '') {
     throw new SkillCardRequestError(400, 'invalid-request', 'mode.instruction must be a non-empty string')
   }
@@ -975,7 +975,16 @@ function parseRefineMode(mode: { instruction?: unknown; previous?: unknown }): W
     // rather than as a malformed request.
     throw new SkillCardRequestError(413, 'too-large', 'mode.previous exceeds the byte limit')
   }
-  return { kind: 'refine', instruction: mode.instruction, previous: mode.previous }
+  // Where the revision belongs, when a panel started it: validated by the same rule as a
+  // step's hand-off, because it names the same pipeline and step and is stored for the
+  // same reader.
+  const handoff = parseStepHandoff(mode.handoff)
+  return {
+    kind: 'refine',
+    instruction: mode.instruction,
+    previous: mode.previous,
+    ...handoff === undefined ? {} : { handoff },
+  }
 }
 
 /**
@@ -1022,14 +1031,21 @@ function parseStepHandoff(value: unknown): WorkbenchPipelineHandoff | undefined 
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff must be an object')
   }
-  const handoff = value as { pipelineId?: unknown; step?: unknown }
+  const handoff = value as { pipelineId?: unknown; step?: unknown; scope?: unknown }
   if (typeof handoff.pipelineId !== 'string' || handoff.pipelineId === '' || handoff.pipelineId.length > 64) {
     throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff.pipelineId must be a pipeline id')
   }
   if (typeof handoff.step !== 'number' || !Number.isInteger(handoff.step) || handoff.step < 0 || handoff.step >= 64) {
     throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff.step must be a step index')
   }
-  return { pipelineId: handoff.pipelineId, step: handoff.step }
+  if (handoff.scope !== undefined && handoff.scope !== 'full' && handoff.scope !== 'single') {
+    throw new SkillCardRequestError(400, 'invalid-request', 'mode.handoff.scope must be full or single')
+  }
+  return {
+    pipelineId: handoff.pipelineId,
+    step: handoff.step,
+    ...handoff.scope === undefined ? {} : { scope: handoff.scope },
+  }
 }
 
 /**

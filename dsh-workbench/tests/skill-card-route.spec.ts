@@ -1131,4 +1131,32 @@ describe('workbench skill card run route: pipeline steps', () => {
       error: { code: 'invalid-request', message: 'mode.handoff.step must be a step index' },
     })
   })
+
+  it('accepts the scope a step run covers, and refuses one it cannot mean', async () => {
+    // The scope is what tells a run of one step from the same step inside a chain, so it is
+    // part of the request rather than something the Host guesses from the step index.
+    for (const scope of ['full', 'single']) {
+      const accepted = runtime({ outcomes: ['hang'] })
+      const response = await run(accepted.run, at(RUN_PATH, 'POST', runBody({
+        mode: { kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0, scope } },
+      })))
+      expect(response.statusCode).toBe(202)
+      accepted.runner.cancel('skill-card')
+    }
+
+    const refused = runtime()
+    const response = await run(refused.run, at(RUN_PATH, 'POST', runBody({
+      mode: {
+        kind: 'step',
+        terminal: false,
+        join: false,
+        handoff: { pipelineId: 'pipeline-1', step: 0, scope: 'partly' },
+      },
+    })))
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body)).toMatchObject({
+      error: { code: 'invalid-request', message: 'mode.handoff.scope must be full or single' },
+    })
+    expect(refused.fake.activations).toHaveLength(0)
+  })
 })

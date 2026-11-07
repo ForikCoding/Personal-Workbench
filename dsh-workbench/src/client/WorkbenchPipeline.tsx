@@ -382,6 +382,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       const producing = history.find(entry => entry.steps.some(
         item => item.cardId === step.cardId && item.phase === 'done',
       ))
+      // The run history lives in this page, so it is gone after a reload — but the product
+      // itself records what produced it. Reading the fallback here is what keeps a step run
+      // alone from being reported as an unexplained result once the page is young again.
+      const keptScope = result?.pipeline?.id === active.id ? result.pipeline.scope : undefined
       return {
         index,
         cardId: step.cardId,
@@ -395,7 +399,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
         card,
         result,
         runNo: producing?.no,
-        runScope: producing?.scope,
+        runScope: producing?.scope ?? keptScope,
       }
     })
   }, [active, cards, chain, history, labelOf, resultOf])
@@ -542,12 +546,12 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const stateText = (phase: PipelineStepPhase): string => t(`pipeStepState_${stateView(phase).key}` as WorkbenchLocaleKey)
   const markOf = (phase: PipelineStepPhase): ReactNode => MARK[stateView(phase).mark]
 
-  // Whether the chain on screen is a run of the whole pipeline or of one step. A single
-  // step finishing says nothing about the pipeline, and treating it as if it did is what
-  // made one completed step read as a finished pipeline.
+  // Whether the chain on screen is a run of the whole pipeline or of one step. The chain's
+  // own scope answers it: counting the steps it touched cannot, because a run of the only
+  // step of a one-step pipeline touches them all without being a run of the pipeline.
   const chainWhole = chain !== undefined && active !== undefined
-    && chain.steps.length === active.steps.length
-    && chain.steps.every(step => step.phase !== 'idle')
+    && chain.pipelineId === active.id
+    && chain.scope === 'full'
 
   const stepCount = active?.steps.length ?? 0
   const doneCount = stepViews.filter(step => step.phase === 'done').length
@@ -557,6 +561,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     doneCount,
     ...chain === undefined ? {} : { chain: { phase: chain.phase, whole: chainWhole } },
     runs: history,
+    scopes: stepViews.map(step => step.runScope),
+    failedAt: stepViews.findIndex(step => step.phase === 'failed'),
   })
   // Steps that hold a result but were not produced by a run of the whole chain. They are
   // what the run bar names, and what a resumed run will pass over.
@@ -578,14 +584,20 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const standOfId = (pipeline: WorkbenchPipeline): PipelineStand => {
     if (pipeline.id === active?.id) return stand
     const mine = chain !== undefined && chain.pipelineId === pipeline.id ? chain : undefined
-    const whole = mine !== undefined
-      && mine.steps.length === pipeline.steps.length
-      && mine.steps.every(step => step.phase !== 'idle')
+    const whole = mine !== undefined && mine.scope === 'full'
+    const scopes = pipeline.steps.map(step => {
+      const result = results.find(entry => entry.cardId === step.cardId)
+      return result?.pipeline?.id === pipeline.id ? result.pipeline.scope : undefined
+    })
     return standOf({
       stepCount: pipeline.steps.length,
       doneCount: pipeline.steps.filter(step => results.some(entry => entry.cardId === step.cardId)).length,
       ...mine === undefined ? {} : { chain: { phase: mine.phase, whole } },
       runs: run.history(pipeline.id),
+      scopes,
+      failedAt: pipeline.steps.findIndex(step => results.some(
+        entry => entry.cardId === step.cardId && entry.failure !== undefined,
+      )),
     })
   }
 
@@ -1002,19 +1014,24 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             </div>
                             <div className={css.nodeFoot} data-s={step.phase}>
                               {stepRename === step.index ? <span>{t('pipeRenameHint')}</span> : footOf(step, t)}
-                              {step.runNo === undefined
-                                ? null
-                                : step.runScope === 'full'
-                                  ? <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>
-                                  : (
-                                    <span
-                                      className={css.nodeRun}
-                                      data-solo="1"
-                                      title={t('pipeRunOfSingleTitle', { no: step.runNo })}
-                                    >
-                                      {t('pipeRunOfSingle', { no: step.runNo })}
-                                    </span>
-                                    )}
+                              {step.runScope === 'full' && step.runNo !== undefined
+                                ? <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>
+                                : step.runScope === undefined
+                                  ? null
+                                  // The product says it was made by a run of this step alone, but
+                                  // the page no longer holds the run that numbered it: naming the
+                                  // step's own provenance is enough, and a made-up #n is not.
+                                  : step.runNo === undefined
+                                    ? <span className={css.nodeRun} data-solo="1" title={t('pipeRunOfSingleNoTitle')}>{t('pipeRunOfSingleNo')}</span>
+                                    : (
+                                      <span
+                                        className={css.nodeRun}
+                                        data-solo="1"
+                                        title={t('pipeRunOfSingleTitle', { no: step.runNo })}
+                                      >
+                                        {t('pipeRunOfSingle', { no: step.runNo })}
+                                      </span>
+                                      )}
                             </div>
                           </div>
                         </div>

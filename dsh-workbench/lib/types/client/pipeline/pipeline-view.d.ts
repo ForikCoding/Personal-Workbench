@@ -135,6 +135,16 @@ export interface PipelineStandInput {
     };
     /** The runs this panel has seen, newest first. */
     readonly runs: readonly PipelineRunEntry[];
+    /**
+     * How each step's product came to be, in step order, as its own record says.
+     *
+     * The panel forgets its runs when it is reopened, but the products keep their
+     * provenance: this is what tells a step run on its own from a step a chain filled, after
+     * the memory of the run itself is gone.
+     */
+    readonly scopes?: readonly ('full' | 'single' | 'refine' | undefined)[];
+    /** Index of the step holding a failure, when one does. */
+    readonly failedAt?: number;
 }
 /**
  * Read how a whole pipeline stands.

@@ -45,6 +45,14 @@ export type ChainPhase = 'running' | 'settled' | 'failed' | 'stopped'
 export interface PipelineChain {
   /** Pipeline the chain belongs to. */
   readonly pipelineId: string
+  /**
+   * What this chain covers: the whole pipeline, this step alone, or this step again.
+   *
+   * The chain's own reading of itself, so a run of one step in a one-step pipeline is not
+   * mistaken for a run of the pipeline: how many steps a run touched says nothing about
+   * what it was asked to do.
+   */
+  readonly scope: PipelineRunEntry['scope']
   /** When the chain started. */
   readonly startedAt: number
   /** One entry per pipeline step, in step order. */
@@ -364,6 +372,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     const startedAt = Date.now()
     const initial: PipelineChain = {
       pipelineId: pipeline.id,
+      scope: ask.scope,
       startedAt,
       steps: pipeline.steps.map((_unused, index) => (
         index < from || index > to ? { phase: 'idle' } : { phase: 'queued' }
@@ -387,6 +396,9 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       start: async (index, step, seam) => {
         const scope = scopeSessionId?.()
         const regenerate = ask.previous !== undefined && ask.instruction !== undefined
+        // A regeneration takes the branch below that says it is one, so this narrowing only
+        // tells the type what the code already knows: a step run covers a chain or a step.
+        const cover = ask.scope === 'refine' ? 'single' : ask.scope
         const result = await api.start({
           cardId: step.cardId,
           // A joining step names the session it continues; the first step names none and
@@ -396,8 +408,14 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
           ...scope === undefined ? {} : { scopeSessionId: scope },
           mode: regenerate
             // A regeneration is its own kind of run: it starts from the result the user is
-            // looking at, so it needs no session to continue and no hand-off to write.
-            ? { kind: 'refine', instruction: ask.instruction as string, previous: ask.previous as string }
+            // looking at, so it needs no session to continue and no hand-off to write. It
+            // names the step only so the record says how the product was made.
+            ? {
+                kind: 'refine',
+                instruction: ask.instruction as string,
+                previous: ask.previous as string,
+                handoff: { pipelineId: pipeline.id, step: index },
+              }
             : {
                 kind: 'step',
                 terminal: seam.terminal,
@@ -405,7 +423,9 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
                 // Which pipeline and step this is, so the run leaves a note the later steps
                 // can read when the conversation is gone. Sent on every step, joined or
                 // not: a note is written by every step, read by one that cannot join.
-                handoff: { pipelineId: pipeline.id, step: index },
+                // `scope` is what this run was asked to cover, which is the only thing that
+                // separates a step run on its own from the same step inside a chain.
+                handoff: { pipelineId: pipeline.id, step: index, scope: cover },
               },
           ...seam.instruction === undefined ? {} : { instruction: seam.instruction },
           outputSchema: WORKBENCH_OUTPUT_SCHEMA,

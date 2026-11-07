@@ -37,6 +37,14 @@ export type ChainPhase = 'running' | 'settled' | 'failed' | 'stopped';
 export interface PipelineChain {
     /** Pipeline the chain belongs to. */
     readonly pipelineId: string;
+    /**
+     * What this chain covers: the whole pipeline, this step alone, or this step again.
+     *
+     * The chain's own reading of itself, so a run of one step in a one-step pipeline is not
+     * mistaken for a run of the pipeline: how many steps a run touched says nothing about
+     * what it was asked to do.
+     */
+    readonly scope: PipelineRunEntry['scope'];
     /** When the chain started. */
     readonly startedAt: number;
     /** One entry per pipeline step, in step order. */

@@ -212,6 +212,16 @@ export interface PipelineStandInput {
   }
   /** The runs this panel has seen, newest first. */
   readonly runs: readonly PipelineRunEntry[]
+  /**
+   * How each step's product came to be, in step order, as its own record says.
+   *
+   * The panel forgets its runs when it is reopened, but the products keep their
+   * provenance: this is what tells a step run on its own from a step a chain filled, after
+   * the memory of the run itself is gone.
+   */
+  readonly scopes?: readonly ('full' | 'single' | 'refine' | undefined)[]
+  /** Index of the step holding a failure, when one does. */
+  readonly failedAt?: number
 }
 
 /**
@@ -246,7 +256,16 @@ export function standOf(input: PipelineStandInput): PipelineStand {
   // An empty pipeline and one nothing has run in are the same answer: nothing is pending,
   // because nothing has started.
   if (stepCount === 0 || doneCount === 0) return 'idle'
-  return runs.length === 0 ? 'kept' : 'solo'
+  if (runs.length > 0) return 'solo'
+  // No run is remembered, but a product may still say how it was made. A whole run leaves
+  // its scope on every step it filled, so every step reading "whole" is a finished
+  // pipeline even with no record of the run; a step that failed in one means the chain did.
+  const scopes = input.scopes ?? []
+  const failedAt = input.failedAt ?? -1
+  if (failedAt >= 0 && scopes[failedAt] === 'full') return 'failed'
+  if (doneCount === stepCount && scopes.every(scope => scope === 'full')) return 'done'
+  if (scopes.some(scope => scope !== undefined)) return 'solo'
+  return 'kept'
 }
 
 /**
