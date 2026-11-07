@@ -2256,19 +2256,17 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   };
 
   function pipelineStatus(flow) {
-    const list = runsOf(flow);
-    if (flow.state === 'running' || list.some(r => r.status === 'running')) return 'running';
-    // 整条的那次运行说了算：它失败/停止就是失败/停止，和之后单点重跑过几步无关
-    const full = list.find(r => r.scope === 'full');
-    if (full) {
-      if (full.status === 'fail') return 'failed';
-      if (full.status === 'stopped') return 'stopped';
-      return 'done';
-    }
+    // 引擎的状态是准的：它说跑完就是跑完，说失败就是失败。运行记录只补充一件事——
+    // 「跑过」究竟是整条跑过，还是只单独跑过其中几步。
+    //
+    // 两边都当真相就会打架：状态是 done、却一条运行记录都没有的流水线，
+    // 只看记录会得出「未整体运行」，可底部同时写着「2 步全部完成」。
+    if (flow.state === 'running') return 'running';
     if (flow.state === 'failed') return 'failed';
     if (flow.state === 'stopped') return 'stopped';
-    // 一次整条运行都没有，但有记录：那就是单独跑过其中几步
-    return list.length ? 'solo' : 'idle';
+    if (flow.state === 'done') return 'done';
+    // 还没整条跑过，但有记录：那就是单独跑过其中几步
+    return runsOf(flow).length ? 'solo' : 'idle';
   }
 
   /* ============================================================ 状态 */
@@ -2383,6 +2381,37 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       ],
     },
     ],
+    // 预置的流水线说自己跑过 / 失败过，就得真有那一条记录：否则底部写「2 步全部完成」，
+    // 运行记录里却写「还没有记录」，同一屏上两种说法
+    'review-loop': [{
+      no: 1,
+      when: '昨天 18:40',
+      took: '3m24s',
+      status: 'fail',
+      scope: 'full',
+      steps: [
+        { skill: 'doc-writer', status: 'done', dur: '0m22s', doc: 'review', summary: '评审说明 · 2 条建议' },
+        {
+          skill: 'code-review', status: 'fail', dur: '3m02s',
+          error: '超时 180s，provider 无响应',
+        },
+        { skill: 'regression-check', status: 'queued', dur: '—', summary: '' },
+      ],
+    }],
+    'weekly': [{
+      no: 1,
+      when: '前天 09:00',
+      took: '1m08s',
+      status: 'ok',
+      scope: 'full',
+      steps: [
+        {
+          skill: 'weekly-report', status: 'done', dur: '0m48s', dir: 'docs/周报',
+          files: [{ name: '周报素材.md', size: '5.2 KB', doc: 'weekly' }],
+        },
+        { skill: 'doc-writer', status: 'done', dur: '0m19s', doc: 'weekly', summary: '周报正文 · 5 条' },
+      ],
+    }],
   };
 
   /** 这条流水线的运行记录。没有就建一个空表——新建的流水线当然一次都还没跑过。 */
@@ -2559,7 +2588,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         ? '0 个步骤 · 串行执行，失败即停'
         : runs.length
           ? `最近运行 ${runLabel(runs[0])} · ${flow.stages.length} 个步骤 · ${flow.updated} 更新`
-          : `${flow.stages.length} 个步骤 · 串行执行，失败即停 · 还没整体跑过`;
+          : `${flow.stages.length} 个步骤 · 串行执行，失败即停${flow.state === 'idle' ? '' : ` · ${PIPE_TEXT[pipelineStatus(flow)]}`}`;
 
     // 顶部横向步骤条（窄面板时替代竖轨道）
     renderStepStrip(flow);
@@ -2685,8 +2714,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       $('#stopBtn').hidden = true;
       return;
     }
-    // 单步跑过的一步画成空心段：整条跑完才填实，运行条自己就把"没从头跑过"说清楚
-    bar.innerHTML = flow.stages.map(s => `<i data-s="${s.status === 'done' && s.runScope && s.runScope !== 'full' ? 'solo' : s.status}"></i>`).join('');
+    // 单步跑过的一步画成空心段：整条跑完才填实，运行条自己就把"没从头跑过"说清楚。
+    // 只有整条还没跑过的时候才这么画——跑完过之后再单点重跑一步，那不是"没跑完"
+    const soloSeg = flow.state === 'idle';
+    bar.innerHTML = flow.stages.map(s => `<i data-s="${soloSeg && s.status === 'done' && s.runScope && s.runScope !== 'full' ? 'solo' : s.status}"></i>`).join('');
     const doneCount = flow.stages.filter(s => s.status === 'done').length;
     const cur = flow.stages.findIndex(s => s.status === 'running');
     if (flow.state === 'running') {
