@@ -973,6 +973,30 @@
 }
 .wb-ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* 能改的行里放文本的地方：路径和指令，边框和下拉同一套 */
+/* 工作目录：一行可点的选择器，左边是确认过的路径，右边是「选择目录」 */
+.wb-rulePath {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  padding: 6px 10px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wb-rulePath:hover:not(:disabled) { border-color: var(--divider); background: var(--hover); }
+.wb-rulePath:disabled { cursor: default; color: var(--ink4); }
+.wb-rulePath:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wb-rulePathText { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-rulePathText.wb-mono { font-family: var(--f-mono); font-size: 12px; }
+.wb-rulePathPick { flex: none; font-size: 11px; color: var(--accent); }
+.wb-rulePath:disabled .wb-rulePathPick { color: var(--ink4); }
+
 .wb-ruleInput,
 .wb-ruleArea {
   display: block;

@@ -31,6 +31,7 @@ import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
 import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts'
+import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 
 /** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result'
@@ -99,6 +100,13 @@ export interface WorkbenchPipelineProps {
   /** Provider groups the model row offers; empty means the directory answered nothing. */
   readonly modelGroups: readonly WorkbenchModelGroup[]
   /**
+   * The platform's directory chooser; absent means this page has no picker at all.
+   *
+   * A path is never typed here: a text field would let a step name a directory no chooser
+   * ever confirmed, which is the decision this product already made once.
+   */
+  readonly workspacePicker: WorkbenchWorkspacePicker | undefined
+  /**
    * Translate one workbench string.
    * @param key - dictionary key.
    * @param params - optional template parameters.
@@ -124,8 +132,6 @@ export interface StepCardPatch {
   readonly instruction?: string | null
 }
 
-/** A directory path a card may store: absolute, so it names one directory. */
-const ABSOLUTE_PATH = /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/
 
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
@@ -156,7 +162,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
     pipelines, run, facts, api, renderCard, onCreateCard, t,
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
-    patchStepCards, modelGroups,
+    patchStepCards, modelGroups, workspacePicker,
   } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
@@ -413,6 +419,17 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
    * @param cardId - the step's card.
    * @param name - the typed name.
    */
+  // A path is never typed here: the platform's own chooser answers, and what it returns is
+  // written to every step's card. Cancelling writes nothing, so the steps keep what they had.
+  const canPickWorkspace = workspacePicker !== undefined && workspacePicker.available()
+  const chooseWorkspaceForSteps = useCallback(() => {
+    if (workspacePicker === undefined) return
+    void workspacePicker.pick().then((picked) => {
+      if (picked.status !== 'picked') return
+      patchStepCards(stepViews.map(view => view.cardId), { workspace: { path: picked.path } })
+    })
+  }, [patchStepCards, stepViews, workspacePicker])
+
   const commitStepRename = useCallback((cardId: string, name: string) => {
     setStepRename(undefined)
     const current = stepViews.find(step => step.cardId === cardId)
@@ -981,6 +998,9 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               shared={stepViews[0]?.card}
                               models={modelGroups}
                               skills={catalog}
+                              onPickWorkspace={workspacePicker === undefined || !canPickWorkspace
+                                ? undefined
+                                : () => { chooseWorkspaceForSteps() }}
                               t={t}
                               onEdit={() => { openReader(selected.cardId) }}
                               onPatch={(patch) => {
@@ -1404,8 +1424,10 @@ function ConfigPanel(props: {
   readonly onEdit: () => void
   /** Write one field into every step's card; this is what makes one edit reach all of them. */
   readonly onPatch: (patch: StepCardPatch) => void
+  /** Ask the platform for one directory; disabled when there is no chooser. */
+  readonly onPickWorkspace: (() => void) | undefined
 }): ReactNode {
-  const { step, shared, models, skills, t, onEdit, onPatch } = props
+  const { step, shared, models, skills, t, onEdit, onPatch, onPickWorkspace } = props
   const [view, setView] = useState<'preview' | 'source'>('preview')
   const template = step.card?.template
   // What "the whole pipeline" is: the first step's card. The rows that change it write
@@ -1476,22 +1498,21 @@ function ConfigPanel(props: {
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgWorkspace')}</span>
           <span className={css.ruleValue}>
-            {/* Committed on blur rather than per keystroke: every keystroke would be a write to
-                every step's card, and half a path is not a directory to store. */}
-            <input
-              className={css.ruleInput}
+            {/* The platform's own chooser, opened from a row that shows the confirmed path.
+                There is no text field: a typed path is a directory no chooser ever confirmed. */}
+            <button
+              type="button"
+              className={css.rulePath}
               data-cfg-workspace=""
-              aria-label={t('pipeCfgWorkspace')}
-              spellCheck={false}
-              defaultValue={shared?.workspace?.path ?? ''}
-              placeholder={t('pipeCfgNoWorkspace')}
-              onBlur={(event) => {
-                const next = event.currentTarget.value.trim()
-                if (next === (shared?.workspace?.path ?? '')) return
-                if (next !== '' && !ABSOLUTE_PATH.test(next)) return
-                onPatch({ workspace: next === '' ? null : { path: next } })
-              }}
-            />
+              aria-label={t('pipeCfgWorkspacePick')}
+              disabled={onPickWorkspace === undefined}
+              onClick={() => { onPickWorkspace?.() }}
+            >
+              <span className={`${css.rulePathText} ${shared?.workspace === undefined ? '' : css.mono}`}>
+                {shared?.workspace?.path ?? t('pipeCfgNoWorkspace')}
+              </span>
+              <span className={css.rulePathPick}>{onPickWorkspace === undefined ? t('pipeCfgWorkspaceNoPicker') : t('pipeCfgWorkspacePick')}</span>
+            </button>
             <span className={css.hint}>{t('pipeCfgWorkspaceNote')}</span>
           </span>
         </div>

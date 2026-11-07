@@ -319,6 +319,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         renameStepCard={renameCard}
         patchStepCards={patchStepCards}
         modelGroups={modelGroups}
+        workspacePicker={skillCards.workspacePicker}
         t={t}
       />
     )

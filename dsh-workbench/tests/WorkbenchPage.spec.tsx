@@ -5,7 +5,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
-import { fakeWorkspacePicker } from './support/fake-workspace-picker.ts'
+import { fakeWorkspacePicker, noWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
+import type { WorkbenchWorkspacePicker } from '../src/client/skill-card/workspace-picker.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => primitivesMock())
 
@@ -107,6 +108,8 @@ function props(options: {
   catalog?: () => Promise<WorkbenchCatalogRead>
   /** The stored cards the transport holds; the default pair is enough for most cases. */
   cardViews?: typeof CARD_VIEWS
+  /** The directory chooser this page offers; the default answers one path. */
+  picker?: WorkbenchWorkspacePicker
   overrides?: Partial<PageProps>
 } = {}): {
   props: PageProps
@@ -184,7 +187,7 @@ function props(options: {
       },
       runSessionId: () => 'session-user',
       models: fakeModelSeat(),
-      workspacePicker: fakeWorkspacePicker().picker,
+      workspacePicker: options.picker ?? fakeWorkspacePicker().picker,
     },
     closeCard: () => {},
     openCard: () => {},
@@ -388,21 +391,32 @@ describe('WorkbenchPage', () => {
 
   })
 
-  it('edits the workspace as a path and writes it to every step', async () => {
+  it('asks the platform for a directory rather than reading a typed path', async () => {
     const { cardWrites } = await renderPage()
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
-    const box = document.querySelector('[data-cfg-workspace]') as HTMLInputElement
-    expect(box).not.toBeNull()
-    fireEvent.blur(box, { target: { value: 'D:\\Git\\other' } })
+    const row = document.querySelector('[data-cfg-workspace]') as HTMLButtonElement
+    // A button that opens the chooser, not a text field: a typed path is a directory no
+    // chooser ever confirmed, and this product already decided against that once.
+    expect(row.tagName).toBe('BUTTON')
+    expect(row.disabled).toBe(false)
+    fireEvent.click(row)
     await waitFor(() => { expect(cardWrites).toHaveLength(2) })
-    expect(cardWrites.map(patch => patch.workspace)).toEqual([{ path: 'D:\\Git\\other' }, { path: 'D:\\Git\\other' }])
-    // A relative path names a different directory for whoever resolves it, so it is refused
-    // here instead of being stored and run somewhere the user never chose.
-    fireEvent.blur(box, { target: { value: 'relative/dir' } })
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(cardWrites).toHaveLength(2)
+    // Whatever the chooser answered is what every step's card stores.
+    expect(cardWrites.map(patch => patch.workspace)).toEqual([{ path: PICKED_PATH }, { path: PICKED_PATH }])
+  })
+
+  it('states a disabled chooser when the page has no picker', async () => {
+    await renderPage({ picker: noWorkspacePicker().picker })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const row = document.querySelector('[data-cfg-workspace]') as HTMLButtonElement
+    // No chooser means no control: stated as unavailable rather than as a field that writes
+    // a path nothing confirmed.
+    expect(row.disabled).toBe(true)
+    expect(row.textContent).toContain(en.pipeCfgWorkspaceNoPicker)
   })
   it('removes a step from the pipeline only on the second click', async () => {
     const { writes } = await renderPage()

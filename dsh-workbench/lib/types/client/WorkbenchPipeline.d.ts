@@ -20,6 +20,7 @@ import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 import { type WorkbenchModelGroup } from './skill-card/model.ts';
 import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts';
+import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts';
 /** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result';
 /** Props of the pipeline workbench. */
@@ -79,6 +80,13 @@ export interface WorkbenchPipelineProps {
     readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => void;
     /** Provider groups the model row offers; empty means the directory answered nothing. */
     readonly modelGroups: readonly WorkbenchModelGroup[];
+    /**
+     * The platform's directory chooser; absent means this page has no picker at all.
+     *
+     * A path is never typed here: a text field would let a step name a directory no chooser
+     * ever confirmed, which is the decision this product already made once.
+     */
+    readonly workspacePicker: WorkbenchWorkspacePicker | undefined;
     /**
      * Translate one workbench string.
      * @param key - dictionary key.

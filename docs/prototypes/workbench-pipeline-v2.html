@@ -1063,6 +1063,27 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 }
 .ruleInput { font-family: var(--f-mono); }
 .ruleArea { max-width: 100%; line-height: 1.5; resize: vertical; }
+/* 工作目录不是手填的：一行可点的选择器，左边是确认过的路径，右边是「选择目录」 */
+.rulePath {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  padding: 6px 10px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rulePath:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); background: var(--hover); }
+.rulePath:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rulePathText { flex: 1; min-width: 0; font-size: 12px; font-family: var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rulePathPick { flex: none; font-size: 11px; color: var(--accent); }
+
 .ruleInput:hover,
 .ruleArea:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .ruleInput:focus-visible,
@@ -3519,7 +3540,10 @@ ${region}
         <div class="ruleRow">
           <span class="ruleLabel">工作目录</span>
           <span class="ruleValue">
-            <input class="ruleInput" type="text" data-cfg="workspace" value="${esc(flow.workspace || DEFAULT_WORKSPACE)}" spellcheck="false" aria-label="工作目录">
+            <button class="rulePath" type="button" data-cfg="workspace" aria-label="选择工作目录">
+              <span class="rulePathText mono">${esc(flow.workspace || DEFAULT_WORKSPACE)}</span>
+              <span class="rulePathPick">选择目录</span>
+            </button>
             <span class="hint">每一步都跑在这个目录里</span>
           </span>
         </div>
@@ -4030,6 +4054,43 @@ ${region}
     tabs[next].focus();
   });
 
+  // 选目录：原型里没有真的系统对话框，但这一层不是假的——点一个目录就写回流水线，
+  // 和真实选择器一样只回一个确认过的路径。
+  const PICK_DIRS = [
+    { path: 'D:\\Git\\my-project', name: 'my-project' },
+    { path: 'D:\\Git\\other-project', name: 'other-project' },
+    { path: 'D:\\Git\\Personal-Workbench', name: 'Personal-Workbench' },
+  ];
+  function renderDirPicker(cfg, onPick) {
+    const flow = current();
+    document.querySelectorAll('.dirPickWrap').forEach(n => n.remove());
+    const wrap = document.createElement('div');
+    wrap.className = 'dirPickWrap';
+    wrap.innerHTML = `
+      <div class="pickerScrim" data-dir-cancel></div>
+      <div class="picker" role="dialog" aria-label="选择工作目录">
+        <div class="pickerHead"><div class="pickerTitle">选择工作目录</div></div>
+        <div class="pickerList">
+          ${PICK_DIRS.map(d => `
+            <button class="pickerRow" type="button" data-dir="${esc(d.path)}">
+              <span class="pickerRowMain">
+                <span class="pickerRowTitle">${esc(d.name)}</span>
+                <span class="pickerRowSub">${esc(d.path)}</span>
+              </span>
+            </button>`).join('')}
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', (e) => {
+      if (e.target.closest('[data-dir-cancel]')) { wrap.remove(); return }
+      const row = e.target.closest('[data-dir]');
+      if (!row) return;
+      flow.workspace = row.dataset.dir;
+      wrap.remove();
+      renderInspector();
+    });
+  }
+
   // 配置里的控件是真的能改的：模型/权限/工作目录是整条流水线的，技能/指令/失败处理是这一步的
   $('#configPanel').addEventListener('change', (e) => {
     const sel = e.target.closest('[data-cfg]');
@@ -4039,7 +4100,7 @@ ${region}
     switch (sel.dataset.cfg) {
       case 'model': flow.model = sel.value; break;
       case 'perm': flow.perm = sel.value; break;
-      case 'workspace': flow.workspace = sel.value.trim(); break;
+      case 'workspace': renderDirPicker(); return;
       case 'skill':
         if (st) {
           st.skill = sel.value;
@@ -4057,14 +4118,18 @@ ${region}
     if (sel.dataset.cfg === 'skill' || sel.dataset.cfg === 'fail') renderCanvas();
   });
 
+  // 工作目录是按钮不是输入框，所以听 click：点了就开选择层
+  $('#configPanel').addEventListener('click', (e) => {
+    if (e.target.closest('[data-cfg="workspace"]')) renderDirPicker();
+  });
+
   // 边打边存，但不重渲染：重渲染会把光标顶回去
   $('#configPanel').addEventListener('input', (e) => {
     const el = e.target.closest('[data-cfg]');
     if (!el) return;
     const flow = current();
     const st = (flow.stages || [])[state.sel];
-    if (el.dataset.cfg === 'workspace') flow.workspace = el.value;
-    else if (el.dataset.cfg === 'instruction' && st) st.instruction = el.value;
+    if (el.dataset.cfg === 'instruction' && st) st.instruction = el.value;
   });
 
   // 检查器内按钮
