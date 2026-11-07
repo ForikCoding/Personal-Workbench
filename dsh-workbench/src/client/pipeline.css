@@ -792,7 +792,7 @@
   overflow-y: auto;
 }
 /* 区域标记要能一眼看见，否则一段 90 行的模板里找不到「模型写哪儿」 */
-.wb-docSrc .wb-mk { color: var(--accent); }
+.wb-docSrc .wb-mk { color: var(--accent); font-weight: 500; }
 .wb-segTiny { display: flex; gap: 1px; padding: 1px; border-radius: 6px; background: var(--hover); }
 .wb-segTiny button {
   border: 0;

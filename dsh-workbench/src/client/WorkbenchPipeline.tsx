@@ -30,6 +30,7 @@ import { permissionLabelKey } from './skill-card/permission.ts'
 import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
+import { WORKBENCH_REGION_BEGIN, WORKBENCH_REGION_END } from '../skill-card-contract.ts'
 import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 
@@ -97,6 +98,8 @@ export interface WorkbenchPipelineProps {
    * @param patch - the fields to set; `null` clears a field.
    */
   readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => Promise<boolean>
+  /** Open one card's own page, which is where its template is written. */
+  readonly openCardPage: (cardId: string) => void
   /** Provider groups the model row offers; empty means the directory answered nothing. */
   readonly modelGroups: readonly WorkbenchModelGroup[]
   /**
@@ -133,6 +136,29 @@ export interface StepCardPatch {
 }
 
 
+/**
+ * The two comments a template marks its region with, taken from the contract so a renamed
+ * marker cannot leave this view highlighting text that no longer means anything.
+ */
+const REGION_MARKER = new RegExp(`(<!--\\s*(?:${WORKBENCH_REGION_BEGIN}|${WORKBENCH_REGION_END})\\s*-->)`)
+
+/**
+ * Render template source with the region markers called out.
+ * @param source - the template as stored.
+ * @returns the text with each marker wrapped for emphasis.
+ */
+function regionMarked(source: string): ReactNode {
+  return (
+    <>
+      {source.split(REGION_MARKER).map((part, index) => (
+        index % 2 === 1
+          ? <span key={index} className={css.mk}>{part}</span>
+          : part
+      ))}
+    </>
+  )
+}
+
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
 
@@ -162,7 +188,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
     pipelines, run, facts, api, renderCard, onCreateCard, t,
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
-    patchStepCards, modelGroups, workspacePicker,
+    patchStepCards, modelGroups, workspacePicker, openCardPage,
   } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
@@ -1024,7 +1050,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                                 : () => { chooseWorkspaceForSteps() }}
                               problem={configProblem}
                               t={t}
-                              onEdit={() => { openReader(selected.cardId) }}
+                              onEdit={() => { openCardPage(selected.cardId) }}
                               onPatch={applyPatch}
                             />
                           </div>
@@ -1623,7 +1649,16 @@ function ConfigPanel(props: {
                 </div>
               </div>
               )
-            : <pre className={css.docSrc} data-cfg-source="">{template}</pre>}
+            : (
+              <div>
+                {/* The prototype marks the region between the two markers: it is the one part
+                    the model rewrites on every run, and it is invisible inside 90 lines. */}
+                <p className={css.srcNote}>{t('pipeCfgSourceNote')}</p>
+                <pre className={css.docSrc} data-cfg-source="">{regionMarked(template)}</pre>
+              </div>
+              )}
+        {/* The editor for a template is the card's own page, which is where a template is
+            written; this button opens that page for this step's card. */}
         <button type="button" className={`${css.btn} ${css.ghost}`} data-edit-card="" onClick={onEdit}>
           {t('pipeCfgEdit')}
         </button>

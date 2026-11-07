@@ -108,7 +108,7 @@ function props(options: {
   catalog?: () => Promise<WorkbenchCatalogRead>
   /** The stored cards the transport holds; the default pair is enough for most cases. */
   cardViews?: typeof CARD_VIEWS
-  /** Whether card writes land; alse models a store that refuses the change. */
+  /** Whether card writes land; false models a store that refuses the change. */
   cardWriteLands?: boolean
   /** The directory chooser this page offers; the default answers one path. */
   picker?: WorkbenchWorkspacePicker
@@ -118,6 +118,7 @@ function props(options: {
   writes: WorkbenchPipelinePatch[]
   cardWrites: WorkbenchSkillCardPatch[]
   reads: number[]
+  openedCards: string[]
 } {
   let snapshot: WorkbenchPipelineSnapshot = {
     apiVersion: 1,
@@ -127,6 +128,8 @@ function props(options: {
   const writes: WorkbenchPipelinePatch[] = []
   const cardWrites: WorkbenchSkillCardPatch[] = []
   const reads: number[] = []
+  /** Cards whose own page was opened; the template block's button is the one that does. */
+  const openedCards: string[] = []
   // The card store the config views read and the picker writes: creating a step's card
   // goes through the same transport as the card pages, so the fake has to hold state.
   let cardSnapshot: WorkbenchCardSnapshot = {
@@ -198,12 +201,12 @@ function props(options: {
       workspacePicker: options.picker ?? fakeWorkspacePicker().picker,
     },
     closeCard: () => {},
-    openCard: () => {},
+    openCard: (cardId: string) => { openedCards.push(cardId) },
     renderSlot: (() => null) as unknown as PageProps['renderSlot'],
     t,
     ...options.overrides ?? {},
   } as unknown as PageProps
-  return { props: merged, writes, cardWrites, reads }
+  return { props: merged, writes, cardWrites, reads, openedCards }
 }
 
 /**
@@ -439,6 +442,45 @@ describe('WorkbenchPage', () => {
       return found as HTMLElement
     })
     expect(problem.textContent).toBe(en.pipeCfgWriteFailed)
+  })
+  it('opens the card page from the template block, because that is where a template is written', async () => {
+    const { openedCards } = await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const edit = document.querySelector('[data-edit-card]') as HTMLButtonElement
+    expect(edit).not.toBeNull()
+    fireEvent.click(edit)
+    // The card's own page holds the template editor; the reader holds a run's output. Sending
+    // this button to the reader would be a button that answers a different question.
+    await waitFor(() => { expect(openedCards).toEqual(['a-card']) })
+  })
+
+  it('switches the template block between preview and source', async () => {
+    // A template that carries the real markers, so the highlighting is what is being read.
+    await renderPage({
+      cardViews: [
+        ...CARD_VIEWS.slice(1),
+        { ...CARD_VIEWS[0]!, template: '<html><body><!-- template-begin --><p>x</p><!-- template-end --></body></html>' },
+      ],
+    })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const sourceTab = document.querySelector('[data-cfg-view="source"]') as HTMLButtonElement
+    fireEvent.click(sourceTab)
+    const source = await waitFor(() => {
+      const found = document.querySelector('[data-cfg-source]')
+      expect(found).not.toBeNull()
+      return found as HTMLElement
+    })
+    // The stored template, with its region markers called out: they say which part the model
+    // rewrites, and they are invisible inside a long template otherwise.
+    expect(source.textContent).toContain('template-begin')
+    expect(source.textContent).toContain('template-end')
+    expect(source.querySelectorAll('.wb-mk').length).toBeGreaterThan(0)
+    fireEvent.click(document.querySelector('[data-cfg-view="preview"]') as HTMLButtonElement)
+    await waitFor(() => { expect(document.querySelector('[data-cfg-source]')).toBeNull() })
   })
   it('states a disabled chooser when the page has no picker', async () => {
     await renderPage({ picker: noWorkspacePicker().picker })

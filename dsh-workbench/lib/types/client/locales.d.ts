@@ -310,6 +310,7 @@ export declare const zh: {
     pipeCfgWorkspaceNoPicker: string;
     pipeCfgInstruction: string;
     pipeCfgInstructionNote: string;
+    pipeCfgSourceNote: string;
     pipeCfgSkillNoNote: string;
     pipeCfgPermission: string;
     pipeCfgWorkspace: string;

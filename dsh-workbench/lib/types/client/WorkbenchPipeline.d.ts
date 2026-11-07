@@ -78,6 +78,8 @@ export interface WorkbenchPipelineProps {
      * @param patch - the fields to set; `null` clears a field.
      */
     readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => Promise<boolean>;
+    /** Open one card's own page, which is where its template is written. */
+    readonly openCardPage: (cardId: string) => void;
     /** Provider groups the model row offers; empty means the directory answered nothing. */
     readonly modelGroups: readonly WorkbenchModelGroup[];
     /**

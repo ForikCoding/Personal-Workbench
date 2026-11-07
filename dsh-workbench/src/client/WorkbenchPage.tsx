@@ -321,6 +321,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         patchStepCards={patchStepCards}
         modelGroups={modelGroups}
         workspacePicker={skillCards.workspacePicker}
+        openCardPage={(cardId) => { openCard(cardId, 'config') }}
         t={t}
       />
     )
