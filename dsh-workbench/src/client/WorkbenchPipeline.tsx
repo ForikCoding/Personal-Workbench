@@ -143,9 +143,27 @@ export interface StepCardPatch {
  * What the preview puts where the model will write.
  *
  * Inline-styled on purpose: it is rendered inside the card's own shadow root, where the
- * workbench's stylesheet does not reach and the template's rules would restyle it.
+ * workbench's stylesheet does not reach and the template's rules would restyle it. The words
+ * come from the locale, because this note is read by a person, not by the template.
+ * @param region - the label for the region, e.g. "区域内容".
+ * @param body - what happens to the region at run time.
+ * @returns the placeholder element as HTML.
  */
-const REGION_PLACEHOLDER = '<div style="margin:10px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px;font-family:ui-monospace,monospace;font-size:11px;color:#8a8f98">区域内容 · 运行时由模型生成</div>'
+function regionPlaceholder(region: string, body: string): string {
+  const chip = 'display:inline-block;padding:2px 7px;border-radius:5px;background:rgba(128,131,138,0.14);font-family:ui-monospace,monospace;font-size:11px'
+  const text = 'font-size:11px;color:#8a8f98'
+  const box = 'margin:12px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px'
+  return `<div style="${box}"><span style="${chip}">${escapeHtml(region)}</span> <span style="${text}">${escapeHtml(body)}</span></div>`
+}
+
+/**
+ * Escape the three characters that would end the text early inside a generated document.
+ * @param text - a locale string.
+ * @returns it, safe to splice into HTML.
+ */
+function escapeHtml(text: string): string {
+  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+}
 
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
@@ -1478,6 +1496,10 @@ function ConfigPanel(props: {
   const [draft, setDraft] = useState(template ?? '')
   useEffect(() => { setDraft(template ?? '') }, [template])
   const [view, setView] = useState<'preview' | 'source'>('preview')
+  // The region is where the model writes; its placeholder is what shows while nothing is written.
+  const placeholder = regionPlaceholder(t('pipeCfgRegion'), t('pipeCfgRegionBody'))
+  const rendered = template === undefined ? '' : filledTemplate(template, placeholder)
+  const regionInTemplate = template !== undefined && rendered !== template
   // What "the whole pipeline" is: the first step's card. The rows that change it write
   // every step's card, which is what "change once, every step follows" promises.
   const model = shared?.model
@@ -1643,16 +1665,23 @@ function ConfigPanel(props: {
               // Nothing to render yet: say what to do, in the place the render will appear.
               ? <p className={css.hint} data-cfg-empty="">{t('pipeCfgNoTemplate')}</p>
               : <div>
-                  <div className={css.tplSlotLabel}>{t('pipeCfgPreviewNote')}</div>
+                  <div className={css.tplSlotLabel} data-cfg-preview-note="">{t('pipeCfgPreviewNote')}</div>
                   {/* The preview is the template rendered in its own styles — the frame is the
-                      card, not a picture of it. The region is replaced by a placeholder, because
-                      what the model will write there does not exist yet. */}
+                      card, not a picture of it. Where the model will write there is a placeholder,
+                      because what it will write does not exist yet. */}
                   <div className={css.tplPreviewBody} data-cfg-preview="">
-                    <ShadowHtml
-                      html={filledTemplate(template, REGION_PLACEHOLDER)}
-                      className={css.tplPreviewFrame}
-                    />
+                    <ShadowHtml html={rendered} className={css.tplPreviewFrame} />
                   </div>
+                  {/* A template from before the region markers existed has nowhere to put the
+                      placeholder, so the note is shown under the frame rather than not at all. */}
+                  {regionInTemplate
+                    ? null
+                    : (
+                      <div className={css.tplRegion} data-cfg-region="">
+                        <span className={css.tplRegionTag}>{t('pipeCfgRegion')}</span>
+                        <span className={css.tplRegionText}>{t('pipeCfgRegionBody')}</span>
+                      </div>
+                      )}
                 </div>
             )
           : (

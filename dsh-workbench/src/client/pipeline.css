@@ -814,6 +814,26 @@
   overflow-y: auto;
 }
 .wb-tplPreviewFrame { display: block; min-height: 120px; }
+
+/* 区域说明：模板里没有区域标记的时候，把它放在框下面，而不是什么都不放 */
+.wb-tplRegion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 12px;
+  border: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 8px;
+}
+.wb-tplRegionTag {
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--hover);
+  color: var(--ink2);
+  font-family: var(--f-mono);
+  font-size: 11px;
+}
+.wb-tplRegionText { font-size: 11px; color: var(--ink3); }
 .wb-segTiny { display: flex; gap: 1px; padding: 1px; border-radius: 6px; background: var(--hover); }
 .wb-segTiny button {
   border: 0;

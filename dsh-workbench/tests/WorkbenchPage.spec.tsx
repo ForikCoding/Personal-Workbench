@@ -523,7 +523,10 @@ describe('WorkbenchPage', () => {
     expect(frame).not.toBeNull()
     // ShadowHtml puts the document in a shadow root on its own host, inside the frame.
     const rendered = frame.querySelector('.wb-tplPreviewFrame')?.shadowRoot?.innerHTML ?? ''
-    expect(rendered).toContain('区域内容')
+    // The line above the frame and the region note are part of the block, not decoration:
+    // they say what the picture is, and where the model's output will land.
+    expect(document.querySelector('[data-cfg-preview-note]')?.textContent).toBe(en.pipeCfgPreviewNote)
+    expect(rendered).toContain(en.pipeCfgRegion)
     // The template's own region text is gone: what the model writes there does not exist yet.
     expect(rendered).not.toContain('<p>old</p>')
   })
