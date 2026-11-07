@@ -164,11 +164,32 @@ function regionPlaceholder(template: string, region: string, body: string): stri
   if (bounds === undefined) return note
   const before = template.slice(0, bounds.start).toLowerCase()
   const open = (tag: string): boolean => before.split(`<${tag}`).length > before.split(`</${tag}`).length
-  if (open('td') || open('th')) return `<td colspan="99" style="padding:4px">${note}</td>`
+  // The span has to be the table's real column count. A bigger number does not "span everything":
+  // it adds columns, each column then gets a share of the width, the header cells collapse to a
+  // few pixels and their unwrapped text draws over its neighbour.
+  const span = columnCount(template)
+  if (open('td') || open('th')) return `<td colspan="${span}" style="padding:4px">${note}</td>`
   if (open('tr') || open('tbody') || open('thead') || open('table')) {
-    return `<tr><td colspan="99" style="padding:4px">${note}</td></tr>`
+    return `<tr><td colspan="${span}" style="padding:4px">${note}</td></tr>`
   }
   return note
+}
+
+/**
+ * How many columns the template's table has.
+ * @param template - the stored template.
+ * @returns the header cell count, else the colgroup count, else the first row's, at least 1.
+ */
+function columnCount(template: string): number {
+  const cells = (scope: string): number => (scope.match(/<t[hd][\s>]/gi) ?? []).length
+  const head = /<thead[\s\S]*?<\/thead>/i.exec(template)?.[0] ?? ''
+  const fromHead = cells(head)
+  if (fromHead > 0) return fromHead
+  const fromCols = (template.match(/<col[\s>]/gi) ?? []).length
+  if (fromCols > 0) return fromCols
+  const row = /<tr[\s\S]*?<\/tr>/i.exec(template)?.[0] ?? ''
+  const fromRow = cells(row)
+  return Math.max(1, Math.min(24, fromRow > 0 ? fromRow : 1))
 }
 
 /**

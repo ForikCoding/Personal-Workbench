@@ -535,7 +535,11 @@ describe('WorkbenchPage', () => {
     // row, so the parser lifts it above the table — the note then sits over the header it
     // belongs under. This template is the shape the real cards have.
     const [first, ...rest] = CARD_VIEWS
-    const table = '<html><body><table><thead><tr><th>Head</th></tr></thead><tbody><!-- template-begin --><!-- template-end --></tbody></table></body></html>'
+    // Seven columns, the way the real cards lay one out. The span must be exactly that: an
+    // oversized colspan adds columns, the header cells then collapse and their text overlaps.
+    const table = '<html><body><table><colgroup><col><col><col><col><col><col><col></colgroup><thead><tr>'
+      + '<th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th>'
+      + '</tr></thead><tbody><!-- template-begin --><!-- template-end --></tbody></table></body></html>'
     await renderPage({
       cardViews: [{ ...first!, template: table }, ...rest] as typeof CARD_VIEWS,
     })
@@ -552,8 +556,10 @@ describe('WorkbenchPage', () => {
     const rendered = shadow.innerHTML
     expect(rendered).toContain(en.pipeCfgRegion)
     // Under the header, not above it, and still inside the body of the table.
-    expect(rendered.indexOf('Head')).toBeLessThan(rendered.indexOf(en.pipeCfgRegion))
-    expect(shadow.querySelector('tbody td')).not.toBeNull()
+    expect(rendered.indexOf('<th>A</th>')).toBeLessThan(rendered.indexOf(en.pipeCfgRegion))
+    const cell = shadow.querySelector('tbody td')
+    expect(cell).not.toBeNull()
+    expect(cell?.getAttribute('colspan')).toBe('7')
   })
 
   it('states a disabled chooser when the page has no picker', async () => {
