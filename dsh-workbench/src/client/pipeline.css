@@ -776,23 +776,34 @@
 
 /* 源码那一栏：卡片的 HTML 模板全文，等宽、可滚、底色压暗。
    区域标记之间就是模型每次执行要替换的那段。 */
+/* 编辑框：字是原型那套（等宽 11px / 17px 行高 / 圆角 10px），但底色和字色得是
+   「可以在这里打字」的样子——压暗的底 + 次要墨色读起来就是个禁用的块。 */
 .wb-docSrc {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0;
   padding: 10px 12px;
   border: 0.5px solid var(--divider);
   border-radius: 10px;
-  background: var(--recess);
-  color: var(--ink2);
+  background: var(--card-bg);
+  color: var(--ink);
   font-family: var(--f-mono);
   font-size: 11px;
   line-height: 17px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 420px;
+  min-height: 160px;
   overflow-y: auto;
+  resize: vertical;
+  cursor: text;
 }
-/* 编辑框和原来的只读源码同一套字：等宽 11px、17px 行高、底色压暗 */
-.wb-docSrc { width: 100%; box-sizing: border-box; min-height: 160px; resize: vertical; }
+.wb-docSrc:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}
 
 /* 预览是模板自己的渲染：外面这层只负责给个框和滚动，里面长什么样由模板决定 */
 .wb-tplPreviewBody {

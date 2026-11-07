@@ -866,8 +866,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   padding: 10px 12px;
   border: 0.5px solid var(--divider);
   border-radius: 10px;
-  background: var(--recess);
-  color: var(--ink2);
+  /* 能编辑的框得看起来能编辑：压暗的底 + 次要墨色读起来像禁用 */
+  background: var(--card-bg);
+  color: var(--ink);
+  cursor: text;
   font-family: var(--f-mono);
   font-size: 11px;
   line-height: 17px;
@@ -879,8 +881,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 /* 区域标记要能一眼看见，否则一段 90 行的模板里找不到「模型写哪儿」 */
 .docSrc .mk { color: var(--accent); }
 
-/* 编辑框和只读的源码同一套字：等宽 11px、17px 行高、底色压暗 */
-.docSrc { width: 100%; box-sizing: border-box; min-height: 160px; resize: vertical; }
+/* 编辑框和只读的源码同一套字：等宽 11px、17px 行高 */
+.docSrc { display: block; width: 100%; box-sizing: border-box; min-height: 160px; resize: vertical; }
+.docSrc:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-wash); }
 .segTiny { display: flex; gap: 1px; padding: 1px; border-radius: 6px; background: var(--hover); }
 .segTiny button {
   border: 0;

@@ -1473,8 +1473,11 @@ function ConfigPanel(props: {
   readonly problem: string | undefined
 }): ReactNode {
   const { step, shared, models, skills, t, onSaveTemplate, onPatch, onPickWorkspace, problem } = props
-  const [view, setView] = useState<'preview' | 'source'>('preview')
   const template = step.card?.template
+  // The box owns what the user is typing; the card owns what is stored. They meet on blur.
+  const [draft, setDraft] = useState(template ?? '')
+  useEffect(() => { setDraft(template ?? '') }, [template])
+  const [view, setView] = useState<'preview' | 'source'>('preview')
   // What "the whole pipeline" is: the first step's card. The rows that change it write
   // every step's card, which is what "change once, every step follows" promises.
   const model = shared?.model
@@ -1653,17 +1656,19 @@ function ConfigPanel(props: {
               )
             : (
               /* 「源码」就是一个编辑框，和原型同一块地方：模板在这里读，也在这里改。
+                 值由本地 draft 拿着，而不是 defaultValue：这张面板会跟着运行状态重渲染，
+                 非受控输入框碰上重渲染就是"打字打不进去"的经典现场。
                  失焦才写，理由和目录一样——逐键写等于每敲一个字重写一遍卡片。 */
               <textarea
                 className={css.docSrc}
                 data-cfg-template=""
                 aria-label={t('pipeCfgSource')}
                 spellCheck={false}
-                defaultValue={template}
-                onBlur={(event) => {
-                  const next = event.currentTarget.value
-                  if (next === template) return
-                  onSaveTemplate(next)
+                value={draft}
+                onChange={(event) => { setDraft(event.target.value) }}
+                onBlur={() => {
+                  if (draft === template) return
+                  onSaveTemplate(draft)
                 }}
               />
               )}

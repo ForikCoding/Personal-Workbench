@@ -458,7 +458,18 @@ describe('WorkbenchPage', () => {
     // written here. A read-only view would make this block a poster of a template.
     expect(box.tagName).toBe('TEXTAREA')
     expect(box.value).toContain('<html>')
-    fireEvent.blur(box, { target: { value: '<html><body>typed by the user</body></html>' } })
+    // Editable means editable, not "has a box": no attribute here may disable it, and the
+    // caret has to be able to sit in it. A read-only slab that looks like a field is the
+    // exact thing this block was rebuilt to stop being.
+    expect(box.disabled).toBe(false)
+    expect(box.readOnly).toBe(false)
+    box.focus()
+    expect(document.activeElement).toBe(box)
+    fireEvent.change(box, { target: { value: '<p>typed</p>' } })
+    expect(box.value).toBe('<p>typed</p>')
+    // Type, then leave the field: the box is controlled, so the value arrives as a change.
+    fireEvent.change(box, { target: { value: '<html><body>typed by the user</body></html>' } })
+    fireEvent.blur(box)
     await waitFor(() => { expect(cardWrites).toHaveLength(1) })
     expect(cardWrites[0]?.template).toEqual({ skill: 'git-repo', html: '<html><body>typed by the user</body></html>' })
   })
