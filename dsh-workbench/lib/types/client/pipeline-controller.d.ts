@@ -46,8 +46,9 @@ export interface WorkbenchPipelinesFace extends WorkbenchPipelinesState {
      * Replace one pipeline's steps.
      * @param id - pipeline to edit.
      * @param steps - the complete new step list.
+     * @returns whether the steps were stored; a conflict stores the Host's set instead.
      */
-    setSteps(id: string, steps: readonly WorkbenchPipelineStep[]): Promise<void>;
+    setSteps(id: string, steps: readonly WorkbenchPipelineStep[]): Promise<boolean>;
     /** Read the stored set again. */
     reload(): void;
 }

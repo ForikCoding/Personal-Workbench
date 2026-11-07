@@ -121,6 +121,7 @@ export const css = {
   pickerEmpty: 'wb-pickerEmpty',
   pickerHead: 'wb-pickerHead',
   pickerList: 'wb-pickerList',
+  pickerProblem: 'wb-pickerProblem',
   pickerRow: 'wb-pickerRow',
   pickerRowDesc: 'wb-pickerRowDesc',
   pickerRowMain: 'wb-pickerRowMain',

@@ -110,6 +110,15 @@ function props(options: {
   cardViews?: typeof CARD_VIEWS
   /** Whether card writes land; false models a store that refuses the change. */
   cardWriteLands?: boolean
+  /**
+   * Whether the card store moved past this page before the first write lands.
+   *
+   * That is what a finished run does: it stores its result in the same domain, so the
+   * revision the page read at load is no longer current by the time the user edits.
+   */
+  cardMovedSinceLoad?: boolean
+  /** The same, for the pipeline store: another window stored the pipelines this page holds. */
+  pipelineMovedSinceLoad?: boolean
   /** The directory chooser this page offers; the default answers one path. */
   picker?: WorkbenchWorkspacePicker
   overrides?: Partial<PageProps>
@@ -148,6 +157,11 @@ function props(options: {
       },
       async write(patch: WorkbenchPipelinePatch) {
         writes.push(patch)
+        if (options.pipelineMovedSinceLoad === true && writes.length === 1) {
+          // Stored elsewhere since this page's read: the base it names is no longer current.
+          snapshot = { ...snapshot, revision: `${snapshot.revision}+other` }
+          return { status: 'conflict' as const, snapshot }
+        }
         if (patch.baseRevision !== snapshot.revision) {
           return { status: 'conflict' as const, snapshot }
         }
@@ -165,6 +179,12 @@ function props(options: {
         write: async (patch: WorkbenchSkillCardPatch) => {
           cardWrites.push(patch)
           if (options.cardWriteLands === false) {
+            return { status: 'conflict' as const, snapshot: cardSnapshot }
+          }
+          // The store moved after this page read it, so the first write names a revision the
+          // Host no longer holds — and the Host answers with the one it does.
+          if (options.cardMovedSinceLoad === true && cardWrites.length === 1) {
+            cardSnapshot = { ...cardSnapshot, revision: `${cardSnapshot.revision}+run` }
             return { status: 'conflict' as const, snapshot: cardSnapshot }
           }
           cardSnapshot = {
@@ -291,6 +311,61 @@ describe('WorkbenchPage', () => {
       { cardId: 'a-card' },
       { cardId: cardWrites[0]?.cardId },
     ])
+  })
+
+  it('adds the step anyway when a run moved the store past this page', async () => {
+    // The revision a run leaves behind is the reason "add a step" used to do nothing: the
+    // write named a revision the Host had already moved past, was refused as a conflict, and
+    // the refusal was dropped on the floor. The conflict carries the current revision, so the
+    // write can simply be asked again.
+    const { writes, cardWrites } = await renderPage({
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })],
+      cardMovedSinceLoad: true,
+    })
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
+    fireEvent.click(document.querySelector('[data-pick-skill="design-doc"]') as HTMLElement)
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    // One refusal, then the same card made for real: no orphan card is left behind.
+    expect(cardWrites).toHaveLength(2)
+    expect(cardWrites[0]?.cardId).toBe(cardWrites[1]?.cardId)
+    expect(writes[0]?.pipelines[0]?.steps).toEqual([
+      { cardId: 'a-card' },
+      { cardId: cardWrites[1]?.cardId },
+    ])
+    expect(document.querySelector('[data-picker-problem]')).toBeNull()
+    expect(document.querySelector('[data-picker-title]')).toBeNull()
+  })
+
+  it('adds the step even when the pipeline set was stored by someone else meanwhile', async () => {
+    // The same staleness one store over. A conflict answers with what is stored, so the step
+    // list can be written again against it instead of the step quietly not appearing.
+    const { writes } = await renderPage({
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })],
+      pipelineMovedSinceLoad: true,
+    })
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
+    fireEvent.click(document.querySelector('[data-pick-skill="design-doc"]') as HTMLElement)
+    await waitFor(() => { expect(writes).toHaveLength(2) })
+    expect(writes[1]?.pipelines[0]?.steps).toHaveLength(2)
+    expect(document.querySelector('[data-picker-title]')).toBeNull()
+  })
+
+  it('keeps the picker up and says why when the step could not be added', async () => {
+    // A control that does nothing at all reads as broken. The picker stays, and the reason
+    // for the missing step is written where the click was made.
+    const { writes } = await renderPage({
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })],
+      cardWriteLands: false,
+    })
+    fireEvent.click(await screen.findByText(en.pipeAddStep))
+    fireEvent.click(document.querySelector('[data-pick-skill="design-doc"]') as HTMLElement)
+    await waitFor(() => { expect(document.querySelector('[data-picker-problem]')).not.toBeNull() })
+    expect(document.querySelector('[data-picker-problem]')?.textContent).toBe(
+      en.pipeAddProblem.replace('{reason}', 'the stored cards kept changing'),
+    )
+    // Nothing was stored, so the canvas still shows the pipeline it showed before.
+    expect(writes).toHaveLength(0)
+    expect(document.querySelector('[data-picker-title]')).not.toBeNull()
   })
 
   it('refuses a skill that is already in the pipeline', async () => {

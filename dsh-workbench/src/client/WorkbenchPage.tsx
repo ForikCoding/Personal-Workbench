@@ -215,24 +215,81 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
   useEffect(() => { reloadCatalog() }, [reloadCatalog])
 
   /**
+   * Send one card write, and retry it once when the revision it names is out of date.
+   *
+   * The page's revision is only as fresh as the last snapshot it applied, and another writer
+   * moves it: a finished run stores its result in the same domain, so every cached revision
+   * of the card store is out of date the moment a step finishes. Treating that as a failure
+   * is what made "add a step" do nothing at all after a run — the write was refused as a
+   * conflict and the refusal was dropped. A conflict is answered with the state the Host
+   * really holds, so the page can adopt it and ask once more.
+   * @param send - builds the write for one base revision.
+   * @returns the write that landed, or the last refusal.
+   */
+  const writeCard = useCallback(async (
+    send: (baseRevision: string) => Parameters<WorkbenchSkillCardApi['write']>[0],
+  ): Promise<{ readonly status: 'ok'; readonly snapshot: WorkbenchCardSnapshot }
+  | { readonly status: 'failed'; readonly reason: string; readonly snapshot?: WorkbenchCardSnapshot }> => {
+    let base = revision
+    for (let attempt = 0; ; attempt += 1) {
+      const result = await skillCards.api.write(send(base))
+      if (result.status === 'ok') {
+        applySnapshot(result.snapshot)
+        return { status: 'ok', snapshot: result.snapshot }
+      }
+      if (result.status !== 'conflict') return { status: 'failed', reason: result.reason }
+      // The conflict carries the truth; adopting it also makes the next attempt correct.
+      applySnapshot(result.snapshot)
+      base = result.snapshot.revision
+      if (attempt >= 1) {
+        return { status: 'failed', reason: 'the stored cards kept changing', snapshot: result.snapshot }
+      }
+    }
+  }, [applySnapshot, revision, skillCards.api])
+
+  /**
    * Make the card one skill runs as, so a picked skill becomes a step.
    *
    * A step holds a card id, not a skill, because the card is where the template, model and
    * workspace live. The name starts as the skill's own name, which is what the step then
    * shows; the user can rename it on the card.
    * @param skill - the picked skill.
-   * @returns the new card's id, or undefined when the write failed.
+   * @returns the new card's id, or why no card could be made.
    */
-  const createCardForSkill = useCallback(async (skill: string): Promise<string | undefined> => {
-    const taken = new Set(facts.map(card => card.id))
-    let index = 1
-    while (taken.has(`${SKILL_CARD_ID}-${String(index)}`)) index += 1
-    const cardId = `${SKILL_CARD_ID}-${String(index)}`
-    const result = await skillCards.api.write({ baseRevision: revision, cardId, name: skill, skill })
-    if (result.status !== 'ok') return undefined
-    applySnapshot(result.snapshot)
-    return cardId
-  }, [applySnapshot, facts, revision, skillCards.api])
+  const createCardForSkill = useCallback(async (
+    skill: string,
+  ): Promise<{ readonly cardId: string } | { readonly reason: string }> => {
+    // The id is chosen from the cards the Host reports, not from this page's list: a stale
+    // list would name an id that already exists, and the picker would be refused for it.
+    let known = facts.map(card => card.id)
+    let reason = 'no card could be made'
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const taken = new Set(known)
+      let index = 1
+      while (taken.has(`${SKILL_CARD_ID}-${String(index)}`)) index += 1
+      const cardId = `${SKILL_CARD_ID}-${String(index)}`
+      const written = await writeCard(base => ({ baseRevision: base, cardId, name: skill, skill }))
+      if (written.status === 'ok') return { cardId }
+      reason = written.reason
+      // An id the Host already holds is the one failure a second attempt can answer, because
+      // it is the one this page knows how to fix: renumber against what was just reported.
+      known = written.snapshot === undefined ? known : written.snapshot.cards.map(card => card.cardId)
+    }
+    return { reason }
+  }, [facts, writeCard])
+
+  /**
+   * Take back one card this page made a moment ago.
+   *
+   * Used when the card was made for a step and the step could not be stored: leaving it
+   * would put a card on the board that nothing asked for, one per failed click.
+   * @param cardId - the card to remove.
+   * @returns whether it is gone.
+   */
+  const removeCard = useCallback(async (cardId: string): Promise<boolean> => {
+    const written = await writeCard(base => ({ baseRevision: base, cardId, remove: true }))
+    return written.status === 'ok'
+  }, [writeCard])
 
   /**
    * Rename one card, which is what a step's name is.
@@ -243,26 +300,21 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
    * @param name - the new name.
    */
   const renameCard = useCallback((cardId: string, name: string) => {
-    void skillCards.api.write({ baseRevision: revision, cardId, name }).then((result) => {
-      if (result.status === 'ok') applySnapshot(result.snapshot)
-    })
-  }, [applySnapshot, revision, skillCards.api])
+    void writeCard(base => ({ baseRevision: base, cardId, name }))
+  }, [writeCard])
 
   // "Change the whole pipeline once" is a write per card, in step order, each with the
   // revision the last one produced: the same base for all of them would make every write
   // but the first a conflict.
   const patchStepCards = useCallback(async (cardIds: readonly string[], patch: StepCardPatch): Promise<boolean> => {
-    let base = revision
     for (const cardId of cardIds) {
-      const result = await skillCards.api.write({ baseRevision: base, cardId, ...patch })
+      const written = await writeCard(base => ({ baseRevision: base, cardId, ...patch }))
       // A refusal is reported to the caller rather than swallowed: a control that silently
       // does nothing reads as a broken control, and the reason is the only useful part.
-      if (result.status !== 'ok') return false
-      base = result.snapshot.revision
-      applySnapshot(result.snapshot)
+      if (written.status !== 'ok') return false
     }
     return true
-  }, [applySnapshot, revision, skillCards.api])
+  }, [writeCard])
 
   /**
    * Store one card's template.
@@ -275,11 +327,9 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
    * @returns whether the write landed.
    */
   const saveStepTemplate = useCallback(async (cardId: string, html: string, skill: string): Promise<boolean> => {
-    const result = await skillCards.api.write({ baseRevision: revision, cardId, template: { skill, html } })
-    if (result.status !== 'ok') return false
-    applySnapshot(result.snapshot)
-    return true
-  }, [applySnapshot, revision, skillCards.api])
+    const written = await writeCard(base => ({ baseRevision: base, cardId, template: { skill, html } }))
+    return written.status === 'ok'
+  }, [writeCard])
 
   // The model row lists what the directory knows. Subscribing is also the mount path that
   // asks it for a catalog, so the row has options the first time the tab is opened.
@@ -334,6 +384,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         catalogFailure={catalogFailure}
         onCatalogNeeded={reloadCatalog}
         createCardForSkill={createCardForSkill}
+        removeCard={removeCard}
         renameStepCard={renameCard}
         patchStepCards={patchStepCards}
         modelGroups={modelGroups}

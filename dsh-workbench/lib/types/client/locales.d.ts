@@ -307,6 +307,7 @@ export declare const zh: {
     pipeScopeRefined: string;
     pipeRunOfSingleNo: string;
     pipeRunOfSingleNoTitle: string;
+    pipeAddProblem: string;
     pipeQueued: string;
     pipeWorking: string;
     pipeNeverRan: string;

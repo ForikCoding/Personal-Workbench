@@ -84,7 +84,11 @@ export interface WorkbenchPipelineProps {
    * @param skill - the skill to bind the new card to.
    * @returns the new card's id, or undefined when the card could not be created.
    */
-  readonly createCardForSkill: (skill: string) => Promise<string | undefined>
+  readonly createCardForSkill: (
+    skill: string,
+  ) => Promise<{ readonly cardId: string } | { readonly reason: string }>
+  /** Remove one card this panel made, when the step it was made for was refused. */
+  readonly removeCard: (cardId: string) => Promise<boolean>
   /**
    * Rename the card one step runs as, which is the name the step shows.
    * @param cardId - the step's card.
@@ -232,7 +236,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
     pipelines, run, facts, api, renderCard, onCreateCard, t,
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
-    patchStepCards, modelGroups, workspacePicker, saveStepTemplate,
+    patchStepCards, modelGroups, workspacePicker, saveStepTemplate, removeCard,
   } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
@@ -251,6 +255,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [renaming, setRenaming] = useState<string | undefined>(undefined)
   const [picker, setPicker] = useState<{ readonly at: number } | undefined>(undefined)
   const [pickerQuery, setPickerQuery] = useState('')
+  /** Why the step the user just picked was not added, stated in the picker that asked. */
+  const [pickerProblem, setPickerProblem] = useState<string | undefined>(undefined)
   const [reader, setReader] = useState<{ readonly cardId: string } | undefined>(undefined)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyAt, setHistoryAt] = useState<number | undefined>(undefined)
@@ -433,20 +439,32 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     return pickerQuery.trim() === '' ? t('skillCardCatalogEmpty') : t('pipePickerEmpty')
   }
 
-  const writeSteps = useCallback(async (steps: readonly WorkbenchPipelineStep[]) => {
-    if (active === undefined) return
-    await pipelines.setSteps(active.id, steps)
+  const writeSteps = useCallback(async (steps: readonly WorkbenchPipelineStep[]): Promise<boolean> => {
+    if (active === undefined) return false
+    return await pipelines.setSteps(active.id, steps)
   }, [active, pipelines])
 
-  const insertStep = useCallback(async (cardId: string, at: number) => {
-    if (active === undefined) return
-    if (active.steps.some(step => step.cardId === cardId)) return
+  /**
+   * Put one card into the pipeline at a slot.
+   *
+   * The picker closes only after the steps are stored: a step that failed to write would
+   * otherwise leave the dialog gone and the canvas unchanged, which reads as a click that
+   * did nothing at all.
+   * @param cardId - the card the step runs.
+   * @param at - zero-based slot.
+   * @returns whether the steps were stored.
+   */
+  const insertStep = useCallback(async (cardId: string, at: number): Promise<boolean> => {
+    if (active === undefined) return false
+    if (active.steps.some(step => step.cardId === cardId)) return false
     const next = [...active.steps]
     next.splice(at, 0, { cardId })
+    const written = await writeSteps(next)
+    if (!written) return false
     setPicker(undefined)
     setPickerQuery('')
-    await writeSteps(next)
     setFocus({ kind: 'step', index: at })
+    return true
   }, [active, writeSteps])
 
   /** Open the picker at one slot, and make sure the skills it lists are the current ones. */
@@ -454,6 +472,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     onCatalogNeeded()
     setPicker({ at })
     setPickerQuery('')
+    // A reason stated for the previous attempt belongs to that attempt, not to this one.
+    setPickerProblem(undefined)
   }, [onCatalogNeeded])
 
   /**
@@ -464,10 +484,20 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const addSkillStep = useCallback(async (skill: string) => {
     if (picker === undefined) return
     const at = picker.at
-    const cardId = await createCardForSkill(skill)
-    if (cardId === undefined) return
-    await insertStep(cardId, at)
-  }, [createCardForSkill, insertStep, picker])
+    setPickerProblem(undefined)
+    const made = await createCardForSkill(skill)
+    // What the Host said, in its own words: a card that could not be made is the reason the
+    // step is missing, and it is the only thing that can tell a user what to do about it.
+    if ('reason' in made) {
+      setPickerProblem(t('pipeAddProblem', { reason: made.reason }))
+      return
+    }
+    if (await insertStep(made.cardId, at)) return
+    // The card is not a step: take it back, so a click that fails leaves nothing behind and
+    // the next click does not add one more orphan card to the board.
+    await removeCard(made.cardId)
+    setPickerProblem(t('pipeAddProblem', { reason: t('pipeCfgWriteFailed') }))
+  }, [createCardForSkill, insertStep, picker, removeCard, t])
 
   const moveStep = useCallback(async (index: number, delta: number) => {
     if (active === undefined) return
@@ -1562,6 +1592,9 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 {pickerRows.length === 0
                   ? <p className={css.pickerEmpty}>{pickerEmptyText()}</p>
                   : null}
+                {pickerProblem === undefined
+                  ? null
+                  : <p className={css.pickerProblem} data-picker-problem="">{pickerProblem}</p>}
               </div>
             </div>
           </div>

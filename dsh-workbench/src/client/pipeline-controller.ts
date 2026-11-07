@@ -51,8 +51,9 @@ export interface WorkbenchPipelinesFace extends WorkbenchPipelinesState {
    * Replace one pipeline's steps.
    * @param id - pipeline to edit.
    * @param steps - the complete new step list.
+   * @returns whether the steps were stored; a conflict stores the Host's set instead.
    */
-  setSteps(id: string, steps: readonly WorkbenchPipelineStep[]): Promise<void>
+  setSteps(id: string, steps: readonly WorkbenchPipelineStep[]): Promise<boolean>
   /** Read the stored set again. */
   reload(): void
 }
@@ -122,24 +123,42 @@ export function usePipelines(api: WorkbenchPipelineApi): WorkbenchPipelinesFace 
 
   useEffect(() => { reload() }, [reload])
 
-  // One mutation at a time, each building the next set from the newest snapshot.
-  const mutate = useCallback((change: (current: readonly WorkbenchPipeline[]) => readonly WorkbenchPipeline[] | undefined) => {
+  // One mutation at a time, each building the next set from the newest snapshot. The result
+  // says whether the change is what the Host now holds: a caller that shows a step only once
+  // it is stored has to be able to tell a landed write from a refused one.
+  const mutate = useCallback(async (
+    change: (current: readonly WorkbenchPipeline[]) => readonly WorkbenchPipeline[] | undefined,
+  ): Promise<boolean> => {
+    let written = false
     const task = tail.current.then(async () => {
-      const snapshot = newest.current
-      if (snapshot === undefined) return
-      const next = change(snapshot.pipelines)
-      if (next === undefined) return
-      const result = await api.write({ baseRevision: snapshot.revision, pipelines: next })
-      if (result.status === 'failed') {
-        setState(current => ({ ...current, notice: result.reason }))
+      // Twice at most: a conflict hands back the state the Host really holds, so the change
+      // can be rebuilt against it once. A second conflict is someone else editing too, and
+      // then the page reports what is stored instead of insisting.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const snapshot = newest.current
+        if (snapshot === undefined) return
+        const next = change(snapshot.pipelines)
+        if (next === undefined) return
+        const result = await api.write({ baseRevision: snapshot.revision, pipelines: next })
+        if (result.status === 'failed') {
+          setState(current => ({ ...current, notice: result.reason }))
+          return
+        }
+        if (result.status === 'conflict' && attempt === 0) {
+          // The truth first, then the same change asked again against it.
+          apply(result.snapshot)
+          continue
+        }
+        // A conflict is answered with the state the Host actually holds, so the page shows
+        // what is stored rather than what this window wished for.
+        apply(result.snapshot, result.status === 'conflict' ? 'conflict' : undefined)
+        written = result.status === 'ok'
         return
       }
-      // A conflict is answered with the state the Host actually holds, so the page shows
-      // what is stored rather than what this window wished for.
-      apply(result.snapshot, result.status === 'conflict' ? 'conflict' : undefined)
     })
     tail.current = task.catch(() => undefined)
-    return task
+    await task.catch(() => undefined)
+    return written
   }, [api, apply])
 
   const create = useCallback(async (name: string) => {
@@ -172,11 +191,11 @@ export function usePipelines(api: WorkbenchPipelineApi): WorkbenchPipelinesFace 
     await mutate(current => current.filter(pipeline => pipeline.id !== id))
   }, [mutate])
 
-  const setSteps = useCallback(async (id: string, steps: readonly WorkbenchPipelineStep[]) => {
+  const setSteps = useCallback(async (id: string, steps: readonly WorkbenchPipelineStep[]): Promise<boolean> => (
     await mutate(current => current.map(pipeline => (
       pipeline.id === id ? { ...pipeline, steps, updatedAt: Date.now() } : pipeline
     )))
-  }, [mutate])
+  ), [mutate])
 
   return { ...state, create, rename, remove, setSteps, reload }
 }

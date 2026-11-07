@@ -61,7 +61,13 @@ export interface WorkbenchPipelineProps {
      * @param skill - the skill to bind the new card to.
      * @returns the new card's id, or undefined when the card could not be created.
      */
-    readonly createCardForSkill: (skill: string) => Promise<string | undefined>;
+    readonly createCardForSkill: (skill: string) => Promise<{
+        readonly cardId: string;
+    } | {
+        readonly reason: string;
+    }>;
+    /** Remove one card this panel made, when the step it was made for was refused. */
+    readonly removeCard: (cardId: string) => Promise<boolean>;
     /**
      * Rename the card one step runs as, which is the name the step shows.
      * @param cardId - the step's card.

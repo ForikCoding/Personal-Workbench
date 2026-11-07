@@ -1289,6 +1289,16 @@
 .wb-pickerRowTitle { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-pickerRowDesc { display: block; margin-top: 1px; font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-pickerEmpty { padding: 16px 8px; text-align: center; color: var(--ink4); font-size: 12px; }
+/* 加了没加上：原因写在点它的地方，而不是让按钮看着像坏了 */
+.wb-pickerProblem {
+  margin: 6px 2px 2px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--err-bg, rgba(198, 40, 40, 0.08));
+  color: var(--err, #c62828);
+  font-size: 12px;
+  line-height: 18px;
+}
 
 /* ------------------------------------------------------------ 运行记录 */
 /*
