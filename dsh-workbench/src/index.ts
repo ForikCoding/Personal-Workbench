@@ -7,6 +7,7 @@
  * @module dsh-workbench
  */
 
+import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-storage'
@@ -36,6 +37,8 @@ import type {
 } from './skill-card-host.ts'
 import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import { statDirectory } from './skill-card-directory.ts'
+import { createWorkbenchLocalSkillProvider } from './skill-card-local-skills.ts'
+import type { WorkbenchSkillRegistrySeam } from './skill-card-local-skills.ts'
 import { createWorkbenchSkillCardFilesHandler } from './skill-card-files-route.ts'
 import { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
 import { cardSelection } from './skill-card-runner.ts'
@@ -186,7 +189,22 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
   ctx.effect(async () => {
     const host = ctx as unknown as WorkbenchHostContext
     const runtime = ctx as unknown as WorkbenchSkillCardHost
-    // The narrow host is assembled here rather than handed on as the bare cast. Every other
+    // One provider belongs to this composition rather than to a card: the packaged desktop
+    // mounts `skill-filesystem` inside each agent preset, and that row is skipped whole when
+    // its bundled root inside `app.asar` cannot be listed — taking `~/.agents/skills` with it
+    // and leaving every catalog, this picker included, without a user's own skills. A provider
+    // the workbench owns reads the same local roots with no archive path in it, and registers
+    // at host scope, so the fix reaches every read rather than only cards already started.
+    const skillRegistry = ctx.get('skills') as WorkbenchSkillRegistrySeam | undefined
+    if (skillRegistry?.registerProvider !== undefined) {
+      ctx.effect(
+        () => skillRegistry.registerProvider(() => createWorkbenchLocalSkillProvider({
+          home: homedir(),
+          warn: (message) => { ctx.logger.warn(message) },
+        })),
+        'workbench: local skill provider',
+      )
+    }    // The narrow host is assembled here rather than handed on as the bare cast. Every other
     // member is a service this composition provides, but the sandbox setter is not a service
     // at all — it is one session event — so it has to be attached explicitly. Reading a
     // member that no service provides off a wide cast compiles and does nothing at run time,

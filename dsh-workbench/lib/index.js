@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
 import { z } from "zod";
 import { constants } from "node:fs";
@@ -1343,6 +1344,218 @@ async function isWritable(path) {
 	} catch {
 		return false;
 	}
+}
+//#endregion
+//#region src/skill-card-local-skills.ts
+/**
+* Local skill discovery for the workbench, as its own `ctx.skills` provider.
+*
+* The shipped composition mounts `skill-filesystem` inside each agent preset, and in the
+* packaged desktop that row is dropped before any of its roots is read. Its bundled
+* `customSkillDirs` points inside `app.asar`, the filesystem service cannot list an archive
+* path, and one unlistable root fails the whole provider:
+*
+*     warn skill-registry: skill provider "filesystem" skipped:
+*     FsError: cannot list "…\resources\app.asar\node_modules\@deepseek-ai\dsh-agent-preset\skills"
+*
+* The preset's local roots therefore contribute nothing — not the bundled ones, and not
+* `~/.agents/skills` either, which is why a user's own skills never reach any catalog built
+* from this harness. Editing the pinned upstream or repackaging the desktop are not options
+* here, so the workbench reads the same local roots through a provider of its own: no asar
+* path is involved, and the read no longer depends on the preset row that is being skipped.
+*
+* Deliberately narrow: directory bundles with a `SKILL.md` at their root, the four roots a
+* local user keeps skills in, and the frontmatter the picker and the run prompt need. It
+* registers at host scope, so every catalog read sees it regardless of which agent answers.
+* @module dsh-workbench/skill-card-local-skills
+*/
+/** Provider name; also what a catalog entry reports as its `provider`. */
+const WORKBENCH_LOCAL_SKILL_PROVIDER = "workbench-local";
+/** Skill name grammar, matching the registry's own rule. */
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/**
+* Split one `SKILL.md` into frontmatter and body.
+* @param text - the file.
+* @returns the body and the parsed frontmatter lines, or undefined when there is no frontmatter.
+*/
+function splitFrontmatter(text) {
+	const normalized = text.replaceAll("\r\n", "\n");
+	if (!normalized.startsWith("---\n")) return void 0;
+	const end = normalized.indexOf("\n---", 3);
+	if (end < 0) return void 0;
+	const raw = normalized.slice(4, end);
+	const afterMarker = normalized.indexOf("\n", end + 1);
+	const body = afterMarker < 0 ? "" : normalized.slice(afterMarker + 1).replace(/^\n/, "");
+	const fields = /* @__PURE__ */ new Map();
+	let key;
+	let pending = [];
+	const flush = () => {
+		if (key === void 0) return;
+		fields.set(key, pending.join(" ").trim());
+		key = void 0;
+		pending = [];
+	};
+	for (const line of raw.split("\n")) {
+		const match = /^([A-Za-z][\w-]*):\s*(.*)$/.exec(line);
+		if (match === null) {
+			if (key !== void 0 && line.trim() !== "") pending.push(line.trim());
+			continue;
+		}
+		flush();
+		key = match[1] ?? "";
+		const value = (match[2] ?? "").trim();
+		if (value !== "|" && value !== ">" && value !== "|-" && value !== ">-") pending.push(value);
+	}
+	flush();
+	return {
+		body,
+		fields
+	};
+}
+/**
+* Read the fields this provider needs out of one skill bundle.
+* @param text - the `SKILL.md` contents.
+* @param fallbackName - the directory name, used when the frontmatter names nothing usable.
+* @returns the parsed skill, or undefined when it has no usable name.
+*/
+function parseSkill(text, fallbackName) {
+	const split = splitFrontmatter(text);
+	if (split === void 0) return void 0;
+	const declared = (split.fields.get("name") ?? "").replace(/^['"]|['"]$/g, "");
+	const name = SKILL_NAME.test(declared) ? declared : fallbackName;
+	if (!SKILL_NAME.test(name)) return void 0;
+	const description = (split.fields.get("description") ?? "").replace(/^['"]|['"]$/g, "");
+	if (description === "") return void 0;
+	const whenToUse = split.fields.get("when-to-use");
+	const userInvocable = split.fields.get("user-invocable") !== "false";
+	const modelInvocable = split.fields.get("disable-model-invocation") !== "true";
+	return {
+		name,
+		description,
+		...whenToUse === void 0 ? {} : { whenToUse },
+		modelInvocable,
+		userInvocable,
+		content: split.body
+	};
+}
+/**
+* Build the local roots for one lookup.
+* @param home - the user's home directory.
+* @param cwd - the workspace the catalog is being read for, when there is one.
+* @returns project roots first, then user roots.
+*/
+function localRoots(home, cwd) {
+	const roots = [];
+	if (cwd !== void 0) roots.push({
+		path: join(cwd, ".dsh/skills"),
+		source: "project-dsh",
+		rank: 100
+	}, {
+		path: join(cwd, ".agents/skills"),
+		source: "project-agents",
+		rank: 200
+	});
+	roots.push({
+		path: join(home, ".dsh/skills"),
+		source: "user-dsh",
+		rank: 400
+	}, {
+		path: join(home, ".agents/skills"),
+		source: "user-agents",
+		rank: 500
+	});
+	return roots;
+}
+/**
+* Build the provider the workbench registers into `ctx.skills`.
+* @param options - home directory, warning sink, and the injected readers.
+* @returns a registry provider.
+*/
+function createWorkbenchLocalSkillProvider(options) {
+	const readDir = options.readdir ?? (async (path) => await readdir(path, { withFileTypes: true }));
+	const readFileText = options.readFile ?? (async (path) => await readFile(path, "utf8"));
+	/** Read one root's bundles; a root that cannot be read costs only itself. */
+	const readRoot = async (root) => {
+		let entries;
+		try {
+			entries = await readDir(root.path);
+		} catch (error) {
+			if (error.code !== "ENOENT") options.warn(`workbench local skills: cannot list ${root.path}: ${error.message}`);
+			return [];
+		}
+		const found = [];
+		for (const entry of entries) {
+			if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+			const path = join(root.path, entry.name, "SKILL.md");
+			let text;
+			try {
+				text = await readFileText(path);
+			} catch {
+				continue;
+			}
+			const parsed = parseSkill(text, entry.name);
+			if (parsed === void 0) continue;
+			found.push({
+				path,
+				name: parsed.name,
+				description: parsed.description,
+				...parsed.whenToUse === void 0 ? {} : { whenToUse: parsed.whenToUse },
+				invocation: {
+					modelInvocable: parsed.modelInvocable,
+					userInvocable: parsed.userInvocable
+				},
+				source: root.source,
+				provider: WORKBENCH_LOCAL_SKILL_PROVIDER,
+				resourceBase: {
+					kind: "directory",
+					path: dirname(path)
+				},
+				rank: root.rank,
+				locator: { path }
+			});
+		}
+		return found;
+	};
+	return {
+		name: WORKBENCH_LOCAL_SKILL_PROVIDER,
+		async list(lookup) {
+			const roots = localRoots(options.home, lookup.cwd);
+			const all = [];
+			for (const root of roots) {
+				lookup.signal?.throwIfAborted();
+				all.push(...await readRoot(root));
+			}
+			return all;
+		},
+		async get(candidate) {
+			const path = candidate.locator.path;
+			let text;
+			try {
+				text = await readFileText(path);
+			} catch {
+				return;
+			}
+			const parsed = parseSkill(text, candidate.name);
+			if (parsed === void 0) return void 0;
+			return {
+				path,
+				name: parsed.name,
+				description: parsed.description,
+				...parsed.whenToUse === void 0 ? {} : { whenToUse: parsed.whenToUse },
+				invocation: {
+					modelInvocable: parsed.modelInvocable,
+					userInvocable: parsed.userInvocable
+				},
+				source: candidate.source,
+				provider: WORKBENCH_LOCAL_SKILL_PROVIDER,
+				resourceBase: {
+					kind: "directory",
+					path: dirname(path)
+				},
+				content: parsed.content
+			};
+		}
+	};
 }
 //#endregion
 //#region src/skill-card-files.ts
@@ -4629,6 +4842,14 @@ const Config = z$1.object({
 });
 //#endregion
 //#region src/index.ts
+/**
+* Workbench Host half: opens the layout and skill card storage domains, serves
+* their private routes, and releases everything with the plugin's own effects.
+*
+* Both services stay inside this plugin: each one's only caller is its route,
+* and no other Host plugin consumes them.
+* @module dsh-workbench
+*/
 /** Stable Cordis plugin name. */
 const name = "workbench";
 /**
@@ -4707,6 +4928,13 @@ function apply(ctx, config) {
 	ctx.effect(async () => {
 		const host = ctx;
 		const runtime = ctx;
+		const skillRegistry = ctx.get("skills");
+		if (skillRegistry?.registerProvider !== void 0) ctx.effect(() => skillRegistry.registerProvider(() => createWorkbenchLocalSkillProvider({
+			home: homedir(),
+			warn: (message) => {
+				ctx.logger.warn(message);
+			}
+		})), "workbench: local skill provider");
 		const agentPresets = ctx.get("agentPresets");
 		const cardHost = {
 			agents: runtime.agents,
