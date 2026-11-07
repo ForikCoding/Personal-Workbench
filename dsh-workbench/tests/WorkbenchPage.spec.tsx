@@ -103,6 +103,8 @@ function pipeline(overrides: Partial<WorkbenchPipeline> = {}): WorkbenchPipeline
 interface RunSeams {
   readonly start: (request: WorkbenchRunRequest) => Promise<unknown>
   readonly poll: (cardId: string) => Promise<unknown>
+  /** Stopping the work at the Host; the default records nothing. */
+  readonly cancel?: (cardId: string, runId?: string) => Promise<unknown>
 }
 
 /**
@@ -235,7 +237,7 @@ function props(options: {
         start: options.run === undefined
           ? async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' })
           : options.run.start,
-        cancel: async () => {},
+        cancel: options.run?.cancel ?? (async () => {}),
         saveResult: async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' }),
         statDirectory: async () => ({ status: 'unavailable' as const, reason: 'not used by these cases' }),
         listFiles: options.listFiles ?? (async (_cardId: string, path: string) => ({
@@ -1234,5 +1236,134 @@ describe('WorkbenchPage', () => {
     })
     // The second step never started: a failed step produced nothing to continue from.
     expect(starts).toHaveLength(1)
+  })
+
+  it('turns the run button into a stop while a whole run is in flight', async () => {
+    await renderPage({
+      run: {
+        start: async (request) => ({
+          status: 'ok',
+          state: { cardId: request.cardId, phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+        // Never settles, so the run is still in flight when the assertion runs.
+        poll: async () => ({
+          status: 'ok',
+          state: { cardId: 'a-card', phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+      },
+    })
+    await screen.findByText(en.pipeRunAll)
+    const button = document.querySelector('[data-run-all]') as HTMLButtonElement
+    fireEvent.click(button)
+    // 同一个按钮、同一个位置：跑起来之后它就是停止，字换成两个字的停止，标记从三角换成方块，
+    // 描一圈红。没有第四个按钮，也没有换位置。
+    await waitFor(() => { expect(button.textContent).toBe(en.pipeStop) })
+    expect(button.getAttribute('data-stop')).toBe('1')
+    expect(button.className).toContain('wb-stop')
+    expect(button.getAttribute('aria-label')).toBe(en.pipeStopWholeHint)
+    // 运行条只说跑到哪了：停止在启动这次运行的那颗按钮上。
+    expect(document.querySelector('[data-run-noise]')?.textContent)
+      .toBe(en.pipeRunningStep.replace('{at}', '1').replace('{count}', '2'))
+  })
+
+  it('stops the work at the Host, not just the watching', async () => {
+    const cancels: { cardId: string; runId?: string }[] = []
+    let stopped = false
+    await renderPage({
+      run: {
+        start: async (request) => ({
+          status: 'ok',
+          state: { cardId: request.cardId, phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+        poll: async () => ({
+          status: 'ok',
+          state: stopped
+            ? { cardId: 'a-card', phase: 'cancelled', retried: false, runId: 'run-1' } as WorkbenchRunState
+            : { cardId: 'a-card', phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+        cancel: async (cardId, runId) => {
+          cancels.push({ cardId, ...runId === undefined ? {} : { runId } })
+          stopped = true
+        },
+      },
+    })
+    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    const button = document.querySelector('[data-run-all]') as HTMLButtonElement
+    await waitFor(() => { expect(button.textContent).toBe(en.pipeStop) })
+    fireEvent.click(button)
+    // 按下去到真的停下来之间是「正在停止」：Host 还没说这一跑结束了，就不能说它停了。
+    await waitFor(() => {
+      expect(document.querySelector('[data-run-noise]')?.textContent)
+        .toBe(en.pipeStoppingAt.replace('{at}', '1').replace('{done}', '0'))
+    })
+    // 停的是那一次运行本身：Host 收到的是「取消这一次运行」，不是「别再看它了」。
+    await waitFor(() => { expect(cancels).toEqual([{ cardId: 'a-card', runId: 'run-1' }]) })
+    // 落下来的那句话说得清停在第几步、再点运行从哪一步接着跑。这一步的取消要等下一次
+    // 轮询才传到，所以给的时限比一次轮询长。
+    await waitFor(() => {
+      expect(document.querySelector('[data-run-noise]')?.textContent).toBe(
+        en.pipeStopped.replace('{done}', '0').replace('{count}', '2').replace('{at}', '1').replace('{from}', '1'),
+      )
+    }, { timeout: 4_000 })
+    // 被打断的那一步是「已停止」，后面的退回「待运行」：它不会再自己开始了。
+    await waitFor(() => { expect(button.textContent).toBe(en.pipeRunAll) })
+    expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('stopped')
+    expect(document.querySelector('[data-step-index="1"]')?.getAttribute('data-s')).toBe('idle')
+  })
+
+  it('stops a run whose first start the Host has not answered yet', async () => {
+    const cancels: string[] = []
+    await renderPage({
+      run: {
+        // 第一步的启动请求一直没回来：Host 还没有这次运行的编号，也就没有东西可取消。
+        start: async () => await new Promise(() => {}),
+        poll: async () => ({
+          status: 'ok',
+          state: { cardId: 'a-card', phase: 'running', retried: false } as WorkbenchRunState,
+        }),
+        cancel: async (cardId) => { cancels.push(cardId) },
+      },
+    })
+    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    const button = document.querySelector('[data-run-all]') as HTMLButtonElement
+    await waitFor(() => { expect(button.textContent).toBe(en.pipeStop) })
+    fireEvent.click(button)
+    // 没有编号可取消，但「停止」还是算数：这一跑不会再往下走一步。
+    await waitFor(() => { expect(button.textContent).toBe(en.pipeRunAll) })
+    expect(cancels).toEqual([])
+    // 已经喊了启动的那一步是「已停止」（它被打断了），后面的退回「待运行」。
+    expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('stopped')
+    expect(document.querySelector('[data-step-index="1"]')?.getAttribute('data-s')).toBe('idle')
+  })
+
+  it('gives the stop to the step that runs alone, and leaves the header on run', async () => {
+    const cancels: { cardId: string; runId?: string }[] = []
+    await renderPage({
+      run: {
+        start: async (request) => ({
+          status: 'ok',
+          state: { cardId: request.cardId, phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+        poll: async () => ({
+          status: 'ok',
+          state: { cardId: 'a-card', phase: 'running', retried: false, runId: 'run-1' } as WorkbenchRunState,
+        }),
+        cancel: async (cardId, runId) => { cancels.push({ cardId, ...runId === undefined ? {} : { runId } }) },
+      },
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
+    const runOne = document.querySelector('[data-run-one]') as HTMLButtonElement
+    await waitFor(() => { expect(runOne.textContent).toBe(en.pipeStop) })
+    expect(runOne.getAttribute('data-stop')).toBe('1')
+    expect(runOne.className).toContain('wb-stop')
+    // 整条没有跑，所以面板头那颗还是「运行」，而且是灰的：这次运行不归它停。
+    const header = document.querySelector('[data-run-all]') as HTMLButtonElement
+    expect(header.textContent).toBe(en.pipeRunAll)
+    expect(header.disabled).toBe(true)
+    expect(header.getAttribute('aria-label')).toBe(en.pipeRunAllBusyHint)
+    fireEvent.click(runOne)
+    await waitFor(() => { expect(cancels).toEqual([{ cardId: 'a-card', runId: 'run-1' }]) })
   })
 })

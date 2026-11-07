@@ -26,6 +26,8 @@ function seams(options: {
   sessionOf?: (index: number) => string
   abortAt?: number
   abortOnStart?: boolean
+  /** A step that answers `cancelled`, which is how a run stopped at the Host comes back. */
+  cancelAt?: number
 } = {}): { seams: ChainSeams; calls: Call[]; reports: { index: number; phase: ChainStepOutcome['phase'] }[] } {
   const calls: Call[] = []
   const reports: { index: number; phase: ChainStepOutcome['phase'] }[] = []
@@ -47,6 +49,8 @@ function seams(options: {
       },
       async settle(cardId, _runId, _signal): Promise<ChainSettleOutcome> {
         const index = STEPS.findIndex(entry => entry.cardId === cardId)
+        // A stop is not an abort here: the Host cancels the run and the run says so itself.
+        if (index === options.cancelAt) return { phase: 'cancelled' }
         if (index === options.failAt) return { phase: 'failed', failure: 'it gave up' }
         return { phase: 'settled', sessionId: sessionOf(index) }
       },
@@ -130,6 +134,34 @@ describe('runSteps', () => {
     expect(result.phase).toBe('stopped')
     expect(built.calls.map(call => call.index)).toEqual([0, 1])
     expect(result.steps[1]).toMatchObject({ phase: 'stopped' })
+    // Nothing will start the step after a stop, so it is waiting rather than queued: a queue
+    // is a promise, and this one was just broken.
+    expect(result.steps[2]).toMatchObject({ phase: 'idle' })
+  })
+
+  it('reads the step a stop interrupted as stopped, and starts nothing after it', async () => {
+    const built = seams({ cancelAt: 1 })
+    const result = await runSteps(STEPS, 0, 2, built.seams)
+    expect(result.phase).toBe('stopped')
+    // The run reported itself cancelled, which is the chain's own way of learning it ended —
+    // nobody had to abort the wait.
+    expect(built.calls.map(call => call.index)).toEqual([0, 1])
+    expect(result.steps.map(step => step.phase)).toEqual(['done', 'stopped', 'idle'])
+    // The interrupted step is not a failure: nobody called it one, and its product is simply
+    // not there. It keeps the identity of the run, which is what its row is about.
+    expect(result.steps[1]).toMatchObject({ phase: 'stopped', runId: 'run-card-b' })
+    expect(result.failureIndex).toBeUndefined()
+    // The chain reports the last session a step actually settled in — the one before the
+    // interrupted step — so a later run can still continue it.
+    expect(result.sessionId).toBe('session-1')
+  })
+
+  it('keeps the steps outside a stopped slice untouched', async () => {
+    const built = seams({ cancelAt: 1 })
+    const result = await runSteps(STEPS, 1, 2, built.seams)
+    expect(result.phase).toBe('stopped')
+    // Step 1 was already done before this slice ran; a stop does not un-finish it.
+    expect(result.steps.map(step => step.phase)).toEqual(['idle', 'stopped', 'idle'])
   })
 
   it('keeps the session the chain reached when a later step fails', async () => {

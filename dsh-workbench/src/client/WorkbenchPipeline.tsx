@@ -379,7 +379,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const chain = run.chain !== undefined && active !== undefined && run.chain.pipelineId === active.id
     ? run.chain
     : undefined
-  const running = chain?.phase === 'running'
+  // A run on its way out is still running. `stopping` is not a fourth state of its own: it
+  // is what the run reports between the stop being asked for and the run admitting it.
+  const stopping = chain?.phase === 'stopping'
+  const running = chain?.phase === 'running' || stopping
   const history = useMemo<readonly PipelineRunEntry[]>(
     () => (active === undefined ? [] : run.history(active.id)),
     [active, run, chainPhase],
@@ -600,6 +603,22 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     && chain.pipelineId === active.id
     && chain.scope === 'full'
 
+  // The stop is the run button's other state, and each run has exactly one of it: the
+  // header's button for a run of the whole pipeline, the step's own button for a run of one
+  // step. Neither ever appears next to the other.
+  const wholeInFlight = running && chainWhole
+  /** The step running alone right now, when it is the one the panel is showing. */
+  const soloHere = running && chain !== undefined && !chainWhole
+    ? chain.activeIndex
+    : undefined
+  const stopTitle = stopping ? t('pipeStoppingHint') : t('pipeStopWholeHint')
+  const runAllTitle = running ? t('pipeRunAllBusyHint') : t('pipeRunAllHint')
+  /** Whether the step the inspector shows is the one running alone, which owns the stop. */
+  const soloRunning = soloHere !== undefined && soloHere === selected?.index
+  const runOneTitle = soloRunning
+    ? (stopping ? t('pipeStoppingHint') : t('pipeStopSoloHint'))
+    : running ? t('pipeRunOneBusyHint') : t('pipeRunOneHint')
+
   const stepCount = active?.steps.length ?? 0
   const doneCount = stepViews.filter(step => step.phase === 'done').length
   const failedAt = chain?.failureIndex ?? stepViews.findIndex(step => step.phase === 'failed')
@@ -729,6 +748,17 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
 
   const runNoise = (): ReactNode => {
     if (stepCount === 0) return <span>{t('pipeNoSteps')}</span>
+    if (stopping) {
+      // 收尾中：既不是还在跑（已经喊停了），也不是停好了（还没落下来），所以单独一句。
+      const at = (chain?.activeIndex ?? 0) + 1
+      return (
+        <span>
+          {chainWhole
+            ? t('pipeStoppingAt', { at, done: doneCount })
+            : t('pipeStoppingOne', { at })}
+        </span>
+      )
+    }
     if (stand === 'running') {
       const at = (chain?.activeIndex ?? 0) + 1
       // A step running on its own is not the pipeline running: saying "step 2 of 5" would
@@ -739,7 +769,16 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       return <span>{t('pipeFailedAt', { done: doneCount, count: stepCount, at: (failedAt < 0 ? doneCount : failedAt) + 1 })}</span>
     }
     if (stand === 'stopped') {
-      return <span>{t('pipeStopped', { done: doneCount, count: stepCount })}</span>
+      // 停在哪一步、再点「运行」会从哪一步接着跑：停机的位置和运行的起点是同一处算出来的，
+      // 所以两句话不会互相矛盾。这一次运行不在屏幕上（记录里那次停过）时只报已有的那部分，
+      // 不编一个停在哪一步。
+      const cut = chain?.steps.findIndex(step => step.phase === 'stopped') ?? -1
+      if (cut < 0) return <span>{t('pipeStoppedPlain', { done: doneCount, count: stepCount })}</span>
+      return (
+        <span>
+          {t('pipeStopped', { done: doneCount, count: stepCount, at: cut + 1, from: resumeAt + 1 })}
+        </span>
+      )
     }
     if (stand === 'done') {
       // 用时是这一步一步加起来的时间，和画布上每一步的时长同源；没有一步计时就只说完成了几步
@@ -796,17 +835,25 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
         </button>
         <button
           type="button"
-          className={`${css.btn} ${css.primary}`}
+          className={`${css.btn} ${wholeInFlight ? css.stop : css.primary}`}
           data-run-all=""
-          disabled={running || active === undefined || active.steps.length === 0}
+          data-stop={wholeInFlight ? '1' : '0'}
+          disabled={stopping || active === undefined || active.steps.length === 0 || (running && !chainWhole)}
+          aria-label={wholeInFlight ? stopTitle : runAllTitle}
+          title={wholeInFlight ? stopTitle : runAllTitle}
           onClick={() => {
+            // The same button both ways: a run in flight is stopped where it was started,
+            // so the reader never has to look for a second control to make this one stop.
+            if (wholeInFlight) { run.stop(); return }
             // The step before the one this run starts at, when it ran in this panel: the
             // resumed step continues that session instead of opening a cold one.
             if (active !== undefined) run.runAll(active, resumeAt, priorSession)
           }}
         >
-          {MARK.play}
-          <span className={css.headLabel}>{t('pipeRunAll')}</span>
+          {wholeInFlight ? MARK.stop : MARK.play}
+          <span className={css.headLabel}>
+            {wholeInFlight ? (stopping ? t('pipeStopping') : t('pipeStop')) : t('pipeRunAll')}
+          </span>
         </button>
       </header>
       <div className={css.panelBody}>
@@ -1143,13 +1190,24 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                       <>
                         <button
                           type="button"
-                          className={css.runOne}
+                          className={`${css.runOne} ${soloRunning ? css.stop : ''}`}
                           data-run-one=""
-                          disabled={running}
-                          onClick={() => { if (active !== undefined) run.runOne(active, selected.index) }}
+                          data-stop={soloRunning ? '1' : '0'}
+                          disabled={stopping || (running && !soloRunning)}
+                          aria-label={runOneTitle}
+                          title={runOneTitle}
+                          onClick={() => {
+                            // This step is the run: the button that started it is the one
+                            // that stops it, and stopping it leaves the rest of the
+                            // pipeline alone.
+                            if (soloRunning) { run.stop(); return }
+                            if (active !== undefined) run.runOne(active, selected.index)
+                          }}
                         >
-                          {MARK.play}
-                          {t('pipeRunOne')}
+                          {soloRunning ? MARK.stop : MARK.play}
+                          {soloRunning
+                            ? (stopping ? t('pipeStopping') : t('pipeStop'))
+                            : t('pipeRunOne')}
                         </button>
                         <button
                           type="button"
@@ -1346,6 +1404,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               template={cards.find(card => card.cardId === selected.cardId)?.template}
                               listFiles={api.listFiles}
                               onOpen={(file) => { openReader(selected.cardId, file) }}
+                              busy={running}
                               onRun={() => { if (active !== undefined) run.runOne(active, selected.index) }}
                             />
                           </div>
@@ -1363,18 +1422,9 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 <i key={`seg-${step.cardId}`} data-seg={String(step.index)} data-s={segState(step.phase)} />
               ))}
             </div>
+            {/* 运行条只说跑到哪了：停止在启动这次运行的那颗按钮上，这里不再放第二个 */}
             <div className={css.runNoise} data-run-noise={chain?.phase ?? 'idle'}>
               {runNoise()}
-            </div>
-            {/* 运行在面板头，停止只在跑的时候出现：两个开关不同时在屏幕上 */}
-            <div className={css.runActions}>
-              {running
-                ? (
-                  <button type="button" className={`${css.btn} ${css.ghost}`} data-stop="" onClick={() => { run.stop() }}>
-                    {t('pipeStop')}
-                  </button>
-                  )
-                : null}
             </div>
           </div>
         </section>
@@ -1668,7 +1718,7 @@ function productLine(html: string | undefined, t: (key: WorkbenchLocaleKey) => s
 }
 
 /** The marks a state is drawn with, so colour is never the only signal. */
-const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
+const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'stop' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
   // 方框要在 10px 上还是方框：直角、实线。虚线圆是排队中，两个状态不能共用记号。
   slot: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1" /></svg>,
   dash: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="5.3" strokeDasharray="2.2 2.2" /></svg>,
@@ -1679,6 +1729,8 @@ const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' |
   x: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" /></svg>,
   plus: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3.4v9.2M3.4 8h9.2" /></svg>,
   play: <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z" /></svg>,
+  // 三角换方块：形状先说话，比颜色先被看见。同一颗按钮只换记号，位置和字宽都不动。
+  stop: <svg viewBox="0 0 16 16" fill="currentColor"><rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.3" /></svg>,
   chev: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m4.4 6.4 3.6 3.4 3.6-3.4" /></svg>,
   search: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7.2" cy="7.2" r="4.4" /><path d="m10.6 10.6 2.6 2.6" /></svg>,
   dots: <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.4" cy="8" r="1.15" /><circle cx="8" cy="8" r="1.15" /><circle cx="12.6" cy="8" r="1.15" /></svg>,
@@ -1995,9 +2047,11 @@ function ResultPanel(props: {
   readonly template?: string | undefined
   readonly listFiles: (cardId: string, path: string) => Promise<WorkbenchFilesRead>
   readonly onOpen: (file?: string) => void
+  /** Whether a run is in flight, which is when no other run may be started from here. */
+  readonly busy: boolean
   readonly onRun: () => void
 }): ReactNode {
-  const { step, t, template, listFiles, onOpen, onRun } = props
+  const { step, t, template, listFiles, onOpen, busy, onRun } = props
   if (step.phase === 'running') {
     return (
       <div className={css.stateBlock}>
@@ -2011,7 +2065,7 @@ function ResultPanel(props: {
       <div className={css.stateBlock}>
         <h6>{t('pipeResultQueued')}</h6>
         <p>{t('pipeResultQueuedBody', { at: step.index })}</p>
-        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onRun}>{t('pipeRunThisStep')}</button>
+        <button type="button" className={`${css.btn} ${css.ghost}`} disabled={busy} onClick={onRun}>{t('pipeRunThisStep')}</button>
       </div>
     )
   }
@@ -2020,7 +2074,7 @@ function ResultPanel(props: {
       <div className={css.stateBlock} data-tone="danger">
         <h6>{t('pipeResultFailed')}</h6>
         <p>{step.failure ?? t('pipeNoProduct')}</p>
-        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onRun}>{t('pipeRetryStep')}</button>
+        <button type="button" className={`${css.btn} ${css.ghost}`} disabled={busy} onClick={onRun}>{t('pipeRetryStep')}</button>
       </div>
     )
   }
@@ -2029,7 +2083,7 @@ function ResultPanel(props: {
       <div className={css.stateBlock}>
         <h6>{t('pipeResultNone')}</h6>
         <p>{t('pipeResultNoneBody')}</p>
-        <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onRun}>{t('pipeRunOne')}</button>
+        <button type="button" className={`${css.btn} ${css.ghost}`} disabled={busy} onClick={onRun}>{t('pipeRunOne')}</button>
       </div>
     )
   }

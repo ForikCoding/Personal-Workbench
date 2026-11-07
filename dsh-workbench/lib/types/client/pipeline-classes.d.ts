@@ -132,6 +132,8 @@ export declare const css: {
     readonly pipelineView: "wb-pipelineView";
     readonly primary: "wb-primary";
     readonly renameInput: "wb-renameInput";
+    /** 「运行」跑起来之后的那一态：同一个按钮，描一圈红、换方块记号。 */
+    readonly stop: "wb-stop";
     readonly resBlock: "wb-resBlock";
     readonly resBlockHead: "wb-resBlockHead";
     readonly resEmpty: "wb-resEmpty";
@@ -168,7 +170,6 @@ export declare const css: {
     readonly rulePathText: "wb-rulePathText";
     readonly rulePathPick: "wb-rulePathPick";
     readonly ruleValue: "wb-ruleValue";
-    readonly runActions: "wb-runActions";
     readonly runbar: "wb-runbar";
     readonly runNoise: "wb-runNoise";
     readonly runOne: "wb-runOne";

@@ -133,6 +133,8 @@ export const css = {
   pipelineView: 'wb-pipelineView',
   primary: 'wb-primary',
   renameInput: 'wb-renameInput',
+  /** 「运行」跑起来之后的那一态：同一个按钮，描一圈红、换方块记号。 */
+  stop: 'wb-stop',
   resBlock: 'wb-resBlock',
   resBlockHead: 'wb-resBlockHead',
   resEmpty: 'wb-resEmpty',
@@ -169,7 +171,6 @@ export const css = {
   rulePathText: 'wb-rulePathText',
   rulePathPick: 'wb-rulePathPick',
   ruleValue: 'wb-ruleValue',
-  runActions: 'wb-runActions',
   runbar: 'wb-runbar',
   runNoise: 'wb-runNoise',
   runOne: 'wb-runOne',

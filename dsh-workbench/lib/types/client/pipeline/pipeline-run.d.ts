@@ -31,8 +31,14 @@ export interface ChainStepOutcome {
     /** Why it failed, when it did. */
     readonly failure?: string;
 }
-/** How the whole chain ended. */
-export type ChainPhase = 'running' | 'settled' | 'failed' | 'stopped';
+/**
+ * How the whole chain ended, or that it is on its way to being stopped.
+ *
+ * `stopping` exists because stopping is not instant: the Host has to unwind a child agent,
+ * and until that is done the run really is still running. A phase that said `stopped` the
+ * moment the button was pressed would claim the work had ended before it had.
+ */
+export type ChainPhase = 'running' | 'stopping' | 'settled' | 'failed' | 'stopped';
 /** One chain, as the canvas draws it. */
 export interface PipelineChain {
     /** Pipeline the chain belongs to. */
@@ -174,7 +180,13 @@ export interface PipelineRunFace {
      * @param index - the step index.
      */
     runOne(pipeline: WorkbenchPipeline, index: number): void;
-    /** Stop the chain that is running, if one is. */
+    /**
+     * Stop the run in flight, whether it is a chain or one step.
+     *
+     * This stops the work, not just the watching: the Host is asked to cancel the run, and the
+     * chain ends when that run reports itself cancelled. A stop that nothing confirms gives up
+     * after {@link STOP_GRACE_MS} rather than leaving the panel saying "stopping" for good.
+     */
     stop(): void;
     /**
      * Regenerate one step from a request about its result.

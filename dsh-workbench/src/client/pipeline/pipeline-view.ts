@@ -283,7 +283,9 @@ export interface PipelineStandInput {
 export function standOf(input: PipelineStandInput): PipelineStand {
   const { chain, doneCount, runs, stepCount } = input
   if (chain !== undefined) {
-    if (chain.phase === 'running') return 'running'
+    // A run on its way out is still running: until the Host says it stopped, the pipeline
+    // is not stopped, and calling it that would describe an ending that may not come.
+    if (chain.phase === 'running' || chain.phase === 'stopping') return 'running'
     if (chain.whole) {
       if (chain.phase === 'failed') return 'failed'
       if (chain.phase === 'stopped') return 'stopped'

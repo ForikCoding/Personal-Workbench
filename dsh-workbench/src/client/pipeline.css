@@ -183,6 +183,23 @@
 .wb-btn:disabled:hover { background: transparent; opacity: .38; }
 .wb-btn.wb-ghost:disabled:hover { background: transparent; }
 .wb-btn.wb-primary:disabled:hover { opacity: .38; }
+/* 运行中那颗「运行」变成「停止」：同一个盒子、同一段字宽（运行 / 停止都是两个字），
+   只换记号（三角 → 方块）和描边色。填成实心红会被读成「出错了」，所以只描一圈。 */
+.wb-btn.wb-stop,
+.wb-runOne.wb-stop {
+  background: transparent;
+  color: var(--danger);
+  border: 0.5px solid color-mix(in srgb, var(--danger) 42%, var(--hairline));
+  font-weight: 500;
+}
+.wb-btn.wb-stop:hover,
+.wb-runOne.wb-stop:hover { background: var(--danger-wash); }
+.wb-btn.wb-stop:active,
+.wb-runOne.wb-stop:active { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.wb-btn.wb-stop:disabled:hover { background: transparent; }
+/* 按不下去的时候要看得出来：这一步正在整条里跑，或者停止已经在收尾了。 */
+.wb-runOne:disabled { opacity: .45; cursor: default; }
+.wb-runOne:disabled:hover { background: transparent; }
 
 .wb-panelBody { flex: 1; min-height: 0; display: flex; }
 /* 只剩一个视图了，不再需要切换用的 display 开关 */
@@ -1142,7 +1159,6 @@
 .wb-runNoise { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }
 .wb-runNoise b { font-weight: 500; color: var(--ink); }
 .wb-runNoise .wb-timer { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.wb-runActions { flex: none; display: flex; align-items: center; gap: 6px; }
 
 /* 点 */
 .wb-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--idle); }

@@ -38,8 +38,14 @@ export interface ChainStepOutcome {
   readonly failure?: string
 }
 
-/** How the whole chain ended. */
-export type ChainPhase = 'running' | 'settled' | 'failed' | 'stopped'
+/**
+ * How the whole chain ended, or that it is on its way to being stopped.
+ *
+ * `stopping` exists because stopping is not instant: the Host has to unwind a child agent,
+ * and until that is done the run really is still running. A phase that said `stopped` the
+ * moment the button was pressed would claim the work had ended before it had.
+ */
+export type ChainPhase = 'running' | 'stopping' | 'settled' | 'failed' | 'stopped'
 
 /** One chain, as the canvas draws it. */
 export interface PipelineChain {
@@ -175,10 +181,23 @@ export async function runSteps(
     steps: outcomes,
     ...sessionId === undefined ? {} : { sessionId },
   })
+  /**
+   * End the chain where a stop caught it.
+   *
+   * A step the stop never reached was never started, so it goes back to waiting rather than
+   * staying queued: a queue is a promise that something will come along and start it, and
+   * after a stop nothing will.
+   */
+  const stopped = (): ChainResult => {
+    outcomes.forEach((outcome, index) => {
+      if (outcome.phase === 'queued') outcomes[index] = { phase: 'idle' }
+    })
+    return ended('stopped')
+  }
   for (let index = from; index <= to; index += 1) {
     const step = steps[index]
     if (step === undefined) continue
-    if (seams.signal.aborted) return ended('stopped')
+    if (seams.signal.aborted) return stopped()
     const startedAt = seams.now()
     outcomes[index] = { phase: 'running', startedAt }
     seams.onStep(index, outcomes[index] as ChainStepOutcome)
@@ -197,10 +216,10 @@ export async function runSteps(
     const tookMs = seams.now() - startedAt
     const runId = started.runId === undefined ? {} : { runId: started.runId }
     if (seams.signal.aborted || settled.phase === 'cancelled') {
-      const stopped: ChainStepOutcome = { phase: 'stopped', startedAt, tookMs, ...runId }
-      outcomes[index] = stopped
-      seams.onStep(index, stopped)
-      return ended('stopped')
+      const interrupted: ChainStepOutcome = { phase: 'stopped', startedAt, tookMs, ...runId }
+      outcomes[index] = interrupted
+      seams.onStep(index, interrupted)
+      return stopped()
     }
     if (settled.phase === 'failed' || settled.failure !== undefined) {
       const reason = settled.failure ?? 'the run failed'
@@ -236,6 +255,17 @@ const POLL_INTERVAL_MS = 1_200
 /** How many reads a chain waits for a run id the card no longer reports. */
 const MISS_LIMIT = 3
 
+/**
+ * How long a stop waits for the run to admit it stopped.
+ *
+ * Stopping a run means asking the Host to cancel it, and a child agent needs a moment to
+ * unwind. Waiting for its own verdict is what keeps the panel honest — it says the run is
+ * stopping until the run says it stopped. A run that never answers would leave the panel
+ * saying that forever, so past this long the wait is abandoned instead: the work is told to
+ * stop once and the chain lets go of it.
+ */
+const STOP_GRACE_MS = 5_000
+
 /** What the run hook needs from its host. */
 export interface UsePipelineRunOptions {
   /** Skill card transport: the route that starts and polls runs. */
@@ -266,7 +296,13 @@ export interface PipelineRunFace {
    * @param index - the step index.
    */
   runOne(pipeline: WorkbenchPipeline, index: number): void
-  /** Stop the chain that is running, if one is. */
+  /**
+   * Stop the run in flight, whether it is a chain or one step.
+   *
+   * This stops the work, not just the watching: the Host is asked to cancel the run, and the
+   * chain ends when that run reports itself cancelled. A stop that nothing confirms gives up
+   * after {@link STOP_GRACE_MS} rather than leaving the panel saying "stopping" for good.
+   */
   stop(): void
   /**
    * Regenerate one step from a request about its result.
@@ -297,10 +333,22 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
   // its next seam by finding a different token.
   const token = useRef(0)
   const abort = useRef<AbortController | undefined>(undefined)
+  /**
+   * The run the chain is waiting on right now, which is the one a stop has to cancel.
+   *
+   * Kept as a ref rather than read from the chain state: a stop can arrive between the
+   * start being accepted and the next render, and a stop that names no run cancels nothing.
+   */
+  const inflight = useRef<{ readonly cardId: string; readonly runId?: string } | undefined>(undefined)
+  /** The stop's own give-up timer, cleared when the run settles by itself. */
+  const grace = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Leaving the surface ends the chain: a poll loop outliving its panel would keep asking
-  // the Host about a run nobody is watching, and never stop.
-  useEffect(() => () => { abort.current?.abort() }, [])
+  // Leaving the surface ends the watching, and only the watching: a run nobody is looking
+  // at still stores its result, so the chain is abandoned rather than cancelled.
+  useEffect(() => () => {
+    abort.current?.abort()
+    if (grace.current !== undefined) clearTimeout(grace.current)
+  }, [])
 
   /**
    * Record one finished run, with what each step left behind.
@@ -367,6 +415,8 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     token.current += 1
     const mine = token.current
     abort.current?.abort()
+    if (grace.current !== undefined) { clearTimeout(grace.current); grace.current = undefined }
+    inflight.current = undefined
     const controller = new AbortController()
     abort.current = controller
     const startedAt = Date.now()
@@ -386,6 +436,9 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       signal: controller.signal,
       ...ask.resume === undefined ? {} : { resume: ask.resume },
       onStep: (index, outcome) => {
+        // A step that stopped running is no longer the run a stop could act on. The step
+        // that starts next publishes its own run from the start seam below.
+        if (outcome.phase !== 'running') inflight.current = undefined
         if (token.current !== mine) return
         setChain(current => current === undefined ? current : {
           ...current,
@@ -431,6 +484,12 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
           outputSchema: WORKBENCH_OUTPUT_SCHEMA,
         })
         if (result.status === 'ok') {
+          // The run a stop would have to cancel. Recorded only once the Host has accepted
+          // the start: a cancelled run that was never accepted has nothing to cancel.
+          inflight.current = {
+            cardId: step.cardId,
+            ...result.state.runId === undefined ? {} : { runId: result.state.runId },
+          }
           return { status: 'started', ...result.state.runId === undefined ? {} : { runId: result.state.runId } }
         }
         if (result.status === 'rejected') return { status: 'refused', reason: result.message }
@@ -438,6 +497,8 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       },
       settle: async (cardId, runId, signal) => await settleRun(api, cardId, runId, signal, pollIntervalMs),
     }).then((result) => {
+      if (grace.current !== undefined) { clearTimeout(grace.current); grace.current = undefined }
+      inflight.current = undefined
       if (token.current !== mine) return
       setChain(current => current === undefined ? current : {
         ...current,
@@ -486,13 +547,56 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
 
   const history = useCallback((pipelineId: string) => historyOf[pipelineId] ?? EMPTY_HISTORY, [historyOf])
 
+  /**
+   * End the chain where it stands, with the steps nothing ever started left waiting.
+   *
+   * A queued step is a promise that something will come along and start it; once the chain
+   * has been let go, nothing will. The chain's own end only says "stopped" — this is what
+   * says which steps were interrupted and which were never touched.
+   */
+  const abandon = (current: PipelineChain | undefined): PipelineChain | undefined => {
+    if (current === undefined || (current.phase !== 'running' && current.phase !== 'stopping')) return current
+    return {
+      ...current,
+      phase: 'stopped',
+      steps: current.steps.map(step => step.phase === 'queued'
+        // Never reached: it goes back to waiting rather than staying queued.
+        ? { phase: 'idle' }
+        // Started and cut off: the step was interrupted, and no run of it will report that.
+        : step.phase === 'running' ? { phase: 'stopped' } : step),
+    }
+  }
+
   const stop = useCallback(() => {
-    // Bumping the token is what makes the wait give up: the polling loop checks the
-    // signal, and the token keeps any late `then` from writing over a newer chain.
-    token.current += 1
-    abort.current?.abort()
-    setChain(current => current === undefined ? current : { ...current, phase: 'stopped' })
-  }, [])
+    const run = inflight.current
+    if (run === undefined) {
+      // Between two steps: there is no run to cancel, but a stop is a stop. Letting go of
+      // the wait is what keeps the chain from starting the step it was about to start.
+      token.current += 1
+      abort.current?.abort()
+      setChain(current => current === undefined || current.phase !== 'running' ? current : abandon(current))
+      return
+    }
+    // One stop per run. A second press while the first is unwinding would cancel a run the
+    // Host has already been told to cancel, and restart the give-up clock behind it.
+    inflight.current = undefined
+    const mine = token.current
+    setChain(current => current === undefined || current.phase !== 'running'
+      ? current
+      : { ...current, phase: 'stopping' })
+    // The work is stopped at its source. The chain then needs no abort: the run it is
+    // waiting on reports itself cancelled, which is how the chain learns it ended.
+    void api.cancel(run.cardId, run.runId).catch(() => undefined)
+    grace.current = setTimeout(() => {
+      grace.current = undefined
+      if (token.current !== mine) return
+      // Told to stop and still running: stop waiting for it. The token bump keeps any late
+      // answer from writing over a chain that has been let go.
+      token.current += 1
+      abort.current?.abort()
+      setChain(current => abandon(current))
+    }, STOP_GRACE_MS)
+  }, [api])
 
   return { chain, runAll, runOne, stop, refine, history }
 }
