@@ -104,6 +104,7 @@ check('它指向要证实的那个真实目录', DIR_ATTR === DIR, `${DIR_ATTR} 
 // 脚本按 id / class 找这几个节点，模板里得真有，否则脚本会静默什么都不做
 const NEEDED = [
   ['id="dir"', /id="dir"/],
+  ['class="head" hidden（预览里不留空目录行）', /class="head"[^>]*\bhidden\b/],
   ['id="count"', /id="count"/],
   ['id="files"', /id="files"/],
   ['id="body"', /id="body"/],
@@ -251,8 +252,10 @@ function buildRoot() {
   lead.textContent = '这次没有产出文件'
   runOut.append(lead)
 
+  // 模板里这一行带着 hidden：预览里脚本不跑，露出来的就只有一个空目录行和一枚图标。
   const head = new FakeNode('div')
   head.className = 'head'
+  head.hidden = true
   const dirName = new FakeNode('span')
   dirName.setAttribute('id', 'dir')
   const countEl = new FakeNode('span')
@@ -327,6 +330,7 @@ check('目录存在', statSync(directory).isDirectory(), directory)
     renders.length ? `前 24 字：${renders[0].text.slice(0, 24)}` : '未渲染',
   )
   check('有文件时区域收起来了（不重复显示说明）', view.runOut.hidden === true)
+  check('有文件时目录行才放出来', view.head.hidden === false)
 
   chips[2].click()
   await settle()

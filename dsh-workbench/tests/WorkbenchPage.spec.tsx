@@ -2,7 +2,8 @@
 /** Page composition: the rail, the canvas, the inspector, and the chain the canvas runs. */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readOpenPipeline, rememberOpenPipeline } from '../src/client/pipeline-memory.ts'
 import { primitivesMock } from './support/primitives-mock.tsx'
 import { fakeModelSeat } from './support/fake-model-seat.ts'
 import { fakeWorkspacePicker, noWorkspacePicker, PICKED_PATH } from './support/fake-workspace-picker.ts'
@@ -241,8 +242,12 @@ async function renderPage(options: Parameters<typeof props>[0] = {}) {
   return { ...built, view }
 }
 
+// Which pipeline the page opens is remembered between mounts, so one case's switch would
+// otherwise decide the next case's first pipeline.
+beforeEach(() => { globalThis.localStorage.clear() })
+
 describe('WorkbenchPage', () => {
-  it('opens on the first stored pipeline with its steps on the canvas', async () => {
+  it('opens on a stored pipeline with its steps on the canvas', async () => {
     await renderPage()
     await waitFor(() => { expect(document.querySelectorAll('[data-step-index]').length).toBe(2) })
     // The canvas title is the one place that names the pipeline on screen.
@@ -254,6 +259,62 @@ describe('WorkbenchPage', () => {
     expect(document.querySelector('[data-canvas-meta]')?.textContent).toBe(
       en.pipeMetaSteps.replace('{count}', '2'),
     )
+  })
+
+  it('reopens the pipeline it showed last, not the one storage lists first', async () => {
+    // The remembered pipeline is the older one and second in storage, so neither "first
+    // stored" nor "most recently changed" would land on it: only the memory does.
+    rememberOpenPipeline('pipeline-older')
+    await renderPage({
+      pipelines: [
+        pipeline({ id: 'pipeline-newer', name: 'Release check', updatedAt: 9 }),
+        pipeline({ id: 'pipeline-older', name: 'Nightly', updatedAt: 1 }),
+      ],
+    })
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Nightly')
+    })
+  })
+
+  it('remembers the pipeline the user switches to, across a remount', async () => {
+    const two = {
+      pipelines: [
+        pipeline({ id: 'pipeline-1', name: 'Nightly', updatedAt: 1 }),
+        pipeline({ id: 'pipeline-2', name: 'Release check', updatedAt: 9 }),
+      ],
+    }
+    const { view } = await renderPage(two)
+    // Nothing remembered yet, so the most recently changed one is what the panel opens onto.
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Release check')
+    })
+    fireEvent.click(document.querySelector('[data-canvas-title]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-pipeline-row="pipeline-1"]') as HTMLElement)
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Nightly')
+    })
+    expect(readOpenPipeline()).toBe('pipeline-1')
+
+    // Opening a card and coming back unmounts the panel; the switch has to survive that.
+    view.unmount()
+    await renderPage(two)
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Nightly')
+    })
+  })
+
+  it('opens the most recently changed pipeline when the remembered one is gone', async () => {
+    // What a deleted pipeline leaves behind: an id that no longer names anything stored.
+    rememberOpenPipeline('pipeline-deleted')
+    await renderPage({
+      pipelines: [
+        pipeline({ id: 'pipeline-1', name: 'Nightly', updatedAt: 1 }),
+        pipeline({ id: 'pipeline-2', name: 'Release check', updatedAt: 9 }),
+      ],
+    })
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-title]')?.textContent).toBe('Release check')
+    })
   })
 
   it('lists the stored cards under the single-task heading', async () => {

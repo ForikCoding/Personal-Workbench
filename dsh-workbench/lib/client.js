@@ -7334,6 +7334,51 @@ window.__ModuleLoader__.load({
 			return first < 0 ? 0 : first;
 		}
 		//#endregion
+		//#region src/client/pipeline-memory.ts
+		/** Key the open pipeline id is kept under. */
+		var OPEN_PIPELINE_KEY = "dsh-workbench:open-pipeline";
+		/**
+		* Read the pipeline id the workbench last opened.
+		* @returns the remembered id, or undefined when nothing was kept or storage is unavailable.
+		*/
+		function readOpenPipeline() {
+			try {
+				const kept = globalThis.localStorage?.getItem(OPEN_PIPELINE_KEY);
+				return kept === null || kept === void 0 || kept === "" ? void 0 : kept;
+			} catch {
+				return;
+			}
+		}
+		/**
+		* Keep or clear the pipeline id the workbench opens.
+		* @param id - the pipeline the user is looking at; an empty string clears the memory.
+		*/
+		function rememberOpenPipeline(id) {
+			try {
+				if (id === "") globalThis.localStorage?.removeItem(OPEN_PIPELINE_KEY);
+				else globalThis.localStorage?.setItem(OPEN_PIPELINE_KEY, id);
+			} catch {}
+		}
+		/**
+		* Pick the pipeline the panel shows.
+		*
+		* The remembered id wins while it still names a stored pipeline. Otherwise the pipeline
+		* changed most recently is the one the user was working on — order in storage is creation
+		* order, which would open the oldest one forever.
+		* @param pipelines - the stored pipelines, in storage order.
+		* @param remembered - the id the panel last showed.
+		* @returns the pipeline to show, or undefined when nothing is stored.
+		*/
+		function pickOpenPipeline(pipelines, remembered) {
+			if (remembered !== void 0) {
+				const found = pipelines.find((pipeline) => pipeline.id === remembered);
+				if (found !== void 0) return found;
+			}
+			let newest;
+			for (const pipeline of pipelines) if (newest === void 0 || pipeline.updatedAt > newest.updatedAt) newest = pipeline;
+			return newest;
+		}
+		//#endregion
 		//#region src/client/skill-card/permission.ts
 		/**
 		* Locale key for each mode's label.
@@ -7449,7 +7494,7 @@ window.__ModuleLoader__.load({
 		*/
 		function WorkbenchPipeline(props) {
 			const { pipelines, run, facts, api, renderCard, onCreateCard, t, catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard, patchStepCards, modelGroups, workspacePicker, saveStepTemplate, removeCard } = props;
-			const [activeId, setActiveId] = (0, react.useState)(void 0);
+			const [activeId, setActiveId] = (0, react.useState)(() => readOpenPipeline());
 			const [focus, setFocus] = (0, react.useState)(void 0);
 			const [tab, setTab] = (0, react.useState)("activity");
 			const [cards, setCards] = (0, react.useState)([]);
@@ -7471,9 +7516,12 @@ window.__ModuleLoader__.load({
 			const [historyAt, setHistoryAt] = (0, react.useState)(void 0);
 			const [review, setReview] = (0, react.useState)(void 0);
 			const [reviewText, setReviewText] = (0, react.useState)("");
-			const active = (0, react.useMemo)(() => {
-				return pipelines.pipelines.find((pipeline) => pipeline.id === activeId) ?? pipelines.pipelines[0];
-			}, [activeId, pipelines.pipelines]);
+			const active = (0, react.useMemo)(() => pickOpenPipeline(pipelines.pipelines, activeId), [activeId, pipelines.pipelines]);
+			const activeKey = active?.id;
+			(0, react.useEffect)(() => {
+				if (activeKey === void 0) return;
+				rememberOpenPipeline(activeKey);
+			}, [activeKey]);
 			const menuFacts = (0, react.useMemo)(() => {
 				const seen = /* @__PURE__ */ new Set();
 				return facts.filter((fact) => {

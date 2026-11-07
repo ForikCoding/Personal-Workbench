@@ -21,6 +21,7 @@ import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
+import { pickOpenPipeline, readOpenPipeline, rememberOpenPipeline } from './pipeline-memory.ts'
 import { filledTemplate } from './skill-card/render.ts'
 import { findRegion } from './skill-card/template.ts'
 import { ShadowHtml } from './skill-card/ShadowHtml.tsx'
@@ -238,7 +239,9 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
     patchStepCards, modelGroups, workspacePicker, saveStepTemplate, removeCard,
   } = props
-  const [activeId, setActiveId] = useState<string | undefined>(undefined)
+  // Seeded from what the panel last showed, so the first render after a remount is already
+  // the right pipeline rather than the first stored one flashing and then correcting.
+  const [activeId, setActiveId] = useState<string | undefined>(() => readOpenPipeline())
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
   const [tab, setTab] = useState<InspectorTab>('activity')
   const [cards, setCards] = useState<readonly WorkbenchCardConfigView[]>([])
@@ -263,12 +266,21 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [review, setReview] = useState<{ readonly cardId: string } | undefined>(undefined)
   const [reviewText, setReviewText] = useState('')
 
-  const active = useMemo<WorkbenchPipeline | undefined>(() => {
-    const found = pipelines.pipelines.find(pipeline => pipeline.id === activeId)
-    // The first pipeline is the one on screen until the user picks another. Falling back
-    // rather than rendering nothing is what makes the panel open onto work.
-    return found ?? pipelines.pipelines[0]
-  }, [activeId, pipelines.pipelines])
+  // Which pipeline is open is remembered across mounts and restarts: the panel is one mount
+  // of the page, and opening a card and coming back would otherwise land on the first stored
+  // pipeline again. The remembered id is only a hint — `pickOpenPipeline` falls back to the
+  // most recently changed one, so a deleted pipeline never leaves the canvas blank.
+  const active = useMemo<WorkbenchPipeline | undefined>(
+    () => pickOpenPipeline(pipelines.pipelines, activeId),
+    [activeId, pipelines.pipelines],
+  )
+  const activeKey = active?.id
+  useEffect(() => {
+    if (activeKey === undefined) return
+    // Written from what is actually on screen, so the memory follows a fallback, a create and
+    // a deletion without any of those paths having to remember to keep it.
+    rememberOpenPipeline(activeKey)
+  }, [activeKey])
 
   // The page hands over the cards it can see from more than one place, so the same card can
   // arrive twice; the menu lists each one once.
