@@ -246,6 +246,18 @@
 .wb-chipState[data-s="done"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 82%, var(--ink)); }
 .wb-chipState[data-s="failed"] { background: var(--danger-wash); color: var(--danger); }
 .wb-chipState[data-s="idle"], .wb-chipState[data-s="stopped"] { background: var(--hover); color: var(--ink2); }
+/* 整条跑过 = 填实；只跑过其中几步 = 描边。形状先说话，颜色只是补一句：
+   单步跑过描绿，已有结果描灰——后者连"怎么跑出来的"都还不确定，不该用绿 */
+.wb-chipState[data-s="solo"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--success) 55%, transparent);
+  color: color-mix(in srgb, var(--success) 60%, var(--ink));
+}
+.wb-chipState[data-s="kept"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 0.5px var(--hairline);
+  color: var(--ink3);
+}
 /* 这行字是运行记录的入口：它本来就在说"上一次运行改了什么"，所以让它能点 */
 .wb-canvasMeta {
   display: block;
@@ -397,6 +409,8 @@
 .wb-nodeFoot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 这一步的产物来自哪次运行。单点重跑之后只有它会变 */
 .wb-nodeRun { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }
+/* 产物来自单独跑的那一次：脚注写「单步 #1」，和整条运行的「#4」分开读 */
+.wb-nodeRun[data-solo="1"] { color: color-mix(in srgb, var(--success) 50%, var(--ink4)); }
 .wb-nodeProg { flex: none; width: 34px; height: 3px; border-radius: 2px; background: var(--accent-soft); overflow: hidden; }
 .wb-nodeProg i { display: block; height: 100%; width: 40%; border-radius: 2px; background: var(--accent); animation: prog 1.5s ease-in-out infinite; }
 @keyframes prog { 0% { transform: translateX(-100%) } 100% { transform: translateX(280%) } }
@@ -1117,6 +1131,12 @@
   background: repeating-linear-gradient(90deg, var(--ink4) 0 1.5px, transparent 1.5px 4px);
   opacity: .75;
 }
+/* 单独跑过的一步：段不满，是描边的。整条跑完的段才填实，
+   4px 高的条上只描一圈太淡，所以里面留一层很浅的绿 */
+.wb-segBar i[data-s="solo"] {
+  background: color-mix(in srgb, var(--success) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 58%, transparent);
+}
 .wb-runNoise { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }
 .wb-runNoise b { font-weight: 500; color: var(--ink); }
 .wb-runNoise .wb-timer { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -1131,6 +1151,9 @@
 .wb-dot[data-s="stopped"] { background: var(--ink4); }
 /* 6px 上也看得出实心/空心 */
 .wb-dot[data-s="idle"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink4); }
+/* 只跑过其中几步：空心绿。填满的绿点才是整条跑完 */
+.wb-dot[data-s="solo"] { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--success) 70%, transparent); }
+.wb-dot[data-s="kept"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink3); }
 
 /* ------------------------------------------------------------- 标题下拉菜单 */
 .wb-renameInput {

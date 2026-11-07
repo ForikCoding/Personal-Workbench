@@ -113,6 +113,15 @@ export interface ChainSeams {
   now(): number
   /** Cancellation for the whole chain. */
   readonly signal: AbortSignal
+  /**
+   * Session the step before `from` settled in, when this chain resumes mid-pipeline.
+   *
+   * A resumed chain starts where the pipeline stands, so its first step has a predecessor
+   * that already ran — in this panel or in an earlier one. Joining that session keeps the
+   * promise the chain makes everywhere else; absent, the step opens its own, which is the
+   * honest answer when nobody knows where the earlier step ran.
+   */
+  readonly resume?: string
 }
 
 /** How a chain ended. */
@@ -149,7 +158,9 @@ export async function runSteps(
   const outcomes: ChainStepOutcome[] = steps.map((_unused, index) => (
     index < from || index > to ? { phase: 'idle' } : { phase: 'queued' }
   ))
-  let sessionId: string | undefined
+  // A resumed chain begins with the session its predecessor left behind, when that is
+  // known: the step it starts with is a continuation even though it is the first to run here.
+  let sessionId = from > 0 ? seams.resume : undefined
   /** The chain as it stands, with the session the last settled step used. */
   const ended = (phase: 'settled' | 'failed' | 'stopped'): { readonly phase: typeof phase; readonly steps: readonly ChainStepOutcome[]; readonly sessionId?: string } => ({
     phase,
@@ -237,8 +248,10 @@ export interface PipelineRunFace {
   /**
    * Run a whole pipeline.
    * @param pipeline - the pipeline to run.
+   * @param from - first step to run; absent starts at the first step.
+   * @param resume - session the step before `from` settled in, when the run continues it.
    */
-  runAll(pipeline: WorkbenchPipeline): void
+  runAll(pipeline: WorkbenchPipeline, from?: number, resume?: string): void
   /**
    * Run one step on its own, in a session of its own.
    * @param pipeline - the pipeline the step belongs to.
@@ -340,7 +353,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     pipeline: WorkbenchPipeline,
     from: number,
     to: number,
-    ask: { scope: PipelineRunEntry['scope']; instruction?: string; previous?: string },
+    ask: { scope: PipelineRunEntry['scope']; instruction?: string; previous?: string; resume?: string },
   ) => {
     if (pipeline.steps.length === 0 || from > to) return
     token.current += 1
@@ -362,6 +375,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     void runSteps(pipeline.steps, from, to, {
       now: () => Date.now(),
       signal: controller.signal,
+      ...ask.resume === undefined ? {} : { resume: ask.resume },
       onStep: (index, outcome) => {
         if (token.current !== mine) return
         setChain(current => current === undefined ? current : {
@@ -419,8 +433,17 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     })
   }, [api, pollIntervalMs, scopeSessionId, finish])
 
-  const runAll = useCallback((pipeline: WorkbenchPipeline) => {
-    start(pipeline, 0, pipeline.steps.length - 1, { scope: 'full' })
+  // A whole run starts where the pipeline actually is: at the first step without a result,
+  // or at the first step again when every step holds one. The run bar states that rule in
+  // words, so it is applied here rather than left for the button to decide.
+  const runAll = useCallback((pipeline: WorkbenchPipeline, from = 0, resume?: string) => {
+    const at = from < 0 || from >= pipeline.steps.length ? 0 : from
+    // Resuming is a continuation of the step before it: the chain keeps its promise that a
+    // step runs in the session the step before it settled in.
+    start(pipeline, at, pipeline.steps.length - 1, {
+      scope: 'full',
+      ...at > 0 && resume !== undefined ? { resume } : {},
+    })
   }, [start])
 
   const runOne = useCallback((pipeline: WorkbenchPipeline, index: number) => {

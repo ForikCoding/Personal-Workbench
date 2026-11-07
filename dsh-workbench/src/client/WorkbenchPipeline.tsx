@@ -15,8 +15,8 @@ import './pipeline.css'
 import css from './pipeline-classes.ts'
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts'
 import type { PipelineRunFace, PipelineStepPhase } from './pipeline/pipeline-run.ts'
-import type { PipelineRunEntry, StepProduct } from './pipeline/pipeline-view.ts'
-import { formatDuration, formatWhen, productOf, stateView } from './pipeline/pipeline-view.ts'
+import type { PipelineRunEntry, PipelineStand, StepProduct } from './pipeline/pipeline-view.ts'
+import { formatDuration, formatWhen, productOf, resumeFrom, standOf, stateView } from './pipeline/pipeline-view.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
@@ -219,6 +219,8 @@ interface StepView {
   readonly result: WorkbenchCardResult | undefined
   /** Which run of this pipeline last produced the step's product, when one is known. */
   readonly runNo: number | undefined
+  /** What that run covered: the whole chain, this step, or this step again on request. */
+  readonly runScope: 'full' | 'single' | 'refine' | undefined
 }
 
 /**
@@ -393,6 +395,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
         card,
         result,
         runNo: producing?.no,
+        runScope: producing?.scope,
       }
     })
   }, [active, cards, chain, history, labelOf, resultOf])
@@ -539,17 +542,125 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const stateText = (phase: PipelineStepPhase): string => t(`pipeStepState_${stateView(phase).key}` as WorkbenchLocaleKey)
   const markOf = (phase: PipelineStepPhase): ReactNode => MARK[stateView(phase).mark]
 
-  const chainState: PipelineStepPhase = chain === undefined
-    ? 'idle'
-    : chain.phase === 'running' ? 'running'
-      : chain.phase === 'failed' ? 'failed'
-        : chain.phase === 'stopped' ? 'stopped' : 'done'
+  // Whether the chain on screen is a run of the whole pipeline or of one step. A single
+  // step finishing says nothing about the pipeline, and treating it as if it did is what
+  // made one completed step read as a finished pipeline.
+  const chainWhole = chain !== undefined && active !== undefined
+    && chain.steps.length === active.steps.length
+    && chain.steps.every(step => step.phase !== 'idle')
+
+  const stepCount = active?.steps.length ?? 0
+  const doneCount = stepViews.filter(step => step.phase === 'done').length
+  const failedAt = chain?.failureIndex ?? stepViews.findIndex(step => step.phase === 'failed')
+  const stand = standOf({
+    stepCount,
+    doneCount,
+    ...chain === undefined ? {} : { chain: { phase: chain.phase, whole: chainWhole } },
+    runs: history,
+  })
+  // Steps that hold a result but were not produced by a run of the whole chain. They are
+  // what the run bar names, and what a resumed run will pass over.
+  const alone = stepViews
+    .filter(step => step.phase === 'done' && step.runScope !== 'full')
+    .map(step => step.index + 1)
+  const resumeAt = resumeFrom(stepViews.map(step => step.phase))
+  /** Session a resumed run continues: the one the step before its first step settled in. */
+  const priorSession = resumeAt > 0 ? chain?.steps[resumeAt - 1]?.sessionId : undefined
+
+  /**
+   * How any stored pipeline stands, for the menu rows.
+   *
+   * The one on screen answers with the same reading the canvas title uses, so the row and
+   * the title can never disagree; the others are read from their records alone.
+   * @param pipeline - the pipeline to read.
+   * @returns how it stands.
+   */
+  const standOfId = (pipeline: WorkbenchPipeline): PipelineStand => {
+    if (pipeline.id === active?.id) return stand
+    const mine = chain !== undefined && chain.pipelineId === pipeline.id ? chain : undefined
+    const whole = mine !== undefined
+      && mine.steps.length === pipeline.steps.length
+      && mine.steps.every(step => step.phase !== 'idle')
+    return standOf({
+      stepCount: pipeline.steps.length,
+      doneCount: pipeline.steps.filter(step => results.some(entry => entry.cardId === step.cardId)).length,
+      ...mine === undefined ? {} : { chain: { phase: mine.phase, whole } },
+      runs: run.history(pipeline.id),
+    })
+  }
+
+  /**
+   * How long the run that finished the pipeline took.
+   *
+   * The steps' own durations added up, so the bar and the canvas cannot tell two different
+   * stories about the same run; a pipeline with no timing reads as unknown, not as zero.
+   */
+  const runTook = chain !== undefined
+    ? chain.phase === 'running'
+      ? undefined
+      : chain.steps.reduce<number | undefined>(
+        (sum, step) => (step.tookMs === undefined ? sum : (sum ?? 0) + step.tookMs),
+        undefined,
+      )
+    : history[0]?.tookMs
+
+  /** What one run-bar segment is drawn as; `solo` is the hollow one. */
+  const segState = (phase: PipelineStepPhase): string => (
+    phase === 'done' && (stand === 'solo' || stand === 'kept') ? 'solo' : phase
+  )
+
+  /**
+   * How a finished run reads in the run list.
+   *
+   * A chain's own word for its outcome ("settled") is not a word a reader knows, and the
+   * list's colour rule is keyed on this smaller set, so the two are chosen together here.
+   * @param phase - how the run ended.
+   * @returns the colour key and the locale key that names it.
+   */
+  const runStateOf = (phase: PipelineRunEntry['phase']): { s: string; key: WorkbenchLocaleKey } => (
+    phase === 'settled'
+      ? { s: 'ok', key: 'pipeRunState_ok' }
+      : phase === 'failed' ? { s: 'fail', key: 'pipeRunState_fail' }
+        : phase === 'stopped' ? { s: 'stopped', key: 'pipeRunState_stopped' }
+          : { s: 'running', key: 'pipeRunState_running' }
+  )
+
+  /**
+   * What one run covered, named rather than numbered.
+   *
+   * A whole run lists the steps it took in order; a run of one step names that step, which
+   * is the only thing that tells the two apart in a list of otherwise identical rows.
+   * @param entry - the run.
+   * @returns a phrase for the row.
+   */
+  const runScopeOf = (entry: PipelineRunEntry): string => {
+    if (entry.scope === 'full') return entry.steps.map(step => labelOf(step.cardId)).join(' → ')
+    // A one-step run records that step and nothing else, so the record names it.
+    const name = labelOf(entry.steps[0]?.cardId ?? '')
+    return entry.scope === 'single' ? t('pipeScopeOnly', { name }) : t('pipeScopeRefined', { name })
+  }
+
+  /**
+   * One run's header line: when, what it covered, how long, how it ended.
+   * @param entry - the run, when one is open.
+   * @returns the line, or nothing while no run is open.
+   */
+  const runMetaOf = (entry: PipelineRunEntry | undefined): string => entry === undefined
+    ? ''
+    : [
+        formatWhen(entry.startedAt, Date.now()),
+        runScopeOf(entry),
+        formatDuration(entry.tookMs),
+        t(runStateOf(entry.phase).key),
+      ].join(' · ')
 
   const metaOf = (pipeline: WorkbenchPipeline): string => {
     const runs = run.history(pipeline.id)
     const count = pipeline.steps.length
     if (count === 0) return t('pipeMetaNoSteps')
-    if (runs.length === 0) return t('pipeMetaNeverRan', { count })
+    // The chip above already says how the pipeline stands; this line is about the runs, so
+    // with no run to name it says what the pipeline is made of and nothing more.
+    if (runs.length === 0) return t('pipeMetaSteps', { count })
     return t('pipeMetaRan', {
       no: runs[0]?.no ?? 0,
       count,
@@ -557,23 +668,52 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })
   }
 
-  const doneCount = chain === undefined ? 0 : chain.steps.filter(step => step.phase === 'done').length
-  const failedAt = chain?.failureIndex
-
   const runNoise = (): ReactNode => {
-    if (chain === undefined) {
-      return <span>{active === undefined || active.steps.length === 0 ? t('pipeNoSteps') : t('pipeNotRun')}</span>
+    if (stepCount === 0) return <span>{t('pipeNoSteps')}</span>
+    if (stand === 'running') {
+      const at = (chain?.activeIndex ?? 0) + 1
+      // A step running on its own is not the pipeline running: saying "step 2 of 5" would
+      // claim a queue that does not exist.
+      return <span>{chainWhole ? t('pipeRunningStep', { at, count: stepCount }) : t('pipeRunningOne', { at })}</span>
     }
-    if (chain.phase === 'running') {
-      return <span>{t('pipeRunningStep', { at: (chain.activeIndex ?? 0) + 1, count: active?.steps.length ?? 0 })}</span>
+    if (stand === 'failed') {
+      return <span>{t('pipeFailedAt', { done: doneCount, count: stepCount, at: (failedAt < 0 ? doneCount : failedAt) + 1 })}</span>
     }
-    if (chain.phase === 'failed') {
-      return <span>{t('pipeFailedAt', { done: doneCount, count: active?.steps.length ?? 0, at: (failedAt ?? doneCount) + 1 })}</span>
+    if (stand === 'stopped') {
+      return <span>{t('pipeStopped', { done: doneCount, count: stepCount })}</span>
     }
-    if (chain.phase === 'stopped') {
-      return <span>{t('pipeStopped', { done: doneCount, count: active?.steps.length ?? 0 })}</span>
+    if (stand === 'done') {
+      // 用时是这一步一步加起来的时间，和画布上每一步的时长同源；没有一步计时就只说完成了几步
+      return <span>{runTook === undefined
+        ? t('pipeAllDone', { count: stepCount })
+        : t('pipeAllDoneAt', { count: stepCount, took: formatDuration(runTook) })}</span>
     }
-    return <span>{t('pipeAllDone', { count: active?.steps.length ?? 0 })}</span>
+    if (stand === 'idle') {
+      return (
+        <>
+          <span>{t('pipeStand_idle')}</span>
+          <span>·</span>
+          <span>{t('pipeBarIdle', { count: stepCount })}</span>
+        </>
+      )
+    }
+    // Some steps hold results, the whole chain never ran here. Name those steps and say
+    // where a run would start — the same rule the engine applies, read from resumeFrom.
+    const which = stand === 'kept'
+      ? t('pipeBarKeptWhich', { steps: alone.join(t('pipeListSeparator')) })
+      : t('pipeBarSoloWhich', { steps: alone.join(t('pipeListSeparator')) })
+    const next = doneCount === stepCount
+      ? t('pipeBarSoloNextAll')
+      : resumeAt === 0 ? t('pipeBarSoloNextFirst') : t('pipeBarSoloNextResume', { at: resumeAt + 1 })
+    return (
+      <>
+        {stand === 'solo' ? <span>{t('pipeBarSoloHead')}</span> : null}
+        {stand === 'solo' ? <span>·</span> : null}
+        <span>{which}</span>
+        <span>·</span>
+        <span>{next}</span>
+      </>
+    )
   }
 
   const openReader = (cardId: string): void => { setReader({ cardId }) }
@@ -598,7 +738,11 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
           className={`${css.btn} ${css.primary}`}
           data-run-all=""
           disabled={running || active === undefined || active.steps.length === 0}
-          onClick={() => { if (active !== undefined) run.runAll(active) }}
+          onClick={() => {
+            // The step before the one this run starts at, when it ran in this panel: the
+            // resumed step continues that session instead of opening a cold one.
+            if (active !== undefined) run.runAll(active, resumeAt, priorSession)
+          }}
         >
           {MARK.play}
           <span className={css.headLabel}>{t('pipeRunAll')}</span>
@@ -644,9 +788,11 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             </button>
                             )}
                     </span>
-                    <span className={css.chipState} data-canvas-state={chainState}>
-                      <span className={css.dot} data-s={chainState} />
-                      {stateText(chainState)}
+                    {/* data-s 是上色用的，data-canvas-state 是读的：两枚都得有，
+                        少一枚这枚 chip 就永远是默认灰的 */}
+                    <span className={css.chipState} data-s={stand} data-canvas-state={stand}>
+                      <span className={css.dot} data-s={stand} />
+                      {t(`pipeStand_${stand}` as WorkbenchLocaleKey)}
                     </span>
                   </div>
                   <button
@@ -673,8 +819,19 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                           aria-current={pipeline.id === active?.id}
                           onClick={() => { setMenuOpen(false); setActiveId(pipeline.id); setFocus(undefined) }}
                         >
-                          <span className={css.menuRowMain}>{pipeline.name}</span>
-                          <span className={css.menuRowTail}>{pipeline.steps.length}</span>
+                          {/* 菜单里每一行报的也是「整条」的状态，和标题旁那一枚同源——否则
+                              同一条流水线在这两处会一个写「未整体运行」、一个写「单步跑过」 */}
+                          <span className={css.dot} data-s={standOfId(pipeline)} />
+                          <span className={css.menuRowMain}>
+                            <span className={css.menuRowTitle}>{pipeline.name}</span>
+                            <span className={css.menuRowSub}>
+                              {t('pipeMenuSub', {
+                                count: pipeline.steps.length,
+                                state: t(`pipeStand_${standOfId(pipeline)}` as WorkbenchLocaleKey),
+                              })}
+                            </span>
+                          </span>
+                          <span className={css.menuRowTail}>{formatWhen(pipeline.updatedAt, Date.now())}</span>
                         </button>
                       ))}
                       <button
@@ -847,7 +1004,17 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               {stepRename === step.index ? <span>{t('pipeRenameHint')}</span> : footOf(step, t)}
                               {step.runNo === undefined
                                 ? null
-                                : <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>}
+                                : step.runScope === 'full'
+                                  ? <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>
+                                  : (
+                                    <span
+                                      className={css.nodeRun}
+                                      data-solo="1"
+                                      title={t('pipeRunOfSingleTitle', { no: step.runNo })}
+                                    >
+                                      {t('pipeRunOfSingle', { no: step.runNo })}
+                                    </span>
+                                    )}
                             </div>
                           </div>
                         </div>
@@ -1122,7 +1289,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
           <div className={css.runbar}>
             <div className={css.segBar}>
               {stepViews.map(step => (
-                <i key={`seg-${step.cardId}`} data-s={step.phase} />
+                // A step finished by a run of its own is drawn hollow: filled means the
+                // whole chain ran. Only while no whole run has happened — a step run again
+                // after the pipeline finished is not the pipeline looking unfinished.
+                <i key={`seg-${step.cardId}`} data-seg={String(step.index)} data-s={segState(step.phase)} />
               ))}
             </div>
             <div className={css.runNoise} data-run-noise={chain?.phase ?? 'idle'}>
@@ -1205,9 +1375,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 <span className={css.zoomMeta} data-hist-meta="">
                   {historyAt === undefined
                     ? history.length === 0 ? t('pipeHistoryEmptyMeta') : t('pipeHistoryCount', { count: history.length })
-                    : (history[historyAt] === undefined
-                        ? ''
-                        : `${formatWhen(history[historyAt]?.startedAt ?? 0, Date.now())} · ${formatDuration(history[historyAt]?.tookMs)}`)}
+                    : runMetaOf(history[historyAt])}
                 </span>
                 <span className={css.zoomHint}>{t('pipeEscHint')}</span>
                 <button type="button" className={css.iconBtn} aria-label={t('pipeClose')} onClick={() => { setHistoryOpen(false) }}>
@@ -1230,9 +1398,11 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                           >
                             <span className={css.histNo}>{`#${String(entry.no)}`}</span>
                             <span className={css.histWhen}>{formatWhen(entry.startedAt, Date.now())}</span>
-                            <span className={css.histSum}>{entry.steps.map(step => labelOf(step.cardId)).join(' → ')}</span>
+                            <span className={css.histSum}>{runScopeOf(entry)}</span>
                             <span className={css.histTook}>{formatDuration(entry.tookMs)}</span>
-                            <span className={css.histBadge} data-s={entry.phase}>{entry.phase}</span>
+                            <span className={css.histBadge} data-s={runStateOf(entry.phase).s}>
+                              {t(runStateOf(entry.phase).key)}
+                            </span>
                           </button>
                         ))}
                       </div>

@@ -108,6 +108,22 @@ describe('runSteps', () => {
     expect(result.steps.map(step => step.phase)).toEqual(['idle', 'done', 'idle'])
   })
 
+  it('continues the session its predecessor left when the slice starts mid-pipeline', async () => {
+    // Resuming at step 2 is still a continuation: step 1 already ran, so its session is the
+    // one the first resumed step belongs in.
+    const built = seams()
+    const result = await runSteps(STEPS, 1, 2, { ...built.seams, resume: 'session-from-step-1' })
+    expect(built.calls.map(call => call.sessionId)).toEqual(['session-from-step-1', 'session-2'])
+    expect(result.steps[0]).toMatchObject({ phase: 'idle' })
+    expect(result.phase).toBe('settled')
+  })
+
+  it('opens a cold session when nobody knows where the earlier step ran', async () => {
+    const built = seams()
+    await runSteps(STEPS, 2, 2, built.seams)
+    expect(built.calls).toEqual([{ kind: 'start', index: 2, terminal: true }])
+  })
+
   it('gives up when the chain is stopped before a step starts', async () => {
     const built = seams({ abortOnStart: true, abortAt: 1 })
     const result = await runSteps(STEPS, 0, 2, built.seams)

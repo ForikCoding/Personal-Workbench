@@ -8,7 +8,7 @@
  * @module dsh-workbench/client/pipeline/pipeline-view
  */
 
-import type { ChainPhase, ChainStepOutcome, PipelineStepPhase } from './pipeline-run.ts'
+import type { ChainPhase, PipelineStepPhase } from './pipeline-run.ts'
 
 /** Text and shape one step's state is drawn with. */
 export interface StepStateView {
@@ -180,24 +180,85 @@ export interface PipelineRunEntry {
 }
 
 /**
- * Say what one run covered.
- * @param entry - the run.
- * @param nameOf - naming of a step, so a `single` run can be named rather than numbered.
- * @returns a phrase for the run list.
+ * How a whole pipeline stands, in the words the canvas title carries.
+ *
+ * This vocabulary is deliberately not the step one. A step is 待运行 while the pipeline it
+ * belongs to may be 未整体运行, and giving both the same word is what made a single
+ * completed step read as a finished pipeline.
  */
-export function scopeOf(entry: PipelineRunEntry, nameOf: (index: number) => string): string {
-  const only = entry.only
-  if (entry.scope === 'single' && only !== undefined) return `仅 ${nameOf(only)}`
-  if (entry.scope === 'refine' && only !== undefined) return `${nameOf(only)} · 重新生成`
-  return `${String(entry.steps.length)} 步`
+export type PipelineStand =
+  /** Nothing has produced anything yet. */
+  | 'idle'
+  /** Steps ran, and every run that produced what is on screen covered one step only. */
+  | 'solo'
+  /** Steps hold results, but nothing left here says how they were produced. */
+  | 'kept'
+  | 'running'
+  | 'done'
+  | 'failed'
+  | 'stopped'
+
+/** What {@link standOf} reads. */
+export interface PipelineStandInput {
+  /** How many steps the pipeline has. */
+  readonly stepCount: number
+  /** How many of them hold a result. */
+  readonly doneCount: number
+  /** The run this panel started, when it started one. */
+  readonly chain?: {
+    readonly phase: ChainPhase
+    /** Whether that run covered every step, rather than a slice of them. */
+    readonly whole: boolean
+  }
+  /** The runs this panel has seen, newest first. */
+  readonly runs: readonly PipelineRunEntry[]
 }
 
 /**
- * Count the steps one phase in a run's step list.
- * @param steps - the run's steps.
- * @param wanted - the phase to count.
- * @returns how many steps are in that phase.
+ * Read how a whole pipeline stands.
+ *
+ * The run in flight is authoritative while it is whole: it is what just happened. A run of
+ * one step is not a verdict on the pipeline, so once the chain is a slice the answer falls
+ * back to the records — and when there are none, the steps holding a result are all that is
+ * left to read, which is why that case gets a word of its own instead of a claim about how
+ * those results came to be.
+ * @param input - steps, their results, the run in flight, and the runs seen.
+ * @returns how the pipeline stands.
  */
-export function countPhase(steps: readonly ChainStepOutcome[], wanted: PipelineStepPhase): number {
-  return steps.filter(step => step.phase === wanted).length
+export function standOf(input: PipelineStandInput): PipelineStand {
+  const { chain, doneCount, runs, stepCount } = input
+  if (chain !== undefined) {
+    if (chain.phase === 'running') return 'running'
+    if (chain.whole) {
+      if (chain.phase === 'failed') return 'failed'
+      if (chain.phase === 'stopped') return 'stopped'
+      return 'done'
+    }
+  }
+  // A whole run covers the rest of the pipeline, so its own outcome is the pipeline's: it
+  // could not have settled with a step unaccounted for, because the chain stops on failure.
+  const whole = runs.find(entry => entry.scope === 'full')
+  if (whole !== undefined) {
+    if (whole.phase === 'failed') return 'failed'
+    if (whole.phase === 'stopped') return 'stopped'
+    if (whole.phase === 'settled') return 'done'
+  }
+  // An empty pipeline and one nothing has run in are the same answer: nothing is pending,
+  // because nothing has started.
+  if (stepCount === 0 || doneCount === 0) return 'idle'
+  return runs.length === 0 ? 'kept' : 'solo'
+}
+
+/**
+ * Where a whole run would start: the first step that does not hold a result.
+ *
+ * The run bar says this out loud, and it must agree with the engine, so both read it here.
+ * A pipeline whose steps all hold a result starts over from the first, which is why the
+ * fallback is 0 rather than "nowhere".
+ * @param phases - one phase per step, in step order.
+ * @returns the zero-based index to start at.
+ */
+export function resumeFrom(phases: readonly PipelineStepPhase[]): number {
+  const first = phases.findIndex(phase => phase !== 'done')
+  return first < 0 ? 0 : first
 }

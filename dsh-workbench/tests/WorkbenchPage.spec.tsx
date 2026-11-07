@@ -232,7 +232,7 @@ describe('WorkbenchPage', () => {
     expect(screen.getAllByText('A card').length).toBeGreaterThan(0)
     expect(screen.getAllByText('B card').length).toBeGreaterThan(0)
     expect(document.querySelector('[data-canvas-meta]')?.textContent).toBe(
-      en.pipeMetaNeverRan.replace('{count}', '2'),
+      en.pipeMetaSteps.replace('{count}', '2'),
     )
   })
 
@@ -771,7 +771,83 @@ describe('WorkbenchPage', () => {
     expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } })
     expect(starts[1]?.sessionId).toBe('session-chain')
     expect(starts[0]?.outputSchema).toBeDefined()
-    await waitFor(() => { expect(document.querySelector('[data-run-noise]')?.textContent).toBe(en.pipeAllDone.replace('{count}', '2')) })
+    // Finished runs say how long they took; the number is timing, so only its frame is fixed.
+    await waitFor(() => {
+      expect(document.querySelector('[data-run-noise]')?.textContent)
+        .toContain(en.pipeAllDoneAt.replace('{count}', '2').replace('{took}', ''))
+    })
+  })
+
+  it('does not call the pipeline done because one step ran alone', async () => {
+    const starts: WorkbenchRunRequest[] = []
+    await renderPage({
+      run: {
+        start: async (request) => {
+          starts.push(request)
+          return { status: 'ok', state: { cardId: request.cardId, phase: 'running', retried: false } as WorkbenchRunState }
+        },
+        poll: async () => ({
+          status: 'ok',
+          state: {
+            cardId: 'a-card',
+            phase: 'settled',
+            retried: false,
+            result: { runId: 'run-1', skill: 's', executedAt: 1, stopReason: 'stop', structured: { html: '<b>ok</b>' }, sessionId: 'session-one' },
+          } as WorkbenchRunState,
+        }),
+      },
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
+    // The step did finish; the pipeline only ran one step of itself, and says so.
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_solo)
+    })
+    expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('done')
+    // The bar names the step that ran and where Run would start, which is not step 1.
+    expect(document.querySelector('[data-run-noise]')?.textContent).toBe([
+      en.pipeBarSoloHead,
+      en.pipeBarSoloWhich.replace('{steps}', '1'),
+      en.pipeBarSoloNextResume.replace('{at}', '2'),
+    ].join('·'))
+    // Filled means the whole chain ran, so this step's segment is the hollow one.
+    expect(document.querySelector('[data-seg="0"]')?.getAttribute('data-s')).toBe('solo')
+    expect(document.querySelector('[data-seg="1"]')?.getAttribute('data-s')).toBe('idle')
+    // And the foot says which run produced the product, and that it covered this step only.
+    expect(screen.getByTitle(en.pipeRunOfSingleTitle.replace('{no}', '1'))).toBeDefined()
+    // Run does what the bar just said: it starts at step 2, and it continues the session
+    // step 1 settled in rather than opening a cold one.
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await waitFor(() => { expect(starts).toHaveLength(2) })
+    expect(starts[1]?.cardId).toBe('b-card')
+    expect(starts[1]?.sessionId).toBe('session-one')
+    expect(starts[1]?.mode).toEqual({ kind: 'step', terminal: true, join: true, handoff: { pipelineId: 'pipeline-1', step: 1 } })
+    // And the pipeline is done once the run that covered the rest of it settled.
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
+    })
+    // The run list names what each run covered, so a one-step run is not a line that looks
+    // like any other, and it says how that run ended in words a reader knows.
+    fireEvent.click(document.querySelector('[data-canvas-meta]') as HTMLElement)
+    const rows = document.querySelectorAll('[data-hist-run]')
+    expect(rows.length).toBe(2)
+    expect(rows[1]?.textContent).toContain(en.pipeScopeOnly.replace('{name}', 'A card'))
+    expect(rows[1]?.textContent).toContain(en.pipeRunState_ok)
+  })
+
+  it('says what it knows when steps hold results but nothing ran here', async () => {
+    await renderPage({ results: [result('a-card')] })
+    // A reopened panel has no runs to name: claiming "done" would be a guess, and claiming
+    // "never run" would contradict the result the user can see on the step.
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_kept)
+    })
+    expect(document.querySelector('[data-run-noise]')?.textContent).toBe([
+      en.pipeBarKeptWhich.replace('{steps}', '1'),
+      en.pipeBarSoloNextResume.replace('{at}', '2'),
+    ].join('·'))
+    expect(document.querySelector('[data-seg="0"]')?.getAttribute('data-s')).toBe('solo')
   })
 
   it('runs one step alone, with its own session', async () => {

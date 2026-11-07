@@ -1,0 +1,126 @@
+/**
+ * How a whole pipeline stands, and where a run would start.
+ *
+ * These two readings are what the canvas title and the run bar are made of, so they are
+ * tested apart from React: the failure this guards against is one step finishing and the
+ * pipeline claiming it finished too.
+ */
+
+import { describe, expect, it } from 'vitest'
+import type { ChainPhase, PipelineStepPhase } from '../src/client/pipeline/pipeline-run.ts'
+import type { PipelineRunEntry, PipelineRunStep } from '../src/client/pipeline/pipeline-view.ts'
+import { resumeFrom, standOf } from '../src/client/pipeline/pipeline-view.ts'
+
+/** One recorded step. */
+const ran = (phase: PipelineStepPhase): PipelineRunStep => ({ cardId: 'card', phase })
+
+/**
+ * One recorded run.
+ * @param scope - what the run covered.
+ * @param phase - how it ended.
+ * @param steps - what it did, in step order.
+ * @param only - the step a single run was about.
+ * @returns the record.
+ */
+function entry(
+  scope: PipelineRunEntry['scope'],
+  phase: ChainPhase,
+  steps: readonly PipelineRunStep[],
+  only?: number,
+): PipelineRunEntry {
+  return {
+    no: 1,
+    startedAt: 1,
+    tookMs: 1_000,
+    phase,
+    scope,
+    steps,
+    ...only === undefined ? {} : { only },
+  }
+}
+
+describe('standOf', () => {
+  it('is idle while nothing has produced anything', () => {
+    expect(standOf({ stepCount: 2, doneCount: 0, runs: [] })).toBe('idle')
+  })
+
+  it('treats a pipeline with no steps as having nothing to stand on', () => {
+    expect(standOf({ stepCount: 0, doneCount: 0, runs: [] })).toBe('idle')
+  })
+
+  it('will not call the pipeline done because one step ran alone', () => {
+    // The case that started this: one step's own run settled, and the chain covered one
+    // step of two, so the pipeline has not run as a whole.
+    expect(standOf({
+      stepCount: 2,
+      doneCount: 1,
+      chain: { phase: 'settled', whole: false },
+      runs: [entry('single', 'settled', [ran('done')], 0)],
+    })).toBe('solo')
+  })
+
+  it('is done when the chain covered every step', () => {
+    expect(standOf({
+      stepCount: 2,
+      doneCount: 2,
+      chain: { phase: 'settled', whole: true },
+      runs: [entry('full', 'settled', [ran('done'), ran('done')])],
+    })).toBe('done')
+  })
+
+  it('is running as soon as a run is in flight, whole or not', () => {
+    expect(standOf({ stepCount: 2, doneCount: 1, chain: { phase: 'running', whole: false }, runs: [] })).toBe('running')
+    expect(standOf({ stepCount: 2, doneCount: 1, chain: { phase: 'running', whole: true }, runs: [] })).toBe('running')
+  })
+
+  it('keeps a failure of one step from failing the whole pipeline', () => {
+    expect(standOf({
+      stepCount: 2,
+      doneCount: 1,
+      chain: { phase: 'failed', whole: false },
+      runs: [entry('single', 'failed', [ran('failed')], 0)],
+    })).toBe('solo')
+  })
+
+  it('takes the outcome of the last whole run when no chain is in this panel', () => {
+    const settled = [entry('full', 'settled', [ran('done'), ran('done')])]
+    expect(standOf({ stepCount: 2, doneCount: 2, runs: settled })).toBe('done')
+    expect(standOf({ stepCount: 2, doneCount: 1, runs: [entry('full', 'failed', [ran('done'), ran('failed')])] })).toBe('failed')
+    expect(standOf({ stepCount: 2, doneCount: 1, runs: [entry('full', 'stopped', [ran('done')])] })).toBe('stopped')
+  })
+
+  it('says steps hold results, not how they were produced, when no run is left to read', () => {
+    // A reopened panel keeps the results and loses the records; claiming "done" would be a
+    // guess and claiming "never run" would contradict what the step shows.
+    expect(standOf({ stepCount: 3, doneCount: 1, runs: [] })).toBe('kept')
+  })
+
+  it('counts a review regeneration as something that was not a whole run', () => {
+    expect(standOf({
+      stepCount: 3,
+      doneCount: 1,
+      runs: [entry('refine', 'settled', [ran('done')], 1)],
+    })).toBe('solo')
+  })
+})
+
+describe('resumeFrom', () => {
+  it('starts at the first step without a result', () => {
+    expect(resumeFrom(['done', 'idle', 'idle'])).toBe(1)
+    expect(resumeFrom(['idle', 'done', 'idle'])).toBe(0)
+  })
+
+  it('starts over when every step holds a result', () => {
+    // Running again is the only way to ask for the whole thing twice, so it begins at the
+    // first step rather than running nothing.
+    expect(resumeFrom(['done', 'done'])).toBe(0)
+    expect(resumeFrom([])).toBe(0)
+  })
+
+  it('reads only a finished step as finished', () => {
+    // Anything else — failed, stopped, queued — has to be run again for the chain to go on.
+    expect(resumeFrom(['done', 'failed'])).toBe(1)
+    expect(resumeFrom(['stopped', 'done'])).toBe(0)
+    expect(resumeFrom(['done', 'queued'])).toBe(1)
+  })
+})

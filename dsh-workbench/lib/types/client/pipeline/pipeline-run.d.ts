@@ -102,6 +102,15 @@ export interface ChainSeams {
     now(): number;
     /** Cancellation for the whole chain. */
     readonly signal: AbortSignal;
+    /**
+     * Session the step before `from` settled in, when this chain resumes mid-pipeline.
+     *
+     * A resumed chain starts where the pipeline stands, so its first step has a predecessor
+     * that already ran — in this panel or in an earlier one. Joining that session keeps the
+     * promise the chain makes everywhere else; absent, the step opens its own, which is the
+     * honest answer when nobody knows where the earlier step ran.
+     */
+    readonly resume?: string;
 }
 /** How a chain ended. */
 export interface ChainResult {
@@ -147,8 +156,10 @@ export interface PipelineRunFace {
     /**
      * Run a whole pipeline.
      * @param pipeline - the pipeline to run.
+     * @param from - first step to run; absent starts at the first step.
+     * @param resume - session the step before `from` settled in, when the run continues it.
      */
-    runAll(pipeline: WorkbenchPipeline): void;
+    runAll(pipeline: WorkbenchPipeline, from?: number, resume?: string): void;
     /**
      * Run one step on its own, in a session of its own.
      * @param pipeline - the pipeline the step belongs to.
