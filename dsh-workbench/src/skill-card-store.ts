@@ -207,7 +207,12 @@ export class WorkbenchSkillCardStore {
       const permission = record?.permission
       const instructionMode = record?.instructionMode
       const bySkill = templatesByCard.get(cardId)
-      const template = selected === undefined ? undefined : bySkill?.get(selected)
+      // The selected pair answers first; a card whose selection has no row of its own still
+      // shows the template it holds, by skill name, because a card's picture is not something
+      // a skill change is allowed to take away. The pair it came from is what a write repairs.
+      const template = selected === undefined
+        ? this.templateFromRows(bySkill)
+        : bySkill?.get(selected) ?? this.templateFromRows(bySkill)
       cards.push({
         cardId,
         ...name === undefined ? {} : { name },
@@ -288,6 +293,26 @@ export class WorkbenchSkillCardStore {
     if (template !== undefined) {
       const key = templateKey(patch.cardId, template.skill)
       await this.run('put', () => this.options.template.put(key, { html: template.html }))
+    }
+
+    // A card keeps one template per skill, which is what lets a switch back restore the work
+    // done under the previous one — but a switch to a skill this card has never held a
+    // template for must not take the picture away. That pair inherits the template the card
+    // currently shows, in the same write and ahead of the selection, so no reader ever sees a
+    // selected skill whose template is empty. A pair that already holds its own keeps it, and
+    // an explicit template write above is authoritative: it is never overwritten by a carry.
+    const previous = this.options.card.get(patch.cardId)
+    const nextSkill = patch.skill
+    if (template === undefined && nextSkill !== undefined && nextSkill !== null
+      && nextSkill !== previous?.skill) {
+      const target = templateKey(patch.cardId, nextSkill)
+      if (this.options.template.get(target) === undefined
+        && this.countTemplates(patch.cardId) < this.options.maxTemplatesPerCard) {
+        const carried = this.templateHtmlFor(patch.cardId, previous?.skill)
+        if (carried !== undefined) {
+          await this.run('put', () => this.options.template.put(target, { html: carried }))
+        }
+      }
     }
 
     // The name, the selection, the route, the directory, and the permission mode share one
@@ -550,6 +575,43 @@ export class WorkbenchSkillCardStore {
       return `card already holds ${String(held)} templates, at the ${String(this.options.maxTemplatesPerCard)} limit`
     }
     return undefined
+  }
+
+  /**
+   * The first of one card's templates, by skill name, so two reads of one card agree.
+   * @param bySkill - the card's rows, when it holds any.
+   * @returns that row's HTML, or undefined when the card holds none.
+   */
+  private templateFromRows(bySkill: Map<string, string> | undefined): string | undefined {
+    if (bySkill === undefined) return undefined
+    const first = [...bySkill.keys()].sort()[0]
+    return first === undefined ? undefined : bySkill.get(first)
+  }
+
+  /**
+   * The template one card currently shows, for a write that has to carry it forward.
+   *
+   * The selected skill's own row comes first. A card with no selection — or a selection whose
+   * row was never written — answers with its other rows instead, so clearing the skill and
+   * then choosing a new one still carries the picture rather than emptying the box.
+   * @param cardId - card identity.
+   * @param selected - the skill the card currently names, when it names one.
+   * @returns the HTML to carry, or undefined when the card holds no template at all.
+   */
+  private templateHtmlFor(cardId: string, selected: string | undefined): string | undefined {
+    if (selected !== undefined) {
+      const direct = this.options.template.get(templateKey(cardId, selected))
+      if (direct !== undefined) return direct.html
+    }
+    const held: { readonly skill: string; readonly html: string }[] = []
+    for (const [key, record] of this.options.template.entries()) {
+      const parsed = parseTemplateKey(key)
+      if (parsed?.cardId !== cardId) continue
+      held.push({ skill: parsed.skill, html: record.html })
+    }
+    // By skill name, so two cards carrying the same history carry the same row.
+    held.sort((left, right) => left.skill.localeCompare(right.skill))
+    return held[0]?.html
   }
 
   /**

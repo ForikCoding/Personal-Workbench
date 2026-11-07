@@ -4393,7 +4393,7 @@ var WorkbenchSkillCardStore = class {
 			const permission = record?.permission;
 			const instructionMode = record?.instructionMode;
 			const bySkill = templatesByCard.get(cardId);
-			const template = selected === void 0 ? void 0 : bySkill?.get(selected);
+			const template = selected === void 0 ? this.templateFromRows(bySkill) : bySkill?.get(selected) ?? this.templateFromRows(bySkill);
 			cards.push({
 				cardId,
 				...name === void 0 ? {} : { name },
@@ -4462,6 +4462,15 @@ var WorkbenchSkillCardStore = class {
 		if (template !== void 0) {
 			const key = templateKey(patch.cardId, template.skill);
 			await this.run("put", () => this.options.template.put(key, { html: template.html }));
+		}
+		const previous = this.options.card.get(patch.cardId);
+		const nextSkill = patch.skill;
+		if (template === void 0 && nextSkill !== void 0 && nextSkill !== null && nextSkill !== previous?.skill) {
+			const target = templateKey(patch.cardId, nextSkill);
+			if (this.options.template.get(target) === void 0 && this.countTemplates(patch.cardId) < this.options.maxTemplatesPerCard) {
+				const carried = this.templateHtmlFor(patch.cardId, previous?.skill);
+				if (carried !== void 0) await this.run("put", () => this.options.template.put(target, { html: carried }));
+			}
 		}
 		const current = this.options.card.get(patch.cardId);
 		const patchedName = patch.name;
@@ -4639,6 +4648,43 @@ var WorkbenchSkillCardStore = class {
 		const replacing = this.options.template.get(templateKey(patch.cardId, template.skill)) !== void 0;
 		const held = this.countTemplates(patch.cardId);
 		if (!replacing && held >= this.options.maxTemplatesPerCard) return `card already holds ${String(held)} templates, at the ${String(this.options.maxTemplatesPerCard)} limit`;
+	}
+	/**
+	* The first of one card's templates, by skill name, so two reads of one card agree.
+	* @param bySkill - the card's rows, when it holds any.
+	* @returns that row's HTML, or undefined when the card holds none.
+	*/
+	templateFromRows(bySkill) {
+		if (bySkill === void 0) return void 0;
+		const first = [...bySkill.keys()].sort()[0];
+		return first === void 0 ? void 0 : bySkill.get(first);
+	}
+	/**
+	* The template one card currently shows, for a write that has to carry it forward.
+	*
+	* The selected skill's own row comes first. A card with no selection — or a selection whose
+	* row was never written — answers with its other rows instead, so clearing the skill and
+	* then choosing a new one still carries the picture rather than emptying the box.
+	* @param cardId - card identity.
+	* @param selected - the skill the card currently names, when it names one.
+	* @returns the HTML to carry, or undefined when the card holds no template at all.
+	*/
+	templateHtmlFor(cardId, selected) {
+		if (selected !== void 0) {
+			const direct = this.options.template.get(templateKey(cardId, selected));
+			if (direct !== void 0) return direct.html;
+		}
+		const held = [];
+		for (const [key, record] of this.options.template.entries()) {
+			const parsed = parseTemplateKey(key);
+			if (parsed?.cardId !== cardId) continue;
+			held.push({
+				skill: parsed.skill,
+				html: record.html
+			});
+		}
+		held.sort((left, right) => left.skill.localeCompare(right.skill));
+		return held[0]?.html;
 	}
 	/**
 	* Count the templates one card holds.

@@ -216,6 +216,23 @@ export declare class WorkbenchSkillCardStore {
      */
     private validate;
     /**
+     * The first of one card's templates, by skill name, so two reads of one card agree.
+     * @param bySkill - the card's rows, when it holds any.
+     * @returns that row's HTML, or undefined when the card holds none.
+     */
+    private templateFromRows;
+    /**
+     * The template one card currently shows, for a write that has to carry it forward.
+     *
+     * The selected skill's own row comes first. A card with no selection — or a selection whose
+     * row was never written — answers with its other rows instead, so clearing the skill and
+     * then choosing a new one still carries the picture rather than emptying the box.
+     * @param cardId - card identity.
+     * @param selected - the skill the card currently names, when it names one.
+     * @returns the HTML to carry, or undefined when the card holds no template at all.
+     */
+    private templateHtmlFor;
+    /**
      * Count the templates one card holds.
      * @param cardId - card identity.
      * @returns the number of stored templates addressed to that card.

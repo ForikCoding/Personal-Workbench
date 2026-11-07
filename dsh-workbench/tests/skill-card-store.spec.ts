@@ -100,8 +100,72 @@ describe('workbench skill card store', () => {
     }])
   })
 
-  it('lists a template whose skill is no longer selected', async () => {    const { store } = setup({ seed: { template: { 'skill-card_other': { html: 'x' } } } })
-    expect(store.read().cards).toEqual([{ cardId: 'skill-card', templateSkills: ['other'] }])
+  it('carries the template onto the skill being switched to, so a switch never empties it', async () => {
+    const { store, tables } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo' } }, template: { 'skill-card_git-repo': { html: '<b>x</b>' } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: 'office-docx' })
+    // The template lands before the selection for the same reason an explicit one does.
+    expect(tables.operations.map(operation => `${operation.table}:${operation.kind}`))
+      .toEqual(['template:put', 'card:put'])
+    expect(store.read().cards).toEqual([{
+      cardId: 'skill-card',
+      skill: 'office-docx',
+      templateSkills: ['git-repo', 'office-docx'],
+      template: '<b>x</b>',
+    }])
+  })
+
+  it('keeps a template the new skill already holds, instead of overwriting it with the carry', async () => {
+    const { store } = setup({
+      seed: {
+        card: { 'skill-card': { skill: 'git-repo' } },
+        template: { 'skill-card_git-repo': { html: 'old' }, 'skill-card_office-docx': { html: 'mine' } },
+      },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: 'office-docx' })
+    expect(store.read().cards).toMatchObject([{ skill: 'office-docx', template: 'mine' }])
+  })
+
+  it('still carries after the selection was cleared, when the card holds a template', async () => {
+    const { store } = setup({
+      seed: { template: { 'skill-card_git-repo': { html: 'x' } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: 'office-docx' })
+    expect(store.read().cards).toEqual([{
+      cardId: 'skill-card',
+      skill: 'office-docx',
+      templateSkills: ['git-repo', 'office-docx'],
+      template: 'x',
+    }])
+  })
+
+  it('writes no template for a card that never held one', async () => {
+    const { store, tables } = setup({ seed: { card: { 'skill-card': { skill: 'git-repo' } } } })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: 'office-docx' })
+    expect(tables.operations).toEqual([{ table: 'card', kind: 'put', key: 'skill-card', value: { skill: 'office-docx' } }])
+  })
+
+  it('leaves the carry out when the card is already at its template limit', async () => {
+    const { store } = setup({
+      maxTemplatesPerCard: 1,
+      seed: { card: { 'skill-card': { skill: 'git-repo' } }, template: { 'skill-card_git-repo': { html: 'x' } } },
+    })
+    await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: 'office-docx' })
+    // No second row is written, so the limit holds; the card still shows the row it holds.
+    expect(store.read().cards).toEqual([{
+      cardId: 'skill-card',
+      skill: 'office-docx',
+      templateSkills: ['git-repo'],
+      template: 'x',
+    }])
+  })
+
+  it('shows the template a card holds even while no skill is selected', async () => {
+    // The picture belongs to the card. A selection with no row of its own does not hide it;
+    // `templateSkills` still records which skills have one, so nothing is lost either.
+    const { store } = setup({ seed: { template: { 'skill-card_other': { html: 'x' } } } })
+    expect(store.read().cards).toEqual([{ cardId: 'skill-card', templateSkills: ['other'], template: 'x' }])
   })
 
   it('clears a selection without dropping the stored templates', async () => {
@@ -110,7 +174,7 @@ describe('workbench skill card store', () => {
     })
     await store.write({ baseRevision: '7:0', cardId: 'skill-card', skill: null })
     expect(tables.operations).toEqual([{ table: 'card', kind: 'delete', key: 'skill-card' }])
-    expect(store.read().cards).toEqual([{ cardId: 'skill-card', templateSkills: ['git-repo'] }])
+    expect(store.read().cards).toEqual([{ cardId: 'skill-card', templateSkills: ['git-repo'], template: 'x' }])
   })
 
   it('stores a card name and reads it back', async () => {
@@ -351,7 +415,7 @@ describe('workbench skill card store', () => {
       },
     })
     await store.write({ baseRevision: '7:0', cardId: 'skill-card', remove: true })
-    expect(store.read().cards).toEqual([{ cardId: 'other-card', templateSkills: ['z'] }])
+    expect(store.read().cards).toEqual([{ cardId: 'other-card', templateSkills: ['z'], template: 'z' }])
     const deleted = tables.operations.filter(op => op.kind === 'delete').map(op => op.key).sort()
     expect(deleted).toEqual(['skill-card', 'skill-card_git-repo', 'skill-card_other'])
   })
