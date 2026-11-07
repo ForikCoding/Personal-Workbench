@@ -338,6 +338,50 @@ describe('workbench skill card route', () => {
     }])
   })
 
+  it('carries the instruction through the wire and stores it', async () => {
+    // The sentence the pipeline's 运行指令 row types. It used to be sent by the page and
+    // dropped here without an error, so the field looked saved and was gone on the next
+    // read — the report was "I configured it, switched away, and it was lost".
+    const { handle, tables } = setup()
+    const instruction = '把 T202601010001 的任务分析一遍'
+    const response = await run(handle, new FakeRequest('PATCH', patch({ instruction })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', instruction, templateSkills: [] },
+    ])
+    expect(tables.operations).toEqual([{
+      table: 'card',
+      kind: 'put',
+      key: 'skill-card',
+      value: { skill: 'git-repo', instruction },
+    }])
+  })
+
+  it('refuses an instruction that is not a sentence this build would run', async () => {
+    // Whitespace is not an instruction, and an unbounded one is not stored either: `null`
+    // is how the page says "no instruction", so a blank string is a client bug rather than
+    // a clear.
+    const { handle, tables } = setup()
+    for (const instruction of ['', '   ', 'x'.repeat(2_001), 7, false]) {
+      const response = await run(handle, new FakeRequest('PATCH', patch({ instruction })))
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.message)
+        .toBe('instruction must be null or visible text within 2000 characters')
+    }
+    expect(tables.operations).toEqual([])
+  })
+
+  it('clears the instruction when the patch says null', async () => {
+    const { handle } = setup({
+      seed: { card: { 'skill-card': { skill: 'git-repo', instruction: '把这份分析一遍' } } },
+    })
+    const response = await run(handle, new FakeRequest('PATCH', patch({ instruction: null })))
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).cards).toEqual([
+      { cardId: 'skill-card', skill: 'git-repo', templateSkills: [] },
+    ])
+  })
+
   it('refuses an instruction mode this build does not know', async () => {
     // A mode neither the bar nor the runner knows would leave the card's declared need
     // unenforced while its page showed one, so it is refused at the boundary.

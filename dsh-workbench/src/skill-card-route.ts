@@ -28,6 +28,7 @@ import type {
   WorkbenchSkillCardResponse,
 } from './skill-card-contract.ts'
 import {
+  WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_INSTRUCTION_MODES,
   WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
@@ -36,6 +37,7 @@ import {
   WORKBENCH_SANDBOX_MODES,
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
+  isWorkbenchCardInstruction,
   isWorkbenchCardModel,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
@@ -195,6 +197,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     model?: unknown
     workspace?: unknown
     permission?: unknown
+    instruction?: unknown
     instructionMode?: unknown
     template?: unknown
   }
@@ -276,6 +279,25 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     )
   }
 
+  // The sentence itself, which the store already knew how to keep and this reader did not
+  // know how to accept: the page sent it, this dropped it without a word, and the user read
+  // that as "I typed it, switched tabs, and it was gone". A blank one is refused rather than
+  // trimmed to nothing here — `null` is how the page says "no instruction".
+  let instruction: string | null | undefined
+  if (body.instruction === undefined) {
+    instruction = undefined
+  } else if (body.instruction === null) {
+    instruction = null
+  } else if (typeof body.instruction === 'string' && isWorkbenchCardInstruction(body.instruction)) {
+    instruction = body.instruction
+  } else {
+    throw new SkillCardRequestError(
+      400,
+      'invalid-request',
+      `instruction must be null or visible text within ${String(WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH)} characters`,
+    )
+  }
+
   let instructionMode: WorkbenchInstructionMode | null | undefined
   if (body.instructionMode === undefined) {
     instructionMode = undefined
@@ -321,6 +343,7 @@ function parsePatch(value: unknown, maxTemplateBytes: number): WorkbenchSkillCar
     ...model === undefined ? {} : { model },
     ...workspace === undefined ? {} : { workspace },
     ...permission === undefined ? {} : { permission },
+    ...instruction === undefined ? {} : { instruction },
     ...instructionMode === undefined ? {} : { instructionMode },
     ...template === undefined ? {} : { template },
   }

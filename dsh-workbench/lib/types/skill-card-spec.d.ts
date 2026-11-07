@@ -78,6 +78,7 @@ export declare const workbenchCardConfigSchema: z.ZodObject<{
         optional: "optional";
         required: "required";
     }>>;
+    instruction: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 /** Stored schema for one template. */
 export declare const workbenchTemplateSchema: z.ZodObject<{

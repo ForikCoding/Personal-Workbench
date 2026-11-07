@@ -112,6 +112,31 @@ describe('workbench storage schemas', () => {
     expect(workbenchCardConfigSchema.parse(whole)).toEqual(whole)
   })
 
+  it('keeps the instruction itself across a load, which is what a step runs on', () => {
+    // The mode's twin, and the field the same mistake was made about one layer along: the
+    // page sent the sentence, the route dropped it on the way in, and a schema that did not
+    // declare it would have dropped it on the way out. What the user saw was their own
+    // sentence gone after switching tabs, with no error to explain it.
+    const stored = {
+      skill: 'xiaoneng-task-analysis',
+      name: '任务分析',
+      instruction: '把 T202601010001 的任务分析一遍',
+    }
+    expect(workbenchCardConfigSchema.parse(stored)).toEqual(stored)
+    // The whole record, because the sentence and the mode are one choice: a card that lost
+    // its instruction while keeping 必须 would refuse every run and say nothing about why.
+    const whole = {
+      skill: 'xiaoneng-task-analysis',
+      name: '任务分析',
+      model: { provider: 'vendor/gateway', model: 'large' },
+      workspace: { path: 'D:\\Git\\Personal-Workbench' },
+      permission: 'workspace-write',
+      instruction: '把 T202601010001 的任务分析一遍',
+      instructionMode: 'required',
+    }
+    expect(workbenchCardConfigSchema.parse(whole)).toEqual(whole)
+  })
+
   it('leaves a card that needs no instruction without a mode', () => {
     // Absence means "this card runs on its own", which is the state of every card that never
     // opened the page: the schema must not invent the default and call it a choice.

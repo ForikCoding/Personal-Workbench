@@ -82,6 +82,12 @@ export const workbenchCardConfigSchema = z.object({
   // The same treatment for the same reason: a mode this build cannot name is a mode it cannot
   // enforce, and a card whose runs required an instruction must not come back not requiring it.
   instructionMode: z.enum(WORKBENCH_INSTRUCTION_MODES).optional(),
+  // The sentence that mode is about, and the third time this rule caught a field that was
+  // written but not declared: the page sent it, the route dropped it on the way in, and this
+  // schema would have dropped it on the way out. A card's 运行指令 is the instruction its
+  // runs are given, so losing it turns a configured step back into "apply this skill and
+  // pick your own subject" — which is the exact confusion the field was added to end.
+  instruction: z.string().optional(),
 })
 
 /** Stored schema for one template. */

@@ -1103,7 +1103,8 @@ const workbenchCardConfigSchema = z.object({
 	model: workbenchCardModelSchema.optional(),
 	workspace: workbenchCardWorkspaceSchema.optional(),
 	permission: z.enum(WORKBENCH_SANDBOX_MODES).optional(),
-	instructionMode: z.enum(WORKBENCH_INSTRUCTION_MODES).optional()
+	instructionMode: z.enum(WORKBENCH_INSTRUCTION_MODES).optional(),
+	instruction: z.string().optional()
 });
 /** Stored schema for one template. */
 const workbenchTemplateSchema = z.object({ html: z.string() });
@@ -3854,6 +3855,11 @@ function parsePatch(value, maxTemplateBytes) {
 	else if (body.permission === null) permission = null;
 	else if (isWorkbenchSandboxMode(body.permission)) permission = body.permission;
 	else throw new SkillCardRequestError(400, "invalid-request", `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(", ")}`);
+	let instruction;
+	if (body.instruction === void 0) instruction = void 0;
+	else if (body.instruction === null) instruction = null;
+	else if (typeof body.instruction === "string" && isWorkbenchCardInstruction(body.instruction)) instruction = body.instruction;
+	else throw new SkillCardRequestError(400, "invalid-request", `instruction must be null or visible text within ${String(WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH)} characters`);
 	let instructionMode;
 	if (body.instructionMode === void 0) instructionMode = void 0;
 	else if (body.instructionMode === null) instructionMode = null;
@@ -3881,6 +3887,7 @@ function parsePatch(value, maxTemplateBytes) {
 		...model === void 0 ? {} : { model },
 		...workspace === void 0 ? {} : { workspace },
 		...permission === void 0 ? {} : { permission },
+		...instruction === void 0 ? {} : { instruction },
 		...instructionMode === void 0 ? {} : { instructionMode },
 		...template === void 0 ? {} : { template }
 	};
