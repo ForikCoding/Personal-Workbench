@@ -24,6 +24,15 @@
    15. 移除一步改成点两次确认（和删除流水线同一规矩），第二次的提示写出将被移除的名字
    16. 配置页每一行都能改：工作目录、技能、运行指令、失败处理不再是死文字——换技能这一步
        就改名，运行指令跟着换成该技能的默认值（也能自己写），失败处理的说明跟着选择变
+   17. 「整条跑过没有」和「哪一步单独跑过」分成两件事说。以前两者共用一个「待运行」，
+       于是同一屏上一边写「待运行」、一边写「已完成」，看的人只能猜哪个算数。现在：
+         · 画布标题旁的状态是整条流水线的状态，由运行记录推导：未整体运行 / 单步跑过 /
+           运行中 / 已完成 / 失败 / 已停止（「单步跑过」是新的一档）
+         · 形状比颜色先说话：实心绿 = 整条跑过，描边绿 = 只单独跑过其中几步。
+           状态标签、圆点、运行条、步骤脚注的「单步 #1」都是这一条规则的落点
+         · 底部运行条不再写「N 步都还没启动」，改成「整条还没跑过 · 第 N 步单独跑过 ·
+           点「运行」会从第 1 步重跑整条」——把后果说出来，不是只说状态
+         · 场景里加了「单步跑过」：整条没跑、可这一步已完成的那个状态，得有地方看
 -->
 <html lang="zh-CN">
 <head>
@@ -320,6 +329,14 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .chipState[data-s="done"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 82%, var(--ink)); }
 .chipState[data-s="failed"] { background: var(--danger-wash); color: var(--danger); }
 .chipState[data-s="idle"], .chipState[data-s="stopped"] { background: var(--hover); color: var(--ink2); }
+/* 单步跑过：这条流水线跑过，但只是单独跑了其中一步——整条还没跑。
+   不新增颜色，用「实心 / 描边」这层结构分开：实心绿 = 整条跑完，描边绿 = 只跑了一步。
+   形状是比颜色更可靠的线索，色弱的人也能一眼分清。 */
+.chipState[data-s="solo"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--success) 55%, transparent);
+  color: color-mix(in srgb, var(--success) 60%, var(--ink));
+}
 /* 这行字是运行记录的入口：它本来就在说"上一次运行改了什么"，所以让它能点 */
 .canvasMeta {
   display: block;
@@ -471,6 +488,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .nodeFoot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 这一步的产物来自哪次运行。单点重跑之后只有它会变 */
 .nodeRun { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }
+/* 产物来自单步运行：脚注写「单步 #1」，和整条运行的「#4」分开读 */
+.nodeRun[data-solo="1"] { color: color-mix(in srgb, var(--success) 50%, var(--ink4)); }
 .nodeProg { flex: none; width: 34px; height: 3px; border-radius: 2px; background: var(--accent-soft); overflow: hidden; }
 .nodeProg i { display: block; height: 100%; width: 40%; border-radius: 2px; background: var(--accent); animation: prog 1.5s ease-in-out infinite; }
 @keyframes prog { 0% { transform: translateX(-100%) } 100% { transform: translateX(280%) } }
@@ -695,6 +714,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 /* 待运行 / 排队中都是灰的，所以标签本身也换一种画法：描边、不填底 */
 .chipTag[data-s="idle"] { background: transparent; border: 0.5px solid var(--hairline); color: var(--ink3); }
 .chipTag[data-s="queued"] { background: var(--hover); color: var(--ink2); }
+/* 和「待运行」一样描边不填底，区别只在描的是什么颜色 */
+.chipTag[data-s="solo"] { background: transparent; border: 0.5px solid color-mix(in srgb, var(--success) 55%, transparent); color: color-mix(in srgb, var(--success) 60%, var(--ink)); }
 
 .inspTabs {
   flex: none;
@@ -1155,6 +1176,12 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   background: repeating-linear-gradient(90deg, var(--ink4) 0 1.5px, transparent 1.5px 4px);
   opacity: .75;
 }
+/* 单独跑过的一步：段是空心的。整条跑完的段才填满——运行条本身就在说「没从头跑过」 */
+/* 4px 高的条上只描一圈太淡，所以里面留一层很浅的绿：不填满 = 没整条跑过 */
+.segBar i[data-s="solo"] {
+  background: color-mix(in srgb, var(--success) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 58%, transparent);
+}
 .runNoise { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }
 .runNoise b { font-weight: 500; color: var(--ink); }
 .runNoise .timer { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -1169,6 +1196,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 /* 待运行的圆点是空心的：实心/空心这一层差在 6px 上也看得出来 */
 .dot[data-s="idle"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink4); }
 .dot[data-s="stopped"] { background: var(--ink4); }
+/* 只单独跑过：空心绿。填满的绿点才是整条跑完 */
+.dot[data-s="solo"] { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--success) 70%, transparent); }
 
 /* ------------------------------------------------------------- 标题下拉菜单 */
 .renameInput {
@@ -1726,6 +1755,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     <button type="button" data-scene="steps" aria-pressed="true">有步骤</button>
     <button type="button" data-scene="zero" aria-pressed="false">0 步流水线</button>
 <button type="button" data-scene="idle" aria-pressed="false">待运行</button>
+    <button type="button" data-scene="solo" aria-pressed="false">单步跑过</button>
     <button type="button" data-scene="none" aria-pressed="false">没有流水线</button>
   </div>
 </div>
@@ -2205,7 +2235,36 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   // 「未运行」看不出是"跑过又停了"还是"一次都没跑过"。一次都没跑过的是「待运行」：
   // 它已经在队列该在的位置上，只是还没轮到它启动。跑过又停的叫「已停止」。
   const STAGE_TEXT = { done: '完成', running: '运行中', failed: '失败', queued: '排队中', idle: '待运行', stopped: '已停止' };
-  const pipeStateText = (s) => STAGE_TEXT[s] || '待运行';
+
+  /*
+   * 整条流水线的状态（画布标题右边那一枚），和上面那套「一步的状态」是两件事。
+   *
+   * 单独运行一步也会留下产物，但整条并没有因此跑过。以前两者共用「待运行」，
+   * 于是同一屏上同时写着「待运行」和「已完成」，看的人只能猜哪个算数。
+   * 现在按运行记录分档，把"整条"和"单独几步"分开说：
+   *   未整体运行 / 单步跑过 / 运行中 / 已完成 / 失败 / 已停止
+   * 「单步跑过」是新增的一档：跑过，但不是整条跑过——这是最容易被读错的那个状态。
+   */
+  const PIPE_TEXT = {
+    idle: '未整体运行', solo: '单步跑过', running: '运行中',
+    done: '已完成', failed: '失败', stopped: '已停止',
+  };
+
+  function pipelineStatus(flow) {
+    const list = runsOf(flow);
+    if (flow.state === 'running' || list.some(r => r.status === 'running')) return 'running';
+    // 整条的那次运行说了算：它失败/停止就是失败/停止，和之后单点重跑过几步无关
+    const full = list.find(r => r.scope === 'full');
+    if (full) {
+      if (full.status === 'fail') return 'failed';
+      if (full.status === 'stopped') return 'stopped';
+      return 'done';
+    }
+    if (flow.state === 'failed') return 'failed';
+    if (flow.state === 'stopped') return 'stopped';
+    // 一次整条运行都没有，但有记录：那就是单独跑过其中几步
+    return list.length ? 'solo' : 'idle';
+  }
 
   /* ============================================================ 状态 */
   // 历史运行里的旧版正文。挂在 DOC 上是为了走同一条渲染路径，但它们只属于那一次运行，
@@ -2477,8 +2536,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       badge.dataset.s = 'idle';
       badge.innerHTML = `<span class="dot" data-s="idle"></span>单任务`;
     } else {
-      badge.dataset.s = flow.state;
-      badge.innerHTML = `<span class="dot" data-s="${flow.state}"></span>${pipeStateText(flow.state)}`;
+      const pipe = pipelineStatus(flow);
+      badge.dataset.s = pipe;
+      badge.innerHTML = `<span class="dot" data-s="${pipe}"></span>${PIPE_TEXT[pipe]}`;
     }
 
     // 单任务没有流水线运行记录，所以这行对它是纯文字（disabled），不是入口
@@ -2494,7 +2554,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         ? '0 个步骤 · 串行执行，失败即停'
         : runs.length
           ? `最近运行 ${runLabel(runs[0])} · ${flow.stages.length} 个步骤 · ${flow.updated} 更新`
-          : `${flow.stages.length} 个步骤 · 串行执行，失败即停 · 待运行`;
+          : `${flow.stages.length} 个步骤 · 串行执行，失败即停 · 还没整体跑过`;
 
     // 顶部横向步骤条（窄面板时替代竖轨道）
     renderStepStrip(flow);
@@ -2570,7 +2630,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     } else if (done) {
       // 整块节点都可点，轨道上不再塞「查看」按钮跟产出摘要抢宽度
       // 产物来自哪一次：整链跑就是 #4，单点重跑过就是 #5，逐步骤看得见
-      foot = `<span>${esc(st.summary)}</span>${st.run ? `<span class="nodeRun" title="这一步的产物来自第 ${st.run} 次运行">#${st.run}</span>` : ''}`;
+      foot = `<span>${esc(st.summary)}</span>${st.run ? `<span class="nodeRun"${st.runScope && st.runScope !== 'full' ? ' data-solo="1"' : ''} title="这一步的产物来自第 ${st.run} 次运行${st.runScope === 'single' ? '，那次只跑了这一步' : ''}">${st.runScope && st.runScope !== 'full' ? `单步 #${st.run}` : `#${st.run}`}</span>` : ''}`;
     } else if (running) {
       foot = `<span class="nodeProg"><i></i></span><span>${esc(st.summary)}</span>`;
     } else if (failed) {
@@ -2620,7 +2680,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       $('#stopBtn').hidden = true;
       return;
     }
-    bar.innerHTML = flow.stages.map(s => `<i data-s="${s.status}"></i>`).join('');
+    // 单步跑过的一步画成空心段：整条跑完才填实，运行条自己就把"没从头跑过"说清楚
+    bar.innerHTML = flow.stages.map(s => `<i data-s="${s.status === 'done' && s.runScope && s.runScope !== 'full' ? 'solo' : s.status}"></i>`).join('');
     const doneCount = flow.stages.filter(s => s.status === 'done').length;
     const cur = flow.stages.findIndex(s => s.status === 'running');
     if (flow.state === 'running') {
@@ -2635,8 +2696,13 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     } else if (flow.state === 'done') {
       noise.innerHTML = `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span>`;
       $('#stopBtn').hidden = true;
+    } else if (!runsOf(flow).length) {
+      noise.innerHTML = `<span>未整体运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
+      $('#stopBtn').hidden = true;
     } else {
-      noise.innerHTML = `<span>待运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
+      // 跑过，但只是单独跑过其中几步：整条依然没跑过，而且「运行」会从第 1 步开始
+      const solo = flow.stages.map((s, i) => (s.run && s.runScope !== 'full' ? i + 1 : 0)).filter(Boolean);
+      noise.innerHTML = `<span>整条还没跑过</span><span>·</span><span>${solo.length === 1 ? `第 ${solo[0]} 步` : `第 ${solo.join('、')} 步`}单独跑过</span><span>·</span><span>点「运行」会从第 1 步重跑整条</span>`;
       $('#stopBtn').hidden = true;
     }
   }
@@ -3186,6 +3252,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         const run = makeRun('refine', list, after, i, { instruction: text, took: '0m22s' });
         list.unshift(run);
         after.run = run.no;
+        after.runScope = 'refine';
         flow.updated = '刚刚';
       }
 
@@ -3641,12 +3708,15 @@ ${region}
 
     const pipeRows = PIPELINES.map(p => {
       const cur = state.focus.kind === 'pipeline' && state.focus.id === p.id;
+      // 菜单里每一行报的也是「整条」的状态，和标题旁那一枚同源——
+      // 否则同一个流水线在这两处会一个写「待运行」、一个写「单步跑过」
+      const pipe = pipelineStatus(p);
       return `
         <button class="menuRow" type="button" data-pipe="${p.id}" aria-current="${cur}">
-          <span class="dot" data-s="${p.state}"></span>
+          <span class="dot" data-s="${pipe}"></span>
           <span class="menuRowMain">
             <span class="menuRowTitle">${esc(p.name)}</span>
-            <span class="menuRowSub">${p.stages.length} 个步骤 · ${pipeStateText(p.state)}</span>
+            <span class="menuRowSub">${p.stages.length} 个步骤 · ${PIPE_TEXT[pipe]}</span>
           </span>
           <span class="menuRowTail">${esc(p.updated)}</span>
         </button>`;
@@ -3966,6 +4036,37 @@ ${region}
       }
       state.focus = { kind: 'pipeline', id: p.id };
       state.sel = 0;
+    } else if (scene === 'solo') {
+      // 只单独跑过一步：整条没跑过，可这一步已经「完成」了。
+      // 这是最容易被读成"自相矛盾"的一屏，所以给它一个能直接看到的位置。
+      let p = PIPELINES.find(x => x.id === '__solo');
+      if (!p) {
+        p = {
+          id: '__solo', name: '需求拆解试跑', updated: '刚刚', state: 'idle', total: null,
+          stages: [makeStage('requirements-scoping')],
+        };
+        PIPELINES.unshift(p);
+        const st = p.stages[0];
+        const product = STEP_PRODUCT['requirements-scoping'] || {};
+        st.status = 'done';
+        st.dur = '0m31s';
+        st.dir = product.dir;
+        st.files = product.files || [];
+        st.summary = product.summary || '已完成';
+        // 活动不是空的：单步运行也会留下它自己的三条记录，活动页要能对上
+        st.acts = [
+          { t: '13:41:02', k: 'think', m: '开始执行这一步。', d: '—' },
+          { t: '13:41:20', k: 'load', m: '上一节点输出（只读）', d: '0.1s' },
+          { t: '13:41:33', k: 'done', m: `写入结果 ${(product.files || []).length} 个文件`, d: '—' },
+        ];
+        const run = makeRun('single', [], st, 0);
+        runsOf(p).unshift(run);
+        st.run = run.no;
+        st.runScope = 'single';
+      }
+      state.focus = { kind: 'pipeline', id: p.id };
+      state.sel = 0;
+      state.inspTab = 'result';
     }
     renderAll();
     syncSceneSeg();
@@ -4464,6 +4565,7 @@ ${region}
       if (run) {
         // 这一步的产物现在来自这次运行，画布上的编号跟着换
         flow.stages[i].run = run.no;
+        flow.stages[i].runScope = 'full';
         run.steps = flow.stages.map(snapshotStep);
         run.took = tookOf(Date.now() - (flow._startedAt || Date.now()));
       }
@@ -4561,6 +4663,7 @@ ${region}
         const run = makeRun('single', list, after, i);
         list.unshift(run);
         after.run = run.no;
+        after.runScope = 'single';
         flow.updated = '刚刚';
       }
 
