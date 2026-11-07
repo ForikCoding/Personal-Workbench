@@ -690,6 +690,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .chipTag[data-s="running"] { background: var(--accent-wash); color: var(--accent); }
 .chipTag[data-s="done"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 78%, var(--ink)); }
 .chipTag[data-s="failed"] { background: var(--danger-wash); color: var(--danger); }
+/* 待运行 / 排队中都是灰的，所以标签本身也换一种画法：描边、不填底 */
+.chipTag[data-s="idle"] { background: transparent; border: 0.5px solid var(--hairline); color: var(--ink3); }
+.chipTag[data-s="queued"] { background: var(--hover); color: var(--ink2); }
 
 .inspTabs {
   flex: none;
@@ -1102,6 +1105,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .dot[data-s="running"] { background: var(--accent); }
 .dot[data-s="failed"] { background: var(--danger); }
 .dot[data-s="queued"] { background: var(--idle); }
+/* 待运行的圆点是空心的：实心/空心这一层差在 6px 上也看得出来 */
+.dot[data-s="idle"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink4); }
 .dot[data-s="stopped"] { background: var(--ink4); }
 
 /* ------------------------------------------------------------- 标题下拉菜单 */
@@ -1843,6 +1848,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     warn: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l5.6 9.8H2.4z"/><path d="M8 6.2v3.2M8 11.2v.1"/></svg>',
     plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>',
     edit: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 2.9l2.5 2.5-7.3 7.3-3.2.7.7-3.2z"/><path d="M9.2 4.3l2.5 2.5"/></svg>',
+    slot: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1"/></svg>',
     file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z"/><path d="M9.2 2.4v3.2h3.2"/></svg>',
     folder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 5.2a1 1 0 0 1 1-1h2.6l1.2 1.6h5.4a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1z"/></svg>',
     search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7.2" cy="7.2" r="4.4"/><path d="m10.6 10.6 2.6 2.6"/></svg>',
@@ -2365,7 +2371,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   const stageAt = (i) => current().stages[i] || current().stages[0];
 
   /* 状态标签：颜色之外还有一个形状，色弱的人也能分清「完成」和「失败」 */
-  const STAGE_ICON = { done: 'check', running: 'clock', failed: 'warn', queued: 'dash', idle: 'dash', stopped: 'x' };
+  // 每个状态一个记号：待运行是"空槽位"（虚线方框），排队中才是"在队里"（虚线圆）
+  const STAGE_ICON = { done: 'check', running: 'clock', failed: 'warn', queued: 'dash', idle: 'slot', stopped: 'x' };
   const chipHtml = (s) => `<span class="chipTag" data-s="${s}">${SVG[STAGE_ICON[s] || 'dash']}${STAGE_TEXT[s]}</span>`;
 
   /** 新插入的步骤：还没跑，也没有产物。 */
@@ -2493,8 +2500,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       foot = `<span>还没启动过</span>`;
     }
 
-    // 没跑和排队也各给一个记号：光靠"没有图标"分不出这两者和别的状态
-    const stateIcon = done ? SVG.check : running ? SVG.clock : failed ? SVG.warn : SVG.dash;
+    // 每个状态一个记号，和状态标签共用 STAGE_ICON：待运行是方框，排队中是虚线圆
+    const stateIcon = SVG[STAGE_ICON[st.status] || 'dash'];
 
     return `
       <div class="node" role="button" tabindex="0" data-node="${i}" data-s="${st.status}" aria-selected="${selected}">
