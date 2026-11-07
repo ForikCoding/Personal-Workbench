@@ -8732,11 +8732,11 @@ window.__ModuleLoader__.load({
 														}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 															className: css.nodeFoot,
 															"data-s": step.phase,
-															children: [stepRename === step.index ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRenameHint") }) : footOf(step, t), step.runScope === "full" && step.runNo !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															children: [stepRename === step.index ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeRenameHint") }) : footOf(step, t), step.phase !== "done" || step.runScope === void 0 ? null : step.runScope === "full" ? step.runNo === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 																className: css.nodeRun,
 																title: t("pipeRunOf", { no: step.runNo }),
 																children: `#${String(step.runNo)}`
-															}) : step.runScope === void 0 ? null : step.runNo === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															}) : step.runNo === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 																className: css.nodeRun,
 																"data-solo": "1",
 																title: t("pipeRunOfSingleNoTitle"),

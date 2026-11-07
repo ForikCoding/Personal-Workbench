@@ -1123,10 +1123,22 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             </div>
                             <div className={css.nodeFoot} data-s={step.phase}>
                               {stepRename === step.index ? <span>{t('pipeRenameHint')}</span> : footOf(step, t)}
-                              {step.runScope === 'full' && step.runNo !== undefined
-                                ? <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>
-                                : step.runScope === undefined
-                                  ? null
+                              {/*
+                                The badge is a property of a product, so only a step that has one
+                                carries it. While a step runs, what is on screen is still the
+                                previous product — and labelling that one here read as a claim
+                                about the run in flight: a node running as part of the whole chain
+                                said 「单步」, because the product it was replacing came from a run
+                                of that step alone.
+                              */}
+                              {step.phase !== 'done' || step.runScope === undefined
+                                ? null
+                                : step.runScope === 'full'
+                                  // A whole-chain run that no record numbers: the badge needs the
+                                  // number, and inventing one is worse than carrying none.
+                                  ? step.runNo === undefined
+                                    ? null
+                                    : <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>
                                   // The product says it was made by a run of this step alone, but
                                   // the page no longer holds the run that numbered it: naming the
                                   // step's own provenance is enough, and a made-up #n is not.

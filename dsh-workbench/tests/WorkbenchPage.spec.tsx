@@ -1234,6 +1234,54 @@ describe('WorkbenchPage', () => {
     expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
   })
 
+  it('carries the run badge only on a step that has a product', async () => {
+    // The badge names the run that produced what is on screen. Mid-run what is on screen is
+    // still the previous product, so drawing its badge on the running node described the wrong
+    // thing: a step running as part of the whole chain read 「单步」, because the product it was
+    // replacing came from a run of that step alone.
+    let settled = false
+    await renderPage({
+      runs: [],
+      pipelines: [{ id: 'pipeline-1', name: 'P', steps: [{ cardId: 'a-card' }], updatedAt: 1 }],
+      results: [{ ...result('a-card'), pipeline: { id: 'pipeline-1', step: 0, scope: 'single' } }],
+      run: {
+        start: async (request: WorkbenchRunRequest) => ({
+          status: 'ok' as const,
+          state: { cardId: request.cardId, phase: 'running' as const, retried: false },
+        }),
+        poll: async () => ({
+          status: 'ok' as const,
+          state: settled
+            ? {
+              cardId: 'a-card',
+              phase: 'settled',
+              retried: false,
+              result: {
+                runId: 'run-1', skill: 's', executedAt: 1, stopReason: 'completed',
+                structured: { html: '<b>ok</b>' }, sessionId: 'session-one',
+              },
+            } as WorkbenchRunState
+            : { cardId: 'a-card', phase: 'running', retried: false } as WorkbenchRunState,
+        }),
+      },
+    })
+    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await waitFor(() => {
+      expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('running')
+    })
+    // Nothing on that node claims the run in flight is the single-step one it replaced.
+    expect(document.querySelector('[data-solo]')).toBeNull()
+    expect(document.querySelector('[data-step-index="0"]')?.textContent).not.toContain(en.pipeRunOfSingleNo)
+    // Once it settles the badge is back, and it names this run rather than the old one. The
+    // chain reads the run's state on its own interval, so this waits past one of those.
+    settled = true
+    await waitFor(() => {
+      expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('done')
+    }, { timeout: 4_000 })
+    expect(document.querySelector('[data-solo]')).toBeNull()
+    expect(document.querySelector('[data-step-index="0"]')?.textContent).toContain('#1')
+  })
+
   it('says so when the run could not be recorded', async () => {
     // An execution nobody recorded is the defect this page is being fixed for, so a store
     // that refuses one has to be visible rather than looking exactly like a clean run.
