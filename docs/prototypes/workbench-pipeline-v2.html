@@ -51,6 +51,29 @@
            它不会再自己开始了），还没轮到的退回「待运行」；运行条写清停在第几步、
            点「运行」从第几步接着跑（起点同样出自 resumeFrom）
          · 底部运行条不再放第二个停止：它只说「跑到哪了」
+   19. 跑过的步骤可以重跑，而且跑哪一段由人说。以前「运行」只有一个意思：从第一个
+       没跑完的步骤接着跑（resumeFrom）——一跑完，那一步就再也点不动了：既不能把整条
+       再来一遍，也不能"改了第 2 步的指令，从第 2 步起重跑后面三步"。
+       现在范围是按钮自己说出来的，一共三个入口、一个来源：
+         · 主按钮上的字由行状态推出：一次都没跑 →「运行」；有跑过的也有没跑的 →
+           「接着跑」；全跑完了 →「重跑」。三个词就是三种范围，不新造第四个开关
+         · 右半边那道缝后面是范围菜单，每行两句话、顺序统一（范围 · 代价）：
+           「接着跑 · 第 4–5 步 · 都还没跑过」「从头重跑 · 第 1–5 步 · 换新 3 份产物」
+           「从第 2 步起重跑 · 第 2–5 步 · 换新 2 份产物」（只在选中步落在起点之前时出现，
+           否则它和「接着跑」是同一件事）
+         · 起点只能落在"前面都跑完了"的步骤上：从半路起跑会让整条变成"完成"却缺前半段，
+           那个状态没有说法，所以这一个入口在两个地方都按不下去
+         · 一步自己的菜单里有「从这一步起重跑」，检查器那个按钮在跑过之后改口叫
+           「重跑这一步」：同一个位置、同一件事，但"再跑一遍"和"先跑一下看看"是两种
+           心情，字要说对
+         · 重跑不是无代价的，代价也不是不可逆的：旧产物在运行记录里。这句话写在菜单
+           底下，比弹一个确认框省事，也比不写诚实
+         · 运行记录里，从后半段起的那种运行记着 from（「从第 3 步起重跑 · 共 5 步」），
+           没轮到的步骤留着它们的编号 kept——否则第 5 次和第 4 次看起来一模一样
+         · 跑完之后又重跑了后半段：整条仍然是「完成」，但运行条要说各步不再来自同一次
+           （「第 1 步还停在第 5 次，后面几步是第 6 次」），不能让一个「完成」盖住它
+         · 运行中右半边收起来：那一次运行只有一个出口（停止）
+         · 场景里加了「全部完成」：跑完之后四个按钮各叫什么，以前没有地方能看
 -->
 <html lang="zh-CN">
 <head>
@@ -690,6 +713,90 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   font-size: 11px;
   line-height: 15px;
 }
+
+/* ------------------------------------------------------- 运行的作用域菜单 */
+/* 「运行」以前只有一个意思：从第一个没跑完的步骤接着跑。想让已经跑过的那几步再来
+   一遍，就没有地方可以说。现在主按钮自己说出范围（运行 / 接着跑 / 重跑），右边那道
+   缝后面的 ▾ 才让它改成别的范围——两个半块是同一个控件：同一个高度、共用一圈圆角，
+   缝本身就是"这里还能再选"的那句话。 */
+.runSplit { position: relative; display: inline-flex; align-items: center; }
+/* 三个字的标签不许把按钮撑宽：否则「接着跑」和「重跑」之间，右边那道缝会左右挪 */
+.runSplit .btn.primary { min-width: 96px; justify-content: center; border-radius: 8px 0 0 8px; }
+.runSplitCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+  cursor: pointer;
+  /* 中间那道缝是嵌进去的一条线，不是一个白洞：两个半边在同一个盒子里。
+     隔开它们的是深浅，不是间距 */
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--primary-ink) 24%, transparent);
+}
+.runSplitCaret svg { width: 12px; height: 12px; }
+.runSplitCaret:hover,
+.runSplit[data-open="1"] .runSplitCaret { background: color-mix(in srgb, var(--primary-ink) 12%, var(--primary-bg)); }
+/* 右半边不在的时候（跑起来了、没有步骤、单卡片面板），左半边自己把右边的圆角接回来 */
+.runSplit[data-solo="1"] .btn { border-radius: 8px; }
+/* 跑起来之后右半边收起来：`.runSplitCaret` 自己声明了 display，UA 那条 [hidden]
+   赢不过它，得在这里再说一遍，否则停下之后那道缝还站在「停止」旁边 */
+.runSplitCaret[hidden] { display: none; }
+.runSplitCaret:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* 范围菜单：一行一个范围，行里第二句话是这次会换掉几份产物。
+   两行结构（动作 + 后果）是这个菜单唯一"新"的画法——只写「从头重跑」，
+   没人知道按下去要失去什么。 */
+.runMenu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: 70;
+  width: 276px;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--base);
+  border: 0.5px solid var(--hairline);
+  box-shadow: var(--shadow-menu);
+}
+.runMenuRow {
+  display: block;
+  width: 100%;
+  padding: 7px 9px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.runMenuRow > span { display: flex; align-items: baseline; gap: 6px; }
+.runMenuRow b { font-size: 13px; font-weight: 500; }
+.runMenuRow i {
+  font-style: normal;
+  font-size: 10.5px;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+.runMenuRow em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink4);
+}
+.runMenuRow:hover { background: var(--hover); }
+.runMenuRow[disabled] { opacity: .38; cursor: default; }
+.runMenuRow[disabled]:hover { background: transparent; }
 .inspKicker {
   display: flex;
   align-items: center;
@@ -1730,6 +1837,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   .panelHead { height: 52px; padding: 0 14px; }
   .panelHead h1 { font-size: 17px; }
   .headLabel { display: none; }
+  /* 字没了，那个 96px 的最小宽度就只剩空白：按图标宽度收回原样，右半边照旧留着 */
+  .runSplit .btn.primary { min-width: 0; padding: 0 9px; }
   .runbar { padding: 0 12px; gap: 8px; }
   .segBar i { width: 14px; }
 }
@@ -1806,6 +1915,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     <button type="button" data-scene="zero" aria-pressed="false">0 步流水线</button>
 <button type="button" data-scene="idle" aria-pressed="false">待运行</button>
     <button type="button" data-scene="solo" aria-pressed="false">单步跑过</button>
+    <button type="button" data-scene="done" aria-pressed="false">全部完成</button>
     <button type="button" data-scene="none" aria-pressed="false">没有流水线</button>
   </div>
 </div>
@@ -1819,12 +1929,20 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
         <span class="headLabel">新建流水线</span>
       </button>
-      <!-- 这一个按钮两个状态：没跑是「运行」，跑起来就是「停止」 -->
-      <button class="btn primary" type="button" id="runAllBtn">
-        <svg class="glyphPlay" viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>
-        <svg class="glyphStop" viewBox="0 0 16 16" fill="currentColor"><rect x="4.5" y="4.5" width="7" height="7" rx="1.3"/></svg>
-        <span class="headLabel" id="runAllLabel">运行</span>
-      </button>
+      <!-- 一个控件两种读法：左半边说这一次要跑什么（运行 / 接着跑 / 重跑，跑起来是
+           「停止」），右半边那道缝后面才换范围。停止时右半边收起来——那一次运行只有
+           一个出口，不该在旁边摆一个"要不要再跑一遍" -->
+      <div class="runSplit" id="runSplit" data-open="0">
+        <button class="btn primary" type="button" id="runAllBtn">
+          <svg class="glyphPlay" viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>
+          <svg class="glyphStop" viewBox="0 0 16 16" fill="currentColor"><rect x="4.5" y="4.5" width="7" height="7" rx="1.3"/></svg>
+          <span class="headLabel" id="runAllLabel">运行</span>
+        </button>
+        <button class="runSplitCaret" type="button" id="runScopeBtn" aria-label="选择运行范围" aria-haspopup="menu" aria-expanded="false" title="选择运行范围">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4.6 6.4 3.4 3.2 3.4-3.2"/></svg>
+        </button>
+        <div class="runMenu" id="runMenu" role="menu" aria-label="运行范围" hidden></div>
+      </div>
     </header>
 
     <div class="panelBody">
@@ -2002,6 +2120,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     think: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2.6v3M8 10.4v3M2.6 8h3M10.4 8h3M4.2 4.2l2.1 2.1M9.7 9.7l2.1 2.1M11.8 4.2 9.7 6.3M6.3 9.7l-2.1 2.1"/></svg>',
     chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4.4 6.4 3.6 3.4 3.6-3.4"/></svg>',
     up: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.6V3.6M4.2 7.2 8 3.4l3.8 3.8"/></svg>',
+    // 重跑：一圈回头箭头，和有的"撤销"不同——它不悔棋，是把这一步再做一遍
+    replay: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 8a4.6 4.6 0 1 0 1.5-3.4"/><path d="M3.2 2.8v3.4h3.4"/></svg>',
     down: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.4v9M4.2 8.8 8 12.6l3.8-3.8"/></svg>',
     trash: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.4h10.4M6.2 4.4V2.9h3.6v1.5M4.1 4.4l.6 8.3a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.6-8.3"/></svg>',
     ext: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 2.6h4v4M13 3l-5.4 5.4"/><path d="M12 9.6v3a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1h3"/></svg>',
@@ -2513,6 +2633,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     resTab: 'preview',
     fileIdx: 0,
     stepMenu: false,
+    // 运行范围菜单开着没有。跟步骤菜单一样是"一次点开一个"的那类浮层
+    runMenu: false,
     stepRename: null,      // 正在就地改名的那一步（下标）；null = 没在改名
     stepRenameDraft: null, // 改名的草稿：重渲染时输入框里还是这几个字
     confirmStepDel: false, // 移除这一步的第二次确认
@@ -2762,26 +2884,131 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     const soloRunning = flow._solo !== undefined && flow.stages[flow._solo]?.status === 'running';
     const running = flow.isTask ? soloRunning : flow.state === 'running';
     const stopping = flow.isTask ? soloRunning && flow._soloStopping === true : flow._stopping === true;
+    const scope = runScope(flow);
     btn.dataset.stop = running ? '1' : '0';
     btn.classList.toggle('stop', running);
     btn.classList.toggle('primary', !running);
     btn.disabled = noSteps || stopping;
-    label.textContent = stopping ? '正在停止' : running ? '停止' : '运行';
+    // 同一个盒子里四种读法：运行 / 接着跑 / 重跑 / 停止。跑起来之后右半边收起来——
+    // 那一次运行只有一个出口，旁边不该再摆一个"要不要再跑一遍"
+    // 单卡片面板不在这一轮的范围里：它只有一个"运行这一步"，没有范围可选，字不动
+    label.textContent = stopping ? '正在停止' : running ? '停止' : noSteps || flow.isTask ? '运行' : scope.word;
     const title = noSteps
       ? '先加一个步骤'
       : stopping
         ? '正在停下来'
         : running
           ? flow.isTask ? '停止这次运行 · 之前的结果保留' : '停止这次运行 · 已完成的步骤保留'
-          : flow.isTask ? '运行这一步' : '运行整条流水线';
+          : flow.isTask ? '运行这一步' : `${scope.word}：${scope.title}`;
     btn.title = title;
     btn.setAttribute('aria-label', title);
+  }
+
+  /**
+   * 主按钮这一次要做的事：跑什么、从第几步起。
+   *
+   * 三种读法全由行状态推出来，不记在 state 里——记着的话，跑完一步它就会跟画布不一致：
+   * · 全跑完了 → 重跑（从第 1 步起）。这是唯一还剩下的一件事，所以它就是默认那句；
+   * · 有跑过的也有没跑的 → 接着跑（从第一个没完成的步骤起）；
+   * · 一次都没跑 → 运行（从第 1 步起）。「接着跑」在这里是句假话，没有可接的东西。
+   * @param flow - 当前流水线。
+   * @returns 起点、按钮上的字、以及一句说明。
+   */
+  function runScope(flow) {
+    const n = flow.stages.length;
+    const finished = flow.stages.filter(s => s.status === 'done').length;
+    if (n > 0 && finished === n) return { from: 0, word: '重跑', title: '从第 1 步起重跑整条' };
+    const from = resumeFrom(flow);
+    return from === 0
+      ? { from: 0, word: '运行', title: '从第 1 步起按顺序跑完' }
+      : { from, word: '接着跑', title: `从第 ${from + 1} 步起接着跑` };
+  }
+
+  /**
+   * 范围菜单里那几行，每次打开都由行状态现算。
+   *
+   * 每行第二句话说的是「这一次会换掉几份产物」。重跑不是无代价的动作，但代价也不是
+   * 不可逆的——旧产物在运行记录里，所以那句话下面再补一句。写清楚比弹确认框省事，
+   * 也比不写诚实。
+   * @param flow - 当前流水线。
+   * @returns 菜单行，第一行就是主按钮按下去会做的那件事。
+   */
+  function runMenuModel(flow) {
+    const n = flow.stages.length;
+    const done = flow.stages.map(s => s.status === 'done');
+    const finished = done.filter(Boolean).length;
+    const allDone = finished === n;
+    const scope = runScope(flow);
+    const sel = Math.min(state.sel, n - 1);
+    const coverFrom = at => done.slice(at).filter(Boolean).length;
+    // 每一行都是"范围 · 代价"两句话，顺序也一致：先说跑哪几步，再说会换掉几份
+    const range = (a, b) => (a === b ? `第 ${a} 步` : `第 ${a}–${b} 步`);
+    const cost = count => (count === 0 ? '都还没跑过' : `换新 ${count} 份产物`);
+    const rows = [];
+    if (allDone) {
+      // 全跑完了：菜单里只剩这一件事，它同时也是主按钮按下去会做的事
+      rows.push({ kind: 'all', at: 0, title: '从头重跑', note: `第 1–${n} 步 · ${n} 份产物换新`, badge: '默认' });
+      return rows;
+    }
+    rows.push({
+      kind: 'resume',
+      at: scope.from,
+      title: scope.from === 0 ? '从头跑' : '接着跑',
+      note: `${range(scope.from + 1, n)} · ${cost(coverFrom(scope.from))}`,
+      badge: '默认',
+    });
+    // 一份都还没跑过的时候，「从头重跑」和上面那行是同一件事——不摆第二遍
+    if (finished > 0) {
+      rows.push({ kind: 'all', at: 0, title: '从头重跑', note: `第 1–${n} 步 · 换新 ${finished} 份产物`, badge: '' });
+    }
+    // 选中的那一步在"要接着跑的那一步"前面：从这儿起重跑才有意义（中间那几步会被重做）。
+    // 落在后面时不给这一行——那和「接着跑」是同一件事，重复一遍反而难选。
+    if (finished > 0 && sel > 0 && sel < scope.from) {
+      rows.push({
+        kind: 'from',
+        at: sel,
+        title: `从第 ${sel + 1} 步起重跑`,
+        note: `${range(sel + 1, n)} · 换新 ${coverFrom(sel)} 份产物`,
+        badge: '',
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * 画那个范围菜单，并决定右半边那道缝在不在。
+   *
+   * 跑起来之后右半边收起来：那一次运行只有一个出口（停止）。没有步骤、或者这是单卡片
+   * 面板时同理——没有"整条"可跑，就没有第二个范围可选。
+   * @param flow - 当前流水线。
+   */
+  function renderRunMenu(flow) {
+    const menu = $('#runMenu');
+    const caret = $('#runScopeBtn');
+    const wrap = $('#runSplit');
+    const show = !flow.isTask && flow.stages.length > 0 && flow.state !== 'running';
+    if (!show) state.runMenu = false;
+    caret.hidden = !show;
+    wrap.dataset.solo = show ? '0' : '1';
+    const open = state.runMenu && show;
+    menu.hidden = !open;
+    wrap.dataset.open = open ? '1' : '0';
+    caret.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    menu.innerHTML = runMenuModel(flow).map(row => `
+      <button class="runMenuRow" type="button" role="menuitem" data-scope="${row.kind}" data-at="${row.at}">
+        <span><b>${row.title}</b>${row.badge ? `<i>${row.badge}</i>` : ''}</span>
+        <em>${row.note}</em>
+      </button>`).join('')
+      + `<div class="stepMenuSep"></div>
+         <div class="stepMenuNote">重跑不丢东西：每一次运行的产物都留在运行记录里。</div>`;
   }
 
   function renderRunbar(flow) {
     const bar = $('#segBar');
     const noise = $('#runNoise');
     paintRunButton(flow);
+    renderRunMenu(flow);
     if (flow.isTask) {
       bar.innerHTML = '';
       const solo = flow._solo !== undefined && flow.stages[flow._solo]?.status === 'running';
@@ -2815,28 +3042,37 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     } else if (flow.state === 'failed') {
       noise.innerHTML = `<span>${doneCount} / ${flow.stages.length} 步完成 · 第 ${doneCount + 1} 步失败，后续未执行</span>`;
     } else if (flow.state === 'stopped') {
-      // 停在第几步、从哪一步接着跑，都要说准：那句起点和引擎共用 resumeFrom
+      // 停在第几步、从哪一步接着跑，都要说准：那句起点和引擎共用 resumeFrom，
+      // 按钮上的字也一样——它现在叫「接着跑」，句子就该这么叫它
       const at = flow._stoppedAt;
       const from = resumeFrom(flow);
       noise.innerHTML = at === undefined
         ? `<span>${doneCount} / ${flow.stages.length} 步完成 · 已手动停止</span>`
-        : `<span>${doneCount} / ${flow.stages.length} 步完成 · 第 ${at + 1} 步停在半路 · 点「运行」从第 ${from + 1} 步接着跑</span>`;
+        : `<span>${doneCount} / ${flow.stages.length} 步完成 · 第 ${at + 1} 步停在半路 · 点「${runScope(flow).word}」从第 ${from + 1} 步接着跑</span>`;
     } else if (flow.state === 'done') {
-      noise.innerHTML = `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span>`;
+      // 跑完之后又单点重跑过某一两步：整条还是「完成」，但各步的产物已经不是同一次的。
+      // 这件事必须说出来——一个「完成」盖住它，等于让人拿新旧两份当一套用
+      const nums = flow.stages.map(s => s.run).filter(n => n !== undefined);
+      const newest = Math.max(...nums);
+      const older = flow.stages.map((s, i) => (s.run !== undefined && s.run !== newest ? i + 1 : 0)).filter(Boolean);
+      noise.innerHTML = older.length === 0
+        ? `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span><span>·</span><span>点「重跑」从头再来一遍</span>`
+        : `<span>整条跑完过</span><span>·</span><span>第 ${older.join('、')} 步还停在第 ${Math.min(...nums)} 次，后面几步是第 ${newest} 次</span><span>·</span><span>点「重跑」让整条一致</span>`;
     } else if (!runsOf(flow).length) {
       noise.innerHTML = `<span>未整体运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
     } else {
       // 跑过，但只是单独跑过其中几步：整条依然没跑过。
-      // 报出是哪几步，并说准「运行」会从哪一步起——那句话和引擎共用 resumeFrom。
+      // 报出是哪几步，并说准按钮会从哪一步起——那句话和引擎共用 resumeFrom。
       const solo = flow.stages.map((s, i) => (s.run && s.runScope !== 'full' ? i + 1 : 0)).filter(Boolean);
       const from = resumeFrom(flow);
+      const word = runScope(flow).word;
       const which = solo.length === 1 ? `第 ${solo[0]} 步` : `第 ${solo.join('、')} 步`;
       const allDone = flow.stages.every(s => s.status === 'done');
       const next = allDone
-        ? '点「运行」会从头再跑一遍'
+        ? `点「${word}」会从头再跑一遍`
         : from === 0
-          ? '点「运行」从第 1 步开始，跑过的那一步会重跑'
-          : `点「运行」从第 ${from + 1} 步接着跑`;
+          ? `点「${word}」从第 1 步开始，跑过的那一步会重跑`
+          : `点「${word}」从第 ${from + 1} 步接着跑`;
       noise.innerHTML = `<span>整条还没跑过</span><span>·</span><span>${which}单独跑过</span><span>·</span><span>${next}</span>`;
     }
   }
@@ -2860,14 +3096,19 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     btn.dataset.stop = stop ? '1' : '0';
     btn.classList.toggle('stop', stop);
     btn.disabled = stopping || busyInChain || (solo && flow.isTask);
-    label.textContent = stop ? (stopping ? '正在停止' : '停止') : '单独运行';
+    // 跑过的那一步，这个按钮改口叫「重跑这一步」：位置不变、事情不变，但"再跑一遍"
+    // 和"先跑一下看看"是两种心情，字要说对
+    const word = hasResult(st) ? '重跑这一步' : '单独运行';
+    label.textContent = stop ? (stopping ? '正在停止' : '停止') : word;
     const title = stop
       ? stopping ? '正在停下来' : '停止这一步 · 它之前的结果保留'
       : busyInChain
         ? '这一步正在整条里跑 · 停止在右上角'
         : solo ? '这次运行正在跑 · 停止在右上角'
           : chain ? '整条正在运行 · 单独跑它会插进这一次运行里'
-            : '只跑这一步，不算流水线的一次运行';
+            : hasResult(st)
+              ? '只重跑这一步 · 其它步的产物不动，这一次重跑会记一条运行'
+              : '只跑这一步，不算流水线的一次运行';
     btn.title = title;
     btn.setAttribute('aria-label', title);
   }
@@ -2950,7 +3191,12 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     state._scrollFor = scrollKey;
   }
 
-  /** 当前步骤的「上移 / 下移 / 移除」。删除是破坏性操作，放在检查器里而不是轨道上。 */
+  /**
+   * 当前步骤的菜单：上移 / 下移 / 从这一步起重跑 / 重命名 / 移除。
+   *
+   * 「从这一步起重跑」放在分隔线之上，和两个移位动作一类——它们都是"改这条链怎么跑"，
+   * 而重命名和移除是"改这条链是什么"。删除是破坏性操作，放在检查器里而不是轨道上。
+   */
   function renderStepMenu() {
     const menu = $('#stepMenu');
     const btn = $('#stepMoreBtn');
@@ -2972,6 +3218,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         ${SVG.down}<span>下移一位</span>
       </button>
       <div class="stepMenuSep"></div>
+      <button class="stepMenuRow" type="button" data-step="rerun" ${flow.state === 'running' || flow.stages.slice(0, i).some(s => s.status !== 'done') ? 'disabled' : ''}>
+        ${SVG.replay}<span>从这一步起重跑</span>
+      </button>
       <button class="stepMenuRow" type="button" data-step="rename">
         ${SVG.edit}<span>重命名这一步</span>
       </button>
@@ -3249,6 +3498,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   function scopeText(run) {
     if (run.scope === 'single') return `只跑了第 ${run.only} 步`;
     if (run.scope === 'refine') return `第 ${run.only} 步 · 按审核意见重生成`;
+    // 从第 2 步起的那种重跑也是"整条"的一次运行，但它没碰前面几步——两条记录不能长得一模一样
+    if (run.from > 1) return `从第 ${run.from} 步起重跑 · 共 ${run.steps.length} 步`;
     return `${run.steps.length} 步`;
   }
 
@@ -4189,6 +4440,7 @@ ${region}
     state.menuOpen = false;
     state.renaming = false;
     state.stepMenu = false;
+    state.runMenu = false;
     state.confirmDel = false;
     state.stepRename = null;
     state.stepRenameDraft = null;
@@ -4250,6 +4502,41 @@ ${region}
       }
       state.focus = { kind: 'pipeline', id: p.id };
       state.sel = 1;
+      state.inspTab = 'result';
+    } else if (scene === 'done') {
+      // 整条跑完了：这时候主按钮叫「重跑」，范围菜单里默认也是从头再来。
+      // "跑完之后还能做什么"这一屏以前没有地方能看，而它正是重跑的入口
+      let p = PIPELINES.find(x => x.id === '__done');
+      if (!p) {
+        p = {
+          id: '__done', name: '会话续期 · 已交付', updated: '今天 14:07', state: 'done', total: '4m12s',
+          stages: ['requirements-scoping', 'design-doc', 'codegen'].map(makeStage),
+        };
+        PIPELINES.unshift(p);
+        p.stages.forEach((st, i) => {
+          const product = STEP_PRODUCT[st.skill] || {};
+          st.status = 'done';
+          st.dur = STEP_DUR[i % STEP_DUR.length];
+          st.dir = product.dir;
+          st.files = product.files || [];
+          st.doc = product.doc;
+          st.summary = product.summary || '已完成';
+          // 三步同属第 4 次运行：脚注写 #4，运行条一句「全部完成」就对得上
+          st.run = 4;
+          st.runScope = 'full';
+          st.acts = [
+            { t: '14:03:10', k: 'think', m: '开始执行这一步。', d: '—' },
+            { t: '14:05:41', k: 'done', m: `写入结果 ${(product.files || []).length} 个文件`, d: '—' },
+          ];
+        });
+        runsOf(p).unshift({
+          no: 4, when: '今天 14:07', took: '4m12s', status: 'ok',
+          scope: 'full', only: 1, from: 1, kept: [],
+          steps: p.stages.map(snapshotStep),
+        });
+      }
+      state.focus = { kind: 'pipeline', id: p.id };
+      state.sel = 0;
       state.inspTab = 'result';
     }
     renderAll();
@@ -4349,6 +4636,10 @@ ${region}
     if (state.stepMenu && !e.target.closest('#stepMenu') && !e.target.closest('#stepMoreBtn')) {
       state.stepMenu = false;
       renderStepMenu();
+    }
+    if (state.runMenu && !e.target.closest('#runMenu') && !e.target.closest('#runScopeBtn')) {
+      state.runMenu = false;
+      renderRunMenu(current());
     }
     if (!state.menuOpen) return;
     if (e.target.closest('#canvasMenu') || e.target.closest('#titleBtn')) return;
@@ -4580,6 +4871,12 @@ ${region}
     const act = row.dataset.step;
     if (act === 'up') { state.confirmStepDel = false; moveStage(-1); }
     else if (act === 'down') { state.confirmStepDel = false; moveStage(1); }
+    else if (act === 'rerun') {
+      // 从这一步起跑到底：它前面的步骤不动，后面的一起重做——"改了这一步的指令，
+      // 后面三步得跟着重来"就是这一件事
+      state.stepMenu = false;
+      startRunAt(Math.min(state.sel, current().stages.length - 1));
+    }
     else if (act === 'rename') startStepRename();
     else if (act === 'remove') removeStage();
   });
@@ -4597,6 +4894,20 @@ ${region}
     if (flow.isTask && soloRunning) stopSolo(flow._solo);
     else if (flow.state === 'running') stopRun();
     else startRun();
+  });
+  // 那道缝后面：换这一次跑的范围。点了就开/关，不改变任何状态
+  $('#runScopeBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.runMenu = !state.runMenu;
+    renderRunMenu(current());
+  });
+  $('#runMenu').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-scope]');
+    if (!row || row.disabled) return;
+    e.stopPropagation();
+    state.runMenu = false;
+    // 三行都是「从第几步起」：从头跑是 0，其余行带自己的下标
+    startRunAt(Number(row.dataset.at));
   });
 
   // 选择器
@@ -4616,6 +4927,7 @@ ${region}
     if (state.zoomOpen) { closeZoom(); return; }
     if (state.histOpen) { closeHist(); return; }
     if (state.picker) { closePicker(); return; }
+    if (state.runMenu) { state.runMenu = false; renderRunMenu(current()); return; }
     if (state.stepMenu) { state.stepMenu = false; renderStepMenu(); return; }
     if (state.menuOpen) { closeMenu(); return; }
   });
@@ -4707,15 +5019,26 @@ ${region}
     return firstIdle < 0 ? 0 : firstIdle;
   }
 
-  /** 跑整条流水线：从第一个没跑过的步骤开始，后面的排队。 */
-  function startRun() {
+  /**
+   * 跑整条流水线，从第 from 步起，后面的排队。
+   *
+   * from 不再是「第一个没跑完的步骤」的别名：重跑已经跑过的步骤得让人自己说（范围菜单、
+   * 步骤菜单里的「从这一步起重跑」），引擎只管从那儿开始。起点默认仍由 resumeFrom 给，
+   * 所以"没选范围就按运行"这件事没变。
+   * @param from - 起点下标，0 是第一步。
+   */
+  function startRunAt(from) {
     const flow = current();
     if (flow.isTask) { flashRun(0); return; }
     if (flow.stages.length === 0) { openPicker(0, 'new'); return; }
     // 正在跑就别再下一次命令：重复点只会把状态推回去重来一次
     if (flow.state === 'running') return;
-
-    const from = resumeFrom(flow);
+    if (!(from >= 0 && from < flow.stages.length)) return;
+    // 前面还有没跑完的步骤就从中间起跑：跑完这一遍，整条会变成"完成"却缺前半段，
+    // 那个状态没有说法。所以不许这么起跑——两个入口也据此禁用这一项
+    if (flow.stages.slice(0, from).some(s => s.status !== 'done')) return;
+    // 范围已经选了，菜单该关：留着会挡住第一次状态变化
+    state.runMenu = false;
     flow.stages.forEach((s, i) => {
       if (i < from) return;
       s.status = i === from ? 'running' : 'queued';
@@ -4742,12 +5065,22 @@ ${region}
       status: 'running',
       scope: 'full',
       only: 1,
+      // 从第几步起的：第 1 步起就是一次普通的整条运行，后面几步起就是"重跑后半段"，
+      // 运行记录里要分开读，否则第 5 次和第 4 次看起来一模一样
+      from: from + 1,
+      // 这一次没轮到的步骤，产物还是上一次那份：记录里留一份它们的编号，回看时能对上
+      kept: flow.stages.slice(0, from).map((s, i) => ({ step: i + 1, run: s.run })),
       steps: flow.stages.map(snapshotStep),
     });
 
     runToken += 1;
     renderAll();
     tickRun(flow, from, runToken);
+  }
+
+  /** 主按钮那一下：从它自己说的那个起点开始跑。 */
+  function startRun() {
+    startRunAt(runScope(current()).from);
   }
 
   /** 等这一步"跑完"，落产物、推进下一步。 */
