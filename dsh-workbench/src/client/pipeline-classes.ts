@@ -40,6 +40,8 @@ export const css = {
   doc: 'wb-doc',
   docPad: 'wb-docPad',
   docSrc: 'wb-docSrc',
+  tplPreviewBody: 'wb-tplPreviewBody',
+  tplPreviewFrame: 'wb-tplPreviewFrame',
   dot: 'wb-dot',
   emptyFlow: 'wb-emptyFlow',
   emptyMark: 'wb-emptyMark',

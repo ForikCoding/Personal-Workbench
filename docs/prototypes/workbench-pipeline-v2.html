@@ -820,6 +820,16 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 
 /* 模板预览：一块标了名字的空位。不用骨架条，那不是"占位"，那是"加载中" */
 .tplSlotLabel { margin-bottom: 7px; font-size: 11px; color: var(--ink4); }
+/* 预览是模板的渲染：外面只给个框，里面长什么样由模板决定 */
+.tplRender {
+  border: 0.5px solid var(--divider);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card-bg);
+  max-height: 420px;
+}
+.tplRender iframe { display: block; width: 100%; height: 320px; border: 0; }
+
 .tplSlotBox {
   display: flex;
   align-items: center;
@@ -3333,14 +3343,40 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
    * **故意不填本次运行的产物**——填了就变成"结果"，和阅读器重复；而且五万字的文档塞进
    * 650 宽的窄栏根本读不了。要看这次真交了什么，点上面那份清单。
    */
+  /**
+   * 预览：把模板**渲染**出来，看的是样式，不是文字。
+   *
+   * 模板里那一段区域换成占位块——模型这次要写什么还不知道；其余部分（版式、字体、颜色）
+   * 就是模板本身的样子。放在沙箱 iframe 里渲染：模板自带 <style>，不能让它改到工作台。
+   */
+  const REGION_PLACEHOLDER = '<div style="margin:10px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px;font-family:ui-monospace,monospace;font-size:11px;color:#8a8f98">区域内容 · 运行时由模型生成</div>';
+
   function tplPreview(st) {
-    // 不用骨架条：骨架是"正在加载"的语言，这里是"这块位置是空的"，两种话别共用一套视觉
+    const text = st.templateText || templateSource(regionOf(st));
+    // 模板用的是工作台的 --dsw-* 变量；沙箱 iframe 里拿不到，就把这套值照抄进去，
+    // 否则预览渲染出来是一片默认黑字，那就不叫"按模板的样式渲染"了。
+    const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const palette = `<style>:root{
+      --dsw-font-family:${token('--f-sans') || 'system-ui'};
+      --dsw-alias-label-primary:${token('--ink')};
+      --dsw-alias-label-secondary:${token('--ink2')};
+      --dsw-alias-label-tertiary:${token('--ink3')};
+      --dsw-alias-bg-layer-2:${token('--hover')};
+      --dsw-alias-border-l2:${token('--divider')};
+      --dsw-alias-bg-base:${token('--card-bg')};
+    }</style>`;
+    const rendered = text.replace(
+      /<!--\s*template-begin\s*-->[\s\S]*?<!--\s*template-end\s*-->/,
+      `<!-- template-begin -->${REGION_PLACEHOLDER}<!-- template-end -->`,
+    );
+    const doc = rendered.includes('<head>')
+      ? rendered.replace('<head>', `<head>${palette}`)
+      : palette + rendered;
     return `
       <div class="tplSlot">
         <div class="tplSlotLabel">模板预览 · 不含本次产物</div>
-        <div class="tplSlotBox">
-          <span class="tplSlotTag">区域内容</span>
-          <span class="tplSlotText">运行时由模型生成${st.dir ? '，模板按清单读文件再渲染' : '，模板把它原样显示'}</span>
+        <div class="tplRender">
+          <iframe title="模板预览" sandbox="" srcdoc="${esc(doc).replace(/"/g, '&quot;')}"></iframe>
         </div>
       </div>`;
   }

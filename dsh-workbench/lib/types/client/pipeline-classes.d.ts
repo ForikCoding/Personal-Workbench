@@ -40,6 +40,8 @@ export declare const css: {
     readonly doc: "wb-doc";
     readonly docPad: "wb-docPad";
     readonly docSrc: "wb-docSrc";
+    readonly tplPreviewBody: "wb-tplPreviewBody";
+    readonly tplPreviewFrame: "wb-tplPreviewFrame";
     readonly dot: "wb-dot";
     readonly emptyFlow: "wb-emptyFlow";
     readonly emptyMark: "wb-emptyMark";

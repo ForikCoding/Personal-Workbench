@@ -464,7 +464,11 @@ describe('WorkbenchPage', () => {
   })
 
   it('switches the template block between preview and source', async () => {
-    await renderPage()
+    // A template carrying the real markers, so the preview has a region to put a placeholder in.
+    const [first, ...rest] = CARD_VIEWS
+    await renderPage({
+      cardViews: [{ ...first!, template: '<html><body><!-- template-begin --><p>old</p><!-- template-end --></body></html>' }, ...rest],
+    })
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
@@ -474,6 +478,15 @@ describe('WorkbenchPage', () => {
     // Two views of the same block, one at a time: the box is only in the source view.
     await waitFor(() => { expect(document.querySelector('[data-cfg-template]')).toBeNull() })
     expect(document.querySelector('[data-panel="config"]')?.textContent).toContain(en.pipeCfgPreviewNote)
+    // The preview is the template rendered in its own styles, not a picture of a template:
+    // the frame holds the document, and where the model writes there is a placeholder.
+    const frame = document.querySelector('[data-cfg-preview]') as HTMLElement
+    expect(frame).not.toBeNull()
+    // ShadowHtml puts the document in a shadow root on its own host, inside the frame.
+    const rendered = frame.querySelector('.wb-tplPreviewFrame')?.shadowRoot?.innerHTML ?? ''
+    expect(rendered).toContain('区域内容')
+    // The template's own region text is gone: what the model writes there does not exist yet.
+    expect(rendered).not.toContain('<p>old</p>')
   })
   it('states a disabled chooser when the page has no picker', async () => {
     await renderPage({ picker: noWorkspacePicker().picker })

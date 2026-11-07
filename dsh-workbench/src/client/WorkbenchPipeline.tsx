@@ -21,6 +21,8 @@ import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
+import { filledTemplate } from './skill-card/render.ts'
+import { ShadowHtml } from './skill-card/ShadowHtml.tsx'
 import type {
   WorkbenchCardConfigView,
   WorkbenchCardResult,
@@ -136,6 +138,14 @@ export interface StepCardPatch {
 }
 
 
+
+/**
+ * What the preview puts where the model will write.
+ *
+ * Inline-styled on purpose: it is rendered inside the card's own shadow root, where the
+ * workbench's stylesheet does not reach and the template's rules would restyle it.
+ */
+const REGION_PLACEHOLDER = '<div style="margin:10px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px;font-family:ui-monospace,monospace;font-size:11px;color:#8a8f98">区域内容 · 运行时由模型生成</div>'
 
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
@@ -1630,9 +1640,14 @@ function ConfigPanel(props: {
             ? (
               <div>
                 <div className={css.tplSlotLabel}>{t('pipeCfgPreviewNote')}</div>
-                <div className={css.tplSlotBox}>
-                  <span className={css.tplSlotTag}>{t('pipeCfgRegion')}</span>
-                  <span className={css.tplSlotText}>{t('pipeCfgRegionBody')}</span>
+                {/* The preview is the template rendered in its own styles — the frame is the
+                    card, not a picture of it. The region is replaced by a placeholder, because
+                    what the model will write there does not exist yet. */}
+                <div className={css.tplPreviewBody} data-cfg-preview="">
+                  <ShadowHtml
+                    html={filledTemplate(template, REGION_PLACEHOLDER)}
+                    className={css.tplPreviewFrame}
+                  />
                 </div>
               </div>
               )
