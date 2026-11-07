@@ -29,6 +29,9 @@ import type {
 import { permissionLabelKey } from './skill-card/permission.ts'
 import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
+import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
+import { instructionLabelKey } from './skill-card/permission.ts'
+import type { WorkbenchCardModel, WorkbenchSandboxMode } from '../skill-card-contract.ts'
 
 /** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result'
@@ -85,6 +88,18 @@ export interface WorkbenchPipelineProps {
    */
   readonly renameStepCard: (cardId: string, name: string) => void
   /**
+   * Write one field into every step's card, one card at a time.
+   *
+   * The cards are written in order and each write carries the revision the previous one
+   * produced, so "change once, every step follows" cannot tear halfway through on a
+   * conflict.
+   * @param cardIds - the cards to write, in step order.
+   * @param patch - the fields to set; `null` clears a field.
+   */
+  readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => void
+  /** Provider groups the model row offers; empty means the directory answered nothing. */
+  readonly modelGroups: readonly WorkbenchModelGroup[]
+  /**
    * Translate one workbench string.
    * @param key - dictionary key.
    * @param params - optional template parameters.
@@ -95,6 +110,17 @@ export interface WorkbenchPipelineProps {
 
 /** How long a delete confirmation stays armed. */
 const CONFIRM_MS = 4_000
+
+/** Fields the pipeline may set on every step's card at once. */
+export interface StepCardPatch {
+  /** Model the cards run on; `null` clears it back to following the session. */
+  readonly model?: WorkbenchCardModel | null
+  /** Permission mode the cards' runs use. */
+  readonly permission?: WorkbenchSandboxMode
+}
+
+/** The permission modes in the order the row offers them: ordinary first, broad last. */
+const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
 
 /** One step as the canvas and the inspector draw it. */
 interface StepView {
@@ -122,6 +148,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
     pipelines, run, facts, api, renderCard, onCreateCard, t,
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
+    patchStepCards, modelGroups,
   } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
@@ -944,8 +971,16 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             <ConfigPanel
                               step={selected}
                               shared={stepViews[0]?.card}
+                              models={modelGroups}
+                              skillDescription={catalog.find(entry => entry.name === selected.skill)?.description}
                               t={t}
                               onEdit={() => { openReader(selected.cardId) }}
+                              onChooseModel={(model) => {
+                                patchStepCards(stepViews.map(step => step.cardId), { model: model ?? null })
+                              }}
+                              onChoosePermission={(mode) => {
+                                patchStepCards(stepViews.map(step => step.cardId), { permission: mode })
+                              }}
                             />
                           </div>
                           )
@@ -1356,12 +1391,23 @@ function ActivityPanel(props: {
 function ConfigPanel(props: {
   readonly step: StepView
   readonly shared: WorkbenchCardConfigView | undefined
+  /** Models the pipeline's cards may be pointed at; empty means the directory said nothing. */
+  readonly models: readonly WorkbenchModelGroup[]
+  readonly skillDescription: string | undefined
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onEdit: () => void
+  /** Point every step's card at one model, or at none (follow the session). */
+  readonly onChooseModel: (model: WorkbenchCardModel | undefined) => void
+  /** Give every step's card the same permission mode. */
+  readonly onChoosePermission: (mode: WorkbenchSandboxMode) => void
 }): ReactNode {
-  const { step, shared, t, onEdit } = props
+  const { step, shared, models, skillDescription, t, onEdit, onChooseModel, onChoosePermission } = props
   const [view, setView] = useState<'preview' | 'source'>('preview')
   const template = step.card?.template
+  // What "the whole pipeline" is: the first step's card. The rows that change it write
+  // every step's card, which is what "change once, every step follows" promises.
+  const model = shared?.model
+  const permission = shared?.permission ?? 'workspace-write'
   return (
     <>
       <div className={css.cfgBlock}>
@@ -1372,15 +1418,55 @@ function ConfigPanel(props: {
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgModel')}</span>
           <span className={css.ruleValue}>
-            {shared?.model === undefined
-              ? <span className={css.hint}>{t('pipeCfgModelInherit')}</span>
-              : <span className={css.val}>{`${shared.model.provider}/${shared.model.model}`}</span>}
+            {models.length === 0
+              ? (
+                <span className={css.val}>
+                  {model === undefined ? t('pipeCfgModelInherit') : `${model.provider}/${model.model}`}
+                </span>
+                )
+              : (
+                <select
+                  className={css.ruleSelect}
+                  data-cfg-model=""
+                  aria-label={t('pipeCfgModel')}
+                  value={model === undefined ? '' : modelKey(model)}
+                  onChange={(event) => {
+                    onChooseModel(event.target.value === '' ? undefined : parseModelKey(event.target.value))
+                  }}
+                >
+                  <option value="">{t('pipeCfgModelInherit')}</option>
+                  {models.map(group => (
+                    <optgroup key={group.id} label={group.name}>
+                      {group.models.map(entry => (
+                        <option key={entry.id} value={modelKey({ provider: group.id, model: entry.id })}>{entry.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                )}
+            {model === undefined ? <span className={css.hint}>{t('pipeCfgModelInheritNote')}</span> : null}
           </span>
         </div>
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgPermission')}</span>
           <span className={css.ruleValue}>
-            <span className={css.val}>{t(permissionLabelKey(shared?.permission ?? 'workspace-write'))}</span>
+            <select
+              className={css.ruleSelect}
+              data-cfg-permission=""
+              aria-label={t('pipeCfgPermission')}
+              value={permission}
+              onChange={(event) => {
+                const next = event.target.value
+                if (next === 'read-only' || next === 'workspace-write' || next === 'danger-full-access') {
+                  onChoosePermission(next)
+                }
+              }}
+            >
+              {PERMISSION_ORDER.map(mode => (
+                <option key={mode} value={mode}>{t(permissionLabelKey(mode))}</option>
+              ))}
+            </select>
+            <span className={css.hint}>{t('pipeCfgPermissionNote')}</span>
           </span>
         </div>
         <div className={css.ruleRow}>
@@ -1400,6 +1486,17 @@ function ConfigPanel(props: {
           <span className={css.ruleLabel}>{t('pipeCfgSkill')}</span>
           <span className={css.ruleValue}>
             <span className={`${css.val} ${css.mono}`}>{step.skill ?? t('pipeCfgNoSkill')}</span>
+            {skillDescription === undefined ? null : <span className={css.hint}>{skillDescription}</span>}
+          </span>
+        </div>
+        <div className={css.ruleRow}>
+          <span className={css.ruleLabel}>{t('pipeCfgInstruction')}</span>
+          <span className={css.ruleValue}>
+            <span className={css.val}>
+              {step.card?.instructionMode === undefined
+                ? t('pipeCfgInstructionNone')
+                : t(instructionLabelKey(step.card.instructionMode))}
+            </span>
           </span>
         </div>
         <div className={css.ruleRow}>

@@ -13,13 +13,13 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { usePipelines } from './pipeline-controller.ts'
 import { usePipelineRun } from './pipeline/pipeline-run.ts'
-import { WorkbenchPipeline } from './WorkbenchPipeline.tsx'
+import { WorkbenchPipeline, type StepCardPatch } from './WorkbenchPipeline.tsx'
 import type { WorkbenchPipelineApi } from './pipeline-api.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchCardSelection } from './contract.ts'
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
 import type { WorkbenchCardSnapshot } from './skill-card/api.ts'
-import type { WorkbenchModelSeat } from './skill-card/model.ts'
+import type { WorkbenchModelGroup, WorkbenchModelSeat } from './skill-card/model.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 import type { WorkbenchScriptBinder } from './skill-card/render.ts'
 import { SKILL_CARD_ID } from './skill-card/SkillCard.tsx'
@@ -248,6 +248,31 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     })
   }, [applySnapshot, revision, skillCards.api])
 
+  // "Change the whole pipeline once" is a write per card, in step order, each with the
+  // revision the last one produced: the same base for all of them would make every write
+  // but the first a conflict.
+  const patchStepCards = useCallback((cardIds: readonly string[], patch: StepCardPatch) => {
+    void (async () => {
+      let base = revision
+      for (const cardId of cardIds) {
+        const result = await skillCards.api.write({ baseRevision: base, cardId, ...patch })
+        if (result.status !== 'ok') return
+        base = result.snapshot.revision
+        applySnapshot(result.snapshot)
+      }
+    })()
+  }, [applySnapshot, revision, skillCards.api])
+
+  // The model row lists what the directory knows. Subscribing is also the mount path that
+  // asks it for a catalog, so the row has options the first time the tab is opened.
+  const [modelGroups, setModelGroups] = useState<readonly WorkbenchModelGroup[]>([])
+  useEffect(() => {
+    const sessionId = skillCards.runSessionId()
+    const read = (): void => { setModelGroups(skillCards.models.read(sessionId).groups) }
+    read()
+    return skillCards.models.subscribe(sessionId, read)
+  }, [skillCards.models, skillCards.runSessionId])
+
   const pipelines = usePipelines(pipelineApi)
   const run = usePipelineRun({ api: skillCards.api, scopeSessionId: skillCards.runSessionId })
 
@@ -292,6 +317,8 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         onCatalogNeeded={reloadCatalog}
         createCardForSkill={createCardForSkill}
         renameStepCard={renameCard}
+        patchStepCards={patchStepCards}
+        modelGroups={modelGroups}
         t={t}
       />
     )

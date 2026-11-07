@@ -722,6 +722,10 @@ window.__ModuleLoader__.load({
 			pipeCfgPipelineNote: "改一次，每一步都跟着",
 			pipeCfgModel: "模型",
 			pipeCfgModelInherit: "跟随会话",
+			pipeCfgModelInheritNote: "这一步没有单独指定，跟着流水线走",
+			pipeCfgPermissionNote: "写入限制在工作目录内",
+			pipeCfgInstruction: "运行指令",
+			pipeCfgInstructionNone: "不需要额外指令",
 			pipeCfgPermission: "权限模式",
 			pipeCfgWorkspace: "工作目录",
 			pipeCfgNoWorkspace: "还没有设置",
@@ -1079,6 +1083,10 @@ window.__ModuleLoader__.load({
 			pipeCfgPipelineNote: "Change once, every step follows",
 			pipeCfgModel: "Model",
 			pipeCfgModelInherit: "Follows the session",
+			pipeCfgModelInheritNote: "This step sets none of its own; it follows the pipeline",
+			pipeCfgPermissionNote: "Writes stay inside the workspace",
+			pipeCfgInstruction: "Instruction",
+			pipeCfgInstructionNone: "Needs no extra instruction",
 			pipeCfgPermission: "Permission",
 			pipeCfgWorkspace: "Workspace",
 			pipeCfgNoWorkspace: "Not set",
@@ -7223,13 +7231,19 @@ window.__ModuleLoader__.load({
 		*/
 		/** How long a delete confirmation stays armed. */
 		var CONFIRM_MS = 4e3;
+		/** The permission modes in the order the row offers them: ordinary first, broad last. */
+		var PERMISSION_ORDER = [
+			"workspace-write",
+			"read-only",
+			"danger-full-access"
+		];
 		/**
 		* Render the pipeline workbench.
 		* @param props - stored pipelines, run engine, cards, transport, card views, and `t`.
 		* @returns the two-column surface with its overlays.
 		*/
 		function WorkbenchPipeline(props) {
-			const { pipelines, run, facts, api, renderCard, onCreateCard, t, catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard } = props;
+			const { pipelines, run, facts, api, renderCard, onCreateCard, t, catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard, patchStepCards, modelGroups } = props;
 			const [activeId, setActiveId] = (0, react.useState)(void 0);
 			const [focus, setFocus] = (0, react.useState)(void 0);
 			const [tab, setTab] = (0, react.useState)("activity");
@@ -8078,9 +8092,17 @@ window.__ModuleLoader__.load({
 											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigPanel, {
 												step: selected,
 												shared: stepViews[0]?.card,
+												models: modelGroups,
+												skillDescription: catalog.find((entry) => entry.name === selected.skill)?.description,
 												t,
 												onEdit: () => {
 													openReader(selected.cardId);
+												},
+												onChooseModel: (model) => {
+													patchStepCards(stepViews.map((step) => step.cardId), { model: model ?? null });
+												},
+												onChoosePermission: (mode) => {
+													patchStepCards(stepViews.map((step) => step.cardId), { permission: mode });
 												}
 											})
 										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -8692,9 +8714,11 @@ window.__ModuleLoader__.load({
 		}
 		/** What one step's config panel shows: what it is, and what its document looks like. */
 		function ConfigPanel(props) {
-			const { step, shared, t, onEdit } = props;
+			const { step, shared, models, skillDescription, t, onEdit, onChooseModel, onChoosePermission } = props;
 			const [view, setView] = (0, react.useState)("preview");
 			const template = step.card?.template;
+			const model = shared?.model;
+			const permission = shared?.permission ?? "workspace-write";
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: css.cfgBlock,
@@ -8708,15 +8732,36 @@ window.__ModuleLoader__.load({
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: css.ruleLabel,
 								children: t("pipeCfgModel")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 								className: css.ruleValue,
-								children: shared?.model === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: css.hint,
-									children: t("pipeCfgModelInherit")
-								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								children: [models.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: css.val,
-									children: `${shared.model.provider}/${shared.model.model}`
-								})
+									children: model === void 0 ? t("pipeCfgModelInherit") : `${model.provider}/${model.model}`
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
+									className: css.ruleSelect,
+									"data-cfg-model": "",
+									"aria-label": t("pipeCfgModel"),
+									value: model === void 0 ? "" : modelKey(model),
+									onChange: (event) => {
+										onChooseModel(event.target.value === "" ? void 0 : parseModelKey(event.target.value));
+									},
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+										value: "",
+										children: t("pipeCfgModelInherit")
+									}), models.map((group) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("optgroup", {
+										label: group.name,
+										children: group.models.map((entry) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: modelKey({
+												provider: group.id,
+												model: entry.id
+											}),
+											children: entry.name
+										}, entry.id))
+									}, group.id))]
+								}), model === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: css.hint,
+									children: t("pipeCfgModelInheritNote")
+								}) : null]
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -8724,12 +8769,25 @@ window.__ModuleLoader__.load({
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: css.ruleLabel,
 								children: t("pipeCfgPermission")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 								className: css.ruleValue,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: css.val,
-									children: t(permissionLabelKey(shared?.permission ?? "workspace-write"))
-								})
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+									className: css.ruleSelect,
+									"data-cfg-permission": "",
+									"aria-label": t("pipeCfgPermission"),
+									value: permission,
+									onChange: (event) => {
+										const next = event.target.value;
+										if (next === "read-only" || next === "workspace-write" || next === "danger-full-access") onChoosePermission(next);
+									},
+									children: PERMISSION_ORDER.map((mode) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+										value: mode,
+										children: t(permissionLabelKey(mode))
+									}, mode))
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: css.hint,
+									children: t("pipeCfgPermissionNote")
+								})]
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -8759,11 +8817,27 @@ window.__ModuleLoader__.load({
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: css.ruleLabel,
 								children: t("pipeCfgSkill")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: css.ruleValue,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: `${css.val} ${css.mono}`,
+									children: step.skill ?? t("pipeCfgNoSkill")
+								}), skillDescription === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: css.hint,
+									children: skillDescription
+								})]
+							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: css.ruleRow,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: css.ruleLabel,
+								children: t("pipeCfgInstruction")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: css.ruleValue,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: `${css.val} ${css.mono}`,
-									children: step.skill ?? t("pipeCfgNoSkill")
+									className: css.val,
+									children: step.card?.instructionMode === void 0 ? t("pipeCfgInstructionNone") : t(instructionLabelKey(step.card.instructionMode))
 								})
 							})]
 						}),
@@ -11869,6 +11943,34 @@ window.__ModuleLoader__.load({
 				revision,
 				skillCards.api
 			]);
+			const patchStepCards = (0, react.useCallback)((cardIds, patch) => {
+				(async () => {
+					let base = revision;
+					for (const cardId of cardIds) {
+						const result = await skillCards.api.write({
+							baseRevision: base,
+							cardId,
+							...patch
+						});
+						if (result.status !== "ok") return;
+						base = result.snapshot.revision;
+						applySnapshot(result.snapshot);
+					}
+				})();
+			}, [
+				applySnapshot,
+				revision,
+				skillCards.api
+			]);
+			const [modelGroups, setModelGroups] = (0, react.useState)([]);
+			(0, react.useEffect)(() => {
+				const sessionId = skillCards.runSessionId();
+				const read = () => {
+					setModelGroups(skillCards.models.read(sessionId).groups);
+				};
+				read();
+				return skillCards.models.subscribe(sessionId, read);
+			}, [skillCards.models, skillCards.runSessionId]);
 			const pipelines = usePipelines(pipelineApi);
 			const run = usePipelineRun({
 				api: skillCards.api,
@@ -11910,6 +12012,8 @@ window.__ModuleLoader__.load({
 				onCatalogNeeded: reloadCatalog,
 				createCardForSkill,
 				renameStepCard: renameCard,
+				patchStepCards,
+				modelGroups,
 				t
 			}) : (() => {
 				const page = {

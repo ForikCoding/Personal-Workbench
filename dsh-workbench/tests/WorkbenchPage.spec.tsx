@@ -312,6 +312,61 @@ describe('WorkbenchPage', () => {
     expect(document.querySelector('[data-step-index="1"]')?.getAttribute('aria-selected')).toBe('true')
   })
 
+  it('changes the permission mode for every step at once', async () => {
+    const { cardWrites } = await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    // "Change once, every step follows" is only true if every step's card is written.
+    const row = document.querySelector('[data-cfg-permission]') as HTMLSelectElement
+    expect(row).not.toBeNull()
+    expect(row.value).toBe('workspace-write')
+    fireEvent.change(row, { target: { value: 'read-only' } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
+    expect(cardWrites.map(patch => [patch.cardId, patch.permission])).toEqual([
+      ['a-card', 'read-only'],
+      ['b-card', 'read-only'],
+    ])
+    // The row says what the mode means, and the label is the product's own name for it.
+    expect(screen.getByText(en.pipeCfgPermissionNote)).toBeTruthy()
+  })
+
+  it('points every step at one model, and can put them back on the session', async () => {
+    // A step whose card sets no model of its own is the one that follows the session.
+    const { cardWrites } = await renderPage({ pipelines: [pipeline({ steps: [{ cardId: 'b-card' }] })] })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const row = document.querySelector('[data-cfg-model]') as HTMLSelectElement
+    expect(row).not.toBeNull()
+    // Nothing chosen yet: the first option is the one that means "follow the session".
+    expect(row.value).toBe('')
+    expect(screen.getByText(en.pipeCfgModelInheritNote)).toBeTruthy()
+    // The option value is the stored pair, not a "provider/model" string: a provider id
+    // may itself contain a slash, so the value has to be decodable without guessing.
+    fireEvent.change(row, { target: { value: JSON.stringify(['deepseek', 'deepseek-reasoner']) } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
+    expect(cardWrites[0]?.model).toEqual({ provider: 'deepseek', model: 'deepseek-reasoner' })
+    fireEvent.change(row, { target: { value: '' } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
+    // Clearing is a real answer, not a missing one: it writes null, not nothing.
+    expect(cardWrites[1]?.model).toBeNull()
+  })
+
+  it('states the skill and the instruction this step runs with', async () => {
+    await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    // The skill is named with its own one-line description, so the row says what it does
+    // and not just which id it is.
+    const panel = document.querySelector('[data-panel="config"]') as HTMLElement
+    expect(panel.textContent).toContain('git-repo')
+    expect(panel.textContent).toContain('Work with a repository')
+    // 运行指令 is the instruction mode the card stores; a card that stores none says so.
+    expect(screen.getByText(en.pipeCfgInstruction)).toBeTruthy()
+    expect(screen.getByText(en.pipeCfgInstructionNone)).toBeTruthy()
+  })
   it('removes a step from the pipeline only on the second click', async () => {
     const { writes } = await renderPage()
     await screen.findByText(en.pipeAddStep)

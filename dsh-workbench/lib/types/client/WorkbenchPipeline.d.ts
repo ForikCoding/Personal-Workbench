@@ -18,6 +18,8 @@ import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts';
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
+import { type WorkbenchModelGroup } from './skill-card/model.ts';
+import type { WorkbenchCardModel, WorkbenchSandboxMode } from '../skill-card-contract.ts';
 /** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result';
 /** Props of the pipeline workbench. */
@@ -66,12 +68,31 @@ export interface WorkbenchPipelineProps {
      */
     readonly renameStepCard: (cardId: string, name: string) => void;
     /**
+     * Write one field into every step's card, one card at a time.
+     *
+     * The cards are written in order and each write carries the revision the previous one
+     * produced, so "change once, every step follows" cannot tear halfway through on a
+     * conflict.
+     * @param cardIds - the cards to write, in step order.
+     * @param patch - the fields to set; `null` clears a field.
+     */
+    readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => void;
+    /** Provider groups the model row offers; empty means the directory answered nothing. */
+    readonly modelGroups: readonly WorkbenchModelGroup[];
+    /**
      * Translate one workbench string.
      * @param key - dictionary key.
      * @param params - optional template parameters.
      * @returns the localized text.
      */
     readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string;
+}
+/** Fields the pipeline may set on every step's card at once. */
+export interface StepCardPatch {
+    /** Model the cards run on; `null` clears it back to following the session. */
+    readonly model?: WorkbenchCardModel | null;
+    /** Permission mode the cards' runs use. */
+    readonly permission?: WorkbenchSandboxMode;
 }
 /**
  * Render the pipeline workbench.
