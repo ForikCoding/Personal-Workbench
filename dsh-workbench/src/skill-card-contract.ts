@@ -304,6 +304,34 @@ export function regionMarkerPattern(name: string): RegExp {
 }
 
 /**
+ * Attribute through which a template states the directory its result is files in.
+ *
+ * Shape of the result, not decoration: a template carrying this attribute says the deliverable
+ * is files, and a template without it says the deliverable is the region itself. Both the
+ * prompt a run sends and the panel that lists its result read this one attribute, so the two
+ * cannot disagree about what shape this card's result has.
+ */
+export const WORKBENCH_RESULT_FILES_ATTRIBUTE = 'data-dsh-files'
+
+/** How far into a result document a directory pointer may sit. */
+const RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i
+
+/**
+ * Read the directory a document points at.
+ *
+ * The pointer is the template's own statement that this card's results are files in a
+ * directory, and it sits outside the region so a run cannot remove it. A run's stored region
+ * may carry one too — that is how results written before the pointer moved are still read.
+ * @param document - a template, or a stored region.
+ * @returns the directory the document points at, or undefined when it points at none.
+ */
+export function resultPointerPath(document: string | undefined): string | undefined {
+  if (document === undefined) return undefined
+  const path = RESULT_POINTER.exec(document)?.[1]?.trim()
+  return path === undefined || path === '' ? undefined : path
+}
+
+/**
  * The output contract every run asks its child for.
  *
  * One property: the child returns the filled region as HTML rather than a set of named

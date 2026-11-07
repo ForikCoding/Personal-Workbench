@@ -1,5 +1,6 @@
 /** Execution behaviour of the skill card runner across every precondition and outcome. */
 
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { WorkbenchSkillCardRunner, cardSelection } from '../src/skill-card-runner.ts'
 import type { WorkbenchCardSelection, WorkbenchSkillCardRunnerOptions } from '../src/skill-card-runner.ts'
@@ -391,6 +392,23 @@ describe('workbench skill card runner', () => {
       await settle(runner)
       expect(fake.createdPresets).toEqual([undefined])
       expect(warnings.some(message => message.includes('agent preset'))).toBe(true)
+    })
+
+    it('tells a files-shaped run which directory resolves the card’s shorthand', async () => {
+      // The card declares `docs/…`; the child runs in the card's directory. The prompt is the
+      // only place that joins the two, and it has to be this run's directory — the one the
+      // panel later lists the result from — or the files land somewhere nobody reads.
+      const { runner, fake } = setup({
+        selection: {
+          skill: 'git-repo',
+          template: '<div data-dsh-files="docs/详细设计" hidden></div>',
+          workspace: { path: WORKSPACE_PATH },
+        },
+      })
+      expect(await runner.start(request())).toMatchObject({ status: 'started' })
+      await settle(runner)
+      const prompt = fake.activations[0]?.request.prompt.map(block => block.text ?? '').join('\n') ?? ''
+      expect(prompt).toContain(`<deliverable_directory>${resolve(WORKSPACE_PATH, 'docs/详细设计')}</deliverable_directory>`)
     })
 
     it('binds the preset again when a refinement resumes the session', async () => {

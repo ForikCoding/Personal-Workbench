@@ -8,6 +8,7 @@
  * @module dsh-workbench/client/pipeline/pipeline-view
  */
 
+import { resultPointerPath } from '../../skill-card-contract.ts'
 import type { ChainPhase, PipelineStepPhase } from './pipeline-run.ts'
 
 /** Text and shape one step's state is drawn with. */
@@ -98,24 +99,6 @@ export function dayOf(at: number, now: number): string {
   return cut < 0 ? label : label.slice(0, cut)
 }
 
-/** How far into a result document a directory pointer may sit. */
-const POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i
-
-/**
- * Read the directory a document points at.
- *
- * The pointer is the template's own statement that this card's results are files in a
- * directory, and it sits outside the region so a run cannot remove it. A run's stored region
- * may carry one too — that is how results written before the pointer moved are still read.
- * @param document - a template, or a stored region.
- * @returns the directory the document points at, or undefined when it points at none.
- */
-export function pointerPath(document: string | undefined): string | undefined {
-  if (document === undefined) return undefined
-  const path = POINTER.exec(document)?.[1]?.trim()
-  return path === undefined || path === '' ? undefined : path
-}
-
 /**
  * The directory a step's result covers.
  *
@@ -127,7 +110,7 @@ export function pointerPath(document: string | undefined): string | undefined {
  * @returns the directory to list, or undefined when this result is not a directory's files.
  */
 export function resultDirectory(template: string | undefined, product: StepProduct): string | undefined {
-  const fromTemplate = pointerPath(template)
+  const fromTemplate = resultPointerPath(template)
   if (fromTemplate !== undefined) return fromTemplate
   return product.kind === 'directory' ? product.path : undefined
 }
@@ -159,7 +142,7 @@ export function formatBytes(bytes: number | undefined): string {
  */
 export function productOf(html: string | undefined): StepProduct {
   if (html === undefined || html.trim() === '') return { kind: 'none' }
-  const path = pointerPath(html)
+  const path = resultPointerPath(html)
   if (path !== undefined) return { kind: 'directory', path }
   const text = textOf(html)
   return text === '' ? { kind: 'none' } : { kind: 'inline', text }

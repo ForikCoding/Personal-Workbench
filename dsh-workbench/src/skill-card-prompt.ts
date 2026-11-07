@@ -13,6 +13,8 @@
  * @module dsh-workbench/skill-card-prompt
  */
 
+import { resolve } from 'node:path'
+import { resultPointerPath } from './skill-card-contract.ts'
 import type { WorkbenchSkillDefinition } from './skill-card-host.ts'
 
 /**
@@ -92,6 +94,8 @@ const REFINE_TASK_INSTRUCTION = [
  * @param budgetMs - the deadline the run has, when it has one.
  * @param handoff - notes the steps before this one left, when this run cannot continue
  * their conversation.
+ * @param cwd - the directory this run executes in, when it has one; the base a relative
+ * deliverable directory resolves against.
  * @returns the complete model-facing prompt text.
  */
 export function renderWorkbenchSkillPrompt(
@@ -101,7 +105,13 @@ export function renderWorkbenchSkillPrompt(
   instruction?: string,
   budgetMs?: number,
   handoff?: string,
+  cwd?: string,
 ): string {
+  // A template that names a directory is saying its result is files there; the prompt then
+  // has to ask for them, because the region alone is a result a child can deliver without
+  // writing anything — and one did exactly that, then settled as a success while the card's
+  // declared directory stayed empty.
+  const deliverable = resultPointerPath(template)
   return [
     ...skillBlock(skill),
     ...rowDataBlock(payload),
@@ -112,6 +122,7 @@ export function renderWorkbenchSkillPrompt(
     '<output_document>',
     template,
     '</output_document>',
+    ...deliverable === undefined ? [] : deliverableBlock(deliverable, cwd),
     '',
     [
       instruction === undefined ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
@@ -119,6 +130,42 @@ export function renderWorkbenchSkillPrompt(
       TASK_INSTRUCTION_REGION,
     ].join('\n'),
   ].join('\n')
+}
+
+/**
+ * Ask for the files a directory-shaped card's result is made of.
+ *
+ * The region and the directory are two halves of one deliverable, and this block is the only
+ * place that says so: the region describes what was delivered, the directory holds it. Stated
+ * as a hard requirement because a run that skips it leaves the card's own panel with nothing
+ * to list — the state that produced "the path is not there" on a run that reported success.
+ *
+ * The one exception is deliberate and has to be said out loud: a run that genuinely produced
+ * no file must report that in the region, so "no files" is always a sentence someone wrote
+ * rather than a silence both sides can read as success.
+ * @param dir - the directory the template names, as written.
+ * @param cwd - this run's working directory, when it has one.
+ * @returns the block's lines.
+ */
+function deliverableBlock(dir: string, cwd: string | undefined): string[] {
+  // Resolved here rather than by the child: a relative pointer is the card's own shorthand,
+  // and the prompt is the one place that knows what it is relative to.
+  const target = cwd === undefined ? dir : resolve(cwd, dir)
+  return [
+    '',
+    'This deliverable is files in one directory, not the region alone:',
+    `<deliverable_directory>${escapeText(target)}</deliverable_directory>`,
+    '',
+    '- Write the skill\'s output into that directory, creating the directory if it is missing.',
+    '- Use the file tools (`write`, `edit`) to put each file there. Do not use a shell command',
+    '  to create or fill them: in this environment a shell command may be refused, and a',
+    '  refused shell command is never a reason to leave the files unwritten.',
+    '- One markdown file per document the skill produces, named after that document.',
+    '- The region is still required and is not a substitute for the files: it says what was',
+    '  delivered and what each file covers. The files are not a substitute for it either.',
+    '- If this run genuinely produced no file, the region must say so in one sentence and say',
+    '  why. An empty directory and a silent region together are a failed run.',
+  ]
 }
 
 /**

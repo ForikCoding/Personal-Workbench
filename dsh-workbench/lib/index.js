@@ -811,6 +811,22 @@ const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024;
 * Redaction runs before this cut, so a credential is replaced whole.
 */
 const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 3e3;
+/** How far into a result document a directory pointer may sit. */
+const RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
+/**
+* Read the directory a document points at.
+*
+* The pointer is the template's own statement that this card's results are files in a
+* directory, and it sits outside the region so a run cannot remove it. A run's stored region
+* may carry one too — that is how results written before the pointer moved are still read.
+* @param document - a template, or a stored region.
+* @returns the directory the document points at, or undefined when it points at none.
+*/
+function resultPointerPath(document) {
+	if (document === void 0) return void 0;
+	const path = RESULT_POINTER.exec(document)?.[1]?.trim();
+	return path === void 0 || path === "" ? void 0 : path;
+}
 /**
 * Skill name grammar, matching the skill registry's own rule exactly: kebab
 * case, with no leading, trailing, or repeated hyphen.
@@ -2166,6 +2182,20 @@ function withActivityEntries(trace, entries) {
 //#endregion
 //#region src/skill-card-prompt.ts
 /**
+* Build the prompt one skill card run sends to its child agent.
+*
+* The `<skill_content>` wrapper is reproduced from the skill registry's own
+* renderer (`renderSkillContent` in `@deepseek-ai/dsh-skill`), which is the shape
+* the model already sees when a user invokes `/name` and in the skill tool's
+* result. It is reproduced rather than imported for two reasons: that package is
+* not a resolvable runtime dependency of this outer workspace, and the two
+* Desktop channels pin different upstream versions, so importing would make the
+* prompt drift with whichever copy happened to resolve.
+*
+* If upstream changes the wrapper, this module has to follow.
+* @module dsh-workbench/skill-card-prompt
+*/
+/**
 * The task's subject, for a run that named none: the workspace is what the skill acts on.
 */
 const TASK_INSTRUCTION_SUBJECT = "Apply the skill above to the current workspace now.";
@@ -2237,9 +2267,12 @@ const REFINE_TASK_INSTRUCTION = [
 * @param budgetMs - the deadline the run has, when it has one.
 * @param handoff - notes the steps before this one left, when this run cannot continue
 * their conversation.
+* @param cwd - the directory this run executes in, when it has one; the base a relative
+* deliverable directory resolves against.
 * @returns the complete model-facing prompt text.
 */
-function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs, handoff) {
+function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs, handoff, cwd) {
+	const deliverable = resultPointerPath(template);
 	return [
 		...skillBlock(skill),
 		...rowDataBlock(payload),
@@ -2250,6 +2283,7 @@ function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budge
 		"<output_document>",
 		template,
 		"</output_document>",
+		...deliverable === void 0 ? [] : deliverableBlock(deliverable, cwd),
 		"",
 		[
 			instruction === void 0 ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
@@ -2257,6 +2291,38 @@ function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budge
 			TASK_INSTRUCTION_REGION
 		].join("\n")
 	].join("\n");
+}
+/**
+* Ask for the files a directory-shaped card's result is made of.
+*
+* The region and the directory are two halves of one deliverable, and this block is the only
+* place that says so: the region describes what was delivered, the directory holds it. Stated
+* as a hard requirement because a run that skips it leaves the card's own panel with nothing
+* to list — the state that produced "the path is not there" on a run that reported success.
+*
+* The one exception is deliberate and has to be said out loud: a run that genuinely produced
+* no file must report that in the region, so "no files" is always a sentence someone wrote
+* rather than a silence both sides can read as success.
+* @param dir - the directory the template names, as written.
+* @param cwd - this run's working directory, when it has one.
+* @returns the block's lines.
+*/
+function deliverableBlock(dir, cwd) {
+	return [
+		"",
+		"This deliverable is files in one directory, not the region alone:",
+		`<deliverable_directory>${escapeText(cwd === void 0 ? dir : resolve(cwd, dir))}</deliverable_directory>`,
+		"",
+		"- Write the skill's output into that directory, creating the directory if it is missing.",
+		"- Use the file tools (`write`, `edit`) to put each file there. Do not use a shell command",
+		"  to create or fill them: in this environment a shell command may be refused, and a",
+		"  refused shell command is never a reason to leave the files unwritten.",
+		"- One markdown file per document the skill produces, named after that document.",
+		"- The region is still required and is not a substitute for the files: it says what was",
+		"  delivered and what each file covers. The files are not a substitute for it either.",
+		"- If this run genuinely produced no file, the region must say so in one sentence and say",
+		"  why. An empty directory and a silent region together are a failed run."
+	];
 }
 /**
 * Frame what the earlier steps of this pipeline left behind.
@@ -3378,7 +3444,7 @@ var WorkbenchSkillCardRunner = class {
 				parent,
 				prompt: [{
 					type: "text",
-					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs, input.handoff) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
+					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs, input.handoff, resolvedCwd) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
 				...resolvedCwd === void 0 ? {} : { cwd: resolvedCwd },
 				toolFilter: WORKBENCH_RUN_TOOL_FILTER,

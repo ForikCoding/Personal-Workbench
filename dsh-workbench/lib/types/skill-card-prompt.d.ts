@@ -28,9 +28,11 @@ import type { WorkbenchSkillDefinition } from './skill-card-host.ts';
  * @param budgetMs - the deadline the run has, when it has one.
  * @param handoff - notes the steps before this one left, when this run cannot continue
  * their conversation.
+ * @param cwd - the directory this run executes in, when it has one; the base a relative
+ * deliverable directory resolves against.
  * @returns the complete model-facing prompt text.
  */
-export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number, handoff?: string): string;
+export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number, handoff?: string, cwd?: string): string;
 /**
  * Render one skill, the document, the result to revise, and the revision request.
  *

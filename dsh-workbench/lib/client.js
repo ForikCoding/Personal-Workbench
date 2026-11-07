@@ -1293,6 +1293,22 @@ window.__ModuleLoader__.load({
 		function regionMarkerPattern(name) {
 			return new RegExp(`<!--\\s*${name}\\s*-->`, "g");
 		}
+		/** How far into a result document a directory pointer may sit. */
+		var RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
+		/**
+		* Read the directory a document points at.
+		*
+		* The pointer is the template's own statement that this card's results are files in a
+		* directory, and it sits outside the region so a run cannot remove it. A run's stored region
+		* may carry one too — that is how results written before the pointer moved are still read.
+		* @param document - a template, or a stored region.
+		* @returns the directory the document points at, or undefined when it points at none.
+		*/
+		function resultPointerPath(document) {
+			if (document === void 0) return void 0;
+			const path = RESULT_POINTER.exec(document)?.[1]?.trim();
+			return path === void 0 || path === "" ? void 0 : path;
+		}
 		/**
 		* The output contract every run asks its child for.
 		*
@@ -7315,6 +7331,15 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region src/client/pipeline/pipeline-view.ts
+		/**
+		* Reading a run into the shapes the pipeline views draw.
+		*
+		* The panel shows the same facts in four places — the canvas node, the run bar, the result
+		* panel and the reader — and they must agree, so the reading happens once here and the
+		* views only choose a presentation. Nothing in this module touches React or the transport:
+		* what a run produced is decided by its stored result, and that is a string to be read.
+		* @module dsh-workbench/client/pipeline/pipeline-view
+		*/
 		/** The state a step is drawn in. */
 		var STATE_VIEW = {
 			idle: {
@@ -7389,22 +7414,6 @@ window.__ModuleLoader__.load({
 			const day = when.getDate();
 			return sameYear ? `${String(month)}/${String(day)} ${time}` : `${String(when.getFullYear())}/${String(month)}/${String(day)}`;
 		}
-		/** How far into a result document a directory pointer may sit. */
-		var POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
-		/**
-		* Read the directory a document points at.
-		*
-		* The pointer is the template's own statement that this card's results are files in a
-		* directory, and it sits outside the region so a run cannot remove it. A run's stored region
-		* may carry one too — that is how results written before the pointer moved are still read.
-		* @param document - a template, or a stored region.
-		* @returns the directory the document points at, or undefined when it points at none.
-		*/
-		function pointerPath(document) {
-			if (document === void 0) return void 0;
-			const path = POINTER.exec(document)?.[1]?.trim();
-			return path === void 0 || path === "" ? void 0 : path;
-		}
 		/**
 		* The directory a step's result covers.
 		*
@@ -7416,7 +7425,7 @@ window.__ModuleLoader__.load({
 		* @returns the directory to list, or undefined when this result is not a directory's files.
 		*/
 		function resultDirectory(template, product) {
-			const fromTemplate = pointerPath(template);
+			const fromTemplate = resultPointerPath(template);
 			if (fromTemplate !== void 0) return fromTemplate;
 			return product.kind === "directory" ? product.path : void 0;
 		}
@@ -7446,7 +7455,7 @@ window.__ModuleLoader__.load({
 		*/
 		function productOf(html) {
 			if (html === void 0 || html.trim() === "") return { kind: "none" };
-			const path = pointerPath(html);
+			const path = resultPointerPath(html);
 			if (path !== void 0) return {
 				kind: "directory",
 				path

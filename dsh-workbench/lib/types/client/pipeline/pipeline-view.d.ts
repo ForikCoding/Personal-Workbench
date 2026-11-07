@@ -55,16 +55,6 @@ export declare function formatWhen(at: number, now: number): string;
  */
 export declare function dayOf(at: number, now: number): string;
 /**
- * Read the directory a document points at.
- *
- * The pointer is the template's own statement that this card's results are files in a
- * directory, and it sits outside the region so a run cannot remove it. A run's stored region
- * may carry one too — that is how results written before the pointer moved are still read.
- * @param document - a template, or a stored region.
- * @returns the directory the document points at, or undefined when it points at none.
- */
-export declare function pointerPath(document: string | undefined): string | undefined;
-/**
  * The directory a step's result covers.
  *
  * Asked of the card's template first: the template is where the pointer belongs, and it is

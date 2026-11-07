@@ -1470,6 +1470,9 @@ await this.finish(run, outcome)
                 input.instruction,
                 this.options.runTimeoutMs,
                 input.handoff,
+                // The directory a relative deliverable resolves against: the same one the
+                // panel reads the card's result from, so the two cannot name different paths.
+                resolvedCwd,
               )
             : input.kind === 'refine'
               ? renderWorkbenchRefinePrompt(
