@@ -68,6 +68,21 @@ describe('a files-shaped card is asked for its files', () => {
     expect(prompt).toContain('<deliverable_directory>docs/详细设计</deliverable_directory>')
   })
 
+  it('asks for the directory the author declared, not the one the header quotes', () => {
+    // The template tells its author to change exactly one thing, and its header quotes that
+    // attribute while explaining it. An edit that only reached the element still has to win.
+    const template = [
+      '<!-- 下面那个 data-dsh-files="docs/详细设计" —— 指向这一步真正写出文件的目录。 -->',
+      '<div data-dsh-files="docs/任务分析" hidden></div>',
+      '<div id="run-out"><!-- template-begin --><!-- template-end --></div>',
+    ].join('\n')
+    const prompt = renderWorkbenchSkillPrompt(SKILL, template, undefined, undefined, undefined, undefined, CWD)
+    // The document travels whole, so the header's quotation is still in the prompt as prose.
+    // What must not happen is the ask naming it.
+    expect(prompt).toContain(`<deliverable_directory>${resolve(CWD, 'docs/任务分析')}</deliverable_directory>`)
+    expect(prompt).not.toContain(`<deliverable_directory>${resolve(CWD, 'docs/详细设计')}</deliverable_directory>`)
+  })
+
   it('leaves an absolute pointer alone', () => {
     const target = resolve('/elsewhere/docs')
     const prompt = renderWorkbenchSkillPrompt(

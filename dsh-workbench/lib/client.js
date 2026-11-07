@@ -1301,12 +1301,20 @@ window.__ModuleLoader__.load({
 		* The pointer is the template's own statement that this card's results are files in a
 		* directory, and it sits outside the region so a run cannot remove it. A run's stored region
 		* may carry one too — that is how results written before the pointer moved are still read.
+		*
+		* Comments are stripped first, because a template's own header explains the pointer by
+		* quoting it — `下面那个 data-dsh-files="docs/设计"` — and that quotation sits ahead of the
+		* element it describes. Read without stripping, the explanation wins: an author who edits
+		* the element sees no change anywhere, because the panel keeps listing the path the prose
+		* happens to mention. The template's own script reads the attribute off the element rather
+		* than out of the text, which is exactly how the card page and the panel came to disagree.
 		* @param document - a template, or a stored region.
 		* @returns the directory the document points at, or undefined when it points at none.
 		*/
 		function resultPointerPath(document) {
 			if (document === void 0) return void 0;
-			const path = RESULT_POINTER.exec(document)?.[1]?.trim();
+			const withoutComments = document.replace(/<!--[\s\S]*?-->/g, "");
+			const path = RESULT_POINTER.exec(withoutComments)?.[1]?.trim();
 			return path === void 0 || path === "" ? void 0 : path;
 		}
 		/**

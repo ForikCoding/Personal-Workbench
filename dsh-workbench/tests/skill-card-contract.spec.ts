@@ -11,6 +11,7 @@ import {
   WORKBENCH_REGION_END,
   WORKBENCH_RESULT_MAX_BYTES,
   regionMarkerPattern,
+  resultPointerPath,
   WORKBENCH_SKILL_CARD_API_VERSION,
   WORKBENCH_SKILL_CARD_CATALOG_PATH,
   WORKBENCH_SKILL_CARD_MAX_BODY_BYTES,
@@ -107,5 +108,38 @@ describe('skill card contract', () => {
     for (const value of ['full-control', '', 'READ-ONLY', undefined, 3, { mode: 'read-only' }]) {
       expect(isWorkbenchSandboxMode(value)).toBe(false)
     }
+  })
+})
+
+describe('resultPointerPath', () => {
+  it('reads the attribute an author declared', () => {
+    expect(resultPointerPath('<div data-dsh-files="docs/任务分析" hidden></div>')).toBe('docs/任务分析')
+  })
+
+  it('ignores a pointer quoted in the template’s own explanation', () => {
+    // The header comment explains the attribute by quoting it, and that quotation comes
+    // ahead of the element. Read in document order, the explanation wins and an author who
+    // edits the element - the one thing the template says to change - sees nothing change.
+    const template = [
+      '<!-- 下面那个 data-dsh-files="docs/详细设计" —— 指向这一步真正写出文件的目录。 -->',
+      '<div data-dsh-files="docs/任务分析" hidden></div>',
+    ].join('\n')
+    expect(resultPointerPath(template)).toBe('docs/任务分析')
+  })
+
+  it('answers nothing for a pointer that only exists in a comment', () => {
+    expect(resultPointerPath('<!-- data-dsh-files="docs/设计" -->')).toBeUndefined()
+  })
+
+  it('still finds a pointer a stored region carries inside the markers', () => {
+    const region = '<!-- template-begin --><div data-dsh-files="docs/旧" hidden></div><!-- template-end -->'
+    expect(resultPointerPath(region)).toBe('docs/旧')
+  })
+
+  it('ignores an empty or absent pointer', () => {
+    expect(resultPointerPath('<div data-dsh-files="" hidden></div>')).toBeUndefined()
+    expect(resultPointerPath('<div data-dsh-files="   " hidden></div>')).toBeUndefined()
+    expect(resultPointerPath('<p>no pointer</p>')).toBeUndefined()
+    expect(resultPointerPath(undefined)).toBeUndefined()
   })
 })
