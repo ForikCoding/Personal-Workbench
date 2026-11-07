@@ -2753,11 +2753,11 @@ var WorkbenchSkillCardRunner = class {
 		const selection = this.options.selection(request.cardId);
 		const skill = mode.kind === "bare" ? mode.skill : selection.skill;
 		if (skill === void 0) return reject("not-configured", "no skill is configured for this card");
-		const asked = mode.kind === "card" ? request.instruction?.trim() : void 0;
-		const stored = mode.kind === "card" ? selection.instruction?.trim() : void 0;
+		const asked = mode.kind === "card" || mode.kind === "step" ? request.instruction?.trim() : void 0;
+		const stored = mode.kind === "card" || mode.kind === "step" ? selection.instruction?.trim() : void 0;
 		const instruction = asked === void 0 || asked === "" ? stored : asked;
 		const carried = instruction === void 0 || instruction === "" ? void 0 : instruction;
-		if (mode.kind === "card" && carried === void 0 && request.payload === void 0 && effectiveWorkbenchInstructionMode(selection.instructionMode) === "required") return reject("instruction-missing", "this card requires an instruction before it can run");
+		if ((mode.kind === "card" || mode.kind === "step") && carried === void 0 && request.payload === void 0 && effectiveWorkbenchInstructionMode(selection.instructionMode) === "required") return reject("instruction-missing", "this card requires an instruction before it can run");
 		const carryoverSessionId = mode.kind === "refine" || mode.kind === "step" ? request.sessionId : void 0;
 		if (mode.kind === "step" && mode.join && carryoverSessionId === void 0) return reject("invalid-request", "a joining step must name the session its pipeline opened");
 		const model = selection.model;

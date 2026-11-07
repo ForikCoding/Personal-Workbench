@@ -1264,10 +1264,13 @@ export interface WorkbenchRunRequest {
   /**
    * What the card run was told to do, as the user wrote it.
    *
-   * Carried for a card run only: a refinement already states its instruction inside its
-   * mode, because there the instruction is what the run revises *toward* rather than the
-   * task itself. Absent means the card's runs need no instruction or the user sent none,
-   * which the runner accepts unless the card declares `required`.
+   * Carried by a card run and by a pipeline step: both fill the same region and both are
+   * configured with a sentence, so both read this field. A step's own sentence (the
+   * pipeline record's `steps[].instruction`) travels here and outranks the card's stored
+   * one. A refinement states its instruction inside its mode instead, because there the
+   * instruction is what the run revises *toward* rather than the task itself. Absent means
+   * the runs need no instruction or the user sent none, which the runner accepts unless the
+   * card declares `required`.
    */
   readonly instruction?: string
   /**

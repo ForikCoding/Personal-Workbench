@@ -555,15 +555,23 @@ export class WorkbenchSkillCardRunner {
     if (skill === undefined) {
       return reject('not-configured', 'no skill is configured for this card')
     }
-    // What the user asked for, for the one mode that carries it. Trimmed here as well as
+    // What the user asked for, for the modes that carry it. Trimmed here as well as
     // validated by the route: whitespace is not an instruction, and the value travels into a
     // prompt and into the stored record.
+    //
+    // A step is here too, and it was not: the gate used to read `card` alone, so a pipeline
+    // step was handed the card's sentence by the panel, sent it on the wire, and dropped it
+    // on this line — the child got "apply the skill to the workspace", chose its own subject,
+    // and the skill answered "no task number was given". A step fills the same region as a
+    // card run and is configured the same way, so it reads the same field.
+    //
     // A run may name its own ask; when it names none, the card's stored instruction is what
     // this step does. That is the whole point of the field: a pipeline step is configured
     // once and started many times, so the sentence lives on the step rather than in the
-    // click that started it.
-    const asked = mode.kind === 'card' ? request.instruction?.trim() : undefined
-    const stored = mode.kind === 'card' ? selection.instruction?.trim() : undefined
+    // click that started it. A step's own sentence (the pipeline record's) outranks the
+    // card's, because it is the more specific of the two.
+    const asked = mode.kind === 'card' || mode.kind === 'step' ? request.instruction?.trim() : undefined
+    const stored = mode.kind === 'card' || mode.kind === 'step' ? selection.instruction?.trim() : undefined
     const instruction = asked === undefined || asked === '' ? stored : asked
     const carried = instruction === undefined || instruction === '' ? undefined : instruction
     // A card that declares its runs need an instruction is refused rather than asked
@@ -575,7 +583,7 @@ export class WorkbenchSkillCardRunner {
     // A run a row's own button started is exempt: the click named the subject, so the row is
     // the ask and asking for a sentence too would make every template button on such a card
     // fail. The mode governs the card's free-form run, which is the one that has no subject.
-    if (mode.kind === 'card'
+    if ((mode.kind === 'card' || mode.kind === 'step')
       && carried === undefined
       && request.payload === undefined
       && effectiveWorkbenchInstructionMode(selection.instructionMode) === 'required') {

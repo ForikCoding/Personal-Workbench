@@ -1569,6 +1569,76 @@ describe('pipeline steps', () => {
     expect(saved[0]?.record.pipeline).toEqual({ id: 'pipeline-1', step: 1, scope: 'refine' })
   })
 
+  it('carries the card’s instruction into a step, which is the step’s subject', async () => {
+    // A step fills the same region as a card run and is configured by the same field, so a
+    // gate that read `card` alone dropped the sentence the panel had just written: the child
+    // was told "apply the skill to the workspace", chose its own subject, and the skill
+    // answered "no task number was given" — which reads as a skill problem, not a lost field.
+    const sentence = '分析效能任务T202608242753-1'
+    const { runner, fake, saved } = setup({
+      live: false,
+      persistedSessionIds: ['session-pipeline'],
+      selection: {
+        skill: 'git-repo',
+        template: '<b>{{a}}</b>',
+        workspace: { path: WORKSPACE_PATH },
+        instruction: sentence,
+      },
+    })
+    await runner.start(step('session-pipeline'))
+    await settle(runner)
+    const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
+    expect(prompt).toContain(`<run_instruction>\n${sentence}\n</run_instruction>`)
+    expect(prompt).toContain('Apply the skill above to what the run instruction names.')
+    expect(prompt).not.toContain('Apply the skill above to the current workspace now.')
+    expect(saved[0]?.record.instruction).toBe(sentence)
+  })
+
+  it('lets a step’s own sentence outrank the card’s', async () => {
+    // The pipeline record can name the step's sentence, and the more specific of the two is
+    // the one the run is told. The card's is the fallback for the same reason it is for a
+    // card run: a step that says nothing does what its card does.
+    const { runner, fake } = setup({
+      live: false,
+      persistedSessionIds: ['session-pipeline'],
+      selection: {
+        skill: 'git-repo',
+        template: '<b>{{a}}</b>',
+        workspace: { path: WORKSPACE_PATH },
+        instruction: '分析效能任务T202608242753-1',
+      },
+    })
+    await runner.start(request({
+      mode: { kind: 'step', terminal: true, join: true },
+      sessionId: 'session-pipeline',
+      instruction: '分析效能任务T202601010001',
+    }))
+    await settle(runner)
+    const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
+    expect(prompt).toContain('分析效能任务T202601010001')
+    expect(prompt).not.toContain('分析效能任务T202608242753-1')
+  })
+
+  it('refuses a step on a card that requires an instruction when neither names one', async () => {
+    // The mode is the Host's rule, not the page's: a chain started from a stale client would
+    // otherwise spend a model call on a step that has no subject.
+    const { runner, fake } = setup({
+      live: false,
+      persistedSessionIds: ['session-pipeline'],
+      selection: {
+        skill: 'git-repo',
+        template: '<b>{{a}}</b>',
+        workspace: { path: WORKSPACE_PATH },
+        instructionMode: 'required',
+      },
+    })
+    await expect(runner.start(step('session-pipeline'))).resolves.toMatchObject({
+      status: 'rejected',
+      code: 'instruction-missing',
+    })
+    expect(fake.activations).toEqual([])
+  })
+
   it('restores an archived session before stepping into it, then re-archives it', async () => {
     // The harness refuses a model step to an archived session, so a terminal step of a
     // chain restored from disk has to lift the archive first — and put it back after.
