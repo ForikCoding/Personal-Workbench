@@ -96,7 +96,7 @@ export interface WorkbenchPipelineProps {
    * @param cardIds - the cards to write, in step order.
    * @param patch - the fields to set; `null` clears a field.
    */
-  readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => void
+  readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => Promise<boolean>
   /** Provider groups the model row offers; empty means the directory answered nothing. */
   readonly modelGroups: readonly WorkbenchModelGroup[]
   /**
@@ -175,6 +175,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   // per-step, so a menu opened on another step never inherits the armed remove.
   const [stepRename, setStepRename] = useState<number | undefined>(undefined)
   const [confirmRemove, setConfirmRemove] = useState<number | undefined>(undefined)
+  /** Why the last config write did not land, stated where the user made it. */
+  const [configProblem, setConfigProblem] = useState<string | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<string | undefined>(undefined)
   const [renaming, setRenaming] = useState<string | undefined>(undefined)
   const [picker, setPicker] = useState<{ readonly at: number } | undefined>(undefined)
@@ -422,13 +424,32 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   // A path is never typed here: the platform's own chooser answers, and what it returns is
   // written to every step's card. Cancelling writes nothing, so the steps keep what they had.
   const canPickWorkspace = workspacePicker !== undefined && workspacePicker.available()
+  // Every config row goes through here. The write answers whether it landed, and the panel
+  // re-reads the cards afterwards: the panel renders what the store holds, so a write that
+  // is not followed by a read looks exactly like a write that never happened.
+  const applyPatch = useCallback((patch: StepCardPatch) => {
+    void patchStepCards(stepViews.map(view => view.cardId), patch).then((written) => {
+      if (!written) {
+        setConfigProblem(t('pipeCfgWriteFailed'))
+        return
+      }
+      setConfigProblem(undefined)
+      void reload()
+    })
+  }, [patchStepCards, reload, stepViews, t])
+
   const chooseWorkspaceForSteps = useCallback(() => {
     if (workspacePicker === undefined) return
     void workspacePicker.pick().then((picked) => {
-      if (picked.status !== 'picked') return
-      patchStepCards(stepViews.map(view => view.cardId), { workspace: { path: picked.path } })
+      // Cancelling is an answer, not a failure: nothing is written and nothing is reported.
+      if (picked.status === 'cancelled') return
+      if (picked.status === 'unavailable') {
+        setConfigProblem(t('pipeCfgPickerRefused'))
+        return
+      }
+      applyPatch({ workspace: { path: picked.path } })
     })
-  }, [patchStepCards, stepViews, workspacePicker])
+  }, [applyPatch, t, workspacePicker])
 
   const commitStepRename = useCallback((cardId: string, name: string) => {
     setStepRename(undefined)
@@ -1001,11 +1022,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               onPickWorkspace={workspacePicker === undefined || !canPickWorkspace
                                 ? undefined
                                 : () => { chooseWorkspaceForSteps() }}
+                              problem={configProblem}
                               t={t}
                               onEdit={() => { openReader(selected.cardId) }}
-                              onPatch={(patch) => {
-                                patchStepCards(stepViews.map(view => view.cardId), patch)
-                              }}
+                              onPatch={applyPatch}
                             />
                           </div>
                           )
@@ -1426,8 +1446,10 @@ function ConfigPanel(props: {
   readonly onPatch: (patch: StepCardPatch) => void
   /** Ask the platform for one directory; disabled when there is no chooser. */
   readonly onPickWorkspace: (() => void) | undefined
+  /** Why the last write did not land; absent when it did. */
+  readonly problem: string | undefined
 }): ReactNode {
-  const { step, shared, models, skills, t, onEdit, onPatch, onPickWorkspace } = props
+  const { step, shared, models, skills, t, onEdit, onPatch, onPickWorkspace, problem } = props
   const [view, setView] = useState<'preview' | 'source'>('preview')
   const template = step.card?.template
   // What "the whole pipeline" is: the first step's card. The rows that change it write
@@ -1441,6 +1463,8 @@ function ConfigPanel(props: {
           <span>{t('pipeCfgPipeline')}</span>
           <em>{t('pipeCfgPipelineNote')}</em>
         </div>
+        {/* A write that did not land says so here, in the block it was made in. */}
+        {problem === undefined ? null : <p className={css.cfgProblem} data-cfg-problem>{problem}</p>}
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgModel')}</span>
           <span className={css.ruleValue}>

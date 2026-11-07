@@ -158,6 +158,7 @@ export declare const css: {
     readonly ruleInput: "wb-ruleInput";
     readonly ruleArea: "wb-ruleArea";
     readonly rulePath: "wb-rulePath";
+    readonly cfgProblem: "wb-cfgProblem";
     readonly rulePathText: "wb-rulePathText";
     readonly rulePathPick: "wb-rulePathPick";
     readonly ruleValue: "wb-ruleValue";

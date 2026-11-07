@@ -973,6 +973,17 @@
 }
 .wb-ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* 能改的行里放文本的地方：路径和指令，边框和下拉同一套 */
+/* 写不进去时的一句话：在出错的那一块里，不在别处 */
+.wb-cfgProblem {
+  margin: 0 0 4px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 /* 工作目录：一行可点的选择器，左边是确认过的路径，右边是「选择目录」 */
 .wb-rulePath {
   display: flex;

@@ -108,6 +108,8 @@ function props(options: {
   catalog?: () => Promise<WorkbenchCatalogRead>
   /** The stored cards the transport holds; the default pair is enough for most cases. */
   cardViews?: typeof CARD_VIEWS
+  /** Whether card writes land; alse models a store that refuses the change. */
+  cardWriteLands?: boolean
   /** The directory chooser this page offers; the default answers one path. */
   picker?: WorkbenchWorkspacePicker
   overrides?: Partial<PageProps>
@@ -159,6 +161,9 @@ function props(options: {
         read: async () => ({ status: 'ok' as const, snapshot: cardSnapshot }),
         write: async (patch: WorkbenchSkillCardPatch) => {
           cardWrites.push(patch)
+          if (options.cardWriteLands === false) {
+            return { status: 'conflict' as const, snapshot: cardSnapshot }
+          }
           cardSnapshot = {
             revision: `${cardSnapshot.revision}+1`,
             cards: [
@@ -167,6 +172,9 @@ function props(options: {
                 cardId: patch.cardId,
                 name: patch.name ?? patch.cardId,
                 ...patch.skill === undefined || patch.skill === null ? {} : { skill: patch.skill },
+                // Stored the way the host stores it, so a panel that re-reads sees the change.
+                ...patch.workspace === undefined || patch.workspace === null ? {} : { workspace: patch.workspace },
+                ...patch.instruction === undefined || patch.instruction === null ? {} : { instruction: patch.instruction },
                 templateSkills: [],
               },
             ],
@@ -407,6 +415,31 @@ describe('WorkbenchPage', () => {
     expect(cardWrites.map(patch => patch.workspace)).toEqual([{ path: PICKED_PATH }, { path: PICKED_PATH }])
   })
 
+  it('shows the picked directory the panel stored', async () => {
+    // The panel renders the stored card, so it has to re-read after a write. Without that,
+    // a write that landed looks exactly like a write that never happened.
+    await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const row = document.querySelector('[data-cfg-workspace]') as HTMLButtonElement
+    fireEvent.click(row)
+    await waitFor(() => { expect(row.textContent).toContain(PICKED_PATH) })
+  })
+
+  it('says why a config change did not land instead of failing silently', async () => {
+    await renderPage({ cardWriteLands: false })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    fireEvent.click(document.querySelector('[data-cfg-workspace]') as HTMLButtonElement)
+    const problem = await waitFor(() => {
+      const found = document.querySelector('[data-cfg-problem]')
+      expect(found).not.toBeNull()
+      return found as HTMLElement
+    })
+    expect(problem.textContent).toBe(en.pipeCfgWriteFailed)
+  })
   it('states a disabled chooser when the page has no picker', async () => {
     await renderPage({ picker: noWorkspacePicker().picker })
     await screen.findByText(en.pipeAddStep)

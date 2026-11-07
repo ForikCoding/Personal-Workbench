@@ -77,7 +77,7 @@ export interface WorkbenchPipelineProps {
      * @param cardIds - the cards to write, in step order.
      * @param patch - the fields to set; `null` clears a field.
      */
-    readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => void;
+    readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => Promise<boolean>;
     /** Provider groups the model row offers; empty means the directory answered nothing. */
     readonly modelGroups: readonly WorkbenchModelGroup[];
     /**

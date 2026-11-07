@@ -251,16 +251,17 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
   // "Change the whole pipeline once" is a write per card, in step order, each with the
   // revision the last one produced: the same base for all of them would make every write
   // but the first a conflict.
-  const patchStepCards = useCallback((cardIds: readonly string[], patch: StepCardPatch) => {
-    void (async () => {
-      let base = revision
-      for (const cardId of cardIds) {
-        const result = await skillCards.api.write({ baseRevision: base, cardId, ...patch })
-        if (result.status !== 'ok') return
-        base = result.snapshot.revision
-        applySnapshot(result.snapshot)
-      }
-    })()
+  const patchStepCards = useCallback(async (cardIds: readonly string[], patch: StepCardPatch): Promise<boolean> => {
+    let base = revision
+    for (const cardId of cardIds) {
+      const result = await skillCards.api.write({ baseRevision: base, cardId, ...patch })
+      // A refusal is reported to the caller rather than swallowed: a control that silently
+      // does nothing reads as a broken control, and the reason is the only useful part.
+      if (result.status !== 'ok') return false
+      base = result.snapshot.revision
+      applySnapshot(result.snapshot)
+    }
+    return true
   }, [applySnapshot, revision, skillCards.api])
 
   // The model row lists what the directory knows. Subscribing is also the mount path that

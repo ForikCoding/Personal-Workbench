@@ -158,6 +158,7 @@ export const css = {
   ruleInput: 'wb-ruleInput',
   ruleArea: 'wb-ruleArea',
   rulePath: 'wb-rulePath',
+  cfgProblem: 'wb-cfgProblem',
   rulePathText: 'wb-rulePathText',
   rulePathPick: 'wb-rulePathPick',
   ruleValue: 'wb-ruleValue',
