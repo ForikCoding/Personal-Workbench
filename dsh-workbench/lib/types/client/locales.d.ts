@@ -263,8 +263,13 @@ export declare const zh: {
     pipeStepMenu: string;
     pipeMoveUp: string;
     pipeMoveDown: string;
+    pipeRenameStep: string;
     pipeRemoveStep: string;
+    pipeRemoveStepArmed: string;
     pipeRemoveNote: string;
+    pipeRemoveNoteName: string;
+    pipeRenameHint: string;
+    pipeStepNameLabel: string;
     pipeTabsLabel: string;
     pipeTabActivity: string;
     pipeTabConfig: string;

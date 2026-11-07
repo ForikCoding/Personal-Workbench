@@ -15,12 +15,13 @@ export interface StepStateView {
   /** Localisation key suffix, shared by every view that names the state. */
   readonly key: 'idle' | 'queued' | 'running' | 'done' | 'failed' | 'stopped'
   /** Which mark the state carries, so colour is never the only signal. */
-  readonly mark: 'dash' | 'clock' | 'check' | 'warn' | 'x'
+  readonly mark: 'slot' | 'dash' | 'clock' | 'check' | 'warn' | 'x'
 }
 
 /** The state a step is drawn in. */
 const STATE_VIEW: Record<PipelineStepPhase, StepStateView> = {
-  idle: { key: 'idle', mark: 'dash' },
+  // 待运行有自己的记号：虚线圆留给排队中，空槽位留给"位置留好了、还没启动"
+  idle: { key: 'idle', mark: 'slot' },
   queued: { key: 'queued', mark: 'dash' },
   running: { key: 'running', mark: 'clock' },
   done: { key: 'done', mark: 'check' },

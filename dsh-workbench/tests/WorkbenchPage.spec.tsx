@@ -105,6 +105,8 @@ function props(options: {
   run?: RunSeams
   results?: readonly WorkbenchCardResult[]
   catalog?: () => Promise<WorkbenchCatalogRead>
+  /** The stored cards the transport holds; the default pair is enough for most cases. */
+  cardViews?: typeof CARD_VIEWS
   overrides?: Partial<PageProps>
 } = {}): {
   props: PageProps
@@ -124,7 +126,7 @@ function props(options: {
   // goes through the same transport as the card pages, so the fake has to hold state.
   let cardSnapshot: WorkbenchCardSnapshot = {
     revision: '1:0',
-    cards: [...CARD_VIEWS],
+    cards: [...options.cardViews ?? CARD_VIEWS],
     results: options.results ?? [],
   }
   const merged = {
@@ -310,14 +312,76 @@ describe('WorkbenchPage', () => {
     expect(document.querySelector('[data-step-index="1"]')?.getAttribute('aria-selected')).toBe('true')
   })
 
-  it('removes a step from the pipeline', async () => {
+  it('removes a step from the pipeline only on the second click', async () => {
     const { writes } = await renderPage()
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    // Removing a step takes its product out of the results, so the row asks first and
+    // names the step it is about to remove.
     fireEvent.click(document.querySelector('[data-remove-step]') as HTMLElement)
+    expect(writes).toHaveLength(0)
+    const row = document.querySelector('[data-remove-step]') as HTMLElement
+    expect(row.textContent).toBe(en.pipeRemoveStepArmed)
+    expect(document.querySelector('[data-armed]')).not.toBeNull()
+    expect(document.querySelector('[data-step-menu]')?.textContent).toContain('A card')
+    fireEvent.click(row)
     await waitFor(() => { expect(writes).toHaveLength(1) })
     expect(writes[0]?.pipelines[0]?.steps).toEqual([{ cardId: 'b-card' }])
+  })
+
+  it('renames a step in place, which renames the card it runs as', async () => {
+    // A step's card is a stored instance with its own name; a registered card's label
+    // comes from its registration, so the instance is what makes the new name visible.
+    const { writes, cardWrites } = await renderPage({
+      cardViews: [...CARD_VIEWS, { cardId: 'skill-card-1', name: 'Old name', skill: 'review', templateSkills: [] }],
+      pipelines: [pipeline({ steps: [{ cardId: 'skill-card-1' }, { cardId: 'b-card' }] })],
+    })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-rename-step]') as HTMLElement)
+    // The step's own title becomes the field, not the pipeline's: the inspector still
+    // names the pipeline, and the card is what carries the new name.
+    const field = screen.getByLabelText(en.pipeStepNameLabel) as HTMLInputElement
+    expect(field.value).toBe('Old name')
+    fireEvent.change(field, { target: { value: '  Design doc  ' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
+    expect(cardWrites[0]).toMatchObject({ cardId: 'skill-card-1', name: 'Design doc' })
+    // Renaming a step is not a pipeline write: the steps are untouched.
+    expect(writes).toHaveLength(0)
+    await waitFor(() => { expect(screen.getAllByText('Design doc').length).toBeGreaterThan(0) })
+    expect(document.querySelector('[data-node="0"] .wb-nodeTitle')?.textContent).toBe('Design doc')
+  })
+
+  it('leaves the name alone when the field is cancelled or unchanged', async () => {
+    const { cardWrites } = await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-rename-step]') as HTMLElement)
+    const field = screen.getByLabelText(en.pipeStepNameLabel) as HTMLInputElement
+    fireEvent.keyDown(field, { key: 'Escape' })
+    expect(document.querySelector('[data-node="0"] .wb-nodeTitle')?.textContent).toBe('A card')
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-rename-step]') as HTMLElement)
+    const again = screen.getByLabelText(en.pipeStepNameLabel) as HTMLInputElement
+    fireEvent.keyDown(again, { key: 'Enter' })
+    // Escape abandoned it and Enter on the unchanged name is not a rename either.
+    await Promise.resolve()
+    expect(cardWrites).toHaveLength(0)
+  })
+
+  it('says a step that has not started is 待运行, not 未运行', async () => {
+    await renderPage({ pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })] })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    // The step's chip and the canvas ran-state both say it has never started.
+    expect(document.querySelector('[data-insp-meta]')?.textContent).toContain(en.pipeStepState_idle)
+    expect(document.querySelector('[data-node="0"]')?.textContent).toContain(en.pipeStepState_idle)
+    expect(en.pipeStepState_idle).toBe('Ready to run')
+    expect(document.querySelector('[data-node="0"]')?.textContent).toContain(en.pipeNeverRan)
   })
 
   it('renames a pipeline from its row menu', async () => {

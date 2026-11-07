@@ -60,6 +60,12 @@ export interface WorkbenchPipelineProps {
      */
     readonly createCardForSkill: (skill: string) => Promise<string | undefined>;
     /**
+     * Rename the card one step runs as, which is the name the step shows.
+     * @param cardId - the step's card.
+     * @param name - the new name; the caller ignores an empty or unchanged one.
+     */
+    readonly renameStepCard: (cardId: string, name: string) => void;
+    /**
      * Translate one workbench string.
      * @param key - dictionary key.
      * @param params - optional template parameters.

@@ -13,7 +13,7 @@ export interface StepStateView {
     /** Localisation key suffix, shared by every view that names the state. */
     readonly key: 'idle' | 'queued' | 'running' | 'done' | 'failed' | 'stopped';
     /** Which mark the state carries, so colour is never the only signal. */
-    readonly mark: 'dash' | 'clock' | 'check' | 'warn' | 'x';
+    readonly mark: 'slot' | 'dash' | 'clock' | 'check' | 'warn' | 'x';
 }
 /**
  * How one step's state reads.

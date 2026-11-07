@@ -104,6 +104,7 @@ export const css = {
   nodeRun: 'wb-nodeRun',
   nodeState: 'wb-nodeState',
   nodeTitle: 'wb-nodeTitle',
+  nodeNameInput: 'wb-nodeNameInput',
   nodeTop: 'wb-nodeTop',
   num: 'wb-num',
   pagePipeline: 'wb-pagePipeline',

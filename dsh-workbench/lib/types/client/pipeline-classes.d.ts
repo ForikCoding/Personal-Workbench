@@ -104,6 +104,7 @@ export declare const css: {
     readonly nodeRun: "wb-nodeRun";
     readonly nodeState: "wb-nodeState";
     readonly nodeTitle: "wb-nodeTitle";
+    readonly nodeNameInput: "wb-nodeNameInput";
     readonly nodeTop: "wb-nodeTop";
     readonly num: "wb-num";
     readonly pagePipeline: "wb-pagePipeline";

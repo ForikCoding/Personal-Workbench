@@ -79,6 +79,12 @@ export interface WorkbenchPipelineProps {
    */
   readonly createCardForSkill: (skill: string) => Promise<string | undefined>
   /**
+   * Rename the card one step runs as, which is the name the step shows.
+   * @param cardId - the step's card.
+   * @param name - the new name; the caller ignores an empty or unchanged one.
+   */
+  readonly renameStepCard: (cardId: string, name: string) => void
+  /**
    * Translate one workbench string.
    * @param key - dictionary key.
    * @param params - optional template parameters.
@@ -115,7 +121,7 @@ interface StepView {
 export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
     pipelines, run, facts, api, renderCard, onCreateCard, t,
-    catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill,
+    catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
   } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
@@ -124,6 +130,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [results, setResults] = useState<readonly WorkbenchCardResult[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [stepMenu, setStepMenu] = useState<number | undefined>(undefined)
+  // Which step's name is being edited in place, and which remove row is armed. Both are
+  // per-step, so a menu opened on another step never inherits the armed remove.
+  const [stepRename, setStepRename] = useState<number | undefined>(undefined)
+  const [confirmRemove, setConfirmRemove] = useState<number | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<string | undefined>(undefined)
   const [renaming, setRenaming] = useState<string | undefined>(undefined)
   const [picker, setPicker] = useState<{ readonly at: number } | undefined>(undefined)
@@ -183,6 +193,20 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     return () => { clearTimeout(timer) }
   }, [confirmDelete])
 
+  // An armed remove disarms itself: a row that stayed armed would turn a later stray
+  // click into the removal.
+  useEffect(() => {
+    if (confirmRemove === undefined) return
+    const timer = setTimeout(() => { setConfirmRemove(undefined) }, CONFIRM_MS)
+    return () => { clearTimeout(timer) }
+  }, [confirmRemove])
+
+  // Renaming and arming are per-step and per-pipeline: switching either drops both.
+  useEffect(() => {
+    setStepRename(undefined)
+    setConfirmRemove(undefined)
+  }, [active?.id])
+
   // The menus close on the next click anywhere, which is what a menu has to do. The
   // dialogs close on Escape and their scrim instead.
   //
@@ -196,6 +220,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       if (from instanceof Element && from.closest('[data-title-menu], [data-step-menu]') !== null) return
       setMenuOpen(false)
       setStepMenu(undefined)
+      setConfirmRemove(undefined)
     }
     document.addEventListener('pointerdown', close)
     return () => { document.removeEventListener('pointerdown', close) }
@@ -346,6 +371,19 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     await writeSteps(next)
     setFocus(next.length === 0 ? undefined : { kind: 'step', index: Math.min(index, next.length - 1) })
   }, [active, writeSteps])
+
+  /**
+   * Commit one inline step name. An empty or unchanged name is not a rename, and the
+   * step's card keeps the name it had.
+   * @param cardId - the step's card.
+   * @param name - the typed name.
+   */
+  const commitStepRename = useCallback((cardId: string, name: string) => {
+    setStepRename(undefined)
+    const current = stepViews.find(step => step.cardId === cardId)
+    if (name === '' || name === current?.label) return
+    renameStepCard(cardId, name)
+  }, [renameStepCard, stepViews])
 
   const createPipeline = useCallback(() => {
     void (async () => {
@@ -633,6 +671,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             onClick={() => {
                               setFocus({ kind: 'step', index: step.index })
                               setStepMenu(undefined)
+                              setConfirmRemove(undefined)
                             }}
                             onKeyDown={(event) => {
                               if (event.key !== 'Enter' && event.key !== ' ') return
@@ -643,7 +682,18 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                           >
                             <div className={css.nodeTop}>
                               <span className={css.nodeIndex}>{String(step.index + 1).padStart(2, '0')}</span>
-                              <span className={css.nodeTitle}>{step.label}</span>
+                              {stepRename === step.index
+                                ? (
+                                  <RenameField
+                                    className={css.nodeNameInput}
+                                    t={t}
+                                    label={t('pipeStepNameLabel')}
+                                    initial={step.label}
+                                    onCommit={(name) => { commitStepRename(step.cardId, name) }}
+                                    onCancel={() => { setStepRename(undefined) }}
+                                  />
+                                  )
+                                : <span className={css.nodeTitle}>{step.label}</span>}
                               <span className={css.nodeState}>
                                 {markOf(step.phase)}
                                 {stateText(step.phase)}
@@ -653,7 +703,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               </span>
                             </div>
                             <div className={css.nodeFoot} data-s={step.phase}>
-                              {footOf(step, t)}
+                              {stepRename === step.index ? <span>{t('pipeRenameHint')}</span> : footOf(step, t)}
                               {step.runNo === undefined
                                 ? null
                                 : <span className={css.nodeRun} title={t('pipeRunOf', { no: step.runNo })}>{`#${String(step.runNo)}`}</span>}
@@ -769,15 +819,43 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                       <div className={css.stepMenuSep} />
                       <button
                         type="button"
+                        className={css.stepMenuRow}
+                        role="menuitem"
+                        data-rename-step=""
+                        onClick={() => {
+                          setConfirmRemove(undefined)
+                          setStepMenu(undefined)
+                          setStepRename(selected.index)
+                        }}
+                      >
+                        {t('pipeRenameStep')}
+                      </button>
+                      <button
+                        type="button"
                         className={`${css.stepMenuRow} ${css.hError}`}
                         role="menuitem"
-                        aria-label={t('pipeRemoveStep')}
+                        aria-label={confirmRemove === selected.index ? t('pipeRemoveStepArmed') : t('pipeRemoveStep')}
                         data-remove-step=""
-                        onClick={() => { setStepMenu(undefined); void removeStep(selected.index) }}
+                        data-armed={confirmRemove === selected.index ? '' : undefined}
+                        onClick={() => {
+                          // Two clicks: removing a step drops its product from the results,
+                          // so the row asks once and names what it is about to remove.
+                          if (confirmRemove !== selected.index) {
+                            setConfirmRemove(selected.index)
+                            return
+                          }
+                          setConfirmRemove(undefined)
+                          setStepMenu(undefined)
+                          void removeStep(selected.index)
+                        }}
                       >
-                        {t('pipeRemoveStep')}
+                        {confirmRemove === selected.index ? t('pipeRemoveStepArmed') : t('pipeRemoveStep')}
                       </button>
-                      <div className={css.stepMenuNote}>{t('pipeRemoveNote')}</div>
+                      <div className={css.stepMenuNote}>
+                        {confirmRemove === selected.index
+                          ? t('pipeRemoveNoteName', { name: selected.label })
+                          : t('pipeRemoveNote')}
+                      </div>
                     </div>
                     )
                   : null}
@@ -1194,7 +1272,9 @@ function productLine(html: string | undefined, t: (key: WorkbenchLocaleKey) => s
 }
 
 /** The marks a state is drawn with, so colour is never the only signal. */
-const MARK: Record<'dash' | 'clock' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
+const MARK: Record<'slot' | 'dash' | 'clock' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
+  // 方框要在 10px 上还是方框：直角、实线。虚线圆是排队中，两个状态不能共用记号。
+  slot: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1" /></svg>,
   dash: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="5.3" strokeDasharray="2.2 2.2" /></svg>,
   clock: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="5.7" /><path d="M8 4.8V8l2.2 1.4" /></svg>,
   check: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m3.6 8.4 2.8 2.6 5.9-6" /></svg>,
@@ -1441,19 +1521,26 @@ function RenameField(props: {
   readonly onCommit: (name: string) => void
   readonly onCancel: () => void
   readonly t: (key: WorkbenchLocaleKey) => string
+  /** Which field style to use; the node's title and the pipeline's title differ. */
+  readonly className?: string
+  /** Accessible name, when the default one does not fit the surface. */
+  readonly label?: string
 }): ReactNode {
-  const { initial, onCommit, onCancel, t } = props
+  const { initial, onCommit, onCancel, t, className, label } = props
   const [value, setValue] = useState(initial)
   const [abandoned, setAbandoned] = useState(false)
   return (
     <input
-      className={css.renameInput}
+      className={className ?? css.renameInput}
       value={value}
-      aria-label={t('pipeRenameLabel')}
+      aria-label={label ?? t('pipeRenameLabel')}
       maxLength={24}
       autoFocus
       onChange={(event) => { setValue(event.target.value) }}
       onKeyDown={(event) => {
+        // The node this field sits in is a button; a space typed here would activate it
+        // and Enter would move the selection instead of committing.
+        event.stopPropagation()
         if (event.key === 'Enter') { onCommit(value.trim()) }
         // Escape must not let the blur that follows it commit: the field is being
         // abandoned, and committing here would rename on the way out.

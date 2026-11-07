@@ -234,6 +234,20 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     return cardId
   }, [applySnapshot, facts, revision, skillCards.api])
 
+  /**
+   * Rename one card, which is what a step's name is.
+   *
+   * A step holds a card id, and the card's name is what the step shows; renaming the step
+   * therefore renames the card, and the new name is the one the card grid shows too.
+   * @param cardId - the card to rename.
+   * @param name - the new name.
+   */
+  const renameCard = useCallback((cardId: string, name: string) => {
+    void skillCards.api.write({ baseRevision: revision, cardId, name }).then((result) => {
+      if (result.status === 'ok') applySnapshot(result.snapshot)
+    })
+  }, [applySnapshot, revision, skillCards.api])
+
   const pipelines = usePipelines(pipelineApi)
   const run = usePipelineRun({ api: skillCards.api, scopeSessionId: skillCards.runSessionId })
 
@@ -277,6 +291,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         catalogFailure={catalogFailure}
         onCatalogNeeded={reloadCatalog}
         createCardForSkill={createCardForSkill}
+        renameStepCard={renameCard}
         t={t}
       />
     )

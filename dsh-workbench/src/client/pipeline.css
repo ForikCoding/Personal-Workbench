@@ -312,6 +312,11 @@
 .wb-node[data-s="failed"]::before { background: var(--danger); }
 .wb-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .wb-node[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent-soft); }
+/* 待运行：位置留好了、还没启动，所以是虚线框和空心序号，不是灰掉的实心卡片 */
+.wb-node[data-s="idle"] { border-style: dashed; }
+.wb-node[data-s="idle"] .wb-nodeIndex { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink4); }
+.wb-node[data-s="idle"] .wb-nodeState { color: var(--ink3); }
+.wb-node[data-s="idle"] .wb-nodeDur { color: var(--ink4); }
 
 .wb-nodeTop { display: flex; align-items: center; gap: 7px; }
 .wb-nodeIndex {
@@ -333,6 +338,22 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 就地改名：边框 + 光晕，跟只读标题分开；字号跟标题一致，换的时候不跳 */
+.wb-nodeNameInput {
+  flex: 1 1 0;
+  min-width: 40px;
+  margin: -3px 0;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--base);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 .wb-nodeState {
   margin-left: auto;
@@ -597,6 +618,8 @@
 .wb-chipTag[data-s="running"] { background: var(--accent-wash); color: var(--accent); }
 .wb-chipTag[data-s="done"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 78%, var(--ink)); }
 .wb-chipTag[data-s="failed"] { background: var(--danger-wash); color: var(--danger); }
+/* 待运行 / 排队中都是灰的，所以标签也换画法：描边不填底 vs 浅灰填底 */
+.wb-chipTag[data-s="idle"] { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink3); }
 
 .wb-inspTabs {
   flex: none;
@@ -1010,6 +1033,8 @@
 .wb-dot[data-s="failed"] { background: var(--danger); }
 .wb-dot[data-s="queued"] { background: var(--idle); }
 .wb-dot[data-s="stopped"] { background: var(--ink4); }
+/* 6px 上也看得出实心/空心 */
+.wb-dot[data-s="idle"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink4); }
 
 /* ------------------------------------------------------------- 标题下拉菜单 */
 .wb-renameInput {
