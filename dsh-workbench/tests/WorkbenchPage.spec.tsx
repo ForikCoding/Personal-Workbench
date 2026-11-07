@@ -530,6 +530,32 @@ describe('WorkbenchPage', () => {
     // The template's own region text is gone: what the model writes there does not exist yet.
     expect(rendered).not.toContain('<p>old</p>')
   })
+  it('puts the region note under a table header, where the rows will go', async () => {
+    // The region of a table template sits inside tbody. A note shaped like a div is not a table
+    // row, so the parser lifts it above the table — the note then sits over the header it
+    // belongs under. This template is the shape the real cards have.
+    const [first, ...rest] = CARD_VIEWS
+    const table = '<html><body><table><thead><tr><th>Head</th></tr></thead><tbody><!-- template-begin --><!-- template-end --></tbody></table></body></html>'
+    await renderPage({
+      cardViews: [{ ...first!, template: table }, ...rest] as typeof CARD_VIEWS,
+    })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const frame = await waitFor(() => {
+      const found = document.querySelector('[data-cfg-preview]') as HTMLElement | null
+      expect(found).not.toBeNull()
+      return found!
+    })
+    const host = frame.querySelector('.wb-tplPreviewFrame') as HTMLElement
+    const shadow = host.shadowRoot as ShadowRoot
+    const rendered = shadow.innerHTML
+    expect(rendered).toContain(en.pipeCfgRegion)
+    // Under the header, not above it, and still inside the body of the table.
+    expect(rendered.indexOf('Head')).toBeLessThan(rendered.indexOf(en.pipeCfgRegion))
+    expect(shadow.querySelector('tbody td')).not.toBeNull()
+  })
+
   it('states a disabled chooser when the page has no picker', async () => {
     await renderPage({ picker: noWorkspacePicker().picker })
     await screen.findByText(en.pipeAddStep)

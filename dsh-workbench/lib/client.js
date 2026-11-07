@@ -7274,12 +7274,24 @@ window.__ModuleLoader__.load({
 		* Inline-styled on purpose: it is rendered inside the card's own shadow root, where the
 		* workbench's stylesheet does not reach and the template's rules would restyle it. The words
 		* come from the locale, because this note is read by a person, not by the template.
+		*
+		* The shape depends on where the region sits. A `div` inside `tbody` is not a table row, and a
+		* parser asked to make sense of one lifts it out of the table entirely — which is how the note
+		* ends up above the header it belongs under. So a region inside a table becomes a row.
+		* @param template - the stored template, used only to read the region's surroundings.
 		* @param region - the label for the region, e.g. "区域内容".
 		* @param body - what happens to the region at run time.
-		* @returns the placeholder element as HTML.
+		* @returns the placeholder markup, valid where the region is.
 		*/
-		function regionPlaceholder(region, body) {
-			return `<div style="margin:12px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px"><span style="display:inline-block;padding:2px 7px;border-radius:5px;background:rgba(128,131,138,0.14);font-family:ui-monospace,monospace;font-size:11px">${escapeHtml(region)}</span> <span style="font-size:11px;color:#8a8f98">${escapeHtml(body)}</span></div>`;
+		function regionPlaceholder(template, region, body) {
+			const note = `<div style="margin:12px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px"><span style="display:inline-block;padding:2px 7px;border-radius:5px;background:rgba(128,131,138,0.14);font-family:ui-monospace,monospace;font-size:11px">${escapeHtml(region)}</span> <span style="font-size:11px;color:#8a8f98">${escapeHtml(body)}</span></div>`;
+			const bounds = findRegion(template);
+			if (bounds === void 0) return note;
+			const before = template.slice(0, bounds.start).toLowerCase();
+			const open = (tag) => before.split(`<${tag}`).length > before.split(`</${tag}`).length;
+			if (open("td") || open("th")) return `<td colspan="99" style="padding:4px">${note}</td>`;
+			if (open("tr") || open("tbody") || open("thead") || open("table")) return `<tr><td colspan="99" style="padding:4px">${note}</td></tr>`;
+			return note;
 		}
 		/**
 		* Escape the three characters that would end the text early inside a generated document.
@@ -8820,7 +8832,7 @@ window.__ModuleLoader__.load({
 				setDraft(template ?? "");
 			}, [template]);
 			const [view, setView] = (0, react.useState)("preview");
-			const placeholder = regionPlaceholder(t("pipeCfgRegion"), t("pipeCfgRegionBody"));
+			const placeholder = regionPlaceholder(template ?? "", t("pipeCfgRegion"), t("pipeCfgRegionBody"));
 			const rendered = template === void 0 ? "" : filledTemplate(template, placeholder);
 			const regionInTemplate = template !== void 0 && rendered !== template;
 			const model = shared?.model;

@@ -22,6 +22,7 @@ import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contr
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
 import { filledTemplate } from './skill-card/render.ts'
+import { findRegion } from './skill-card/template.ts'
 import { ShadowHtml } from './skill-card/ShadowHtml.tsx'
 import type {
   WorkbenchCardConfigView,
@@ -145,15 +146,29 @@ export interface StepCardPatch {
  * Inline-styled on purpose: it is rendered inside the card's own shadow root, where the
  * workbench's stylesheet does not reach and the template's rules would restyle it. The words
  * come from the locale, because this note is read by a person, not by the template.
+ *
+ * The shape depends on where the region sits. A `div` inside `tbody` is not a table row, and a
+ * parser asked to make sense of one lifts it out of the table entirely — which is how the note
+ * ends up above the header it belongs under. So a region inside a table becomes a row.
+ * @param template - the stored template, used only to read the region's surroundings.
  * @param region - the label for the region, e.g. "区域内容".
  * @param body - what happens to the region at run time.
- * @returns the placeholder element as HTML.
+ * @returns the placeholder markup, valid where the region is.
  */
-function regionPlaceholder(region: string, body: string): string {
+function regionPlaceholder(template: string, region: string, body: string): string {
   const chip = 'display:inline-block;padding:2px 7px;border-radius:5px;background:rgba(128,131,138,0.14);font-family:ui-monospace,monospace;font-size:11px'
   const text = 'font-size:11px;color:#8a8f98'
   const box = 'margin:12px 0;padding:12px;border:1px dashed rgba(128,131,138,0.5);border-radius:8px'
-  return `<div style="${box}"><span style="${chip}">${escapeHtml(region)}</span> <span style="${text}">${escapeHtml(body)}</span></div>`
+  const note = `<div style="${box}"><span style="${chip}">${escapeHtml(region)}</span> <span style="${text}">${escapeHtml(body)}</span></div>`
+  const bounds = findRegion(template)
+  if (bounds === undefined) return note
+  const before = template.slice(0, bounds.start).toLowerCase()
+  const open = (tag: string): boolean => before.split(`<${tag}`).length > before.split(`</${tag}`).length
+  if (open('td') || open('th')) return `<td colspan="99" style="padding:4px">${note}</td>`
+  if (open('tr') || open('tbody') || open('thead') || open('table')) {
+    return `<tr><td colspan="99" style="padding:4px">${note}</td></tr>`
+  }
+  return note
 }
 
 /**
@@ -1497,7 +1512,7 @@ function ConfigPanel(props: {
   useEffect(() => { setDraft(template ?? '') }, [template])
   const [view, setView] = useState<'preview' | 'source'>('preview')
   // The region is where the model writes; its placeholder is what shows while nothing is written.
-  const placeholder = regionPlaceholder(t('pipeCfgRegion'), t('pipeCfgRegionBody'))
+  const placeholder = regionPlaceholder(template ?? '', t('pipeCfgRegion'), t('pipeCfgRegionBody'))
   const rendered = template === undefined ? '' : filledTemplate(template, placeholder)
   const regionInTemplate = template !== undefined && rendered !== template
   // What "the whole pipeline" is: the first step's card. The rows that change it write
