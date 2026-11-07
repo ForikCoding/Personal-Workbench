@@ -9015,10 +9015,11 @@ window.__ModuleLoader__.load({
 								children: t("pipeCfgSource")
 							})]
 						})]
-					}), template === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					}), view === "preview" ? template === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: css.hint,
+						"data-cfg-empty": "",
 						children: t("pipeCfgNoTemplate")
-					}) : view === "preview" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: css.tplSlotLabel,
 						children: t("pipeCfgPreviewNote")
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -9033,12 +9034,13 @@ window.__ModuleLoader__.load({
 						"data-cfg-template": "",
 						"aria-label": t("pipeCfgSource"),
 						spellCheck: false,
+						placeholder: t("pipeCfgNoTemplate"),
 						value: draft,
 						onChange: (event) => {
 							setDraft(event.target.value);
 						},
 						onBlur: () => {
-							if (draft === template) return;
+							if (draft.trim() === "" || draft === template) return;
 							onSaveTemplate(draft);
 						}
 					})]

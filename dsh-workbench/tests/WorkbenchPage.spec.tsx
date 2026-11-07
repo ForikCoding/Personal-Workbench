@@ -474,6 +474,34 @@ describe('WorkbenchPage', () => {
     expect(cardWrites[0]?.template).toEqual({ skill: 'git-repo', html: '<html><body>typed by the user</body></html>' })
   })
 
+  it('lets a card that has no template get one from the source box', async () => {
+    // A card with no template is the state where this block used to be a sentence and a
+    // disabled-looking slab: nowhere to write, so "cannot be used" was exactly right.
+    const [first, ...rest] = CARD_VIEWS
+    const { template: stored, ...withoutTemplate } = first!
+    expect(stored).toBeDefined()
+    // The store really can hand back a card with no template at all; the fixture type is the
+    // narrow one, so the absence is spelled out here rather than pretended away.
+    const { cardWrites } = await renderPage({
+      cardViews: [withoutTemplate, ...rest] as unknown as typeof CARD_VIEWS,
+    })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    fireEvent.click(document.querySelector('[data-cfg-view="source"]') as HTMLButtonElement)
+    const box = await waitFor(() => {
+      const found = document.querySelector('[data-cfg-template]')
+      expect(found).not.toBeNull()
+      return found as HTMLTextAreaElement
+    })
+    expect(box.value).toBe('')
+    expect(box.placeholder).toBe(en.pipeCfgNoTemplate)
+    fireEvent.change(box, { target: { value: '<html><body>first draft</body></html>' } })
+    fireEvent.blur(box)
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
+    expect(cardWrites[0]?.template).toEqual({ skill: 'git-repo', html: '<html><body>first draft</body></html>' })
+  })
+
   it('switches the template block between preview and source', async () => {
     // A template carrying the real markers, so the preview has a region to put a placeholder in.
     const [first, ...rest] = CARD_VIEWS

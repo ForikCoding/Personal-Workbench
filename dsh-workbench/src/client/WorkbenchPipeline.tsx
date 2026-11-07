@@ -1637,41 +1637,45 @@ function ConfigPanel(props: {
             </button>
           </span>
         </div>
-        {template === undefined
-          ? <p className={css.hint}>{t('pipeCfgNoTemplate')}</p>
-          : view === 'preview'
-            ? (
-              <div>
-                <div className={css.tplSlotLabel}>{t('pipeCfgPreviewNote')}</div>
-                {/* The preview is the template rendered in its own styles — the frame is the
-                    card, not a picture of it. The region is replaced by a placeholder, because
-                    what the model will write there does not exist yet. */}
-                <div className={css.tplPreviewBody} data-cfg-preview="">
-                  <ShadowHtml
-                    html={filledTemplate(template, REGION_PLACEHOLDER)}
-                    className={css.tplPreviewFrame}
-                  />
+        {view === 'preview'
+          ? (
+            template === undefined
+              // Nothing to render yet: say what to do, in the place the render will appear.
+              ? <p className={css.hint} data-cfg-empty="">{t('pipeCfgNoTemplate')}</p>
+              : <div>
+                  <div className={css.tplSlotLabel}>{t('pipeCfgPreviewNote')}</div>
+                  {/* The preview is the template rendered in its own styles — the frame is the
+                      card, not a picture of it. The region is replaced by a placeholder, because
+                      what the model will write there does not exist yet. */}
+                  <div className={css.tplPreviewBody} data-cfg-preview="">
+                    <ShadowHtml
+                      html={filledTemplate(template, REGION_PLACEHOLDER)}
+                      className={css.tplPreviewFrame}
+                    />
+                  </div>
                 </div>
-              </div>
-              )
-            : (
-              /* 「源码」就是一个编辑框，和原型同一块地方：模板在这里读，也在这里改。
-                 值由本地 draft 拿着，而不是 defaultValue：这张面板会跟着运行状态重渲染，
-                 非受控输入框碰上重渲染就是"打字打不进去"的经典现场。
-                 失焦才写，理由和目录一样——逐键写等于每敲一个字重写一遍卡片。 */
-              <textarea
-                className={css.docSrc}
-                data-cfg-template=""
-                aria-label={t('pipeCfgSource')}
-                spellCheck={false}
-                value={draft}
-                onChange={(event) => { setDraft(event.target.value) }}
-                onBlur={() => {
-                  if (draft === template) return
-                  onSaveTemplate(draft)
-                }}
-              />
-              )}
+            )
+          : (
+            /* 「源码」就是一个编辑框，和原型同一块地方：模板在这里读，也在这里改。
+               没有模板的时候它照样在，只是空的，占位提示就是"先给这张卡片写一个模板"——
+               否则这张卡片没有任何地方可以动手，整块就是"不能用"。
+               值由本地 draft 拿着，而不是 defaultValue：这张面板会跟着运行状态重渲染，
+               非受控输入框碰上重渲染就是"打字打不进去"的经典现场。
+               失焦才写，理由和目录一样——逐键写等于每敲一个字重写一遍卡片。 */
+            <textarea
+              className={css.docSrc}
+              data-cfg-template=""
+              aria-label={t('pipeCfgSource')}
+              spellCheck={false}
+              placeholder={t('pipeCfgNoTemplate')}
+              value={draft}
+              onChange={(event) => { setDraft(event.target.value) }}
+              onBlur={() => {
+                if (draft.trim() === '' || draft === template) return
+                onSaveTemplate(draft)
+              }}
+            />
+            )}
       </div>
     </>
   )
