@@ -1,8 +1,17 @@
 <!--
-  结果卡片模板：这一步的结果是一个目录，目录里的 markdown 由这里读出来渲染。
+  结果卡片模板：这一步交出的是一个目录，目录里的 markdown 由这里读出来渲染。
 
-  贴到卡片「配置 → 模板」。区域里只需要一个指向目录的元素，
-  其余（目录行、文件块、正文）全由下面的样式和脚本负责。
+  贴到卡片「配置 → 模板 → 源码」。整份文档只有一处要按你的情况改：
+  下面那个 data-dsh-files="docs/详细设计" —— 指向这一步真正写出文件的目录。
+  它写在区域**外面**，所以每次运行都留着；区域里面每次会被模型的输出整段替换。
+
+  渲染出来的样子：
+  · 目录行：docs/详细设计 · 3 个文件
+  · 文件条：一行一个文件、带大小，点一个换一份正文
+  · 正文：用应用自己的 markdown 渲染，标题/列表/表格/代码块跟对话里一致
+
+  没文件的时候：目录行、文件条、正文都收起来，区域里那段说明照常显示。
+  读不到目录的时候：区域照常显示，下面多一行说清为什么没列出文件。
 
   卡片对模板的硬性限制，违反任何一条就渲染不出来：
   · 不能引用外部资源。img / iframe / link / object / embed / video / audio 会被整棵删掉，
@@ -67,9 +76,14 @@
     cursor: pointer;
   }
   .file svg { flex: none; width: 12px; height: 12px; }
-  .file:hover { background: var(--dsw-alias-bg-fill-hover); }
+  /* 悬停与选中都用主题里确实定义了的变量：bg-layer-* 是面板色，border-l* 是分隔线色 */
+  .file:hover {
+    border-color: var(--dsw-alias-border-l3);
+    color: var(--dsw-alias-label-primary);
+  }
   .file[aria-pressed='true'] {
     background: var(--dsw-alias-bg-layer-2);
+    border-color: var(--dsw-alias-border-l3);
     color: var(--dsw-alias-label-primary);
   }
   .file .name {
@@ -80,15 +94,26 @@
   }
   .file .size { flex: none; color: var(--dsw-alias-label-tertiary); }
 
-  /* 正文容器。里面的排版由 dsh.markdown.render 负责，样式表进不去那一层 */
+  /* 区域：没有文件时显示它，有文件时收起来 */
+  .lead { margin: 0 0 10px; color: var(--dsw-alias-label-secondary); }
+
+  /* 正文容器。里面的排版由 dsh.markdown.render 负责，那一层是它自己的影子根 */
   .body { min-height: 20px; }
-  .body .note { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+  .body .note { margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 </style>
 
 <div class="root">
+  <!-- 目录写在这里，不写进区域：区域每次都被模型的输出替换 -->
+  <div data-dsh-files="docs/详细设计" hidden></div>
+
   <div id="run-out">
 <!-- template-begin -->
-    <div data-dsh-files="docs/详细设计" hidden></div>
+<!--
+  这次的交待写在这里。目录里有 markdown 时这一块会收起来（目录行、文件条、正文顶上来）；
+  目录里没有文件时，这一块原样显示 —— 所以写的是给人看的那段说明，不是文件清单。
+  写什么：这次交出了什么、要人看哪儿。不要复述文件里已有的内容。
+-->
+<p class="lead">这次没有产出文件，这里是它给出的说明。</p>
 <!-- template-end -->
   </div>
 
@@ -107,25 +132,30 @@
 
 <script>
   (function () {
-    var root = dsh.root;
+    // 配置页的模板预览没有绑定（没有卡片、没有运行），这时脚本什么也不做，
+    // 只把模板原样显示出来。用 typeof 判断：未绑定时 dsh 根本不声明，直接读会抛。
+    if (typeof dsh === 'undefined' || !dsh || !dsh.files) return;
 
-    var dirEl = root.querySelector('[data-dsh-files]');
+    var root = dsh.root;
+    var pointer = root.querySelector('[data-dsh-files]');
+    var runOut = root.querySelector('#run-out');
+    var headEl = root.querySelector('.head');
     var filesEl = root.querySelector('#files');
     var bodyEl = root.querySelector('#body');
     var dirName = root.querySelector('#dir');
     var countEl = root.querySelector('#count');
 
-    // 区域里没有目录指针，说明这次交的是表格或正文：它们自己会显示，模板不插手
-    if (!dirEl) {
+    // 指针被删掉了：不装作有目录，区域自己显示自己
+    if (!pointer) {
+      headEl.remove();
       filesEl.remove();
       bodyEl.remove();
-      dirName.parentNode.remove();
       return;
     }
 
-    var dir = dirEl.getAttribute('data-dsh-files') || '';
+    var dir = pointer.getAttribute('data-dsh-files') || '';
 
-    // 文件块与正文都是脚本建出来的，图标也在这儿拼，省得模板里写一堆重复标签
+    // 文件条与正文都是脚本建出来的，图标也在这儿拼，省得模板里写一堆重复标签
     var FILE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
       'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z" />' +
@@ -134,7 +164,8 @@
     function sizeLabel(bytes) {
       if (typeof bytes !== 'number' || bytes <= 0) return '';
       if (bytes < 1024) return bytes + ' B';
-      return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1024 / 1024).toFixed(1) + ' MB';
     }
 
     function reason(error) {
@@ -155,8 +186,17 @@
     function note(text) {
       var line = document.createElement('p');
       line.className = 'note';
+      line.setAttribute('data-state', '');
       line.textContent = text;
       bodyEl.replaceChildren(line);
+    }
+
+    // 目录里没有可读的东西：空容器都摘掉，让区域那段说明露出来
+    function standDown() {
+      if (runOut) runOut.hidden = false;
+      headEl.remove();
+      filesEl.remove();
+      if (bodyEl.querySelector('[data-state]') === null) bodyEl.remove();
     }
 
     function open(entry) {
@@ -171,7 +211,12 @@
         bodyEl.replaceChildren(target);
         return dsh.markdown.render(target, file.text);
       }).catch(function (error) {
-        note('打开失败：' + reason(error));
+        // 一个文件读不到，换一个文件照样能读：说明留在正文里，不把整块清掉
+        var line = document.createElement('p');
+        line.className = 'note';
+        line.setAttribute('data-state', '');
+        line.textContent = '打不开 ' + entry.name + '：' + reason(error);
+        bodyEl.replaceChildren(line);
       });
     }
 
@@ -182,18 +227,21 @@
         return entry.type === 'file' && /\.(md|markdown)$/i.test(entry.name);
       });
 
-      countEl.textContent = docs.length + ' 个文件 · 点击切换';
-
       if (docs.length === 0) {
-        note('这个目录里没有 markdown 文件。');
+        standDown();
         return;
       }
+
+      // 有文件：区域那段是「没文件时」的说明，收起来
+      if (runOut) runOut.hidden = true;
+      countEl.textContent = docs.length + ' 个文件';
 
       docs.forEach(function (entry) {
         var button = document.createElement('button');
         button.type = 'button';
         button.className = 'file';
         button.setAttribute('data-path', entry.path);
+        button.setAttribute('aria-pressed', 'false');
 
         var name = document.createElement('span');
         name.className = 'name';
@@ -211,7 +259,9 @@
 
       open(docs[0]);   // 没有点击时默认打开第一个
     }).catch(function (error) {
-      countEl.textContent = '';
+      // 目录读不到（没配工作区、路径写错…）：说清楚，别让这一步看着像空的
+      headEl.remove();
+      filesEl.remove();
       note('读不到 ' + dir + '：' + reason(error));
     });
   })();

@@ -2,8 +2,9 @@
  * 「证实」脚本：证明模板的数据通路走通，渲染之外的部分都是真的。
  *
  * 不能证的部分：影子根里的 CSS 与 markdown 排版（那需要浏览器）。
- * 能证的部分：区域标记可定位、内容策略不违例、脚本里没有看不见影子根的选择器、
- *            真目录能被列出并读回、默认打开第一个、点第三个真的换了正文。
+ * 能证的部分：区域标记可定位、目录指针在区域之外、内容策略不违例、
+ *            脚本里没有看不见影子根的选择器、真目录能被列出并读回、
+ *            默认打开第一个、点第三个真的换了正文、空目录与读不到目录的两种情况。
  *
  * 跑法：node docs/workbench-result-template.check.mjs
  */
@@ -87,8 +88,32 @@ check(
   '没有裸 document.querySelector（在影子根里会静默找不到）',
   !/document\.querySelector/.test(scriptBody),
 )
+check('未绑定时不抛（typeof dsh）', /typeof\s+dsh\s*===?\s*['"]undefined['"]/.test(scriptBody))
 
-/* ───────────────────────────── 4. 真的读盘 ───────────────────────────── */
+/* ─────────────────── 4. 目录指针：配在哪、指向哪 ─────────────────── */
+
+process.stdout.write('\n5. 目录指针\n')
+// 区域每次被模型的输出整段替换，所以指针必须写在区域之外，否则每次运行都丢
+const pointerInRegion = /data-dsh-files/.test(region)
+const pointerOutside = /data-dsh-files\s*=\s*"([^"]*)"/.exec(outside)
+check('指针在区域之外（区域里会被替换掉）', !pointerInRegion)
+check('指针在模板里配好了', pointerOutside !== null, pointerOutside ? pointerOutside[1] : '没找到')
+const DIR_ATTR = pointerOutside === null ? '' : pointerOutside[1]
+check('它指向要证实的那个真实目录', DIR_ATTR === DIR, `${DIR_ATTR} vs ${DIR}`)
+
+// 脚本按 id / class 找这几个节点，模板里得真有，否则脚本会静默什么都不做
+const NEEDED = [
+  ['id="dir"', /id="dir"/],
+  ['id="count"', /id="count"/],
+  ['id="files"', /id="files"/],
+  ['id="body"', /id="body"/],
+  ['id="run-out"', /id="run-out"/],
+  ['class="head"', /class="head"/],
+]
+const missing = NEEDED.filter(([, pattern]) => !pattern.test(bare)).map(([label]) => label)
+check('脚本要找的节点模板里都有', missing.length === 0, missing.length ? missing.join(', ') : '6 个都在')
+
+/* ───────────────────────────── 5. 真的读盘 ───────────────────────────── */
 
 /** 与 compareEntries 同形：目录在前，其余按名字 numeric 排序。 */
 function compareEntries(left, right) {
@@ -125,7 +150,7 @@ function readCardFile(requested) {
   return { path: requested, text, bytes: Buffer.byteLength(text) }
 }
 
-/* ───────────────────────────── 5. 极简假 DOM ───────────────────────────── */
+/* ───────────────────────────── 6. 极简假 DOM ───────────────────────────── */
 
 class FakeNode {
   constructor(tag) {
@@ -137,6 +162,7 @@ class FakeNode {
     this.attributes = {}
     this.listeners = []
     this.id = ''
+    this.hidden = false
     this.parent = null
   }
 
@@ -209,48 +235,45 @@ class FakeNode {
 
 const fakeDocument = { createElement: tag => new FakeNode(tag) }
 
-// 区域里配的目录以模板文件为准，不从测试里硬塞
-const configured = /<div class="result" data-dir="([^"]*)"><\/div>/.exec(bare)
-process.stdout.write('\n5. 模板里配的目录\n')
-check('区域示例里配了 data-dir', configured !== null, configured ? configured[1] : '没找到')
-const DIR_ATTR = configured === null ? '' : configured[1]
-check('它指向要证实的那个真实目录', DIR_ATTR === DIR, `${DIR_ATTR} vs ${DIR}`)
+/**
+ * 按模板的形状搭一个假根：指针、区域、目录行、文件条、正文。
+ * 形状变了这里要跟着变——上面第 5 节检查过那几个节点在模板里确实存在。
+ */
+function buildRoot() {
+  const pointer = new FakeNode('div')
+  pointer.setAttribute('data-dsh-files', DIR_ATTR)
+  pointer.hidden = true
 
-const dirEl = new FakeNode('div')
-dirEl.className = 'result'
-dirEl.setAttribute('data-dir', DIR_ATTR)
+  const runOut = new FakeNode('div')
+  runOut.setAttribute('id', 'run-out')
+  const lead = new FakeNode('p')
+  lead.className = 'lead'
+  lead.textContent = '这次没有产出文件'
+  runOut.append(lead)
 
-const filesEl = new FakeNode('div')
-filesEl.setAttribute('id', 'files')
-const docEl = new FakeNode('div')
-docEl.setAttribute('id', 'doc')
-const countEl = new FakeNode('span')
-countEl.setAttribute('id', 'count')
+  const head = new FakeNode('div')
+  head.className = 'head'
+  const dirName = new FakeNode('span')
+  dirName.setAttribute('id', 'dir')
+  const countEl = new FakeNode('span')
+  countEl.setAttribute('id', 'count')
+  head.append(dirName, countEl)
 
-const fakeRoot = new FakeNode('div')
-fakeRoot.append(dirEl, filesEl, docEl, countEl)
+  const filesEl = new FakeNode('div')
+  filesEl.setAttribute('id', 'files')
+  const bodyEl = new FakeNode('div')
+  bodyEl.setAttribute('id', 'body')
 
-const renders = []
-
-const dsh = {
-  root: fakeRoot,
-  files: {
-    list: async requested => listCardDirectory(requested),
-    read: async requested => readCardFile(requested),
-  },
-  markdown: {
-    render: async (element, text) => {
-      renders.push({ element, text })
-    },
-  },
+  const root = new FakeNode('div')
+  root.append(pointer, runOut, head, filesEl, bodyEl)
+  return { root, pointer, runOut, head, filesEl, bodyEl, dirName, countEl }
 }
 
-/* ───────────────────────────── 6. 跑模板的脚本 ───────────────────────────── */
+/* ───────────────────────────── 7. 跑模板的脚本 ───────────────────────────── */
 
 // 与 bindDocumentScript 同形的包装
 const wrapped = `(function (dsh) {\n${scriptBody}\n})`
 const run = new Function('dsh', 'document', `${wrapped}(dsh)`)
-run(dsh, fakeDocument)
 
 /** 等异步链路落定。 */
 const settle = () => new Promise(done => setTimeout(done, 60))
@@ -258,100 +281,136 @@ const settle = () => new Promise(done => setTimeout(done, 60))
 process.stdout.write('\n6. 真实目录 ' + DIR + '\n')
 check('目录存在', statSync(directory).isDirectory(), directory)
 
-await settle()
+{
+  const view = buildRoot()
+  const renders = []
+  const dsh = {
+    root: view.root,
+    files: {
+      list: async requested => listCardDirectory(requested),
+      read: async requested => readCardFile(requested),
+    },
+    markdown: { render: async (element, text) => { renders.push({ element, text }) } },
+  }
+  run(dsh, fakeDocument)
+  await settle()
 
-const chips = filesEl.querySelectorAll('.file')
-const expected = listCardDirectory(DIR).entries.filter(entry => /\.md$/i.test(entry.name))
+  const chips = view.filesEl.querySelectorAll('.file')
+  const expected = listCardDirectory(DIR).entries.filter(entry => /\.md$/i.test(entry.name))
 
-check('清单一共列出 ' + expected.length + ' 个文件', chips.length === expected.length, `实际 ${chips.length}`)
-check(
-  '文件名与磁盘一致且同序',
-  chips.every((chip, i) => chip.querySelector('.name').textContent === expected[i].name),
-  chips.map(chip => chip.querySelector('.name').textContent).join(' | '),
-)
-check('计数文案', countEl.textContent === `${expected.length} 个文件`, countEl.textContent)
+  check('清单一共列出 ' + expected.length + ' 个文件', chips.length === expected.length, `实际 ${chips.length}`)
+  check(
+    '文件名与磁盘一致且同序',
+    chips.every((chip, i) => chip.querySelector('.name').textContent === expected[i].name),
+    chips.map(chip => chip.querySelector('.name').textContent).join(' | '),
+  )
+  check('目录行写的是配的那个目录', view.dirName.textContent === DIR, view.dirName.textContent)
+  check('计数文案', view.countEl.textContent === `${expected.length} 个文件`, view.countEl.textContent)
 
-const sizes = chips.map(chip => chip.querySelector('.size')?.textContent ?? '')
-ok('字节数标签', sizes.join(' | '))
-check(
-  '字节数与磁盘一致',
-  chips.every((chip, i) => chip.querySelector('.size').textContent ===
-    (expected[i].size < 1024
-      ? `${expected[i].size} B`
-      : `${(expected[i].size / 1024).toFixed(1)} KB`)),
-  '按 KB 换算',
-)
+  const sizes = chips.map(chip => chip.querySelector('.size')?.textContent ?? '')
+  ok('字节数标签', sizes.join(' | '))
+  check(
+    '字节数与磁盘一致',
+    chips.every((chip, i) => chip.querySelector('.size').textContent ===
+      (expected[i].size < 1024
+        ? `${expected[i].size} B`
+        : `${(expected[i].size / 1024).toFixed(1)} KB`)),
+    '按 KB 换算',
+  )
 
-process.stdout.write('\n7. 默认打开与点击切换\n')
-check('没有点击时默认打开了一个文件', renders.length === 1, `渲染 ${renders.length} 次`)
-check('默认打开的是第一个', chips[0].getAttribute('aria-current') === 'true')
-check(
-  '默认渲染的是第一个文件的正文',
-  renders.length === 1 && renders[0].text === readCardFile(expected[0].path).text,
-  renders.length ? `前 24 字：${renders[0].text.slice(0, 24)}` : '未渲染',
-)
+  process.stdout.write('\n7. 默认打开、点击切换、区域收起\n')
+  check('没有点击时默认打开了一个文件', renders.length === 1, `渲染 ${renders.length} 次`)
+  check('默认打开的是第一个', chips[0].getAttribute('aria-pressed') === 'true')
+  check(
+    '默认渲染的是第一个文件的正文',
+    renders.length === 1 && renders[0].text === readCardFile(expected[0].path).text,
+    renders.length ? `前 24 字：${renders[0].text.slice(0, 24)}` : '未渲染',
+  )
+  check('有文件时区域收起来了（不重复显示说明）', view.runOut.hidden === true)
 
-chips[2].click()
-await settle()
+  chips[2].click()
+  await settle()
 
-check('点第三个后渲染了第三次', renders.length === 2, `渲染 ${renders.length} 次`)
-check(
-  '第三次渲染的是第三个文件的正文',
-  renders.length === 2 && renders[1].text === readCardFile(expected[2].path).text,
-  renders.length === 2 ? `前 24 字：${renders[1].text.slice(0, 24)}` : '未渲染',
-)
-check('选中态跟着走', chips[2].getAttribute('aria-current') === 'true'
-  && chips[0].getAttribute('aria-current') === 'false', '第三个选中、第一个取消')
+  check('点第三个后渲染了第二次', renders.length === 2, `渲染 ${renders.length} 次`)
+  check(
+    '第二次渲染的是第三个文件的正文',
+    renders.length === 2 && renders[1].text === readCardFile(expected[2].path).text,
+    renders.length === 2 ? `前 24 字：${renders[1].text.slice(0, 24)}` : '未渲染',
+  )
+  check('选中态跟着走', chips[2].getAttribute('aria-pressed') === 'true'
+    && chips[0].getAttribute('aria-pressed') === 'false', '第三个选中、第一个取消')
+}
 
-process.stdout.write('\n8. 目录在，但读不到\n')
-// 目录型但指向一个不存在的目录：区域里有 data-dir，列目录时被 Host 拒
-const missing = { ...dsh, files: { ...dsh.files, list: async () => { const e = new Error('the path is not there'); e.code = 'not-found'; throw e } } }
-const dirEl2 = new FakeNode('div')
-dirEl2.className = 'result'
-dirEl2.setAttribute('data-dir', 'docs/不存在的目录')
-const filesEl2 = new FakeNode('div'); filesEl2.setAttribute('id', 'files')
-const docEl2 = new FakeNode('div'); docEl2.setAttribute('id', 'doc')
-const countEl2 = new FakeNode('span'); countEl2.setAttribute('id', 'count')
-const root2 = new FakeNode('div'); root2.append(dirEl2, filesEl2, docEl2, countEl2)
-missing.root = root2
-run(missing, fakeDocument)
-await settle()
-const stateNode = docEl2.querySelector('.state')
-check('报错落在结果区而不是抛掉', stateNode !== null && stateNode.textContent.includes('目录或文件不存在'),
-  stateNode ? stateNode.textContent : '没有 .state 节点')
+/* ───────────────────── 8. 目录在，但里面没有 markdown ───────────────────── */
 
-/* ─────────────────── 9. 非目录型：区域里就是结果本身 ─────────────────── */
+process.stdout.write('\n8. 空目录\n')
+{
+  const view = buildRoot()
+  const renders = []
+  run({
+    root: view.root,
+    files: {
+      list: async requested => ({ path: requested, entries: [], truncated: false }),
+      read: async requested => readCardFile(requested),
+    },
+    markdown: { render: async (element, text) => { renders.push({ element, text }) } },
+  }, fakeDocument)
+  await settle()
 
-process.stdout.write('\n9. 非目录型（区域里是正文/表格，不是 data-dir）\n')
+  check('没有渲染任何文件', renders.length === 0)
+  check('目录行摘掉', view.head.parent === null)
+  check('文件条摘掉', view.filesEl.parent === null)
+  check('正文容器摘掉（不留空盒子）', view.bodyEl.parent === null)
+  check('区域露出来（它才是这次的结果）', view.runOut.hidden === false && view.runOut.parent !== null)
+}
 
-const plainFiles = new FakeNode('div')
-plainFiles.setAttribute('id', 'files')
-const plainDoc = new FakeNode('div')
-plainDoc.setAttribute('id', 'doc')
-const plainCount = new FakeNode('span')
-plainCount.setAttribute('id', 'count')
-const plainRoot = new FakeNode('div')
-// 故意不放 [data-dir] 节点：这就是「结果不是目录」的样子
-plainRoot.append(plainFiles, plainDoc, plainCount)
+/* ───────────────────────── 9. 目录读不到 ───────────────────────── */
 
-const plainRenders = []
-const plainTouched = []
-run({
-  root: plainRoot,
-  files: {
-    list: async requested => { plainTouched.push(`list ${requested}`); return { path: '', entries: [], truncated: false } },
-    read: async requested => { plainTouched.push(`read ${requested}`); return { path: requested, text: '', bytes: 0 } },
-  },
-  markdown: { render: async () => { plainRenders.push(1) } },
-}, fakeDocument)
+process.stdout.write('\n9. 读不到目录\n')
+{
+  const view = buildRoot()
+  const runOutBefore = view.runOut.hidden
+  const failing = {
+    root: view.root,
+    files: {
+      list: async () => { const e = new Error('the path is not there'); e.code = 'not-found'; throw e },
+      read: async requested => readCardFile(requested),
+    },
+    markdown: { render: async () => {} },
+  }
+  run(failing, fakeDocument)
+  await settle()
 
-await settle()
+  const state = view.bodyEl.querySelector('[data-state]')
+  check('报错落在正文区而不是抛掉', state !== null, state ? state.textContent : '没有 [data-state] 节点')
+  check('说清是哪个目录、为什么', state !== null
+    && state.textContent.includes(DIR) && state.textContent.includes('目录或文件不存在'),
+  state ? state.textContent : '')
+  check('区域没被藏起来', view.runOut.hidden === runOutBefore)
+  check('目录行与文件条摘掉（没有清单可给）', view.head.parent === null && view.filesEl.parent === null)
+}
 
-check('没有去列目录、也没有读文件', plainTouched.length === 0, plainTouched.join(', ') || '一次都没调')
-check('没有渲染任何文件', plainRenders.length === 0)
-check('#files 被摘掉（不给结果区留空容器）', plainFiles.parent === null)
-check('#doc 被摘掉', plainDoc.parent === null)
-check('没有把「读不到目录」写进结果区', plainRoot.querySelector('.state') === null, '区域自己显示自己')
+/* ─────────────────── 10. 没有指针：不装作有目录 ─────────────────── */
+
+process.stdout.write('\n10. 指针被删掉\n')
+{
+  const view = buildRoot()
+  view.pointer.remove()
+  const touched = []
+  run({
+    root: view.root,
+    files: {
+      list: async requested => { touched.push(`list ${requested}`); return { path: '', entries: [], truncated: false } },
+      read: async requested => { touched.push(`read ${requested}`); return { path: requested, text: '', bytes: 0 } },
+    },
+    markdown: { render: async () => { touched.push('render') } },
+  }, fakeDocument)
+  await settle()
+
+  check('没有去列目录、也没有读文件', touched.length === 0, touched.join(', ') || '一次都没调')
+  check('容器都摘掉，区域自己显示自己', view.head.parent === null
+    && view.filesEl.parent === null && view.bodyEl.parent === null)
+}
 
 process.stdout.write(failures === 0 ? '\n全部通过。\n' : `\n${failures} 项失败。\n`)
 process.exit(failures === 0 ? 0 : 1)
