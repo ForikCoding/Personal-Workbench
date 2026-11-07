@@ -264,6 +264,23 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     return true
   }, [applySnapshot, revision, skillCards.api])
 
+  /**
+   * Store one card's template.
+   *
+   * A template travels with the skill it was written for, so the write carries both: a
+   * template whose skill changed underneath it would be filled by a different contract.
+   * @param cardId - the card to write.
+   * @param html - the template, exactly as the user left it.
+   * @param skill - the skill the template is written for.
+   * @returns whether the write landed.
+   */
+  const saveStepTemplate = useCallback(async (cardId: string, html: string, skill: string): Promise<boolean> => {
+    const result = await skillCards.api.write({ baseRevision: revision, cardId, template: { skill, html } })
+    if (result.status !== 'ok') return false
+    applySnapshot(result.snapshot)
+    return true
+  }, [applySnapshot, revision, skillCards.api])
+
   // The model row lists what the directory knows. Subscribing is also the mount path that
   // asks it for a catalog, so the row has options the first time the tab is opened.
   const [modelGroups, setModelGroups] = useState<readonly WorkbenchModelGroup[]>([])
@@ -321,7 +338,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
         patchStepCards={patchStepCards}
         modelGroups={modelGroups}
         workspacePicker={skillCards.workspacePicker}
-        openCardPage={(cardId) => { openCard(cardId, 'config') }}
+        saveStepTemplate={saveStepTemplate}
         t={t}
       />
     )

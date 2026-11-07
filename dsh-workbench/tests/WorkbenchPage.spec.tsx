@@ -443,44 +443,37 @@ describe('WorkbenchPage', () => {
     })
     expect(problem.textContent).toBe(en.pipeCfgWriteFailed)
   })
-  it('opens the card page from the template block, because that is where a template is written', async () => {
-    const { openedCards } = await renderPage()
+  it('edits the template in the source box and stores what was typed', async () => {
+    const { cardWrites } = await renderPage()
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
-    const edit = document.querySelector('[data-edit-card]') as HTMLButtonElement
-    expect(edit).not.toBeNull()
-    fireEvent.click(edit)
-    // The card's own page holds the template editor; the reader holds a run's output. Sending
-    // this button to the reader would be a button that answers a different question.
-    await waitFor(() => { expect(openedCards).toEqual(['a-card']) })
+    fireEvent.click(document.querySelector('[data-cfg-view="source"]') as HTMLButtonElement)
+    const box = await waitFor(() => {
+      const found = document.querySelector('[data-cfg-template]')
+      expect(found).not.toBeNull()
+      return found as HTMLTextAreaElement
+    })
+    // 源码 is one edit box, exactly like the prototype: the template is read here and
+    // written here. A read-only view would make this block a poster of a template.
+    expect(box.tagName).toBe('TEXTAREA')
+    expect(box.value).toContain('<html>')
+    fireEvent.blur(box, { target: { value: '<html><body>typed by the user</body></html>' } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
+    expect(cardWrites[0]?.template).toEqual({ skill: 'git-repo', html: '<html><body>typed by the user</body></html>' })
   })
 
   it('switches the template block between preview and source', async () => {
-    // A template that carries the real markers, so the highlighting is what is being read.
-    await renderPage({
-      cardViews: [
-        ...CARD_VIEWS.slice(1),
-        { ...CARD_VIEWS[0]!, template: '<html><body><!-- template-begin --><p>x</p><!-- template-end --></body></html>' },
-      ],
-    })
+    await renderPage()
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
-    const sourceTab = document.querySelector('[data-cfg-view="source"]') as HTMLButtonElement
-    fireEvent.click(sourceTab)
-    const source = await waitFor(() => {
-      const found = document.querySelector('[data-cfg-source]')
-      expect(found).not.toBeNull()
-      return found as HTMLElement
-    })
-    // The stored template, with its region markers called out: they say which part the model
-    // rewrites, and they are invisible inside a long template otherwise.
-    expect(source.textContent).toContain('template-begin')
-    expect(source.textContent).toContain('template-end')
-    expect(source.querySelectorAll('.wb-mk').length).toBeGreaterThan(0)
+    fireEvent.click(document.querySelector('[data-cfg-view="source"]') as HTMLButtonElement)
+    await waitFor(() => { expect(document.querySelector('[data-cfg-template]')).not.toBeNull() })
     fireEvent.click(document.querySelector('[data-cfg-view="preview"]') as HTMLButtonElement)
-    await waitFor(() => { expect(document.querySelector('[data-cfg-source]')).toBeNull() })
+    // Two views of the same block, one at a time: the box is only in the source view.
+    await waitFor(() => { expect(document.querySelector('[data-cfg-template]')).toBeNull() })
+    expect(document.querySelector('[data-panel="config"]')?.textContent).toContain(en.pipeCfgPreviewNote)
   })
   it('states a disabled chooser when the page has no picker', async () => {
     await renderPage({ picker: noWorkspacePicker().picker })

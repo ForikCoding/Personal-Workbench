@@ -94,7 +94,7 @@ export const css = {
   menuSep: 'wb-menuSep',
   metric: 'wb-metric',
   metrics: 'wb-metrics',
-  mk: 'wb-mk',
+
   mono: 'wb-mono',
   node: 'wb-node',
   nodeDur: 'wb-nodeDur',

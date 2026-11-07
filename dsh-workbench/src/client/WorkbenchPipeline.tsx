@@ -30,7 +30,7 @@ import { permissionLabelKey } from './skill-card/permission.ts'
 import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
-import { WORKBENCH_REGION_BEGIN, WORKBENCH_REGION_END } from '../skill-card-contract.ts'
+
 import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts'
 import type { WorkbenchWorkspacePicker } from './skill-card/workspace-picker.ts'
 
@@ -98,8 +98,8 @@ export interface WorkbenchPipelineProps {
    * @param patch - the fields to set; `null` clears a field.
    */
   readonly patchStepCards: (cardIds: readonly string[], patch: StepCardPatch) => Promise<boolean>
-  /** Open one card's own page, which is where its template is written. */
-  readonly openCardPage: (cardId: string) => void
+  /** Store one card's template, exactly as the user typed it. */
+  readonly saveStepTemplate: (cardId: string, html: string, skill: string) => Promise<boolean>
   /** Provider groups the model row offers; empty means the directory answered nothing. */
   readonly modelGroups: readonly WorkbenchModelGroup[]
   /**
@@ -136,28 +136,6 @@ export interface StepCardPatch {
 }
 
 
-/**
- * The two comments a template marks its region with, taken from the contract so a renamed
- * marker cannot leave this view highlighting text that no longer means anything.
- */
-const REGION_MARKER = new RegExp(`(<!--\\s*(?:${WORKBENCH_REGION_BEGIN}|${WORKBENCH_REGION_END})\\s*-->)`)
-
-/**
- * Render template source with the region markers called out.
- * @param source - the template as stored.
- * @returns the text with each marker wrapped for emphasis.
- */
-function regionMarked(source: string): ReactNode {
-  return (
-    <>
-      {source.split(REGION_MARKER).map((part, index) => (
-        index % 2 === 1
-          ? <span key={index} className={css.mk}>{part}</span>
-          : part
-      ))}
-    </>
-  )
-}
 
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
@@ -188,7 +166,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
     pipelines, run, facts, api, renderCard, onCreateCard, t,
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
-    patchStepCards, modelGroups, workspacePicker, openCardPage,
+    patchStepCards, modelGroups, workspacePicker, saveStepTemplate,
   } = props
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
@@ -1050,7 +1028,15 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                                 : () => { chooseWorkspaceForSteps() }}
                               problem={configProblem}
                               t={t}
-                              onEdit={() => { openCardPage(selected.cardId) }}
+                              onSaveTemplate={(html) => {
+                                const skill = selected.skill
+                                if (skill === undefined) return
+                                void saveStepTemplate(selected.cardId, html, skill).then((written) => {
+                                  if (!written) { setConfigProblem(t('pipeCfgWriteFailed')); return }
+                                  setConfigProblem(undefined)
+                                  void reload()
+                                })
+                              }}
                               onPatch={applyPatch}
                             />
                           </div>
@@ -1467,15 +1453,16 @@ function ConfigPanel(props: {
   /** Skills a step may run, in catalog order. */
   readonly skills: readonly WorkbenchSkillCatalogEntry[]
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
-  readonly onEdit: () => void
   /** Write one field into every step's card; this is what makes one edit reach all of them. */
   readonly onPatch: (patch: StepCardPatch) => void
+  /** Store this step's template; the box commits on blur, not per keystroke. */
+  readonly onSaveTemplate: (html: string) => void
   /** Ask the platform for one directory; disabled when there is no chooser. */
   readonly onPickWorkspace: (() => void) | undefined
   /** Why the last write did not land; absent when it did. */
   readonly problem: string | undefined
 }): ReactNode {
-  const { step, shared, models, skills, t, onEdit, onPatch, onPickWorkspace, problem } = props
+  const { step, shared, models, skills, t, onSaveTemplate, onPatch, onPickWorkspace, problem } = props
   const [view, setView] = useState<'preview' | 'source'>('preview')
   const template = step.card?.template
   // What "the whole pipeline" is: the first step's card. The rows that change it write
@@ -1650,18 +1637,21 @@ function ConfigPanel(props: {
               </div>
               )
             : (
-              <div>
-                {/* The prototype marks the region between the two markers: it is the one part
-                    the model rewrites on every run, and it is invisible inside 90 lines. */}
-                <p className={css.srcNote}>{t('pipeCfgSourceNote')}</p>
-                <pre className={css.docSrc} data-cfg-source="">{regionMarked(template)}</pre>
-              </div>
+              /* 「源码」就是一个编辑框，和原型同一块地方：模板在这里读，也在这里改。
+                 失焦才写，理由和目录一样——逐键写等于每敲一个字重写一遍卡片。 */
+              <textarea
+                className={css.docSrc}
+                data-cfg-template=""
+                aria-label={t('pipeCfgSource')}
+                spellCheck={false}
+                defaultValue={template}
+                onBlur={(event) => {
+                  const next = event.currentTarget.value
+                  if (next === template) return
+                  onSaveTemplate(next)
+                }}
+              />
               )}
-        {/* The editor for a template is the card's own page, which is where a template is
-            written; this button opens that page for this step's card. */}
-        <button type="button" className={`${css.btn} ${css.ghost}`} data-edit-card="" onClick={onEdit}>
-          {t('pipeCfgEdit')}
-        </button>
       </div>
     </>
   )

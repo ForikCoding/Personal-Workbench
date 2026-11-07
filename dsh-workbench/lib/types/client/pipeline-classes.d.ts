@@ -94,7 +94,6 @@ export declare const css: {
     readonly menuSep: "wb-menuSep";
     readonly metric: "wb-metric";
     readonly metrics: "wb-metrics";
-    readonly mk: "wb-mk";
     readonly mono: "wb-mono";
     readonly node: "wb-node";
     readonly nodeDur: "wb-nodeDur";
