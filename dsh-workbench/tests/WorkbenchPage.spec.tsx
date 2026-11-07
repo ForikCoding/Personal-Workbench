@@ -719,6 +719,26 @@ describe('WorkbenchPage', () => {
     await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
   })
 
+  it('draws a non-file result the way the prototype does: one row, its summary, nothing else', async () => {
+    await renderPage({ results: [result('a-card', '<p>fresh</p>')] })
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    const open = await waitFor(() => {
+      const found = document.querySelector('[data-open-result]')
+      if (found === null) throw new Error('no product row yet')
+      return found as HTMLElement
+    })
+    // 无目录的步骤没有清单可列，就是原型里的那一个按钮：图标 + 查看结果 + 摘要 + 箭头。
+    expect(open.tagName).toBe('BUTTON')
+    expect(open.className).toContain('wb-resOpen')
+    expect(open.textContent).toContain(en.pipeResultOpenInline)
+    // 摘要就是这一步自己的那一句，和左栏副标题同一个来源。
+    expect(open.querySelector('[data-result-summary]')?.textContent).toBe('fresh')
+    // 这个区块不解释怎么读，也不再放一枚重新生成：那颗按钮在阅读器和步骤菜单里。
+    expect(document.querySelector('[data-result-review]')).toBeNull()
+    expect(document.querySelector('[data-panel="result"] .wb-hint')).toBeNull()
+  })
+
   it('runs the steps in order, carrying the session from one to the next', async () => {
     const starts: WorkbenchRunRequest[] = []
     const settled: WorkbenchRunState = {

@@ -338,9 +338,7 @@ export declare const zh: {
     pipeResultNoneBody: string;
     pipeResultWhat: string;
     pipeResultEdited: string;
-    pipeResultOpenDir: string;
     pipeResultOpenInline: string;
-    pipeResultReadNote: string;
     pipeOpenResult: string;
     pipeReaderBack: string;
     pipeHistoryTitle: string;

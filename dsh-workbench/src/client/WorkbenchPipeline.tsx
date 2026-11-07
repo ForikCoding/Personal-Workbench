@@ -1112,7 +1112,6 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               t={t}
                               onOpen={() => { openReader(selected.cardId) }}
                               onRun={() => { if (active !== undefined) run.runOne(active, selected.index) }}
-                              onReview={() => { setReview({ cardId: selected.cardId }) }}
                             />
                           </div>
                           )}
@@ -1428,11 +1427,12 @@ function productLine(html: string | undefined, t: (key: WorkbenchLocaleKey) => s
 }
 
 /** The marks a state is drawn with, so colour is never the only signal. */
-const MARK: Record<'slot' | 'dash' | 'clock' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
+const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
   // 方框要在 10px 上还是方框：直角、实线。虚线圆是排队中，两个状态不能共用记号。
   slot: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1" /></svg>,
   dash: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="5.3" strokeDasharray="2.2 2.2" /></svg>,
   clock: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="5.7" /><path d="M8 4.8V8l2.2 1.4" /></svg>,
+  file: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z" /><path d="M9.2 2.4v3.2h3.2" /></svg>,
   check: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m3.6 8.4 2.8 2.6 5.9-6" /></svg>,
   warn: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2.6l5.6 9.8H2.4z" /><path d="M8 6.2v3.2M8 11.2v.1" /></svg>,
   x: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" /></svg>,
@@ -1752,9 +1752,8 @@ function ResultPanel(props: {
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onOpen: () => void
   readonly onRun: () => void
-  readonly onReview: () => void
 }): ReactNode {
-  const { step, t, onOpen, onRun, onReview } = props
+  const { step, t, onOpen, onRun } = props
   if (step.phase === 'running') {
     return (
       <div className={css.stateBlock}>
@@ -1790,31 +1789,49 @@ function ResultPanel(props: {
       </div>
     )
   }
+  // 完成。这个 tab 只回答一件事：这次交了什么 —— 和原型同一个形状：目录一行一个文件，
+  // 没有目录就是一行「查看结果」加摘要。时间不在这儿：它属于活动，正文属于阅读器。
+  const product = step.product
+  const summary = product.kind === 'inline' && product.text !== '' ? product.text : t('pipeInlineProduct')
   return (
     <div className={css.resBlock}>
       <div className={css.resBlockHead}>
         <span>{t('pipeResultWhat')}</span>
-        {step.product.kind === 'directory' ? <em>{step.product.path}</em> : null}
+        {product.kind === 'directory' ? <em>{product.path}</em> : null}
       </div>
       {step.result.editedAt === undefined ? null : (
         <p className={css.revised} data-edited="">{t('pipeResultEdited')}</p>
       )}
       <div className={css.resList}>
-        <button type="button" className={css.resItem} data-open-result="" onClick={onOpen}>
-          <span className={css.resItemName}>
-            {step.product.kind === 'directory' ? t('pipeResultOpenDir') : t('pipeResultOpenInline')}
-          </span>
-          <span className={css.resItemSize}>{formatWhen(step.result.executedAt, Date.now())}</span>
-        </button>
+        {product.kind === 'directory'
+          ? (
+            <button type="button" className={css.resItem} data-open-result="" onClick={onOpen}>
+              {MARK.file}
+              <span className={css.resItemName}>{baseName(product.path)}</span>
+              {MARK.chev}
+            </button>
+            )
+          : (
+            <button type="button" className={css.resOpen} data-open-result="" onClick={onOpen}>
+              {MARK.file}
+              <span>{t('pipeResultOpenInline')}</span>
+              <em data-result-summary="">{summary}</em>
+              {MARK.chev}
+            </button>
+            )}
       </div>
-      <div className={css.resOpen}>
-        <button type="button" className={`${css.btn} ${css.ghost}`} data-result-review="" onClick={onReview}>
-          {t('pipeRegenerate')}
-        </button>
-      </div>
-      <p className={css.hint}>{t('pipeResultReadNote')}</p>
     </div>
   )
+}
+
+/**
+ * The last segment of a stored path, for a row that names one file.
+ * @param path - an absolute path in either separator.
+ * @returns the last segment, or the path when it has none.
+ */
+function baseName(path: string): string {
+  const parts = path.split(/[\\/]/).filter(part => part !== '')
+  return parts[parts.length - 1] ?? path
 }
 
 /** The inline rename field: Enter or blur commits, Escape abandons. */

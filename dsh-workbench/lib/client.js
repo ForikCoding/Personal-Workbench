@@ -759,9 +759,7 @@ window.__ModuleLoader__.load({
 			pipeResultNoneBody: "单独运行一次，或者跑整条流水线。",
 			pipeResultWhat: "这次的结果",
 			pipeResultEdited: "这份结果被手工改过",
-			pipeResultOpenDir: "打开结果（清单与正文）",
 			pipeResultOpenInline: "查看结果",
-			pipeResultReadNote: "正文在阅读器里读。目录型结果由模板自己列出文件并渲染——清单就在那份文档里。",
 			pipeOpenResult: "打开结果",
 			pipeReaderBack: "返回工作台",
 			pipeHistoryTitle: "运行记录",
@@ -1126,9 +1124,7 @@ window.__ModuleLoader__.load({
 			pipeResultNoneBody: "Run it alone, or run the whole pipeline.",
 			pipeResultWhat: "This run’s result",
 			pipeResultEdited: "This result was edited by hand",
-			pipeResultOpenDir: "Open the result (list and body)",
 			pipeResultOpenInline: "Open the result",
-			pipeResultReadNote: "The body is read in the reader. A directory result is listed and rendered by the template itself — the list is part of that document.",
 			pipeOpenResult: "Open the result",
 			pipeReaderBack: "Back to the workbench",
 			pipeHistoryTitle: "Run record",
@@ -8244,9 +8240,6 @@ window.__ModuleLoader__.load({
 												},
 												onRun: () => {
 													if (active !== void 0) run.runOne(active, selected.index);
-												},
-												onReview: () => {
-													setReview({ cardId: selected.cardId });
 												}
 											})
 										})
@@ -8688,6 +8681,15 @@ window.__ModuleLoader__.load({
 					r: "5.7"
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8 4.8V8l2.2 1.4" })]
 			}),
+			file: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+				viewBox: "0 0 16 16",
+				fill: "none",
+				stroke: "currentColor",
+				strokeWidth: "1.4",
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9.2 2.4H4.6a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V5.6z" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9.2 2.4v3.2h3.2" })]
+			}),
 			check: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				viewBox: "0 0 16 16",
 				fill: "none",
@@ -9111,7 +9113,7 @@ window.__ModuleLoader__.load({
 		}
 		/** What one step's result panel shows: what it handed over, and how to read it. */
 		function ResultPanel(props) {
-			const { step, t, onOpen, onRun, onReview } = props;
+			const { step, t, onOpen, onRun } = props;
 			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: css.stateBlock,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeResultRunning") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("pipeResultRunningBody") })]
@@ -9156,12 +9158,14 @@ window.__ModuleLoader__.load({
 					})
 				]
 			});
+			const product = step.product;
+			const summary = product.kind === "inline" && product.text !== "" ? product.text : t("pipeInlineProduct");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: css.resBlock,
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: css.resBlockHead,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeResultWhat") }), step.product.kind === "directory" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: step.product.path }) : null]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeResultWhat") }), product.kind === "directory" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: product.path }) : null]
 					}),
 					step.result.editedAt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: css.revised,
@@ -9170,36 +9174,46 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: css.resList,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						children: product.kind === "directory" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 							type: "button",
 							className: css.resItem,
 							"data-open-result": "",
 							onClick: onOpen,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: css.resItemName,
-								children: step.product.kind === "directory" ? t("pipeResultOpenDir") : t("pipeResultOpenInline")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: css.resItemSize,
-								children: formatWhen(step.result.executedAt, Date.now())
-							})]
-						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: css.resOpen,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							children: [
+								MARK.file,
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: css.resItemName,
+									children: baseName(product.path)
+								}),
+								MARK.chev
+							]
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 							type: "button",
-							className: `${css.btn} ${css.ghost}`,
-							"data-result-review": "",
-							onClick: onReview,
-							children: t("pipeRegenerate")
+							className: css.resOpen,
+							"data-open-result": "",
+							onClick: onOpen,
+							children: [
+								MARK.file,
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeResultOpenInline") }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", {
+									"data-result-summary": "",
+									children: summary
+								}),
+								MARK.chev
+							]
 						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: css.hint,
-						children: t("pipeResultReadNote")
 					})
 				]
 			});
+		}
+		/**
+		* The last segment of a stored path, for a row that names one file.
+		* @param path - an absolute path in either separator.
+		* @returns the last segment, or the path when it has none.
+		*/
+		function baseName(path) {
+			const parts = path.split(/[\\/]/).filter((part) => part !== "");
+			return parts[parts.length - 1] ?? path;
 		}
 		/** The inline rename field: Enter or blur commits, Escape abandons. */
 		function RenameField(props) {
