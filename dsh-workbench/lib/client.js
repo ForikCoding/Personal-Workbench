@@ -8181,6 +8181,28 @@ window.__ModuleLoader__.load({
 				stepViews,
 				t
 			]);
+			/**
+			* Write one field into one step's card.
+			*
+			* Skill and instruction are the step's own: a step that is 详细设计 must not be able to
+			* change what the step before it runs, and must not be shown the other step's answer.
+			* @param cardId - the step's card.
+			* @param patch - the field to store.
+			*/
+			const applyStepPatch = (0, react.useCallback)((cardId, patch) => {
+				patchStepCards([cardId], patch).then((written) => {
+					if (!written) {
+						setConfigProblem(t("pipeCfgWriteFailed"));
+						return;
+					}
+					setConfigProblem(void 0);
+					reload();
+				});
+			}, [
+				patchStepCards,
+				reload,
+				t
+			]);
 			const chooseWorkspaceForSteps = (0, react.useCallback)(() => {
 				if (workspacePicker === void 0) return;
 				workspacePicker.pick().then((picked) => {
@@ -9022,7 +9044,10 @@ window.__ModuleLoader__.load({
 														reload();
 													});
 												},
-												onPatch: applyPatch
+												onPatch: applyPatch,
+												onStepPatch: (patch) => {
+													applyStepPatch(selected.cardId, patch);
+												}
 											})
 										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 											className: css.resultPanel,
@@ -9655,8 +9680,9 @@ window.__ModuleLoader__.load({
 		}
 		/** What one step's config panel shows: what it is, and what its document looks like. */
 		function ConfigPanel(props) {
-			const { step, shared, models, skills, t, onSaveTemplate, onPatch, onPickWorkspace, problem } = props;
+			const { step, shared, models, skills, t, onSaveTemplate, onPatch, onStepPatch, onPickWorkspace, problem } = props;
 			const template = step.card?.template;
+			const mine = step.card;
 			const [draft, setDraft] = (0, react.useState)(template ?? "");
 			(0, react.useEffect)(() => {
 				setDraft(template ?? "");
@@ -9792,10 +9818,10 @@ window.__ModuleLoader__.load({
 									className: css.ruleSelect,
 									"data-cfg-skill": "",
 									"aria-label": t("pipeCfgSkill"),
-									value: shared?.skill ?? "",
+									value: mine?.skill ?? "",
 									onChange: (event) => {
 										const next = event.target.value;
-										onPatch({ skill: next === "" ? null : next });
+										onStepPatch({ skill: next === "" ? null : next });
 									},
 									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 										value: "",
@@ -9806,7 +9832,7 @@ window.__ModuleLoader__.load({
 									}, entry.name))]
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: css.hint,
-									children: shared?.skill === void 0 ? t("pipeCfgSkillNoNote") : skills.find((entry) => entry.name === shared.skill)?.description ?? t("pipeCfgSkillNoNote")
+									children: mine?.skill === void 0 ? t("pipeCfgSkillNoNote") : skills.find((entry) => entry.name === mine.skill)?.description ?? t("pipeCfgSkillNoNote")
 								})]
 							})]
 						}),
@@ -9823,13 +9849,13 @@ window.__ModuleLoader__.load({
 									"aria-label": t("pipeCfgInstruction"),
 									rows: 2,
 									spellCheck: false,
-									defaultValue: shared?.instruction ?? "",
+									defaultValue: mine?.instruction ?? "",
 									onBlur: (event) => {
 										const next = event.currentTarget.value.trim();
-										if (next === (shared?.instruction ?? "")) return;
-										onPatch({ instruction: next === "" ? null : next });
+										if (next === (mine?.instruction ?? "")) return;
+										onStepPatch({ instruction: next === "" ? null : next });
 									}
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								}, step.cardId), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: css.hint,
 									children: t("pipeCfgInstructionNote")
 								})]

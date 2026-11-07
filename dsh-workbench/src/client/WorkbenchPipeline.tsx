@@ -576,6 +576,25 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })
   }, [patchStepCards, reload, stepViews, t])
 
+  /**
+   * Write one field into one step's card.
+   *
+   * Skill and instruction are the step's own: a step that is 详细设计 must not be able to
+   * change what the step before it runs, and must not be shown the other step's answer.
+   * @param cardId - the step's card.
+   * @param patch - the field to store.
+   */
+  const applyStepPatch = useCallback((cardId: string, patch: StepCardPatch) => {
+    void patchStepCards([cardId], patch).then((written) => {
+      if (!written) {
+        setConfigProblem(t('pipeCfgWriteFailed'))
+        return
+      }
+      setConfigProblem(undefined)
+      void reload()
+    })
+  }, [patchStepCards, reload, t])
+
   const chooseWorkspaceForSteps = useCallback(() => {
     if (workspacePicker === undefined) return
     void workspacePicker.pick().then((picked) => {
@@ -1416,6 +1435,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                                 })
                               }}
                               onPatch={applyPatch}
+                              onStepPatch={(patch) => { applyStepPatch(selected.cardId, patch) }}
                             />
                           </div>
                           )
@@ -1851,6 +1871,16 @@ function ConfigPanel(props: {
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   /** Write one field into every step's card; this is what makes one edit reach all of them. */
   readonly onPatch: (patch: StepCardPatch) => void
+  /**
+   * Write one field into this step's card only.
+   *
+   * The rows above the 这一步 heading are the pipeline's (model, permission, directory) and go
+   * to every step. Skill and instruction belong to one step, so they are read from that step's
+   * card and written to it alone — through the same call, they used to read the first step's
+   * card and write all of them, which showed one step's skill on another and renamed skills
+   * the user never touched.
+   */
+  readonly onStepPatch: (patch: StepCardPatch) => void
   /** Store this step's template; the box commits on blur, not per keystroke. */
   readonly onSaveTemplate: (html: string) => void
   /** Ask the platform for one directory; disabled when there is no chooser. */
@@ -1858,8 +1888,11 @@ function ConfigPanel(props: {
   /** Why the last write did not land; absent when it did. */
   readonly problem: string | undefined
 }): ReactNode {
-  const { step, shared, models, skills, t, onSaveTemplate, onPatch, onPickWorkspace, problem } = props
+  const { step, shared, models, skills, t, onSaveTemplate, onPatch, onStepPatch, onPickWorkspace, problem } = props
   const template = step.card?.template
+  // This step's own card: the rows under 这一步 speak for this step, whatever the pipeline's
+  // first card happens to hold.
+  const mine = step.card
   // The box owns what the user is typing; the card owns what is stored. They meet on blur.
   const [draft, setDraft] = useState(template ?? '')
   useEffect(() => { setDraft(template ?? '') }, [template])
@@ -1970,10 +2003,10 @@ function ConfigPanel(props: {
               className={css.ruleSelect}
               data-cfg-skill=""
               aria-label={t('pipeCfgSkill')}
-              value={shared?.skill ?? ''}
+              value={mine?.skill ?? ''}
               onChange={(event) => {
                 const next = event.target.value
-                onPatch({ skill: next === '' ? null : next })
+                onStepPatch({ skill: next === '' ? null : next })
               }}
             >
               <option value="">{t('pipeCfgNoSkill')}</option>
@@ -1981,7 +2014,7 @@ function ConfigPanel(props: {
                 <option key={entry.name} value={entry.name}>{entry.name}</option>
               ))}
             </select>
-            <span className={css.hint}>{shared?.skill === undefined ? t('pipeCfgSkillNoNote') : (skills.find(entry => entry.name === shared.skill)?.description ?? t('pipeCfgSkillNoNote'))}</span>
+            <span className={css.hint}>{mine?.skill === undefined ? t('pipeCfgSkillNoNote') : (skills.find(entry => entry.name === mine.skill)?.description ?? t('pipeCfgSkillNoNote'))}</span>
           </span>
         </div>
         <div className={css.ruleRow}>
@@ -1989,18 +2022,20 @@ function ConfigPanel(props: {
           <span className={css.ruleValue}>
             {/* A text box, because the instruction is the user's own sentence. Committed on
                 blur for the same reason as the directory: a write per keystroke would rewrite
-                every step's card on every letter. */}
+                the card on every letter. Keyed by the step: an uncontrolled box keeps the text
+                it was born with, so without the key it showed the step the panel opened on. */}
             <textarea
+              key={step.cardId}
               className={css.ruleArea}
               data-cfg-instruction=""
               aria-label={t('pipeCfgInstruction')}
               rows={2}
               spellCheck={false}
-              defaultValue={shared?.instruction ?? ''}
+              defaultValue={mine?.instruction ?? ''}
               onBlur={(event) => {
                 const next = event.currentTarget.value.trim()
-                if (next === (shared?.instruction ?? '')) return
-                onPatch({ instruction: next === '' ? null : next })
+                if (next === (mine?.instruction ?? '')) return
+                onStepPatch({ instruction: next === '' ? null : next })
               }}
             />
             <span className={css.hint}>{t('pipeCfgInstructionNote')}</span>

@@ -571,39 +571,45 @@ describe('WorkbenchPage', () => {
     expect(cardWrites[1]?.model).toBeNull()
   })
 
-  it('chooses the skill of every step from the catalog', async () => {
+  it('chooses the skill of the step being edited, and of that step alone', async () => {
+    // Reported: a step added as uf30-detailed-design opened its config on the skill of the
+    // step before it. The row read the first step's card and wrote every step's card, so it
+    // was wrong twice — in what it showed and in what one edit would have changed.
     const { cardWrites } = await renderPage()
     await screen.findByText(en.pipeAddStep)
-    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-index="1"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
     const row = document.querySelector('[data-cfg-skill]') as HTMLSelectElement
     expect(row).not.toBeNull()
-    // The row offers what the catalog holds, and says what the chosen skill does.
+    // The row offers what the catalog holds, and shows this step's card, not step 1's.
     expect([...row.options].map(option => option.value)).toContain('design-doc')
+    expect(row.value).toBe('review')
     expect((document.querySelector('[data-panel="config"]') as HTMLElement).textContent)
-      .toContain('Work with a repository')
+      .toContain('Review a change')
     fireEvent.change(row, { target: { value: 'design-doc' } })
-    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
-    expect(cardWrites.map(patch => patch.skill)).toEqual(['design-doc', 'design-doc'])
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
+    expect(cardWrites[0]?.cardId).toBe('b-card')
+    expect(cardWrites[0]?.skill).toBe('design-doc')
   })
 
-  it('edits the instruction as text and writes it to every step', async () => {
-    const { cardWrites } = await renderPage()
+  it('edits the instruction of the step being edited', async () => {
+    const { cardWrites } = await renderPage({
+      cardViews: [CARD_VIEWS[0], { ...CARD_VIEWS[1], instruction: '第二步自己的话' }],
+    })
     await screen.findByText(en.pipeAddStep)
-    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-index="1"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
     const box = document.querySelector('[data-cfg-instruction]') as HTMLTextAreaElement
     expect(box).not.toBeNull()
-    // A text box, not a mode picker: the instruction is the user's own sentence.
+    // A text box, not a mode picker: the instruction is the user's own sentence — and the box
+    // starts on this step's sentence, because an uncontrolled box keeps the one it was born
+    // with and used to show whichever step the panel opened on.
     expect(box.tagName).toBe('TEXTAREA')
+    expect(box.value).toBe('第二步自己的话')
     fireEvent.blur(box, { target: { value: '  只补测试，不改生产代码。  ' } })
-    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
+    await waitFor(() => { expect(cardWrites).toHaveLength(1) })
     // Trimmed on the way in: whitespace is not part of what the card says.
-    expect(cardWrites.map(patch => patch.instruction)).toEqual([
-      '只补测试，不改生产代码。',
-      '只补测试，不改生产代码。',
-    ])
-
+    expect(cardWrites[0]).toMatchObject({ cardId: 'b-card', instruction: '只补测试，不改生产代码。' })
   })
 
   it('asks the platform for a directory rather than reading a typed path', async () => {
