@@ -3,8 +3,8 @@
   workbench-pipeline-v2 —— 在 workbench-pipeline-2col.html 上按 UI / 交互审核逐条改出来的版本。
   两份文件的差别就是这份清单：
 
-   1. 整条运行真的会推进：串行引擎一步一步走完，运行记录跟着长；运行中「运行」置灰，
-      不再抢走正在看的那一步；检查器不再每次重渲染都跳回顶部
+   1. 整条运行真的会推进：串行引擎一步一步走完，运行记录跟着长；运行中「运行」变成
+      「停止」（见 18），不再抢走正在看的那一步；检查器不再每次重渲染都跳回顶部
    2. 模板从「结果」搬到「配置」；配置分三层：整条流水线 / 这一步 / 模板
       模型与权限从假按钮换成真下拉
    3. 流水线能改名（标题就地输入）、能删除（点两次确认）
@@ -38,6 +38,19 @@
            前两步跑过 → 「从第 3 步接着跑」；三步都单独跑过 → 「会从头再跑一遍」
          · 场景里加了「单步跑过」（三步里只单独跑过中间那一步）：整条没跑、可其中一步
            已完成的那个状态，得有地方看
+   18. 能停下来了。以前只有「运行」，按下去就只能等：整条跑的时候「运行」是灰的，
+       底部运行条上那个「停止」又只在整条跑时才出现，单独跑一步根本没有停的地方。
+       现在停止是「运行」跑起来之后的那一态，谁启动的谁停：
+         · 整条在跑 → 右上角的「运行」变成「停止」；单张卡片面同理
+         · 某一步单独在跑 → 那一步的「单独运行」变成「停止」，只停这一步，不碰整条
+         · 一次运行只有一个停止入口：整条在跑时，那一步的按钮只说明「停止在右上角」
+         · 按钮不搬家：同一个盒子、同一段字宽（运行 / 停止都是两个字），只换图标
+           （三角 → 方块）和描边色。填成实心红会被读成「出错了」，所以只描一圈
+         · 按下到真的停下来之间是「正在停止」：按钮变灰按不下去，运行条说明在收什么
+         · 落状态时三档分清：跑完的留着「完成」，被打断的是「已停止」（不是「排队中」，
+           它不会再自己开始了），还没轮到的退回「待运行」；运行条写清停在第几步、
+           点「运行」从第几步接着跑（起点同样出自 resumeFrom）
+         · 底部运行条不再放第二个停止：它只说「跑到哪了」
 -->
 <html lang="zh-CN">
 <head>
@@ -269,6 +282,33 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .btn:disabled:hover { background: transparent; opacity: .38; }
 .btn.ghost:disabled:hover { background: transparent; }
 .btn.primary:disabled:hover { opacity: .38; }
+
+/* ----------------------------------------------------------------- 停止 */
+/* 停止不是第三个按钮，是「运行」跑起来之后的那一态：同一个盒子、同一段字宽（运行 /
+   停止都是两个字），只换图标和描边——停的时候手不用重新找。
+   描边而不填色：运行中是正常状态，填成实心红会被读成「出错了」。 */
+.btn.stop,
+.runOne.stop {
+  border: 0.5px solid color-mix(in srgb, var(--danger) 42%, var(--hairline));
+  color: var(--danger);
+  font-weight: 500;
+}
+.btn.stop:hover,
+.runOne.stop:hover {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--hairline));
+}
+.btn.stop:active,
+.runOne.stop:active { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+/* 停止中：从按下去到真的停下来之间那一下。按钮还在原地，只是不再可点 */
+.btn.stop:disabled,
+.runOne.stop:disabled { opacity: .55; cursor: default; }
+.btn.stop:disabled:hover,
+.runOne.stop:disabled:hover { background: transparent; opacity: .55; }
+/* 同一个按钮两个图标：换状态只换图标，不换宽度 */
+.glyphStop { display: none; }
+[data-stop="1"] .glyphPlay { display: none; }
+[data-stop="1"] .glyphStop { display: block; }
 
 .panelBody { flex: 1; min-height: 0; display: flex; }
 /* 只剩一个视图了，不再需要切换用的 display 开关 */
@@ -691,6 +731,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 }
 .runOne svg { width: 11px; height: 11px; }
 .runOne:hover { background: var(--hover-strong); }
+/* 按不下去的时候要看得出来（比如这一步正在整条里跑），不然会以为点了没反应 */
+.runOne:disabled { opacity: .45; cursor: default; }
+.runOne:disabled:hover { background: transparent; }
 .inspMeta {
   margin-top: 5px;
   display: flex;
@@ -1181,6 +1224,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   background: repeating-linear-gradient(90deg, var(--ink4) 0 1.5px, transparent 1.5px 4px);
   opacity: .75;
 }
+/* 被停下、没跑完的那一步：浅实心。和「排队中」的点阵（还会跑）、完成的实绿都不一样 */
+.segBar i[data-s="stopped"] { background: color-mix(in srgb, var(--ink4) 45%, transparent); }
 /* 单独跑过的一步：段是空心的。整条跑完的段才填满——运行条本身就在说「没从头跑过」 */
 /* 4px 高的条上只描一圈太淡，所以里面留一层很浅的绿：不填满 = 没整条跑过 */
 .segBar i[data-s="solo"] {
@@ -1190,7 +1235,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .runNoise { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }
 .runNoise b { font-weight: 500; color: var(--ink); }
 .runNoise .timer { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.runActions { flex: none; display: flex; align-items: center; gap: 6px; }
+
 
 /* 点 */
 .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--idle); }
@@ -1774,9 +1819,11 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
         <span class="headLabel">新建流水线</span>
       </button>
+      <!-- 这一个按钮两个状态：没跑是「运行」，跑起来就是「停止」 -->
       <button class="btn primary" type="button" id="runAllBtn">
-        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>
-        <span class="headLabel">运行</span>
+        <svg class="glyphPlay" viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>
+        <svg class="glyphStop" viewBox="0 0 16 16" fill="currentColor"><rect x="4.5" y="4.5" width="7" height="7" rx="1.3"/></svg>
+        <span class="headLabel" id="runAllLabel">运行</span>
       </button>
     </header>
 
@@ -1815,9 +1862,11 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
               </div>
               <div class="inspTitleRow">
                 <h2 class="inspTitle" id="inspTitle">代码实现</h2>
+                <!-- 同理：这一步没在跑是「单独运行」，正在单独跑就是它的「停止」 -->
                 <button class="runOne" type="button" id="runOneBtn">
-                  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>
-                  单独运行
+                  <svg class="glyphPlay" viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>
+                  <svg class="glyphStop" viewBox="0 0 16 16" fill="currentColor"><rect x="4.5" y="4.5" width="7" height="7" rx="1.3"/></svg>
+                  <span id="runOneLabel">单独运行</span>
                 </button>
                 <button class="iconBtn" type="button" id="stepMoreBtn" aria-label="步骤操作" aria-haspopup="menu" aria-expanded="false">
                   <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.4" cy="8" r="1.15"/><circle cx="8" cy="8" r="1.15"/><circle cx="12.6" cy="8" r="1.15"/></svg>
@@ -1839,12 +1888,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           </aside>
         </div>
 
+        <!-- 运行条只说「跑到哪了」。停止在各自启动它的那个按钮上，这里不再放第二个 -->
         <div class="runbar">
           <div class="segBar" id="segBar"></div>
-          <div class="runNoise" id="runNoise"></div>
-          <div class="runActions">
-            <button class="btn ghost" type="button" id="stopBtn">停止</button>
-          </div>
+          <div class="runNoise" id="runNoise" aria-live="polite"></div>
         </div>
       </section>
 
@@ -1937,6 +1984,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   /* ============================================================ 图标 */
   const SVG = {
     play: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 2.9c0-.5.5-.8.9-.6l7.1 4.2c.4.2.4.8 0 1l-7.1 4.2c-.4.2-.9-.1-.9-.6z"/></svg>',
+    // 停止的图标是一个方块：三角换方块，比换颜色先被看见
+    stop: '<svg viewBox="0 0 16 16" fill="currentColor"><rect x="4.5" y="4.5" width="7" height="7" rx="1.3"/></svg>',
     dash: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.3" stroke-dasharray="2.2 2.2"/></svg>',
     check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3.6 8.4 2.8 2.6 5.9-6"/></svg>',
     clock: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.7"/><path d="M8 4.8V8l2.2 1.4"/></svg>',
@@ -2124,6 +2173,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     think: { name: '思考' },
     done: { name: '完成' },
     fail: { name: '失败' },
+    // 被停下来不是失败：失败是它出了错，停止是人喊的停
+    stop: { name: '停止' },
   };
 
   const PIPELINES = [
@@ -2671,6 +2722,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       foot = `${SVG.warn}<span>${esc(st.summary)}</span>`;
     } else if (queued) {
       foot = `<span>等待第 ${i} 步完成</span>`;
+    } else if (st.status === 'stopped') {
+      // 跑到一半被停下，和「还没启动过」是两件事：它启动了，只是没交出产物
+      foot = `<span>这一跑被打断，没有产物</span>`;
     } else {
       foot = `<span>还没启动过</span>`;
     }
@@ -2692,26 +2746,53 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       </div>`;
   }
 
+  /**
+   * 右上角那一个按钮的状态：整条流水线唯一的运行 / 停止入口。
+   *
+   * 跑起来就变成「停止」——位置不动、字宽不动（运行 / 停止都是两个字），只有图标由
+   * 三角换成方块、填充退回一圈描边。停止中那一下按不下去（正在收尾），没有步骤时也
+   * 按不下去（按了什么都不发生）。
+   */
+  function paintRunButton(flow) {
+    const btn = $('#runAllBtn');
+    const label = $('#runAllLabel');
+    const noSteps = flow.stages.length === 0;
+    // 一张卡片的面板（单任务）里，右上角这个按钮就是那张卡片的运行入口，所以它单独跑
+    // 也算「在跑」；流水线面板里它只管整条，某一步单独跑归那一步自己的按钮。
+    const soloRunning = flow._solo !== undefined && flow.stages[flow._solo]?.status === 'running';
+    const running = flow.isTask ? soloRunning : flow.state === 'running';
+    const stopping = flow.isTask ? soloRunning && flow._soloStopping === true : flow._stopping === true;
+    btn.dataset.stop = running ? '1' : '0';
+    btn.classList.toggle('stop', running);
+    btn.classList.toggle('primary', !running);
+    btn.disabled = noSteps || stopping;
+    label.textContent = stopping ? '正在停止' : running ? '停止' : '运行';
+    const title = noSteps
+      ? '先加一个步骤'
+      : stopping
+        ? '正在停下来'
+        : running
+          ? flow.isTask ? '停止这次运行 · 之前的结果保留' : '停止这次运行 · 已完成的步骤保留'
+          : flow.isTask ? '运行这一步' : '运行整条流水线';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+  }
+
   function renderRunbar(flow) {
     const bar = $('#segBar');
     const noise = $('#runNoise');
-    // 运行中把「运行」按下去也没用，索性按下去就不可点，省得以为在排队
-    // 没有步骤时按「运行」什么都不会发生，索性按不下去
-    const noSteps = flow.stages.length === 0;
-    $('#runAllBtn').disabled = flow.state === 'running' || noSteps;
-    $('#runAllBtn').title = flow.state === 'running'
-      ? '正在运行，先停止或等它跑完'
-      : noSteps ? '先加一个步骤' : '运行整条流水线';
+    paintRunButton(flow);
     if (flow.isTask) {
       bar.innerHTML = '';
-      noise.innerHTML = '<span>单任务 · 不排队</span>';
-      $('#stopBtn').hidden = true;
+      const solo = flow._solo !== undefined && flow.stages[flow._solo]?.status === 'running';
+      noise.innerHTML = solo
+        ? `<span>单任务 · 不排队</span><span>·</span><span>已运行</span><span class="timer" data-timer="stage">${stageElapsed(flow.stages[flow._solo])}</span>`
+        : '<span>单任务 · 不排队</span>';
       return;
     }
     if (flow.stages.length === 0) {
       bar.innerHTML = '';
       noise.innerHTML = '<span>还没有步骤</span>';
-      $('#stopBtn').hidden = true;
       return;
     }
     // 单步跑过的一步画成空心段：整条跑完才填实，运行条自己就把"没从头跑过"说清楚。
@@ -2720,21 +2801,30 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     bar.innerHTML = flow.stages.map(s => `<i data-s="${soloSeg && s.status === 'done' && s.runScope && s.runScope !== 'full' ? 'solo' : s.status}"></i>`).join('');
     const doneCount = flow.stages.filter(s => s.status === 'done').length;
     const cur = flow.stages.findIndex(s => s.status === 'running');
+    const soloIdx = flow._solo;
+    const soloRunning = soloIdx !== undefined && flow.stages[soloIdx]?.status === 'running';
     if (flow.state === 'running') {
-      noise.innerHTML = `<span>运行中 · 第 ${cur + 1} 步 / 共 ${flow.stages.length} 步</span><span>·</span><span>已运行</span><span class="timer" data-timer="run">${runElapsed(flow)}</span>`;
-      $('#stopBtn').hidden = false;
+      // 停下来要一下（子 agent 得收尾），这一下也要说清楚在收什么
+      noise.innerHTML = flow._stopping
+        ? `<span>正在停止</span><span>·</span><span>第 ${cur + 1} 步收尾中 · 前面 ${doneCount} 步的产物留着</span>`
+        : `<span>运行中 · 第 ${cur + 1} 步 / 共 ${flow.stages.length} 步</span><span>·</span><span>已运行</span><span class="timer" data-timer="run">${runElapsed(flow)}</span>`;
+    } else if (soloRunning) {
+      // 单独跑这一步：整条没有在跑，所以「运行」还是「运行」；停止在这一步自己的按钮上
+      const st = flow.stages[soloIdx];
+      noise.innerHTML = `<span>第 ${soloIdx + 1} 步单独运行中</span><span>·</span><span>已运行</span><span class="timer" data-timer="stage">${stageElapsed(st)}</span>`;
     } else if (flow.state === 'failed') {
       noise.innerHTML = `<span>${doneCount} / ${flow.stages.length} 步完成 · 第 ${doneCount + 1} 步失败，后续未执行</span>`;
-      $('#stopBtn').hidden = true;
     } else if (flow.state === 'stopped') {
-      noise.innerHTML = `<span>${doneCount} / ${flow.stages.length} 步完成 · 已手动停止</span>`;
-      $('#stopBtn').hidden = true;
+      // 停在第几步、从哪一步接着跑，都要说准：那句起点和引擎共用 resumeFrom
+      const at = flow._stoppedAt;
+      const from = resumeFrom(flow);
+      noise.innerHTML = at === undefined
+        ? `<span>${doneCount} / ${flow.stages.length} 步完成 · 已手动停止</span>`
+        : `<span>${doneCount} / ${flow.stages.length} 步完成 · 第 ${at + 1} 步停在半路 · 点「运行」从第 ${from + 1} 步接着跑</span>`;
     } else if (flow.state === 'done') {
       noise.innerHTML = `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span>`;
-      $('#stopBtn').hidden = true;
     } else if (!runsOf(flow).length) {
       noise.innerHTML = `<span>未整体运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
-      $('#stopBtn').hidden = true;
     } else {
       // 跑过，但只是单独跑过其中几步：整条依然没跑过。
       // 报出是哪几步，并说准「运行」会从哪一步起——那句话和引擎共用 resumeFrom。
@@ -2748,8 +2838,38 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           ? '点「运行」从第 1 步开始，跑过的那一步会重跑'
           : `点「运行」从第 ${from + 1} 步接着跑`;
       noise.innerHTML = `<span>整条还没跑过</span><span>·</span><span>${which}单独跑过</span><span>·</span><span>${next}</span>`;
-      $('#stopBtn').hidden = true;
     }
+  }
+
+  /**
+   * 检查器标题行那个按钮：这一步「单独运行」的入口，也是它的「停止」。
+   *
+   * 整条在跑的时候它按不下去——那一次运行整条只有一个停止入口（右上角），
+   * 这里再放一个就成了同一件事的两种说法。
+   */
+  function paintRunOne(flow, i, st) {
+    const btn = $('#runOneBtn');
+    const label = $('#runOneLabel');
+    const solo = flow._solo === i && st.status === 'running';
+    // 单卡片面板里停止归右上角那一个（它就是这张卡片的运行入口），这里不再放第二个
+    const stop = solo && !flow.isTask;
+    const stopping = stop && flow._soloStopping === true;
+    const chain = flow.state === 'running';
+    // 这一步正在整条里跑：单跑会和那一次运行抢同一步，所以只说明停止在右上角
+    const busyInChain = chain && st.status === 'running';
+    btn.dataset.stop = stop ? '1' : '0';
+    btn.classList.toggle('stop', stop);
+    btn.disabled = stopping || busyInChain || (solo && flow.isTask);
+    label.textContent = stop ? (stopping ? '正在停止' : '停止') : '单独运行';
+    const title = stop
+      ? stopping ? '正在停下来' : '停止这一步 · 它之前的结果保留'
+      : busyInChain
+        ? '这一步正在整条里跑 · 停止在右上角'
+        : solo ? '这次运行正在跑 · 停止在右上角'
+          : chain ? '整条正在运行 · 单独跑它会插进这一次运行里'
+            : '只跑这一步，不算流水线的一次运行';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
   }
 
   /* ============================================================ 检查器 */
@@ -2800,6 +2920,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 
     $('#inspTitle').textContent = stageName(st);
     $('#runOneBtn').hidden = false;
+    paintRunOne(flow, i, st);
     $('#inspMeta').hidden = false;
     $('#inspMeta').innerHTML = `
       <code>${esc(st.skill)}</code><span>·</span><span>${esc(flow.model || 'deepseek-chat')}</span>
@@ -3342,16 +3463,33 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     renderAll();
   }
 
+  /**
+   * 结果面板里那个「运行这一步」按钮。它只负责「运行」：正在跑的这一步，停止在它
+   * 标题行那颗按钮上（同一个位置、同一个按钮），空结果块里不再摆第二个。
+   */
+  function stepRunBtnHtml(i, label) {
+    return `<button class="btn ghost" type="button" data-run-node="${i}" style="margin-top:2px">${SVG.play}<span>${label}</span></button>`;
+  }
+
   function renderResult(st, i, flow) {
     const box = $('#resultPanel');
 
     if (st.status === 'running') {
+      // 停止在哪儿说清楚：这一步自己单独跑 → 标题行那颗；整条在跑 / 单卡片 → 右上角。
+      // 一次运行只有一个停止入口，这里不摆第二个按钮。
+      const solo = !flow.isTask && flow._solo === i;
+      const where = solo
+        ? ''
+        : flow.isTask
+          ? `<p style="color:var(--ink4)">要停下来，用右上角的「停止」。</p>`
+          : `<p style="color:var(--ink4)">这是整条流水线的第 ${i + 1} 步。要停下来，用右上角的「停止」。</p>`;
       box.innerHTML = `
         <div class="resultBar">${chipHtml('running')}<div class="spacer"></div></div>
         <div class="docPad">
           <div class="stateBlock">
             <h6>正在生成结果</h6>
             <p>${esc(st.summary)}。写完这里会列出它交出的文件。</p>
+            ${where}
           </div>
           <div class="skel" style="margin-top:12px">
             <i style="width:52%"></i><i></i><i style="width:86%"></i><i style="width:70%"></i><i style="width:44%"></i>
@@ -3367,7 +3505,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           <div class="stateBlock">
             <h6>这一步还没有运行</h6>
             <p>串行编排会等第 ${i} 步完成后自动开始。也可以现在就单独运行它，跳过前面的步骤。</p>
-            <button class="btn ghost" type="button" data-run-node="${i}" style="margin-top:2px">${SVG.play}<span>单独运行这一步</span></button>
+            ${stepRunBtnHtml(i, '单独运行这一步')}
           </div>
         </div>`;
       return;
@@ -3386,7 +3524,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           </div>
         </div>
         <div class="resultBar" style="margin-top:12px">
-          <button class="btn ghost" type="button" data-run-node="${i}">${SVG.play}<span>重试这一步</span></button>
+          ${stepRunBtnHtml(i, '重试这一步')}
         </div>`;
       return;
     }
@@ -3398,8 +3536,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           <div class="stateBlock">
             <h6>这一步待运行</h6>
             <p>${esc((TASKS.find(t => t.skill === st.skill) || {}).desc || '')}</p>
-            <p style="color:var(--ink4)">还没启动过：点「运行这一步」只跑它，按顺序跑整条用右下角的运行按钮。</p>
-            <button class="btn ghost" type="button" data-run-node="${i}" style="margin-top:2px">${SVG.play}<span>运行这一步</span></button>
+            <p style="color:var(--ink4)">还没启动过：点「运行这一步」只跑它，按顺序跑整条用右上角的「运行」。</p>
+            ${stepRunBtnHtml(i, '运行这一步')}
           </div>
         </div>`;
       return;
@@ -4340,11 +4478,22 @@ ${region}
       return;
     }
     const runNode = e.target.closest('[data-run-node]');
-    if (runNode) { flashRun(Number(runNode.dataset.runNode)); }
+    if (runNode) {
+      const i = Number(runNode.dataset.runNode);
+      const st = current().stages[i];
+      // 同一个按钮两个状态：这一步正在单独跑，它现在就是「停止」
+      if (st && st.status === 'running' && current()._solo === i) stopSolo(i);
+      else flashRun(i);
+    }
   });
 
-  // 单独运行
-  $('#runOneBtn').addEventListener('click', () => flashRun(state.sel));
+  // 单独运行 / 停止这一步
+  $('#runOneBtn').addEventListener('click', () => {
+    const flow = current();
+    const i = state.sel;
+    if (flow._solo === i && flow.stages[i]?.status === 'running') stopSolo(i);
+    else flashRun(i);
+  });
 
   // 阅读器：现在的结果，和历史某次运行的交货，同一套
   $('#zoomClose').innerHTML = SVG.x;
@@ -4441,8 +4590,14 @@ ${region}
     syncSceneSeg();
     newPipeline();
   });
-  $('#runAllBtn').addEventListener('click', () => startRun());
-  $('#stopBtn').addEventListener('click', () => stopRun());
+  // 右上角那一个按钮：没跑就运行，跑起来就停止——流水线停整条，单卡片停它自己那次
+  $('#runAllBtn').addEventListener('click', () => {
+    const flow = current();
+    const soloRunning = flow._solo !== undefined && flow.stages[flow._solo]?.status === 'running';
+    if (flow.isTask && soloRunning) stopSolo(flow._solo);
+    else if (flow.state === 'running') stopRun();
+    else startRun();
+  });
 
   // 选择器
   $('#pickerScrim').addEventListener('click', closePicker);
@@ -4511,6 +4666,8 @@ ${region}
    */
   let runToken = 0;
   let runTimer = null;
+  // 单独运行这一步也有自己的令牌：停了之后，那次定时器落地也不能再写产物
+  let soloToken = 0;
   const STEP_DUR = ['12.4s', '31.8s', '1m48s', '26.0s', '19.2s', '41.6s'];
   const STEP_TICK = [700, 1100, 1600, 900, 800, 1200];
   /** 这一次运行、这一步已经跑了多久。读真实起点，不是只增不减的全局计数。 */
@@ -4571,6 +4728,9 @@ ${region}
     flow.state = 'running';
     flow.updated = '刚刚';
     flow._startedAt = Date.now();
+    // 上一次停下来的痕迹不能留到这一次：不然「正在停止」会粘在新的一次运行上
+    flow._stopping = false;
+    flow._stoppedAt = undefined;
     // 不抢选中：你在读第 1 步，就继续读第 1 步
     state.inspTab = 'activity';
 
@@ -4652,24 +4812,90 @@ ${region}
     }, wait);
   }
 
+  /**
+   * 停止整条运行。
+   *
+   * 停止不是瞬时动作：真正停下来要等正在跑的那一步收尾，所以先进入「正在停止」
+   * （按钮按不下去、运行条说明在收什么），半秒后才落状态。这一步先取消令牌，
+   * 让已经在路上的那次 tick 落地也推进不了下一步。
+   *
+   * 落状态时把三档分清楚：跑完的留着「完成」，被打断的是「已停止」（不是「排队中」——
+   * 它不会再自己开始了），还没轮到的退回「待运行」。否则停完之后整条看起来像还在排队。
+   */
   function stopRun() {
     const flow = current();
-    if (flow.isTask) return;
+    if (flow.isTask || flow.state !== 'running' || flow._stopping) return;
     runToken += 1;
     if (runTimer) { clearTimeout(runTimer); runTimer = null; }
-    flow.stages.forEach(s => {
-      if (s.status === 'running') { s.status = 'queued'; s.summary = ''; }
-    });
-    flow.state = 'stopped';
-    flow.updated = '刚刚';
-    // 停了的那次运行也要有交代，否则记录里会永远停在"运行中"
-    const run = activeRun(flow);
-    if (run) {
-      run.status = 'stopped';
-      run.took = tookOf(Date.now() - (flow._startedAt || Date.now()));
-      run.steps = flow.stages.map(snapshotStep);
-    }
+    flow._stopping = true;
     renderAll();
+    window.setTimeout(() => {
+      if (!PIPELINES.includes(flow)) return;
+      flow._stopping = false;
+      // 停整条就把它手边的那次单跑也停掉：两个引擎同时写同一步只会留下半截状态
+      soloToken += 1;
+      flow._solo = undefined;
+      flow._soloPrev = undefined;
+      flow._soloStopping = false;
+      flow.stages.forEach((s, i) => {
+        if (s.status === 'running') {
+          s.status = 'stopped';
+          s.summary = '已停止';
+          s.acts = [...(s.acts || []), { t: '刚刚', k: 'stop', m: '运行被打断，这一步没有交出产物。', d: '—' }];
+          flow._stoppedAt = i;
+        } else if (s.status === 'queued') {
+          s.status = 'idle';
+          s.summary = '';
+        }
+      });
+      flow.state = 'stopped';
+      flow.updated = '刚刚';
+      // 停了的那次运行也要有交代，否则记录里会永远停在"运行中"
+      const run = activeRun(flow);
+      if (run) {
+        run.status = 'stopped';
+        run.took = tookOf(Date.now() - (flow._startedAt || Date.now()));
+        run.steps = flow.stages.map(snapshotStep);
+      }
+      renderAll();
+    }, 500);
+  }
+
+  /**
+   * 停止「只跑了这一步」的那次运行。
+   *
+   * 它和整条无关：不碰 flow.state，也不进运行记录（这次运行没有交出去任何东西）。
+   * 这一步退回到它原来的样子——之前有产物就还是那个产物，没有就还是「待运行」，
+   * 活动里留一行说明，而不是把「正在处理…」挂在那里。
+   */
+  function stopSolo(i) {
+    const flow = current();
+    const st = flow.stages[i];
+    if (!st || flow._solo !== i || st.status !== 'running' || flow._soloStopping) return;
+    soloToken += 1;
+    flow._soloStopping = true;
+    renderAll();
+    window.setTimeout(() => {
+      if (!PIPELINES.includes(flow)) return;
+      const prev = flow._soloPrev || {};
+      flow._soloStopping = false;
+      flow._solo = undefined;
+      flow._soloPrev = undefined;
+      writeStage(flow, i, {
+        status: prev.status || 'idle',
+        summary: prev.summary || '',
+        dur: prev.dur,
+        startedAt: prev.startedAt,
+        dir: prev.dir,
+        files: prev.files,
+        doc: prev.doc,
+        acts: [
+          ...(st.acts || []),
+          { t: '刚刚', k: 'stop', m: '这一步的运行被停止，没有交出产物。', d: '—' },
+        ],
+      });
+      renderAll();
+    }, 500);
   }
 
   /**
@@ -4684,17 +4910,42 @@ ${region}
     const flow = current();
     const st = flow.stages[i];
     if (!st) return;
+    // 正在跑还再点一次，只会把状态推回去重来一次
+    if (flow._solo === i && st.status === 'running') return;
+    // 这一步正被整条跑着：那一次运行管着它，别再起一个单跑跟它抢同一步
+    if (flow.state === 'running' && st.status === 'running') return;
 
+    // 记下它原来的样子：停下来的时候要原样还回去，而不是留一个假的「正在处理…」
+    flow._soloPrev = {
+      status: st.status === 'running' ? 'idle' : st.status,
+      summary: st.summary,
+      dur: st.dur,
+      startedAt: st.startedAt,
+      dir: st.dir,
+      files: st.files,
+      doc: st.doc,
+    };
+    flow._solo = i;
+    flow._soloStopping = false;
     writeStage(flow, i, {
       status: 'running',
       summary: '正在处理…',
+      // 起点是现在：不然「已运行」读的是这一步上一次的起点，一按下去就显示几分钟
+      startedAt: Date.now(),
       acts: [...(st.acts || []), { t: '刚刚', k: 'think', m: '开始执行这一步。', d: '—' }],
     });
     state.sel = i;
     state.inspTab = 'activity';
     renderAll();
 
+    soloToken += 1;
+    const token = soloToken;
     window.setTimeout(() => {
+      // 停过就别再落产物：那次运行已经结束了
+      if (token !== soloToken) return;
+      if (!PIPELINES.includes(flow)) return;
+      flow._solo = undefined;
+      flow._soloPrev = undefined;
       // 先落产物，再记这次运行：快照要收这次交出去的东西，不是上一次的
       const product = STEP_PRODUCT[st.skill] || {};
       writeStage(flow, i, {
@@ -4734,10 +4985,11 @@ ${region}
     state.tick.run += 1;
     state.tick.stage += 1;
     const flow = current();
-    const t1 = $('[data-timer="run"]');
-    if (t1) t1.textContent = runElapsed(flow);
-    const t2 = $('[data-timer="stage"]');
-    if (t2) t2.textContent = stageElapsed(flow.stages.find(s => s.status === 'running'));
+    // 同一步的用时可能同时出现在两处（节点上、运行条上），两处要一起走，
+    // 否则同一个事实会显示两个数
+    $$('[data-timer="run"]').forEach(el => { el.textContent = runElapsed(flow); });
+    const running = flow.stages.find(s => s.status === 'running');
+    $$('[data-timer="stage"]').forEach(el => { el.textContent = stageElapsed(running); });
   }, 1000);
 
   /* ============================================================ 深链 */
