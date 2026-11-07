@@ -166,7 +166,7 @@ function createWorkbenchLayoutHandler(options) {
 			return;
 		}
 		if (request.method === "GET") {
-			sendJson(response, 200, responseBody$2(options.service.read()));
+			sendJson(response, 200, responseBody$3(options.service.read()));
 			return;
 		}
 		if (request.method === "PATCH") {
@@ -197,10 +197,10 @@ async function handlePatch$2(options, request, response) {
 			return;
 		}
 		if (result.status === "conflict") {
-			sendJson(response, 409, responseBody$2(result.snapshot));
+			sendJson(response, 409, responseBody$3(result.snapshot));
 			return;
 		}
-		sendJson(response, 200, responseBody$2(result.snapshot));
+		sendJson(response, 200, responseBody$3(result.snapshot));
 	} catch (error) {
 		if (error instanceof LayoutRequestError) {
 			sendError(response, error.status, error.code, error.message);
@@ -245,7 +245,7 @@ function parsePatch$2(value, maxRecords) {
 * @param snapshot - service snapshot.
 * @returns the wire body.
 */
-function responseBody$2(snapshot) {
+function responseBody$3(snapshot) {
 	return {
 		apiVersion: 1,
 		revision: snapshot.revision,
@@ -484,6 +484,139 @@ function invalid(reason) {
 		reason
 	};
 }
+/** Private route pipeline executions are read and appended on. */
+const WORKBENCH_PIPELINE_RUN_PATH = "/api/workbench/pipeline-run";
+/** Body ceiling for one append; a run carries every step's region. */
+const WORKBENCH_PIPELINE_RUN_MAX_BODY_BYTES = 4 * 1024 * 1024;
+/** How much of one step's region a record keeps. */
+const WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH = 96e3;
+/**
+* Validate one submitted execution against the wire contract.
+*
+* The two halves of the app are separate processes, so this validates what the Host is
+* handed rather than trusting the body. Numbers are not accepted: the ordinal belongs to the
+* Host, which is the only side that can hand two runs different ones.
+* @param value - the decoded body.
+* @returns the draft, or what is wrong with it.
+*/
+function parseWorkbenchPipelineRunDraft(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return {
+		status: "invalid",
+		reason: "body must be an object"
+	};
+	const body = value;
+	const pipelineId = body.pipelineId;
+	if (typeof pipelineId !== "string" || !isWorkbenchPipelineId(pipelineId)) return {
+		status: "invalid",
+		reason: "pipelineId must be a pipeline id"
+	};
+	const startedAt = body.startedAt;
+	if (typeof startedAt !== "number" || !Number.isFinite(startedAt) || startedAt < 0) return {
+		status: "invalid",
+		reason: "startedAt must be a non-negative number"
+	};
+	const tookMs = body.tookMs;
+	if (typeof tookMs !== "number" || !Number.isFinite(tookMs) || tookMs < 0) return {
+		status: "invalid",
+		reason: "tookMs must be a non-negative number"
+	};
+	const phase = body.phase;
+	if (phase !== "settled" && phase !== "failed" && phase !== "stopped") return {
+		status: "invalid",
+		reason: "phase must be settled, failed, or stopped"
+	};
+	const scope = body.scope;
+	if (scope !== "full" && scope !== "single" && scope !== "refine") return {
+		status: "invalid",
+		reason: "scope must be full, single, or refine"
+	};
+	const only = body.only;
+	if (only !== void 0 && (typeof only !== "number" || !Number.isInteger(only) || only < 0)) return {
+		status: "invalid",
+		reason: "only must be a zero-based step index"
+	};
+	const instruction = body.instruction;
+	if (instruction !== void 0 && typeof instruction !== "string") return {
+		status: "invalid",
+		reason: "instruction must be a string"
+	};
+	if (instruction !== void 0 && instruction.length > 2e3) return {
+		status: "invalid",
+		reason: `instruction is longer than ${String(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH)} characters`
+	};
+	const steps = parseRunSteps(body.steps);
+	if ("status" in steps) return steps;
+	return {
+		pipelineId,
+		startedAt,
+		tookMs,
+		phase,
+		scope,
+		...only === void 0 ? {} : { only },
+		...instruction === void 0 ? {} : { instruction },
+		steps
+	};
+}
+/**
+* Validate one execution's step list.
+* @param value - the decoded list.
+* @returns the steps, or what is wrong with them.
+*/
+function parseRunSteps(value) {
+	if (!Array.isArray(value)) return {
+		status: "invalid",
+		reason: "steps must be an array"
+	};
+	if (value.length > 32) return {
+		status: "invalid",
+		reason: `a run of more than ${String(32)} steps is not a pipeline`
+	};
+	const steps = [];
+	for (const [index, raw] of value.entries()) {
+		if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {
+			status: "invalid",
+			reason: `step ${String(index)} is not an object`
+		};
+		const step = raw;
+		const cardId = step.cardId;
+		if (typeof cardId !== "string" || !isWorkbenchCardId(cardId)) return {
+			status: "invalid",
+			reason: `step ${String(index)} does not name a card`
+		};
+		const phase = step.phase;
+		if (phase !== "done" && phase !== "failed" && phase !== "stopped") return {
+			status: "invalid",
+			reason: `step ${String(index)} phase must be done, failed, or stopped`
+		};
+		const tookMs = step.tookMs;
+		if (tookMs !== void 0 && (typeof tookMs !== "number" || !Number.isFinite(tookMs) || tookMs < 0)) return {
+			status: "invalid",
+			reason: `step ${String(index)} tookMs must be a non-negative number`
+		};
+		const failure = step.failure;
+		if (failure !== void 0 && typeof failure !== "string") return {
+			status: "invalid",
+			reason: `step ${String(index)} failure must be a string`
+		};
+		const html = step.html;
+		if (html !== void 0 && typeof html !== "string") return {
+			status: "invalid",
+			reason: `step ${String(index)} html must be a string`
+		};
+		if (html !== void 0 && html.length > 96e3) return {
+			status: "invalid",
+			reason: `step ${String(index)} html is longer than ${String(WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH)} characters`
+		};
+		steps.push({
+			cardId,
+			phase,
+			...tookMs === void 0 ? {} : { tookMs },
+			...failure === void 0 ? {} : { failure },
+			...html === void 0 ? {} : { html }
+		});
+	}
+	return steps;
+}
 //#endregion
 //#region src/pipeline-spec.ts
 /**
@@ -530,6 +663,60 @@ const WORKBENCH_PIPELINE_DOMAIN = defineDomain({
 	invalidRecords: "backup-and-skip",
 	tables: { [WORKBENCH_PIPELINE_TABLE]: domainTable(workbenchPipelineSchema) }
 });
+/** Table name holding one record per pipeline execution. */
+const WORKBENCH_PIPELINE_RUN_TABLE = "runs";
+/** Stored step schema: what one step of an execution left behind. */
+const workbenchPipelineRunStepSchema = z.object({
+	cardId: z.string().min(1).max(64),
+	phase: z.enum([
+		"done",
+		"failed",
+		"stopped"
+	]),
+	tookMs: z.number().finite().nonnegative().optional(),
+	failure: z.string().optional(),
+	html: z.string().max(WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH).optional()
+});
+/**
+* Stored execution schema: the whole record, identity included.
+*
+* The table key repeats `pipelineId` and `no` rather than replacing them. A record that can
+* be read without decoding its key is what lets one unreadable document be moved aside
+* without also losing which run it was.
+*/
+const workbenchPipelineRunSchema = z.object({
+	pipelineId: z.string().min(1),
+	no: z.number().int().positive(),
+	startedAt: z.number().finite().nonnegative(),
+	tookMs: z.number().finite().nonnegative(),
+	phase: z.enum([
+		"settled",
+		"failed",
+		"stopped"
+	]),
+	scope: z.enum([
+		"full",
+		"single",
+		"refine"
+	]),
+	only: z.number().int().nonnegative().optional(),
+	instruction: z.string().max(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH).optional(),
+	steps: z.array(workbenchPipelineRunStepSchema).max(32)
+});
+/**
+* Execution domain declaration.
+*
+* Its own domain rather than another table in the pipeline one: an execution is appended by
+* the run engine while the definition table is rewritten whole by the panel on every config
+* edit, and one unreadable execution must cost that execution only.
+*/
+const WORKBENCH_PIPELINE_RUN_DOMAIN = defineDomain({
+	name: "workbench_pipeline_run",
+	version: 1,
+	layout: "per-record",
+	invalidRecords: "backup-and-skip",
+	tables: { [WORKBENCH_PIPELINE_RUN_TABLE]: domainTable(workbenchPipelineRunSchema) }
+});
 //#endregion
 //#region src/pipeline-route.ts
 /** Failure carrying the response status a handler must send. */
@@ -561,7 +748,7 @@ function createWorkbenchPipelineHandler(options) {
 			return;
 		}
 		if (request.method === "GET") {
-			sendJson(response, 200, responseBody$1(options.service.read()));
+			sendJson(response, 200, responseBody$2(options.service.read()));
 			return;
 		}
 		if (request.method === "PATCH") {
@@ -592,10 +779,10 @@ async function handlePatch$1(options, request, response) {
 			return;
 		}
 		if (result.status === "conflict") {
-			sendJson(response, 409, responseBody$1(result.snapshot));
+			sendJson(response, 409, responseBody$2(result.snapshot));
 			return;
 		}
-		sendJson(response, 200, responseBody$1(result.snapshot));
+		sendJson(response, 200, responseBody$2(result.snapshot));
 	} catch (error) {
 		if (error instanceof PipelineRequestError) {
 			sendError(response, error.status, error.code, error.message);
@@ -628,12 +815,207 @@ function parsePatch$1(value) {
 * @param snapshot - service snapshot.
 * @returns the wire body.
 */
-function responseBody$1(snapshot) {
+function responseBody$2(snapshot) {
 	return {
 		apiVersion: 1,
 		revision: snapshot.revision,
 		pipelines: snapshot.pipelines
 	};
+}
+//#endregion
+//#region src/pipeline-run-route.ts
+/** Failure carrying the response status a handler must send. */
+var RunRequestError = class extends Error {
+	status;
+	code;
+	/**
+	* @param status - HTTP status to send.
+	* @param code - error code in the response body.
+	* @param message - operator-facing reason.
+	*/
+	constructor(status, code, message) {
+		super(message);
+		this.status = status;
+		this.code = code;
+		this.name = "RunRequestError";
+	}
+};
+/**
+* Build the route handler for {@link import('./pipeline-contract.ts').WORKBENCH_PIPELINE_RUN_PATH}.
+* @param options - service, fence, and logger.
+* @returns a handler that owns the full response lifecycle.
+*/
+function createWorkbenchPipelineRunHandler(options) {
+	return (request, response) => {
+		const rejection = options.fence.requestRejection(request);
+		if (rejection !== void 0) {
+			sendError(response, rejection, rejection === 401 ? "unauthorized" : "forbidden", "request rejected");
+			return;
+		}
+		if (request.method === "GET") {
+			sendJson(response, 200, responseBody$1(options.service.read()));
+			return;
+		}
+		if (request.method === "POST") {
+			handlePost(options, request, response);
+			return;
+		}
+		response.statusCode = 405;
+		response.setHeader("allow", "GET, POST");
+		response.setHeader("cache-control", "no-store");
+		response.end();
+	};
+}
+/**
+* Read, validate, and store one execution.
+* @param options - route dependencies.
+* @param request - the POST request.
+* @param response - the response to own.
+*/
+async function handlePost(options, request, response) {
+	try {
+		const body = await readJsonBody(request, WORKBENCH_PIPELINE_RUN_MAX_BODY_BYTES);
+		if (body.status === "too-large") throw new RunRequestError(413, "invalid-request", "request body is too large");
+		if (body.status === "invalid") throw new RunRequestError(400, "invalid-request", body.reason);
+		const draft = parseWorkbenchPipelineRunDraft(body.value);
+		if ("status" in draft) throw new RunRequestError(400, "invalid-request", draft.reason);
+		const result = await options.service.append(draft);
+		sendJson(response, 200, {
+			...responseBody$1(result.snapshot),
+			run: result.run
+		});
+	} catch (error) {
+		if (error instanceof RunRequestError) {
+			sendError(response, error.status, error.code, error.message);
+			return;
+		}
+		const detail = error instanceof Error ? error.message : String(error);
+		options.warn(`workbench pipeline run write failed: ${detail}`);
+		sendError(response, 500, "storage-failure", "pipeline run storage failed");
+	}
+}
+/**
+* Project a snapshot onto the response body.
+* @param snapshot - service snapshot.
+* @returns the wire body.
+*/
+function responseBody$1(snapshot) {
+	return {
+		apiVersion: 1,
+		runs: snapshot.runs
+	};
+}
+//#endregion
+//#region src/pipeline-run-service.ts
+/** Errors raised while writing a record, carrying the route's error code. */
+var WorkbenchPipelineRunStorageError = class extends Error {
+	operation;
+	/**
+	* @param operation - the storage operation that failed.
+	* @param cause - the underlying failure.
+	*/
+	constructor(operation, cause) {
+		super(`workbench pipeline run ${operation} failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+		this.operation = operation;
+		this.name = "WorkbenchPipelineRunStorageError";
+	}
+};
+/**
+* The table key of one execution.
+* @param run - the record, or the draft plus its number.
+* @returns the key, unique across every pipeline.
+*/
+function pipelineRunKey(run) {
+	return `${run.pipelineId}#${String(run.no)}`;
+}
+/** Pipeline execution records over one storage domain table. */
+var WorkbenchPipelineRunService = class {
+	options;
+	/**
+	* @param options - table and caps.
+	*/
+	constructor(options) {
+		this.options = options;
+	}
+	/**
+	* Read every stored record.
+	* @returns records newest first.
+	*/
+	read() {
+		return {
+			apiVersion: 1,
+			runs: this.sorted()
+		};
+	}
+	/**
+	* Number one execution, store it, and drop whatever fell outside the caps.
+	* @param draft - the execution as the run engine saw it.
+	* @returns the numbered record and the records after the trim.
+	*/
+	async append(draft) {
+		let highest = 0;
+		for (const [, record] of this.options.table.entries()) {
+			if (record.pipelineId !== draft.pipelineId) continue;
+			if (record.no > highest) highest = record.no;
+		}
+		const run = {
+			...draft,
+			no: highest + 1
+		};
+		await this.run("put", () => this.options.table.put(pipelineRunKey(run), run));
+		await this.trim(draft.pipelineId);
+		return {
+			status: "written",
+			run,
+			snapshot: this.read()
+		};
+	}
+	/**
+	* Drop records past this pipeline's cap, then past the overall one.
+	*
+	* Oldest first in both cases: what a user scrolls back to is the recent work, and the
+	* oldest execution of the oldest pipeline is the least likely thing to be wanted again.
+	* @param pipelineId - the pipeline just appended to.
+	*/
+	async trim(pipelineId) {
+		const own = [...this.options.table.entries()].map(([, record]) => record).filter((record) => record.pipelineId === pipelineId).sort((left, right) => right.no - left.no);
+		for (const record of own.slice(this.options.runsPerPipeline)) await this.run("delete", () => this.options.table.delete(pipelineRunKey(record)));
+		const remaining = [...this.options.table.entries()].map(([, record]) => record).sort(compareOldestFirst);
+		const excess = remaining.length - this.options.maxTotal;
+		if (excess <= 0) return;
+		for (const record of remaining.slice(0, excess)) await this.run("delete", () => this.options.table.delete(pipelineRunKey(record)));
+	}
+	/**
+	* Every stored record, newest first.
+	* @returns the ordered list.
+	*/
+	sorted() {
+		const runs = [...this.options.table.entries()].map(([, record]) => record);
+		runs.sort((left, right) => right.startedAt - left.startedAt || right.no - left.no);
+		return runs;
+	}
+	/**
+	* Run one storage operation, naming the failing operation in the error.
+	* @param operation - operation discriminant.
+	* @param run - the storage call.
+	* @returns resolution after the call settles.
+	*/
+	async run(operation, run) {
+		try {
+			await run();
+		} catch (error) {
+			throw new WorkbenchPipelineRunStorageError(operation, error);
+		}
+	}
+};
+/**
+* Order two records oldest first.
+* @param left - one record.
+* @param right - the other.
+* @returns the comparison the trim's oldest-first slice needs.
+*/
+function compareOldestFirst(left, right) {
+	return left.startedAt - right.startedAt || left.no - right.no;
 }
 //#endregion
 //#region src/pipeline-service.ts
@@ -5285,6 +5667,36 @@ function apply(ctx, config) {
 			await domain.close();
 		};
 	}, "workbench: pipeline domain and route");
+	ctx.effect(async () => {
+		const host = ctx;
+		const domain = await ctx.storageDomain.open(WORKBENCH_PIPELINE_RUN_DOMAIN);
+		let service;
+		try {
+			service = new WorkbenchPipelineRunService({
+				table: domain.table(WORKBENCH_PIPELINE_RUN_TABLE),
+				runsPerPipeline: 20,
+				maxTotal: 200
+			});
+		} catch (error) {
+			await domain.close();
+			throw error;
+		}
+		const disposeRoute = ctx.effect(() => host.webServer.register({
+			kind: "exact",
+			path: WORKBENCH_PIPELINE_RUN_PATH,
+			handler: createWorkbenchPipelineRunHandler({
+				service,
+				fence: host.connection,
+				warn: (message) => {
+					ctx.logger.warn(message);
+				}
+			})
+		}), "workbench: pipeline run route");
+		return async () => {
+			disposeRoute();
+			await domain.close();
+		};
+	}, "workbench: pipeline run domain and route");
 }
 //#endregion
 export { Config, apply, inject, name };

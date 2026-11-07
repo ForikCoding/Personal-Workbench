@@ -22,6 +22,7 @@ import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contr
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
 import { pickOpenPipeline, readOpenPipeline, rememberOpenPipeline } from './pipeline-memory.ts'
+import type { WorkbenchPipelineRunsFace } from './pipeline-runs.ts'
 import { filledTemplate } from './skill-card/render.ts'
 import { findRegion } from './skill-card/template.ts'
 import { ShadowHtml } from './skill-card/ShadowHtml.tsx'
@@ -52,6 +53,8 @@ type Focus = { readonly kind: 'step'; readonly index: number } | { readonly kind
 export interface WorkbenchPipelineProps {
   /** Stored pipelines and the mutations the menu offers. */
   readonly pipelines: WorkbenchPipelinesFace
+  /** Stored execution records, for the 运行记录 the canvas opens. */
+  readonly runs: WorkbenchPipelineRunsFace
   /** The run engine the canvas drives. */
   readonly run: PipelineRunFace
   /** Cards the workbench knows about, as the menu lists them. */
@@ -243,7 +246,7 @@ interface StepView {
  */
 export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const {
-    pipelines, run, facts, api, renderCard, onCreateCard, t,
+    pipelines, runs: recordedRuns, run, facts, api, renderCard, onCreateCard, t,
     catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard,
     patchStepCards, modelGroups, workspacePicker, saveStepTemplate, removeCard,
   } = props
@@ -1509,6 +1512,12 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 </button>
               </div>
               <div className={css.histBody}>
+                {/* 一条记录没写进去，运行本身可能已经跑完了；这时候缺的正是这一页要说的话。 */}
+                {recordedRuns.notice === undefined ? null : (
+                  <p className={css.histProblem} data-hist-problem="">
+                    {t('pipeHistoryStoreProblem', { reason: recordedRuns.notice })}
+                  </p>
+                )}
                 {historyAt === undefined
                   ? history.length === 0
                     ? <div className={css.stateBlock}><p>{t('pipeHistoryEmpty')}</p></div>

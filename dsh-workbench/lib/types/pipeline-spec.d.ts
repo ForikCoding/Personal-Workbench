@@ -8,7 +8,7 @@
  * @module dsh-workbench/pipeline-spec
  */
 import { z } from 'zod';
-import type { WorkbenchPipelineRecord } from './pipeline-contract.ts';
+import type { WorkbenchPipelineRecord, WorkbenchPipelineRun } from './pipeline-contract.ts';
 /** Table name holding one record per pipeline. */
 export declare const WORKBENCH_PIPELINE_TABLE = "pipelines";
 /** Stored step schema: a card reference plus, optionally, this step's own instruction. */
@@ -47,5 +47,71 @@ export declare const WORKBENCH_PIPELINE_DOMAIN: {
     invalidRecords: "backup-and-skip";
     tables: {
         pipelines: import("@deepseek-ai/dsh-storage-domain").DomainTableSpec<string, WorkbenchPipelineRecord>;
+    };
+};
+/** Table name holding one record per pipeline execution. */
+export declare const WORKBENCH_PIPELINE_RUN_TABLE = "runs";
+/** Stored step schema: what one step of an execution left behind. */
+export declare const workbenchPipelineRunStepSchema: z.ZodObject<{
+    cardId: z.ZodString;
+    phase: z.ZodEnum<{
+        done: "done";
+        failed: "failed";
+        stopped: "stopped";
+    }>;
+    tookMs: z.ZodOptional<z.ZodNumber>;
+    failure: z.ZodOptional<z.ZodString>;
+    html: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+/**
+ * Stored execution schema: the whole record, identity included.
+ *
+ * The table key repeats `pipelineId` and `no` rather than replacing them. A record that can
+ * be read without decoding its key is what lets one unreadable document be moved aside
+ * without also losing which run it was.
+ */
+export declare const workbenchPipelineRunSchema: z.ZodObject<{
+    pipelineId: z.ZodString;
+    no: z.ZodNumber;
+    startedAt: z.ZodNumber;
+    tookMs: z.ZodNumber;
+    phase: z.ZodEnum<{
+        settled: "settled";
+        failed: "failed";
+        stopped: "stopped";
+    }>;
+    scope: z.ZodEnum<{
+        full: "full";
+        single: "single";
+        refine: "refine";
+    }>;
+    only: z.ZodOptional<z.ZodNumber>;
+    instruction: z.ZodOptional<z.ZodString>;
+    steps: z.ZodArray<z.ZodObject<{
+        cardId: z.ZodString;
+        phase: z.ZodEnum<{
+            done: "done";
+            failed: "failed";
+            stopped: "stopped";
+        }>;
+        tookMs: z.ZodOptional<z.ZodNumber>;
+        failure: z.ZodOptional<z.ZodString>;
+        html: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/**
+ * Execution domain declaration.
+ *
+ * Its own domain rather than another table in the pipeline one: an execution is appended by
+ * the run engine while the definition table is rewritten whole by the panel on every config
+ * edit, and one unreadable execution must cost that execution only.
+ */
+export declare const WORKBENCH_PIPELINE_RUN_DOMAIN: {
+    name: string;
+    version: number;
+    layout: "per-record";
+    invalidRecords: "backup-and-skip";
+    tables: {
+        runs: import("@deepseek-ai/dsh-storage-domain").DomainTableSpec<string, WorkbenchPipelineRun>;
     };
 };

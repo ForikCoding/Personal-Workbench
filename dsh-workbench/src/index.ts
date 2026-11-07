@@ -18,8 +18,20 @@ import { createWorkbenchLayoutHandler } from './layout-route.ts'
 import type { WorkbenchHostContext } from './layout-route.ts'
 import { WorkbenchLayoutService } from './layout-service.ts'
 import { WORKBENCH_PIPELINE_MAX_PIPELINES, WORKBENCH_PIPELINE_PATH } from './pipeline-contract.ts'
-import { WORKBENCH_PIPELINE_DOMAIN, WORKBENCH_PIPELINE_TABLE } from './pipeline-spec.ts'
+import {
+  WORKBENCH_PIPELINE_RUN_PATH,
+  WORKBENCH_PIPELINE_RUNS_PER_PIPELINE,
+  WORKBENCH_PIPELINE_RUN_MAX_TOTAL,
+} from './pipeline-contract.ts'
+import {
+  WORKBENCH_PIPELINE_DOMAIN,
+  WORKBENCH_PIPELINE_RUN_DOMAIN,
+  WORKBENCH_PIPELINE_RUN_TABLE,
+  WORKBENCH_PIPELINE_TABLE,
+} from './pipeline-spec.ts'
 import { createWorkbenchPipelineHandler } from './pipeline-route.ts'
+import { createWorkbenchPipelineRunHandler } from './pipeline-run-route.ts'
+import { WorkbenchPipelineRunService } from './pipeline-run-service.ts'
 import { WorkbenchPipelineService } from './pipeline-service.ts'
 import { WORKBENCH_SKILL_CARD_CATALOG_PATH, WORKBENCH_SKILL_CARD_DIRECTORY_PATH, WORKBENCH_SKILL_CARD_FILES_PATH, WORKBENCH_SKILL_CARD_PATH, WORKBENCH_SKILL_CARD_RESULT_PATH, WORKBENCH_SKILL_CARD_RUN_PATH } from './skill-card-contract.ts'
 import type { WorkbenchSandboxMode } from './skill-card-contract.ts'
@@ -414,4 +426,36 @@ export function apply(ctx: Context, config: WorkbenchConfig): void {
       await domain.close()
     }
   }, 'workbench: pipeline domain and route')
+
+  // What a pipeline did, in its own domain. A definition is rewritten whole on every config
+  // edit and a record never is; keeping them in one table would make a rename able to take
+  // a history with it.
+  ctx.effect(async () => {
+    const host = ctx as unknown as WorkbenchHostContext
+    const domain = await ctx.storageDomain.open(WORKBENCH_PIPELINE_RUN_DOMAIN)
+    let service: WorkbenchPipelineRunService
+    try {
+      service = new WorkbenchPipelineRunService({
+        table: domain.table(WORKBENCH_PIPELINE_RUN_TABLE),
+        runsPerPipeline: WORKBENCH_PIPELINE_RUNS_PER_PIPELINE,
+        maxTotal: WORKBENCH_PIPELINE_RUN_MAX_TOTAL,
+      })
+    } catch (error) {
+      await domain.close()
+      throw error
+    }
+    const disposeRoute = ctx.effect(() => host.webServer.register({
+      kind: 'exact',
+      path: WORKBENCH_PIPELINE_RUN_PATH,
+      handler: createWorkbenchPipelineRunHandler({
+        service,
+        fence: host.connection,
+        warn: message => { ctx.logger.warn(message) },
+      }),
+    }), 'workbench: pipeline run route')
+    return async () => {
+      disposeRoute()
+      await domain.close()
+    }
+  }, 'workbench: pipeline run domain and route')
 }

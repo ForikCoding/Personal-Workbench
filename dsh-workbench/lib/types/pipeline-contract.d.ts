@@ -98,3 +98,94 @@ export declare function isWorkbenchPipelineId(value: string): boolean;
  * @returns the normalized list, or the first reason it is not storable.
  */
 export declare function parseWorkbenchPipelines(value: unknown): readonly WorkbenchPipeline[] | WorkbenchPipelineInvalid;
+/**
+ * What one execution of a pipeline left behind.
+ *
+ * The definition above is what the user arranged; this is what happened. They have
+ * different lifetimes and different authors, which is why they are different records: a
+ * definition is rewritten whole by every config edit, and a run must not be, or renaming a
+ * pipeline would delete its history.
+ *
+ * A record is a snapshot, not a pointer: it carries each step's region as it was when the
+ * run settled, because reading a run from today's files answers with today's files.
+ */
+/** Version of the pipeline-run wire contract; a client reading another version refuses it. */
+export declare const WORKBENCH_PIPELINE_RUN_API_VERSION = 1;
+/** Private route pipeline executions are read and appended on. */
+export declare const WORKBENCH_PIPELINE_RUN_PATH = "/api/workbench/pipeline-run";
+/** How many executions one pipeline keeps; the oldest falls off the end. */
+export declare const WORKBENCH_PIPELINE_RUNS_PER_PIPELINE = 20;
+/**
+ * Ceiling on every pipeline's runs together, so a deployment full of pipelines stays bounded.
+ *
+ * Twenty per pipeline times the pipeline cap is far more than one person scrolls through, and
+ * a workbench with that many real executions has a storage problem this cap is not the
+ * answer to. Trimming the oldest overall keeps the newest work readable.
+ */
+export declare const WORKBENCH_PIPELINE_RUN_MAX_TOTAL = 200;
+/** Body ceiling for one append; a run carries every step's region. */
+export declare const WORKBENCH_PIPELINE_RUN_MAX_BODY_BYTES: number;
+/** How much of one step's region a record keeps. */
+export declare const WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH = 96000;
+/** How one step of an execution ended. A record is only written once a step is over. */
+export type WorkbenchPipelineRunStepPhase = 'done' | 'failed' | 'stopped';
+/** One step of one execution, as it stood when the run settled. */
+export interface WorkbenchPipelineRunStep {
+    /** The card this step ran. */
+    readonly cardId: string;
+    /** How it ended. */
+    readonly phase: WorkbenchPipelineRunStepPhase;
+    /** How long it took. */
+    readonly tookMs?: number;
+    /** Why it failed, when it did. */
+    readonly failure?: string;
+    /** The region it stored, or as much of it as a record keeps. */
+    readonly html?: string;
+}
+/** One execution of one pipeline. */
+export interface WorkbenchPipelineRun {
+    /** The pipeline it ran. */
+    readonly pipelineId: string;
+    /** Ordinal within that pipeline, counted from one; the Host's to assign. */
+    readonly no: number;
+    /** When it started, in milliseconds since the epoch. */
+    readonly startedAt: number;
+    /** How long the whole execution took. */
+    readonly tookMs: number;
+    /** How it ended. A record is only written for an execution that ended. */
+    readonly phase: 'settled' | 'failed' | 'stopped';
+    /** Whether it ran the whole chain, one step, or one step again on request. */
+    readonly scope: 'full' | 'single' | 'refine';
+    /** The step a `single` or `refine` run was about, zero-based. */
+    readonly only?: number;
+    /** What the review asked for, when the run was one. */
+    readonly instruction?: string;
+    /** One entry per step the run touched, in step order. */
+    readonly steps: readonly WorkbenchPipelineRunStep[];
+}
+/** An execution as a client submits it: everything but the number, which the Host assigns. */
+export type WorkbenchPipelineRunDraft = Omit<WorkbenchPipelineRun, 'no'>;
+/** Everything stored for one read. */
+export interface WorkbenchPipelineRunSnapshot {
+    /** Contract version. */
+    readonly apiVersion: number;
+    /** Records, newest first. */
+    readonly runs: readonly WorkbenchPipelineRun[];
+}
+/** Why a submitted execution is not a record. */
+export interface WorkbenchPipelineRunInvalid {
+    /** Discriminant for {@link parseWorkbenchPipelineRunDraft}. */
+    readonly status: 'invalid';
+    /** What is wrong. */
+    readonly reason: string;
+}
+/**
+ * Validate one submitted execution against the wire contract.
+ *
+ * The two halves of the app are separate processes, so this validates what the Host is
+ * handed rather than trusting the body. Numbers are not accepted: the ordinal belongs to the
+ * Host, which is the only side that can hand two runs different ones.
+ * @param value - the decoded body.
+ * @returns the draft, or what is wrong with it.
+ */
+export declare function parseWorkbenchPipelineRunDraft(value: unknown): WorkbenchPipelineRunDraft | WorkbenchPipelineRunInvalid;

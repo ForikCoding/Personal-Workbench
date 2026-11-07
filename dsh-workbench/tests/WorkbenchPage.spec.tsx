@@ -19,6 +19,8 @@ type PageProps = import('../src/client/WorkbenchPage.tsx').WorkbenchPageProps
 type WorkbenchPipeline = import('../src/pipeline-contract.ts').WorkbenchPipeline
 type WorkbenchPipelineSnapshot = import('../src/pipeline-contract.ts').WorkbenchPipelineSnapshot
 type WorkbenchPipelinePatch = import('../src/pipeline-contract.ts').WorkbenchPipelinePatch
+type WorkbenchPipelineRun = import('../src/pipeline-contract.ts').WorkbenchPipelineRun
+type WorkbenchPipelineRunDraft = import('../src/pipeline-contract.ts').WorkbenchPipelineRunDraft
 type WorkbenchRunRequest = import('../src/skill-card-contract.ts').WorkbenchRunRequest
 type WorkbenchRunState = import('../src/skill-card-contract.ts').WorkbenchRunState
 type WorkbenchCardResult = import('../src/skill-card-contract.ts').WorkbenchCardResult
@@ -119,6 +121,15 @@ function props(options: {
   catalog?: () => Promise<WorkbenchCatalogRead>
   /** The stored cards the transport holds; the default pair is enough for most cases. */
   cardViews?: readonly WorkbenchCardConfigView[]
+  /**
+   * The executions already recorded, and where a new one lands.
+   *
+   * Passed in so one store can outlive a mount: a case that remounts the page to show what a
+   * reload remembers hands the same array to both renders.
+   */
+  runs?: WorkbenchPipelineRun[]
+  /** Whether recording an execution lands; false models a store that refuses it. */
+  runRecordLands?: boolean
   /** Whether card writes land; false models a store that refuses the change. */
   cardWriteLands?: boolean
   /**
@@ -152,6 +163,7 @@ function props(options: {
   writes: WorkbenchPipelinePatch[]
   cardWrites: WorkbenchSkillCardPatch[]
   reads: number[]
+  runReads: number[]
   openedCards: string[]
 } {
   let snapshot: WorkbenchPipelineSnapshot = {
@@ -162,6 +174,10 @@ function props(options: {
   const writes: WorkbenchPipelinePatch[] = []
   const cardWrites: WorkbenchSkillCardPatch[] = []
   const reads: number[] = []
+  const runReads: number[] = []
+  // The execution store: numbered the way the Host numbers, and shared with the array the
+  // caller passed in, so a second mount reads what the first one recorded.
+  const storedRuns = options.runs ?? []
   /** Cards whose own page was opened; the template block's button is the one that does. */
   const openedCards: string[] = []
   // The card store the config views read and the picker writes: creating a step's card
@@ -196,6 +212,26 @@ function props(options: {
           pipelines: patch.pipelines,
         }
         return { status: 'ok' as const, snapshot }
+      },
+    },
+    pipelineRuns: {
+      async read() {
+        runReads.push(1)
+        return {
+          status: 'ok' as const,
+          runs: [...storedRuns].sort((left, right) => (right.startedAt - left.startedAt) || (right.no - left.no)),
+        }
+      },
+      async append(draft: WorkbenchPipelineRunDraft) {
+        if (options.runRecordLands === false) {
+          return { status: 'failed' as const, reason: 'the record store is not here' }
+        }
+        const highest = storedRuns
+          .filter(run => run.pipelineId === draft.pipelineId)
+          .reduce((top, run) => Math.max(top, run.no), 0)
+        const stored: WorkbenchPipelineRun = { ...draft, no: highest + 1 }
+        storedRuns.push(stored)
+        return { status: 'ok' as const, run: stored }
       },
     },
     skillCards: {
@@ -256,7 +292,7 @@ function props(options: {
     t,
     ...options.overrides ?? {},
   } as unknown as PageProps
-  return { props: merged, writes, cardWrites, reads, openedCards }
+  return { props: merged, writes, cardWrites, reads, runReads, openedCards }
 }
 
 /**
@@ -268,6 +304,9 @@ async function renderPage(options: Parameters<typeof props>[0] = {}) {
   const built = props(options)
   const view = render(<WorkbenchPage {...built.props} />)
   await waitFor(() => { expect(built.reads.length).toBeGreaterThan(0) })
+  // The record read settles too: a case that opens 运行记录 before it lands would be testing
+  // an empty list rather than the one the store holds.
+  await waitFor(() => { expect(built.runReads.length).toBeGreaterThan(0) })
   return { ...built, view }
 }
 
@@ -1146,6 +1185,90 @@ describe('WorkbenchPage', () => {
     expect(rows.length).toBe(2)
     expect(rows[1]?.textContent).toContain(en.pipeScopeOnly.replace('{name}', 'A card'))
     expect(rows[1]?.textContent).toContain(en.pipeRunState_ok)
+  })
+
+  it('remembers a run after the page that made it is gone', async () => {
+    // 运行记录 used to be the panel's own state: one page built the entry, numbered it, and
+    // unmounted with it, so a pipeline that had plainly run answered 「这条流水线还没跑过」
+    // after a reload. It is stored now, and the second mount is a different panel reading
+    // what the first one wrote.
+    const store: WorkbenchPipelineRun[] = []
+    const oneStep = [{ id: 'pipeline-1', name: 'P', steps: [{ cardId: 'a-card' }], updatedAt: 1 }]
+    const settled = {
+      status: 'ok',
+      state: {
+        cardId: 'a-card',
+        phase: 'settled',
+        retried: false,
+        result: {
+          runId: 'run-1', skill: 's', executedAt: 1, stopReason: 'completed',
+          structured: { html: '<b>ok</b>' }, sessionId: 'session-one',
+        },
+      } as WorkbenchRunState,
+    }
+    const seams = {
+      start: async (request: WorkbenchRunRequest) => ({
+        status: 'ok' as const,
+        state: { cardId: request.cardId, phase: 'running' as const, retried: false },
+      }),
+      poll: async () => settled,
+    }
+    const first = await renderPage({ runs: store, pipelines: oneStep, results: [result('a-card', '<b>ok</b>')], run: seams })
+    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await waitFor(() => { expect(store.length).toBe(1) })
+    // What it stored is the run, not a printout of the panel: which pipeline, how it ended,
+    // and the region each step left behind at that moment.
+    expect(store[0]?.pipelineId).toBe('pipeline-1')
+    expect(store[0]?.phase).toBe('settled')
+    expect(store[0]?.scope).toBe('full')
+    expect(store[0]?.steps.map(step => [step.cardId, step.phase])).toEqual([['a-card', 'done']])
+    expect(store[0]?.steps[0]?.html).toBe('<b>ok</b>')
+
+    first.view.unmount()
+    await renderPage({ runs: store, pipelines: oneStep, results: [result('a-card', '<b>ok</b>')] })
+    fireEvent.click(document.querySelector('[data-canvas-meta]') as HTMLElement)
+    const rows = document.querySelectorAll('[data-hist-run]')
+    expect(rows.length).toBe(1)
+    expect(rows[0]?.textContent).toContain('#1')
+    // And the canvas no longer claims the pipeline never ran: the record is how it knows.
+    expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
+  })
+
+  it('says so when the run could not be recorded', async () => {
+    // An execution nobody recorded is the defect this page is being fixed for, so a store
+    // that refuses one has to be visible rather than looking exactly like a clean run.
+    const store: WorkbenchPipelineRun[] = []
+    await renderPage({
+      runs: store,
+      runRecordLands: false,
+      pipelines: [{ id: 'pipeline-1', name: 'P', steps: [{ cardId: 'a-card' }], updatedAt: 1 }],
+      run: {
+        start: async (request: WorkbenchRunRequest) => ({
+          status: 'ok' as const,
+          state: { cardId: request.cardId, phase: 'running' as const, retried: false },
+        }),
+        poll: async () => ({
+          status: 'ok' as const,
+          state: {
+            cardId: 'a-card',
+            phase: 'settled',
+            retried: false,
+            result: {
+              runId: 'run-1', skill: 's', executedAt: 1, stopReason: 'completed',
+              structured: { html: '<b>ok</b>' }, sessionId: 'session-one',
+            },
+          } as WorkbenchRunState,
+        }),
+      },
+    })
+    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await waitFor(() => {
+      expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
+    })
+    fireEvent.click(document.querySelector('[data-canvas-meta]') as HTMLElement)
+    expect(store.length).toBe(0)
+    expect(document.querySelector('[data-hist-problem]')?.textContent)
+      .toBe(en.pipeHistoryStoreProblem.replace('{reason}', 'the record store is not here'))
   })
 
   it('still says a step ran on its own after the page forgot the run', async () => {

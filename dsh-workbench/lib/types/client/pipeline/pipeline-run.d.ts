@@ -11,7 +11,7 @@
  * whatever the previous conversation happened to contain.
  * @module dsh-workbench/client/pipeline/pipeline-run
  */
-import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../../pipeline-contract.ts';
+import type { WorkbenchPipeline, WorkbenchPipelineRun, WorkbenchPipelineRunDraft, WorkbenchPipelineStep } from '../../pipeline-contract.ts';
 import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts';
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts';
 import type { PipelineRunEntry } from './pipeline-view.ts';
@@ -173,6 +173,21 @@ export interface UsePipelineRunOptions {
     readonly scopeSessionId?: () => string | undefined;
     /** Polling interval; tests pass a shorter one. */
     readonly pollIntervalMs?: number;
+    /**
+     * The executions already recorded for a pipeline, newest first.
+     *
+     * Read rather than kept here: a record outlives the page that made it, and a hook that
+     * held its own list would show nothing for work done before it mounted.
+     * @param pipelineId - the pipeline to read.
+     * @returns its records, or undefined when nothing has recorded any.
+     */
+    readonly history?: (pipelineId: string) => readonly PipelineRunEntry[];
+    /**
+     * Store one finished execution.
+     * @param draft - what the run did, without the number the Host assigns it.
+     * @returns the numbered record, or undefined when it could not be stored.
+     */
+    readonly record?: (draft: WorkbenchPipelineRunDraft) => Promise<WorkbenchPipelineRun | undefined>;
 }
 /** The run face the canvas drives. */
 export interface PipelineRunFace {

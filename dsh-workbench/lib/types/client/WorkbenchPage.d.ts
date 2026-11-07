@@ -11,6 +11,7 @@ import { type ReactNode } from 'react';
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { WorkbenchPipelineApi } from './pipeline-api.ts';
+import type { WorkbenchPipelineRunsApi } from './pipeline-runs-api.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
 import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
@@ -27,6 +28,8 @@ export interface WorkbenchPageInjected {
     };
     /** Pipeline-definition transport. */
     readonly pipelines: WorkbenchPipelineApi;
+    /** Pipeline-execution-record transport: what each run left behind, stored. */
+    readonly pipelineRuns: WorkbenchPipelineRunsApi;
     /** Skill card transport, for the card views the inspector mounts. */
     readonly skillCards: {
         readonly api: WorkbenchSkillCardApi;

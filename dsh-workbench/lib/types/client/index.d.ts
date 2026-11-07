@@ -10,6 +10,7 @@ import { type ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
 import { type InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
 import { createWorkbenchLayoutApi } from './layout-api.ts';
 import { createWorkbenchPipelineApi } from './pipeline-api.ts';
+import { createWorkbenchPipelineRunsApi } from './pipeline-runs-api.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
 import type { WorkbenchCardSelection } from './contract.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
@@ -38,6 +39,8 @@ export interface WorkbenchPanelFace {
     readonly api: ReturnType<typeof createWorkbenchLayoutApi>;
     /** Pipeline-definition transport: what the rail lists and stores. */
     readonly pipelines: ReturnType<typeof createWorkbenchPipelineApi>;
+    /** Pipeline-execution records: what each run left behind, kept across reloads. */
+    readonly pipelineRuns: ReturnType<typeof createWorkbenchPipelineRunsApi>;
     /** Skill card transport, for the full-panel views the grid opens into. */
     readonly skillCards: {
         /** Configuration and run transport. */

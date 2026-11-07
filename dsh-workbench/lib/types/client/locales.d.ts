@@ -385,6 +385,7 @@ export declare const zh: {
     pipeHistoryEmptyMeta: string;
     pipeHistoryCount: string;
     pipeHistoryEmpty: string;
+    pipeHistoryStoreProblem: string;
     pipeHistoryBack: string;
     pipePickerTitle: string;
     pipePickerAt: string;

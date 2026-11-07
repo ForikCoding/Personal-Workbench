@@ -60,6 +60,7 @@ export declare const css: {
     readonly histBody: "wb-histBody";
     readonly histDay: "wb-histDay";
     readonly histNo: "wb-histNo";
+    readonly histProblem: "wb-histProblem";
     readonly histReadonly: "wb-histReadonly";
     readonly histRow: "wb-histRow";
     readonly histSum: "wb-histSum";

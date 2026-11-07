@@ -60,6 +60,7 @@ export const css = {
   histBody: 'wb-histBody',
   histDay: 'wb-histDay',
   histNo: 'wb-histNo',
+  histProblem: 'wb-histProblem',
   histReadonly: 'wb-histReadonly',
   histRow: 'wb-histRow',
   histSum: 'wb-histSum',

@@ -16,6 +16,7 @@ import type { PipelineRunFace } from './pipeline/pipeline-run.ts';
 import type { WorkbenchCardFact } from './layout-store.ts';
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts';
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts';
+import type { WorkbenchPipelineRunsFace } from './pipeline-runs.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 import { type WorkbenchModelGroup } from './skill-card/model.ts';
@@ -27,6 +28,8 @@ type CardView = 'config' | 'runs' | 'result';
 export interface WorkbenchPipelineProps {
     /** Stored pipelines and the mutations the menu offers. */
     readonly pipelines: WorkbenchPipelinesFace;
+    /** Stored execution records, for the 运行记录 the canvas opens. */
+    readonly runs: WorkbenchPipelineRunsFace;
     /** The run engine the canvas drives. */
     readonly run: PipelineRunFace;
     /** Cards the workbench knows about, as the menu lists them. */

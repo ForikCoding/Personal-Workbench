@@ -15,6 +15,8 @@ import { usePipelines } from './pipeline-controller.ts'
 import { usePipelineRun } from './pipeline/pipeline-run.ts'
 import { WorkbenchPipeline, type StepCardPatch } from './WorkbenchPipeline.tsx'
 import type { WorkbenchPipelineApi } from './pipeline-api.ts'
+import type { WorkbenchPipelineRunsApi } from './pipeline-runs-api.ts'
+import { usePipelineRuns } from './pipeline-runs.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchCardSelection } from './contract.ts'
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts'
@@ -38,6 +40,8 @@ export interface WorkbenchPageInjected {
   }
   /** Pipeline-definition transport. */
   readonly pipelines: WorkbenchPipelineApi
+  /** Pipeline-execution-record transport: what each run left behind, stored. */
+  readonly pipelineRuns: WorkbenchPipelineRunsApi
   /** Skill card transport, for the card views the inspector mounts. */
   readonly skillCards: {
     readonly api: WorkbenchSkillCardApi
@@ -120,7 +124,7 @@ function storedCardsFrom(cards: readonly { readonly cardId: string; readonly nam
  * @returns the page element.
  */
 export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
-  const { useCards, useSelection, skillCards, pipelines: pipelineApi, closeCard, openCard, t } = props
+  const { useCards, useSelection, skillCards, pipelines: pipelineApi, pipelineRuns: runsApi, closeCard, openCard, t } = props
   const cards = useCards(snapshot => snapshot)
   const selection = useSelection(snapshot => snapshot)
   // User-created card instances are stored data, not slot registrations: the ledger says
@@ -342,7 +346,16 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
   }, [skillCards.models, skillCards.runSessionId])
 
   const pipelines = usePipelines(pipelineApi)
-  const run = usePipelineRun({ api: skillCards.api, scopeSessionId: skillCards.runSessionId })
+  // The run engine reads and appends through the store rather than keeping its own list:
+  // a record outlives the page, and a page that forgot the run would otherwise claim the
+  // pipeline had never run at all.
+  const pipelineRuns = usePipelineRuns(runsApi)
+  const run = usePipelineRun({
+    api: skillCards.api,
+    scopeSessionId: skillCards.runSessionId,
+    history: pipelineRuns.of,
+    record: pipelineRuns.record,
+  })
 
   const renderCard = useCallback((
     cardId: string,
@@ -380,6 +393,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     ? (
       <WorkbenchPipeline
         pipelines={pipelines}
+        runs={pipelineRuns}
         run={run}
         api={skillCards.api}
         facts={facts}

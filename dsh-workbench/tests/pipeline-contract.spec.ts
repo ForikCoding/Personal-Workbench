@@ -6,8 +6,10 @@ import {
   WORKBENCH_PIPELINE_MAX_PIPELINES,
   WORKBENCH_PIPELINE_MAX_STEPS,
   WORKBENCH_PIPELINE_NAME_MAX_LENGTH,
+  WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH,
   WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH,
   isWorkbenchPipelineId,
+  parseWorkbenchPipelineRunDraft,
   parseWorkbenchPipelines,
 } from '../src/pipeline-contract.ts'
 
@@ -110,5 +112,71 @@ describe('pipeline contract', () => {
       [pipeline({ steps: [{ cardId: 'card-1', instruction: 'x'.repeat(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH + 1) }] })],
       'longer than',
     )
+  })
+})
+
+describe('pipeline execution contract', () => {
+  /** One execution as the run engine hands it over. */
+  function draft(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      pipelineId: 'pipeline-1',
+      startedAt: 1_000,
+      tookMs: 2_000,
+      phase: 'settled',
+      scope: 'full',
+      steps: [{ cardId: 'card-1', phase: 'done', tookMs: 2_000, html: '<p>done</p>' }],
+      ...overrides,
+    }
+  }
+
+  /**
+   * Assert that an execution is refused with a reason mentioning a fragment.
+   * @param value - candidate execution.
+   * @param fragment - text the reason must contain.
+   */
+  function expectRefused(value: unknown, fragment: string): void {
+    const parsed = parseWorkbenchPipelineRunDraft(value)
+    expect('status' in parsed).toBe(true)
+    if (!('status' in parsed)) return
+    expect(parsed.reason).toContain(fragment)
+  }
+
+  it('accepts an execution and keeps only what it names', () => {
+    expect(parseWorkbenchPipelineRunDraft({ ...draft(), colour: 'red' })).toEqual(draft())
+  })
+
+  it('does not accept a number, which the store assigns', () => {
+    const parsed = parseWorkbenchPipelineRunDraft({ ...draft(), no: 4 })
+    expect(parsed).not.toHaveProperty('no')
+  })
+
+  it('refuses an execution that names no pipeline', () => {
+    expectRefused(draft({ pipelineId: 42 }), 'pipelineId must be a pipeline id')
+    expectRefused(draft({ pipelineId: 'Pipeline 1' }), 'pipelineId must be a pipeline id')
+    expectRefused(draft({ startedAt: -1 }), 'startedAt must be a non-negative number')
+    expectRefused(draft({ tookMs: 'fast' }), 'tookMs must be a non-negative number')
+    expectRefused(draft({ phase: 'running' }), 'phase must be settled, failed, or stopped')
+    expectRefused(draft({ scope: 'everything' }), 'scope must be full, single, or refine')
+    expectRefused(draft({ only: -1 }), 'only must be a zero-based step index')
+    expectRefused(draft({ instruction: 7 }), 'instruction must be a string')
+  })
+
+  it('refuses a step that never ended, and one that names no card', () => {
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'running' }] }), 'phase must be done, failed, or stopped')
+    expectRefused(draft({ steps: [{ cardId: 'Card 1', phase: 'done' }] }), 'does not name a card')
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'done', tookMs: -1 }] }), 'tookMs must be a non-negative number')
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'done', failure: 1 }] }), 'failure must be a string')
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'done', html: 1 }] }), 'html must be a string')
+    expectRefused(draft({ steps: 'none' }), 'steps must be an array')
+  })
+
+  it('refuses a region longer than a record keeps', () => {
+    const html = 'x'.repeat(WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH + 1)
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'done', html }] }), 'html is longer than')
+  })
+
+  it('refuses more steps than a pipeline may have', () => {
+    const steps = Array.from({ length: WORKBENCH_PIPELINE_MAX_STEPS + 1 }, () => ({ cardId: 'card-1', phase: 'done' }))
+    expectRefused(draft({ steps }), 'is not a pipeline')
   })
 })

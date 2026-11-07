@@ -14,10 +14,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { WORKBENCH_OUTPUT_SCHEMA } from '../../skill-card-contract.ts'
-import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../../pipeline-contract.ts'
+import type {
+  WorkbenchPipeline,
+  WorkbenchPipelineRun,
+  WorkbenchPipelineRunDraft,
+  WorkbenchPipelineRunStep,
+  WorkbenchPipelineStep,
+} from '../../pipeline-contract.ts'
 import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts'
-import type { PipelineRunEntry, PipelineRunStep } from './pipeline-view.ts'
+import type { PipelineRunEntry } from './pipeline-view.ts'
 
 /** How one step of a chain stands. */
 export type PipelineStepPhase = 'idle' | 'queued' | 'running' | 'done' | 'failed' | 'stopped'
@@ -277,10 +283,7 @@ export async function runSteps(
   return ended('settled')
 }
 
-/** How many runs one pipeline keeps in this page, newest first. */
-const HISTORY_LIMIT = 20
-
-/** What a pipeline with no runs answers. */
+/** What a pipeline with no records answers. */
 const EMPTY_HISTORY: readonly PipelineRunEntry[] = []
 
 /** How often a running step is polled. */
@@ -311,6 +314,21 @@ export interface UsePipelineRunOptions {
   readonly scopeSessionId?: () => string | undefined
   /** Polling interval; tests pass a shorter one. */
   readonly pollIntervalMs?: number
+  /**
+   * The executions already recorded for a pipeline, newest first.
+   *
+   * Read rather than kept here: a record outlives the page that made it, and a hook that
+   * held its own list would show nothing for work done before it mounted.
+   * @param pipelineId - the pipeline to read.
+   * @returns its records, or undefined when nothing has recorded any.
+   */
+  readonly history?: (pipelineId: string) => readonly PipelineRunEntry[]
+  /**
+   * Store one finished execution.
+   * @param draft - what the run did, without the number the Host assigns it.
+   * @returns the numbered record, or undefined when it could not be stored.
+   */
+  readonly record?: (draft: WorkbenchPipelineRunDraft) => Promise<WorkbenchPipelineRun | undefined>
 }
 
 /** The run face the canvas drives. */
@@ -362,7 +380,13 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
   const { api, scopeSessionId } = options
   const pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS
   const [chain, setChain] = useState<PipelineChain | undefined>(undefined)
-  const [historyOf, setHistory] = useState<Record<string, PipelineRunEntry[]>>({})
+  // Kept in a ref as well as read from the options: the chain outlives a render, and a
+  // settle has to record against the seam that is current when it lands, not the one it
+  // captured when it started.
+  const record = useRef(options.record)
+  record.current = options.record
+  const recorded = useRef(options.history)
+  recorded.current = options.history
   // One chain at a time: a second start supersedes the first, and the first notices at
   // its next seam by finding a different token.
   const token = useRef(0)
@@ -388,9 +412,12 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
    * Record one finished run, with what each step left behind.
    *
    * The snapshot is read once, after the run, from the results the Host already stores: a
-   * run's own record has no history behind it, and the reader needs the region as it was.
-   * A read that fails still records the run — the step list is worth keeping even when the
-   * products can no longer be shown.
+   * record has no history behind it, and the reader needs the region as it was. A read that
+   * fails still records the run — the step list is worth keeping even when the products can
+   * no longer be shown.
+   *
+   * The number is not this side's to choose: the Host assigns it, because two windows can
+   * finish the same pipeline and "the next one" is only knowable where the records are.
    */
   const finish = useCallback(async (
     pipeline: WorkbenchPipeline,
@@ -407,23 +434,28 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
         if (html !== undefined && !products.has(stored.cardId)) products.set(stored.cardId, html)
       }
     }
-    const steps: PipelineRunStep[] = []
+    const steps: WorkbenchPipelineRunStep[] = []
     result.steps.forEach((outcome, index) => {
       // A step the run did not reach has nothing to say about this run.
       if (outcome.phase === 'idle') return
       const cardId = pipeline.steps[index]?.cardId
       if (cardId === undefined) return
+      // A step that never finished is a stopped one here: the record's vocabulary ends at
+      // done, failed and stopped, and "queued behind a stop" is not a step that ran.
+      const phase: WorkbenchPipelineRunStep['phase'] = outcome.phase === 'done'
+        ? 'done'
+        : outcome.phase === 'failed' ? 'failed' : 'stopped'
       const html = products.get(cardId)
       steps.push({
         cardId,
-        phase: outcome.phase,
+        phase,
         ...outcome.tookMs === undefined ? {} : { tookMs: outcome.tookMs },
         ...outcome.failure === undefined ? {} : { failure: outcome.failure },
         ...html === undefined ? {} : { html },
       })
     })
-    const entry: PipelineRunEntry = {
-      no: 0,
+    const draft: WorkbenchPipelineRunDraft = {
+      pipelineId: pipeline.id,
       startedAt,
       tookMs: Date.now() - startedAt,
       phase: result.phase === 'settled' ? 'settled' : result.phase === 'failed' ? 'failed' : 'stopped',
@@ -432,11 +464,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       ...ask.instruction === undefined ? {} : { instruction: ask.instruction },
       steps,
     }
-    setHistory(current => {
-      const list = current[pipeline.id] ?? []
-      const numbered: PipelineRunEntry = { ...entry, no: list.length + 1 }
-      return { ...current, [pipeline.id]: [numbered, ...list].slice(0, HISTORY_LIMIT) }
-    })
+    await record.current?.(draft)
   }, [api])
 
   const start = useCallback((
@@ -581,7 +609,7 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     })()
   }, [api, start])
 
-  const history = useCallback((pipelineId: string) => historyOf[pipelineId] ?? EMPTY_HISTORY, [historyOf])
+  const history = useCallback((pipelineId: string) => recorded.current?.(pipelineId) ?? EMPTY_HISTORY, [])
 
   /**
    * End the chain where it stands, with the steps nothing ever started left waiting.

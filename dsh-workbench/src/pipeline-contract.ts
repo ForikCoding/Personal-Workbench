@@ -219,3 +219,210 @@ function parseSteps(value: unknown, pipelineId: string): readonly WorkbenchPipel
 function invalid(reason: string): WorkbenchPipelineInvalid {
   return { status: 'invalid', reason }
 }
+
+/* ------------------------------------------------------------------ records */
+
+/**
+ * What one execution of a pipeline left behind.
+ *
+ * The definition above is what the user arranged; this is what happened. They have
+ * different lifetimes and different authors, which is why they are different records: a
+ * definition is rewritten whole by every config edit, and a run must not be, or renaming a
+ * pipeline would delete its history.
+ *
+ * A record is a snapshot, not a pointer: it carries each step's region as it was when the
+ * run settled, because reading a run from today's files answers with today's files.
+ */
+
+/** Version of the pipeline-run wire contract; a client reading another version refuses it. */
+export const WORKBENCH_PIPELINE_RUN_API_VERSION = 1
+
+/** Private route pipeline executions are read and appended on. */
+export const WORKBENCH_PIPELINE_RUN_PATH = '/api/workbench/pipeline-run'
+
+/** How many executions one pipeline keeps; the oldest falls off the end. */
+export const WORKBENCH_PIPELINE_RUNS_PER_PIPELINE = 20
+
+/**
+ * Ceiling on every pipeline's runs together, so a deployment full of pipelines stays bounded.
+ *
+ * Twenty per pipeline times the pipeline cap is far more than one person scrolls through, and
+ * a workbench with that many real executions has a storage problem this cap is not the
+ * answer to. Trimming the oldest overall keeps the newest work readable.
+ */
+export const WORKBENCH_PIPELINE_RUN_MAX_TOTAL = 200
+
+/** Body ceiling for one append; a run carries every step's region. */
+export const WORKBENCH_PIPELINE_RUN_MAX_BODY_BYTES = 4 * 1024 * 1024
+
+/** How much of one step's region a record keeps. */
+export const WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH = 96_000
+
+/** How one step of an execution ended. A record is only written once a step is over. */
+export type WorkbenchPipelineRunStepPhase = 'done' | 'failed' | 'stopped'
+
+/** One step of one execution, as it stood when the run settled. */
+export interface WorkbenchPipelineRunStep {
+  /** The card this step ran. */
+  readonly cardId: string
+  /** How it ended. */
+  readonly phase: WorkbenchPipelineRunStepPhase
+  /** How long it took. */
+  readonly tookMs?: number
+  /** Why it failed, when it did. */
+  readonly failure?: string
+  /** The region it stored, or as much of it as a record keeps. */
+  readonly html?: string
+}
+
+/** One execution of one pipeline. */
+export interface WorkbenchPipelineRun {
+  /** The pipeline it ran. */
+  readonly pipelineId: string
+  /** Ordinal within that pipeline, counted from one; the Host's to assign. */
+  readonly no: number
+  /** When it started, in milliseconds since the epoch. */
+  readonly startedAt: number
+  /** How long the whole execution took. */
+  readonly tookMs: number
+  /** How it ended. A record is only written for an execution that ended. */
+  readonly phase: 'settled' | 'failed' | 'stopped'
+  /** Whether it ran the whole chain, one step, or one step again on request. */
+  readonly scope: 'full' | 'single' | 'refine'
+  /** The step a `single` or `refine` run was about, zero-based. */
+  readonly only?: number
+  /** What the review asked for, when the run was one. */
+  readonly instruction?: string
+  /** One entry per step the run touched, in step order. */
+  readonly steps: readonly WorkbenchPipelineRunStep[]
+}
+
+/** An execution as a client submits it: everything but the number, which the Host assigns. */
+export type WorkbenchPipelineRunDraft = Omit<WorkbenchPipelineRun, 'no'>
+
+/** Everything stored for one read. */
+export interface WorkbenchPipelineRunSnapshot {
+  /** Contract version. */
+  readonly apiVersion: number
+  /** Records, newest first. */
+  readonly runs: readonly WorkbenchPipelineRun[]
+}
+
+/** Why a submitted execution is not a record. */
+export interface WorkbenchPipelineRunInvalid {
+  /** Discriminant for {@link parseWorkbenchPipelineRunDraft}. */
+  readonly status: 'invalid'
+  /** What is wrong. */
+  readonly reason: string
+}
+
+/**
+ * Validate one submitted execution against the wire contract.
+ *
+ * The two halves of the app are separate processes, so this validates what the Host is
+ * handed rather than trusting the body. Numbers are not accepted: the ordinal belongs to the
+ * Host, which is the only side that can hand two runs different ones.
+ * @param value - the decoded body.
+ * @returns the draft, or what is wrong with it.
+ */
+export function parseWorkbenchPipelineRunDraft(
+  value: unknown,
+): WorkbenchPipelineRunDraft | WorkbenchPipelineRunInvalid {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { status: 'invalid', reason: 'body must be an object' }
+  }
+  const body = value as Record<string, unknown>
+  const pipelineId = body.pipelineId
+  if (typeof pipelineId !== 'string' || !isWorkbenchPipelineId(pipelineId)) {
+    return { status: 'invalid', reason: 'pipelineId must be a pipeline id' }
+  }
+  const startedAt = body.startedAt
+  if (typeof startedAt !== 'number' || !Number.isFinite(startedAt) || startedAt < 0) {
+    return { status: 'invalid', reason: 'startedAt must be a non-negative number' }
+  }
+  const tookMs = body.tookMs
+  if (typeof tookMs !== 'number' || !Number.isFinite(tookMs) || tookMs < 0) {
+    return { status: 'invalid', reason: 'tookMs must be a non-negative number' }
+  }
+  const phase = body.phase
+  if (phase !== 'settled' && phase !== 'failed' && phase !== 'stopped') {
+    return { status: 'invalid', reason: 'phase must be settled, failed, or stopped' }
+  }
+  const scope = body.scope
+  if (scope !== 'full' && scope !== 'single' && scope !== 'refine') {
+    return { status: 'invalid', reason: 'scope must be full, single, or refine' }
+  }
+  const only = body.only
+  if (only !== undefined && (typeof only !== 'number' || !Number.isInteger(only) || only < 0)) {
+    return { status: 'invalid', reason: 'only must be a zero-based step index' }
+  }
+  const instruction = body.instruction
+  if (instruction !== undefined && typeof instruction !== 'string') {
+    return { status: 'invalid', reason: 'instruction must be a string' }
+  }
+  if (instruction !== undefined && instruction.length > WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH) {
+    return { status: 'invalid', reason: `instruction is longer than ${String(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH)} characters` }
+  }
+  const steps = parseRunSteps(body.steps)
+  if ('status' in steps) return steps
+  return {
+    pipelineId,
+    startedAt,
+    tookMs,
+    phase,
+    scope,
+    ...only === undefined ? {} : { only },
+    ...instruction === undefined ? {} : { instruction },
+    steps,
+  }
+}
+
+/**
+ * Validate one execution's step list.
+ * @param value - the decoded list.
+ * @returns the steps, or what is wrong with them.
+ */
+function parseRunSteps(value: unknown): readonly WorkbenchPipelineRunStep[] | WorkbenchPipelineRunInvalid {
+  if (!Array.isArray(value)) return { status: 'invalid', reason: 'steps must be an array' }
+  if (value.length > WORKBENCH_PIPELINE_MAX_STEPS) {
+    return { status: 'invalid', reason: `a run of more than ${String(WORKBENCH_PIPELINE_MAX_STEPS)} steps is not a pipeline` }
+  }
+  const steps: WorkbenchPipelineRunStep[] = []
+  for (const [index, raw] of value.entries()) {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      return { status: 'invalid', reason: `step ${String(index)} is not an object` }
+    }
+    const step = raw as Record<string, unknown>
+    const cardId = step.cardId
+    if (typeof cardId !== 'string' || !isWorkbenchCardId(cardId)) {
+      return { status: 'invalid', reason: `step ${String(index)} does not name a card` }
+    }
+    const phase = step.phase
+    if (phase !== 'done' && phase !== 'failed' && phase !== 'stopped') {
+      return { status: 'invalid', reason: `step ${String(index)} phase must be done, failed, or stopped` }
+    }
+    const tookMs = step.tookMs
+    if (tookMs !== undefined && (typeof tookMs !== 'number' || !Number.isFinite(tookMs) || tookMs < 0)) {
+      return { status: 'invalid', reason: `step ${String(index)} tookMs must be a non-negative number` }
+    }
+    const failure = step.failure
+    if (failure !== undefined && typeof failure !== 'string') {
+      return { status: 'invalid', reason: `step ${String(index)} failure must be a string` }
+    }
+    const html = step.html
+    if (html !== undefined && typeof html !== 'string') {
+      return { status: 'invalid', reason: `step ${String(index)} html must be a string` }
+    }
+    if (html !== undefined && html.length > WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH) {
+      return { status: 'invalid', reason: `step ${String(index)} html is longer than ${String(WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH)} characters` }
+    }
+    steps.push({
+      cardId,
+      phase,
+      ...tookMs === undefined ? {} : { tookMs },
+      ...failure === undefined ? {} : { failure },
+      ...html === undefined ? {} : { html },
+    })
+  }
+  return steps
+}
