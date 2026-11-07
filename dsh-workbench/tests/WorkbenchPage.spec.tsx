@@ -353,19 +353,56 @@ describe('WorkbenchPage', () => {
     expect(cardWrites[1]?.model).toBeNull()
   })
 
-  it('states the skill and the instruction this step runs with', async () => {
-    await renderPage()
+  it('chooses the skill of every step from the catalog', async () => {
+    const { cardWrites } = await renderPage()
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
-    // The skill is named with its own one-line description, so the row says what it does
-    // and not just which id it is.
-    const panel = document.querySelector('[data-panel="config"]') as HTMLElement
-    expect(panel.textContent).toContain('git-repo')
-    expect(panel.textContent).toContain('Work with a repository')
-    // 运行指令 is the instruction mode the card stores; a card that stores none says so.
-    expect(screen.getByText(en.pipeCfgInstruction)).toBeTruthy()
-    expect(screen.getByText(en.pipeCfgInstructionNone)).toBeTruthy()
+    const row = document.querySelector('[data-cfg-skill]') as HTMLSelectElement
+    expect(row).not.toBeNull()
+    // The row offers what the catalog holds, and says what the chosen skill does.
+    expect([...row.options].map(option => option.value)).toContain('design-doc')
+    expect((document.querySelector('[data-panel="config"]') as HTMLElement).textContent)
+      .toContain('Work with a repository')
+    fireEvent.change(row, { target: { value: 'design-doc' } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
+    expect(cardWrites.map(patch => patch.skill)).toEqual(['design-doc', 'design-doc'])
+  })
+
+  it('edits the instruction as text and writes it to every step', async () => {
+    const { cardWrites } = await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const box = document.querySelector('[data-cfg-instruction]') as HTMLTextAreaElement
+    expect(box).not.toBeNull()
+    // A text box, not a mode picker: the instruction is the user's own sentence.
+    expect(box.tagName).toBe('TEXTAREA')
+    fireEvent.blur(box, { target: { value: '  只补测试，不改生产代码。  ' } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
+    // Trimmed on the way in: whitespace is not part of what the card says.
+    expect(cardWrites.map(patch => patch.instruction)).toEqual([
+      '只补测试，不改生产代码。',
+      '只补测试，不改生产代码。',
+    ])
+
+  })
+
+  it('edits the workspace as a path and writes it to every step', async () => {
+    const { cardWrites } = await renderPage()
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const box = document.querySelector('[data-cfg-workspace]') as HTMLInputElement
+    expect(box).not.toBeNull()
+    fireEvent.blur(box, { target: { value: 'D:\\Git\\other' } })
+    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
+    expect(cardWrites.map(patch => patch.workspace)).toEqual([{ path: 'D:\\Git\\other' }, { path: 'D:\\Git\\other' }])
+    // A relative path names a different directory for whoever resolves it, so it is refused
+    // here instead of being stored and run somewhere the user never chose.
+    fireEvent.blur(box, { target: { value: 'relative/dir' } })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(cardWrites).toHaveLength(2)
   })
   it('removes a step from the pipeline only on the second click', async () => {
     const { writes } = await renderPage()

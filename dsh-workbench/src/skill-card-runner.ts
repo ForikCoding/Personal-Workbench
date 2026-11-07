@@ -163,6 +163,13 @@ export interface WorkbenchCardSelection {
    * empty ask is part of what the card is, so a client cannot start a run the card forbids.
    */
   readonly instructionMode?: WorkbenchInstructionMode
+  /**
+   * What this card's runs are told to do; absent means the skill's own reading of the work.
+   *
+   * Read from storage rather than from the request: the sentence belongs to the step, so a
+   * run started from a card means the same thing however it was started.
+   */
+  readonly instruction?: string
 }
 
 /**
@@ -184,6 +191,7 @@ export function cardSelection(card: WorkbenchCardConfigView | undefined): Workbe
     ...card?.workspace === undefined ? {} : { workspace: card.workspace },
     ...card?.permission === undefined ? {} : { permission: card.permission },
     ...card?.instructionMode === undefined ? {} : { instructionMode: card.instructionMode },
+    ...card?.instruction === undefined ? {} : { instruction: card.instruction },
   }
 }
 
@@ -541,7 +549,13 @@ export class WorkbenchSkillCardRunner {
     // What the user asked for, for the one mode that carries it. Trimmed here as well as
     // validated by the route: whitespace is not an instruction, and the value travels into a
     // prompt and into the stored record.
-    const instruction = mode.kind === 'card' ? request.instruction?.trim() : undefined
+    // A run may name its own ask; when it names none, the card's stored instruction is what
+    // this step does. That is the whole point of the field: a pipeline step is configured
+    // once and started many times, so the sentence lives on the step rather than in the
+    // click that started it.
+    const asked = mode.kind === 'card' ? request.instruction?.trim() : undefined
+    const stored = mode.kind === 'card' ? selection.instruction?.trim() : undefined
+    const instruction = asked === undefined || asked === '' ? stored : asked
     const carried = instruction === undefined || instruction === '' ? undefined : instruction
     // A card that declares its runs need an instruction is refused rather than asked
     // implicitly: the child would otherwise read "apply this skill to the workspace" and

@@ -20,12 +20,14 @@ import type {
 } from './skill-card-contract.ts'
 import { splitActivity } from './skill-card-activity.ts'
 import {
+  WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_CARD_NAME_MAX_LENGTH,
   WORKBENCH_INSTRUCTION_MODES,
   WORKBENCH_MAX_RESULTS_PER_CARD,
   WORKBENCH_SANDBOX_MODES,
   WORKBENCH_WORKSPACE_PATH_MAX_LENGTH,
   isWorkbenchCardModel,
+  isWorkbenchCardInstruction,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
   isWorkbenchInstructionMode,
@@ -199,6 +201,7 @@ export class WorkbenchSkillCardStore {
       const record = this.options.card.get(cardId)
       const selected = record?.skill
       const name = record?.name
+      const instruction = record?.instruction
       const model = record?.model
       const workspace = record?.workspace
       const permission = record?.permission
@@ -209,6 +212,7 @@ export class WorkbenchSkillCardStore {
         cardId,
         ...name === undefined ? {} : { name },
         ...selected === undefined ? {} : { skill: selected },
+        ...instruction === undefined ? {} : { instruction },
         ...model === undefined ? {} : { model },
         ...workspace === undefined ? {} : { workspace },
         ...permission === undefined ? {} : { permission },
@@ -299,6 +303,10 @@ export class WorkbenchSkillCardStore {
     const skill = patchedSkill === undefined
       ? current?.skill
       : patchedSkill === null ? undefined : patchedSkill
+    const patchedInstruction = patch.instruction
+    const instruction = patchedInstruction === undefined
+      ? current?.instruction
+      : patchedInstruction === null ? undefined : patchedInstruction.trim()
     const patchedModel = patch.model
     const model = patchedModel === undefined
       ? current?.model
@@ -317,6 +325,7 @@ export class WorkbenchSkillCardStore {
       : patchedInstructionMode === null ? undefined : patchedInstructionMode
     if (name === undefined
       && skill === undefined
+      && instruction === undefined
       && model === undefined
       && workspace === undefined
       && permission === undefined
@@ -326,6 +335,7 @@ export class WorkbenchSkillCardStore {
       await this.run('put', () => this.options.card.put(patch.cardId, {
         ...name === undefined ? {} : { name },
         ...skill === undefined ? {} : { skill },
+        ...instruction === undefined ? {} : { instruction },
         ...model === undefined ? {} : { model },
         ...workspace === undefined ? {} : { workspace },
         ...permission === undefined ? {} : { permission },
@@ -482,6 +492,13 @@ export class WorkbenchSkillCardStore {
     if (name !== undefined && name !== null && !isWorkbenchCardName(name)) {
       return `card name must hold visible text within ${String(WORKBENCH_CARD_NAME_MAX_LENGTH)} characters`
     }
+    const instruction = patch.instruction
+    // Refused rather than stored as given: an instruction that is only whitespace would
+    // read as "the card says something" while the run is told nothing, and the page would
+    // show a value that does not exist.
+    if (instruction !== undefined && instruction !== null && !isWorkbenchCardInstruction(instruction)) {
+      return `instruction must hold visible text within ${String(WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH)} characters`
+    }
     const model = patch.model
     // The pair is validated as a pair: two non-empty ids, never a joined string that a
     // later reader would have to split on a slash a provider id may itself contain.
@@ -510,12 +527,13 @@ export class WorkbenchSkillCardStore {
     if (patch.remove === true
       && (patch.name !== undefined
         || patch.skill !== undefined
+        || patch.instruction !== undefined
         || patch.model !== undefined
         || patch.workspace !== undefined
         || patch.permission !== undefined
         || patch.instructionMode !== undefined
         || patch.template !== undefined)) {
-      return 'a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template'
+      return 'a removal cannot carry a name, a skill, an instruction, a model, a workspace, a permission, an instruction mode, or a template'
     }
     const template = patch.template
     if (template === undefined) return undefined

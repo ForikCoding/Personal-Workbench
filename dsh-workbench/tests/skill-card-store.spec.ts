@@ -391,7 +391,7 @@ describe('workbench skill card store', () => {
       },
       {
         patch: { baseRevision: '7:0', cardId: 'skill-card', remove: true, name: 'Repo overview' },
-        reason: 'a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template',
+        reason: 'a removal cannot carry a name, a skill, an instruction, a model, a workspace, a permission, an instruction mode, or a template',
       },
       {
         // A mode the run bar could not render is refused for the same reason as an unknown

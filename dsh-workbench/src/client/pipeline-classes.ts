@@ -155,6 +155,8 @@ export const css = {
   ruleLabel: 'wb-ruleLabel',
   ruleRow: 'wb-ruleRow',
   ruleSelect: 'wb-ruleSelect',
+  ruleInput: 'wb-ruleInput',
+  ruleArea: 'wb-ruleArea',
   ruleValue: 'wb-ruleValue',
   runActions: 'wb-runActions',
   runbar: 'wb-runbar',

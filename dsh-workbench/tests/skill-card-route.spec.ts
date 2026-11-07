@@ -317,7 +317,7 @@ describe('workbench skill card route', () => {
     const response = await run(handle, new FakeRequest('PATCH', patch({ remove: true, workspace: { path: '/repo' } })))
     expect(response.statusCode).toBe(400)
     expect(JSON.parse(response.body).error.message)
-      .toBe('a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template')
+      .toBe('a removal cannot carry a name, a skill, an instruction, a model, a workspace, a permission, an instruction mode, or a template')
     expect(tables.operations).toEqual([])
   })
 

@@ -348,6 +348,24 @@ export declare const WORKBENCH_CARD_NAME_MAX_LENGTH = 60;
  */
 export declare function isWorkbenchCardName(value: string): boolean;
 /**
+ * Longest instruction the workbench stores for one card.
+ *
+ * An instruction is the user's own sentence about what this card's runs should do. It is
+ * free text, so only its size is bounded: the limit keeps one record small and the prompt
+ * the field feeds within a budget a model can read.
+ */
+export declare const WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH = 2000;
+/**
+ * Whether a value is a usable card instruction.
+ *
+ * Whitespace is not part of it, and a value that is only whitespace is no instruction at
+ * all: the card then runs on its skill's own reading of the work, exactly as it did before
+ * this field existed.
+ * @param value - candidate instruction.
+ * @returns whether the value holds visible text within the length limit.
+ */
+export declare function isWorkbenchCardInstruction(value: string): boolean;
+/**
  * Whether a value addresses a registered skill.
  * @param value - candidate skill name.
  * @returns whether the value is a kebab-case name within the length limit.
@@ -565,6 +583,14 @@ export interface WorkbenchCardConfigRecord {
     readonly name?: string;
     /** Skill the user selected; absent means unconfigured. */
     readonly skill?: string;
+    /**
+     * What this card's runs are told to do, in the user's own words; absent means the skill
+     * decides.
+     *
+     * Stored rather than passed per run because a pipeline step is configured once and run
+     * many times: the sentence belongs to the step, not to one invocation of it.
+     */
+    readonly instruction?: string;
     /** Model this card runs on; absent means the run inherits the session's model. */
     readonly model?: WorkbenchCardModel;
     /** Directory this card runs in; absent means the card cannot run yet. */
@@ -742,6 +768,8 @@ export interface WorkbenchCardConfigView {
     readonly name?: string;
     /** Selected skill; absent means unconfigured. */
     readonly skill?: string;
+    /** Instruction this card's runs are told to do; absent means it stores none. */
+    readonly instruction?: string;
     /** Model this card runs on; absent means its runs inherit the session's model. */
     readonly model?: WorkbenchCardModel;
     /** Directory this card runs in; absent means the card cannot run until one is chosen. */
@@ -825,6 +853,14 @@ export interface WorkbenchSkillCardPatch {
     readonly name?: string | null;
     /** Selected skill; `null` clears it, omitted leaves it unchanged. */
     readonly skill?: string | null;
+    /**
+     * Instruction this card's runs are given; `null` clears it back to the skill's own reading.
+     *
+     * Clearing is a real answer for the same reason it is on the permission mode: a card that
+     * used to need a sentence and no longer does should be able to say so, and it must not
+     * have to keep a stale sentence to do it.
+     */
+    readonly instruction?: string | null;
     /**
      * Model the card runs on; `null` clears it back to inheriting the session's model.
      *

@@ -30,8 +30,7 @@ import { permissionLabelKey } from './skill-card/permission.ts'
 import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
-import { instructionLabelKey } from './skill-card/permission.ts'
-import type { WorkbenchCardModel, WorkbenchSandboxMode } from '../skill-card-contract.ts'
+import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts'
 
 /** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result'
@@ -117,7 +116,16 @@ export interface StepCardPatch {
   readonly model?: WorkbenchCardModel | null
   /** Permission mode the cards' runs use. */
   readonly permission?: WorkbenchSandboxMode
+  /** Directory the cards run in; `null` clears it. */
+  readonly workspace?: WorkbenchCardWorkspace | null
+  /** Skill the cards run; `null` clears it. */
+  readonly skill?: string | null
+  /** Instruction the cards' runs are given; `null` clears it. */
+  readonly instruction?: string | null
 }
+
+/** A directory path a card may store: absolute, so it names one directory. */
+const ABSOLUTE_PATH = /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/
 
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
@@ -972,14 +980,11 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               step={selected}
                               shared={stepViews[0]?.card}
                               models={modelGroups}
-                              skillDescription={catalog.find(entry => entry.name === selected.skill)?.description}
+                              skills={catalog}
                               t={t}
                               onEdit={() => { openReader(selected.cardId) }}
-                              onChooseModel={(model) => {
-                                patchStepCards(stepViews.map(step => step.cardId), { model: model ?? null })
-                              }}
-                              onChoosePermission={(mode) => {
-                                patchStepCards(stepViews.map(step => step.cardId), { permission: mode })
+                              onPatch={(patch) => {
+                                patchStepCards(stepViews.map(view => view.cardId), patch)
                               }}
                             />
                           </div>
@@ -1393,15 +1398,14 @@ function ConfigPanel(props: {
   readonly shared: WorkbenchCardConfigView | undefined
   /** Models the pipeline's cards may be pointed at; empty means the directory said nothing. */
   readonly models: readonly WorkbenchModelGroup[]
-  readonly skillDescription: string | undefined
+  /** Skills a step may run, in catalog order. */
+  readonly skills: readonly WorkbenchSkillCatalogEntry[]
   readonly t: (key: WorkbenchLocaleKey, params?: Record<string, unknown>) => string
   readonly onEdit: () => void
-  /** Point every step's card at one model, or at none (follow the session). */
-  readonly onChooseModel: (model: WorkbenchCardModel | undefined) => void
-  /** Give every step's card the same permission mode. */
-  readonly onChoosePermission: (mode: WorkbenchSandboxMode) => void
+  /** Write one field into every step's card; this is what makes one edit reach all of them. */
+  readonly onPatch: (patch: StepCardPatch) => void
 }): ReactNode {
-  const { step, shared, models, skillDescription, t, onEdit, onChooseModel, onChoosePermission } = props
+  const { step, shared, models, skills, t, onEdit, onPatch } = props
   const [view, setView] = useState<'preview' | 'source'>('preview')
   const template = step.card?.template
   // What "the whole pipeline" is: the first step's card. The rows that change it write
@@ -1431,7 +1435,7 @@ function ConfigPanel(props: {
                   aria-label={t('pipeCfgModel')}
                   value={model === undefined ? '' : modelKey(model)}
                   onChange={(event) => {
-                    onChooseModel(event.target.value === '' ? undefined : parseModelKey(event.target.value))
+                    onPatch({ model: event.target.value === '' ? null : parseModelKey(event.target.value) ?? null })
                   }}
                 >
                   <option value="">{t('pipeCfgModelInherit')}</option>
@@ -1458,7 +1462,7 @@ function ConfigPanel(props: {
               onChange={(event) => {
                 const next = event.target.value
                 if (next === 'read-only' || next === 'workspace-write' || next === 'danger-full-access') {
-                  onChoosePermission(next)
+                  onPatch({ permission: next })
                 }
               }}
             >
@@ -1472,7 +1476,23 @@ function ConfigPanel(props: {
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgWorkspace')}</span>
           <span className={css.ruleValue}>
-            <span className={`${css.val} ${css.mono}`}>{shared?.workspace?.path ?? t('pipeCfgNoWorkspace')}</span>
+            {/* Committed on blur rather than per keystroke: every keystroke would be a write to
+                every step's card, and half a path is not a directory to store. */}
+            <input
+              className={css.ruleInput}
+              data-cfg-workspace=""
+              aria-label={t('pipeCfgWorkspace')}
+              spellCheck={false}
+              defaultValue={shared?.workspace?.path ?? ''}
+              placeholder={t('pipeCfgNoWorkspace')}
+              onBlur={(event) => {
+                const next = event.currentTarget.value.trim()
+                if (next === (shared?.workspace?.path ?? '')) return
+                if (next !== '' && !ABSOLUTE_PATH.test(next)) return
+                onPatch({ workspace: next === '' ? null : { path: next } })
+              }}
+            />
+            <span className={css.hint}>{t('pipeCfgWorkspaceNote')}</span>
           </span>
         </div>
       </div>
@@ -1485,18 +1505,44 @@ function ConfigPanel(props: {
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgSkill')}</span>
           <span className={css.ruleValue}>
-            <span className={`${css.val} ${css.mono}`}>{step.skill ?? t('pipeCfgNoSkill')}</span>
-            {skillDescription === undefined ? null : <span className={css.hint}>{skillDescription}</span>}
+            <select
+              className={css.ruleSelect}
+              data-cfg-skill=""
+              aria-label={t('pipeCfgSkill')}
+              value={shared?.skill ?? ''}
+              onChange={(event) => {
+                const next = event.target.value
+                onPatch({ skill: next === '' ? null : next })
+              }}
+            >
+              <option value="">{t('pipeCfgNoSkill')}</option>
+              {skills.filter(entry => entry.userInvocable).map(entry => (
+                <option key={entry.name} value={entry.name}>{entry.name}</option>
+              ))}
+            </select>
+            <span className={css.hint}>{shared?.skill === undefined ? t('pipeCfgSkillNoNote') : (skills.find(entry => entry.name === shared.skill)?.description ?? t('pipeCfgSkillNoNote'))}</span>
           </span>
         </div>
         <div className={css.ruleRow}>
           <span className={css.ruleLabel}>{t('pipeCfgInstruction')}</span>
           <span className={css.ruleValue}>
-            <span className={css.val}>
-              {step.card?.instructionMode === undefined
-                ? t('pipeCfgInstructionNone')
-                : t(instructionLabelKey(step.card.instructionMode))}
-            </span>
+            {/* A text box, because the instruction is the user's own sentence. Committed on
+                blur for the same reason as the directory: a write per keystroke would rewrite
+                every step's card on every letter. */}
+            <textarea
+              className={css.ruleArea}
+              data-cfg-instruction=""
+              aria-label={t('pipeCfgInstruction')}
+              rows={2}
+              spellCheck={false}
+              defaultValue={shared?.instruction ?? ''}
+              onBlur={(event) => {
+                const next = event.currentTarget.value.trim()
+                if (next === (shared?.instruction ?? '')) return
+                onPatch({ instruction: next === '' ? null : next })
+              }}
+            />
+            <span className={css.hint}>{t('pipeCfgInstructionNote')}</span>
           </span>
         </div>
         <div className={css.ruleRow}>

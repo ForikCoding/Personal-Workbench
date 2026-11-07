@@ -19,7 +19,7 @@ import type { WorkbenchCatalogStatus } from './skill-card/controller.ts';
 import type { WorkbenchSkillCardApi } from './skill-card/api.ts';
 import type { WorkbenchLocaleKey } from './locales.ts';
 import { type WorkbenchModelGroup } from './skill-card/model.ts';
-import type { WorkbenchCardModel, WorkbenchSandboxMode } from '../skill-card-contract.ts';
+import type { WorkbenchCardModel, WorkbenchCardWorkspace, WorkbenchSandboxMode } from '../skill-card-contract.ts';
 /** One card's full-panel views the reader can mount. */
 type CardView = 'config' | 'runs' | 'result';
 /** Props of the pipeline workbench. */
@@ -93,6 +93,12 @@ export interface StepCardPatch {
     readonly model?: WorkbenchCardModel | null;
     /** Permission mode the cards' runs use. */
     readonly permission?: WorkbenchSandboxMode;
+    /** Directory the cards run in; `null` clears it. */
+    readonly workspace?: WorkbenchCardWorkspace | null;
+    /** Skill the cards run; `null` clears it. */
+    readonly skill?: string | null;
+    /** Instruction the cards' runs are given; `null` clears it. */
+    readonly instruction?: string | null;
 }
 /**
  * Render the pipeline workbench.

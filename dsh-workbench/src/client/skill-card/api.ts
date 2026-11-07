@@ -29,6 +29,7 @@ import {
   WORKBENCH_SKILL_CARD_RESULT_PATH,
   WORKBENCH_SKILL_CARD_RUN_PATH,
   isWorkbenchCardModel,
+  isWorkbenchCardInstruction,
   isWorkbenchCardName,
   isWorkbenchCardWorkspace,
   isWorkbenchInstructionMode,
@@ -508,6 +509,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       cardId?: unknown
       name?: unknown
       skill?: unknown
+      instruction?: unknown
       model?: unknown
       workspace?: unknown
       permission?: unknown
@@ -520,6 +522,12 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       return undefined
     }
     if (entry.skill !== undefined && (typeof entry.skill !== 'string' || !isWorkbenchSkillName(entry.skill))) {
+      return undefined
+    }
+    // Free text, but bounded and non-blank: the page shows this field and the run is given
+    // what it shows, so a value the contract would refuse is dropped rather than displayed.
+    const instruction = entry.instruction
+    if (instruction !== undefined && (typeof instruction !== 'string' || !isWorkbenchCardInstruction(instruction))) {
       return undefined
     }
     const model = entry.model
@@ -548,6 +556,7 @@ export function parseSnapshot(value: unknown): WorkbenchCardSnapshot | undefined
       cardId: entry.cardId,
       ...entry.name === undefined ? {} : { name: entry.name as string },
       ...entry.skill === undefined ? {} : { skill: entry.skill as string },
+      ...instruction === undefined ? {} : { instruction: instruction as string },
       ...model === undefined ? {} : { model },
       ...workspace === undefined ? {} : { workspace: { path: (workspace as { path: string }).path } },
       ...permission === undefined ? {} : { permission },

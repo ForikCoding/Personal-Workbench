@@ -303,8 +303,10 @@ export declare const zh: {
     pipeCfgModelInherit: string;
     pipeCfgModelInheritNote: string;
     pipeCfgPermissionNote: string;
+    pipeCfgWorkspaceNote: string;
     pipeCfgInstruction: string;
-    pipeCfgInstructionNone: string;
+    pipeCfgInstructionNote: string;
+    pipeCfgSkillNoNote: string;
     pipeCfgPermission: string;
     pipeCfgWorkspace: string;
     pipeCfgNoWorkspace: string;

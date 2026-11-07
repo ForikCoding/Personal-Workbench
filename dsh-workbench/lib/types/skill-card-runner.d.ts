@@ -67,6 +67,13 @@ export interface WorkbenchCardSelection {
      * empty ask is part of what the card is, so a client cannot start a run the card forbids.
      */
     readonly instructionMode?: WorkbenchInstructionMode;
+    /**
+     * What this card's runs are told to do; absent means the skill's own reading of the work.
+     *
+     * Read from storage rather than from the request: the sentence belongs to the step, so a
+     * run started from a card means the same thing however it was started.
+     */
+    readonly instruction?: string;
 }
 /**
  * Project one stored card onto the selection a run reads.

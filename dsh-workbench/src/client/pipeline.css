@@ -972,6 +972,26 @@
   cursor: pointer;
 }
 .wb-ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 能改的行里放文本的地方：路径和指令，边框和下拉同一套 */
+.wb-ruleInput,
+.wb-ruleArea {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  padding: 5px 8px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.wb-ruleInput { font-family: var(--f-mono); }
+.wb-ruleArea { max-width: 100%; line-height: 1.5; resize: vertical; }
+.wb-ruleInput:hover,
+.wb-ruleArea:hover { border-color: var(--hairline-strong, var(--divider)); }
+.wb-ruleInput:focus-visible,
+.wb-ruleArea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .wb-ruleRow {
   display: flex;

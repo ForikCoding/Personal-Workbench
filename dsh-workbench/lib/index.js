@@ -827,6 +827,26 @@ function isWorkbenchCardName(value) {
 	return value.trim().length > 0 && value.length <= 60;
 }
 /**
+* Longest instruction the workbench stores for one card.
+*
+* An instruction is the user's own sentence about what this card's runs should do. It is
+* free text, so only its size is bounded: the limit keeps one record small and the prompt
+* the field feeds within a budget a model can read.
+*/
+const WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH = 2e3;
+/**
+* Whether a value is a usable card instruction.
+*
+* Whitespace is not part of it, and a value that is only whitespace is no instruction at
+* all: the card then runs on its skill's own reading of the work, exactly as it did before
+* this field existed.
+* @param value - candidate instruction.
+* @returns whether the value holds visible text within the length limit.
+*/
+function isWorkbenchCardInstruction(value) {
+	return value.trim().length > 0 && value.length <= 2e3;
+}
+/**
 * Whether a value addresses a registered skill.
 * @param value - candidate skill name.
 * @returns whether the value is a kebab-case name within the length limit.
@@ -2363,7 +2383,8 @@ function cardSelection(card) {
 		...card?.model === void 0 ? {} : { model: card.model },
 		...card?.workspace === void 0 ? {} : { workspace: card.workspace },
 		...card?.permission === void 0 ? {} : { permission: card.permission },
-		...card?.instructionMode === void 0 ? {} : { instructionMode: card.instructionMode }
+		...card?.instructionMode === void 0 ? {} : { instructionMode: card.instructionMode },
+		...card?.instruction === void 0 ? {} : { instruction: card.instruction }
 	};
 }
 /**
@@ -2500,7 +2521,9 @@ var WorkbenchSkillCardRunner = class {
 		const selection = this.options.selection(request.cardId);
 		const skill = mode.kind === "bare" ? mode.skill : selection.skill;
 		if (skill === void 0) return reject("not-configured", "no skill is configured for this card");
-		const instruction = mode.kind === "card" ? request.instruction?.trim() : void 0;
+		const asked = mode.kind === "card" ? request.instruction?.trim() : void 0;
+		const stored = mode.kind === "card" ? selection.instruction?.trim() : void 0;
+		const instruction = asked === void 0 || asked === "" ? stored : asked;
 		const carried = instruction === void 0 || instruction === "" ? void 0 : instruction;
 		if (mode.kind === "card" && carried === void 0 && request.payload === void 0 && effectiveWorkbenchInstructionMode(selection.instructionMode) === "required") return reject("instruction-missing", "this card requires an instruction before it can run");
 		const carryoverSessionId = mode.kind === "refine" || mode.kind === "step" ? request.sessionId : void 0;
@@ -4151,6 +4174,7 @@ var WorkbenchSkillCardStore = class {
 			const record = this.options.card.get(cardId);
 			const selected = record?.skill;
 			const name = record?.name;
+			const instruction = record?.instruction;
 			const model = record?.model;
 			const workspace = record?.workspace;
 			const permission = record?.permission;
@@ -4161,6 +4185,7 @@ var WorkbenchSkillCardStore = class {
 				cardId,
 				...name === void 0 ? {} : { name },
 				...selected === void 0 ? {} : { skill: selected },
+				...instruction === void 0 ? {} : { instruction },
 				...model === void 0 ? {} : { model },
 				...workspace === void 0 ? {} : { workspace },
 				...permission === void 0 ? {} : { permission },
@@ -4230,6 +4255,8 @@ var WorkbenchSkillCardStore = class {
 		const name = patchedName === void 0 ? current?.name : patchedName === null ? void 0 : patchedName.trim();
 		const patchedSkill = patch.skill;
 		const skill = patchedSkill === void 0 ? current?.skill : patchedSkill === null ? void 0 : patchedSkill;
+		const patchedInstruction = patch.instruction;
+		const instruction = patchedInstruction === void 0 ? current?.instruction : patchedInstruction === null ? void 0 : patchedInstruction.trim();
 		const patchedModel = patch.model;
 		const model = patchedModel === void 0 ? current?.model : patchedModel === null ? void 0 : patchedModel;
 		const patchedWorkspace = patch.workspace;
@@ -4238,10 +4265,11 @@ var WorkbenchSkillCardStore = class {
 		const permission = patchedPermission === void 0 ? current?.permission : patchedPermission === null ? void 0 : patchedPermission;
 		const patchedInstructionMode = patch.instructionMode;
 		const instructionMode = patchedInstructionMode === void 0 ? current?.instructionMode : patchedInstructionMode === null ? void 0 : patchedInstructionMode;
-		if (name === void 0 && skill === void 0 && model === void 0 && workspace === void 0 && permission === void 0 && instructionMode === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
+		if (name === void 0 && skill === void 0 && instruction === void 0 && model === void 0 && workspace === void 0 && permission === void 0 && instructionMode === void 0) await this.run("delete", () => this.options.card.delete(patch.cardId));
 		else await this.run("put", () => this.options.card.put(patch.cardId, {
 			...name === void 0 ? {} : { name },
 			...skill === void 0 ? {} : { skill },
+			...instruction === void 0 ? {} : { instruction },
 			...model === void 0 ? {} : { model },
 			...workspace === void 0 ? {} : { workspace },
 			...permission === void 0 ? {} : { permission },
@@ -4379,6 +4407,8 @@ var WorkbenchSkillCardStore = class {
 		if (skill !== void 0 && skill !== null && !isWorkbenchSkillName(skill)) return `skill ${JSON.stringify(skill)} is not a kebab-case skill name`;
 		const name = patch.name;
 		if (name !== void 0 && name !== null && !isWorkbenchCardName(name)) return `card name must hold visible text within ${String(60)} characters`;
+		const instruction = patch.instruction;
+		if (instruction !== void 0 && instruction !== null && !isWorkbenchCardInstruction(instruction)) return `instruction must hold visible text within ${String(WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH)} characters`;
 		const model = patch.model;
 		if (model !== void 0 && model !== null && !isWorkbenchCardModel(model)) return "model must name a non-empty provider and model id";
 		const workspace = patch.workspace;
@@ -4387,7 +4417,7 @@ var WorkbenchSkillCardStore = class {
 		if (permission !== void 0 && permission !== null && !isWorkbenchSandboxMode(permission)) return `permission must be null or one of ${WORKBENCH_SANDBOX_MODES.join(", ")}`;
 		const instructionMode = patch.instructionMode;
 		if (instructionMode !== void 0 && instructionMode !== null && !isWorkbenchInstructionMode(instructionMode)) return `instructionMode must be null or one of ${WORKBENCH_INSTRUCTION_MODES.join(", ")}`;
-		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.permission !== void 0 || patch.instructionMode !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, a model, a workspace, a permission, an instruction mode, or a template";
+		if (patch.remove === true && (patch.name !== void 0 || patch.skill !== void 0 || patch.instruction !== void 0 || patch.model !== void 0 || patch.workspace !== void 0 || patch.permission !== void 0 || patch.instructionMode !== void 0 || patch.template !== void 0)) return "a removal cannot carry a name, a skill, an instruction, a model, a workspace, a permission, an instruction mode, or a template";
 		const template = patch.template;
 		if (template === void 0) return void 0;
 		if (!isWorkbenchSkillName(template.skill)) return `template skill ${JSON.stringify(template.skill)} is not a kebab-case skill name`;

@@ -155,6 +155,8 @@ export declare const css: {
     readonly ruleLabel: "wb-ruleLabel";
     readonly ruleRow: "wb-ruleRow";
     readonly ruleSelect: "wb-ruleSelect";
+    readonly ruleInput: "wb-ruleInput";
+    readonly ruleArea: "wb-ruleArea";
     readonly ruleValue: "wb-ruleValue";
     readonly runActions: "wb-runActions";
     readonly runbar: "wb-runbar";
