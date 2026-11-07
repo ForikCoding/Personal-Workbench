@@ -31,8 +31,13 @@
          · 形状比颜色先说话：实心绿 = 整条跑过，描边绿 = 只单独跑过其中几步。
            状态标签、圆点、运行条、步骤脚注的「单步 #1」都是这一条规则的落点
          · 底部运行条不再写「N 步都还没启动」，改成「整条还没跑过 · 第 N 步单独跑过 ·
-           点「运行」会从第 1 步重跑整条」——把后果说出来，不是只说状态
-         · 场景里加了「单步跑过」：整条没跑、可这一步已完成的那个状态，得有地方看
+           点「运行」会从第 N 步开始」——把后果说出来，不是只说状态
+         · 一句话是几步跑过就报几步：第 1、2 步单独跑过。而且「运行」的起点由引擎算
+           （resumeFrom：第一个没完成的步骤），运行条照抄它，不自己猜：
+           第 2 步跑过而第 1 步没跑 → 「从第 1 步开始，跑过的那一步会重跑」；
+           前两步跑过 → 「从第 3 步接着跑」；三步都单独跑过 → 「会从头再跑一遍」
+         · 场景里加了「单步跑过」（三步里只单独跑过中间那一步）：整条没跑、可其中一步
+           已完成的那个状态，得有地方看
 -->
 <html lang="zh-CN">
 <head>
@@ -2700,9 +2705,18 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       noise.innerHTML = `<span>未整体运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
       $('#stopBtn').hidden = true;
     } else {
-      // 跑过，但只是单独跑过其中几步：整条依然没跑过，而且「运行」会从第 1 步开始
+      // 跑过，但只是单独跑过其中几步：整条依然没跑过。
+      // 报出是哪几步，并说准「运行」会从哪一步起——那句话和引擎共用 resumeFrom。
       const solo = flow.stages.map((s, i) => (s.run && s.runScope !== 'full' ? i + 1 : 0)).filter(Boolean);
-      noise.innerHTML = `<span>整条还没跑过</span><span>·</span><span>${solo.length === 1 ? `第 ${solo[0]} 步` : `第 ${solo.join('、')} 步`}单独跑过</span><span>·</span><span>点「运行」会从第 1 步重跑整条</span>`;
+      const from = resumeFrom(flow);
+      const which = solo.length === 1 ? `第 ${solo[0]} 步` : `第 ${solo.join('、')} 步`;
+      const allDone = flow.stages.every(s => s.status === 'done');
+      const next = allDone
+        ? '点「运行」会从头再跑一遍'
+        : from === 0
+          ? '点「运行」从第 1 步开始，跑过的那一步会重跑'
+          : `点「运行」从第 ${from + 1} 步接着跑`;
+      noise.innerHTML = `<span>整条还没跑过</span><span>·</span><span>${which}单独跑过</span><span>·</span><span>${next}</span>`;
       $('#stopBtn').hidden = true;
     }
   }
@@ -4042,12 +4056,13 @@ ${region}
       let p = PIPELINES.find(x => x.id === '__solo');
       if (!p) {
         p = {
-          id: '__solo', name: '需求拆解试跑', updated: '刚刚', state: 'idle', total: null,
-          stages: [makeStage('requirements-scoping')],
+          id: '__solo', name: '会话续期 · 试跑', updated: '刚刚', state: 'idle', total: null,
+          stages: ['requirements-scoping', 'design-doc', 'codegen'].map(makeStage),
         };
         PIPELINES.unshift(p);
-        const st = p.stages[0];
-        const product = STEP_PRODUCT['requirements-scoping'] || {};
+        // 只单独跑过中间那一步：前后两步都还没启动——最容易被读成"整条在跑"的位置
+        const st = p.stages[1];
+        const product = STEP_PRODUCT['design-doc'] || {};
         st.status = 'done';
         st.dur = '0m31s';
         st.dir = product.dir;
@@ -4059,13 +4074,13 @@ ${region}
           { t: '13:41:20', k: 'load', m: '上一节点输出（只读）', d: '0.1s' },
           { t: '13:41:33', k: 'done', m: `写入结果 ${(product.files || []).length} 个文件`, d: '—' },
         ];
-        const run = makeRun('single', [], st, 0);
+        const run = makeRun('single', [], st, 1);
         runsOf(p).unshift(run);
         st.run = run.no;
         st.runScope = 'single';
       }
       state.focus = { kind: 'pipeline', id: p.id };
-      state.sel = 0;
+      state.sel = 1;
       state.inspTab = 'result';
     }
     renderAll();
@@ -4493,6 +4508,17 @@ ${region}
     return runsOf(flow).find(r => r.status === 'running') || null;
   }
 
+  /**
+   * 整条运行会从哪一步开始：第一个还没完成的步骤；全都完成就从头再跑一遍。
+   *
+   * 底部运行条那句「点运行会怎样」必须和这里同源。否则它承诺的起点会跟实际差一步——
+   * 比如第 2 步单独跑过、第 1 步还没跑，真正的起点是第 1 步，那一步会被重跑。
+   */
+  function resumeFrom(flow) {
+    const firstIdle = flow.stages.findIndex(s => s.status !== 'done');
+    return firstIdle < 0 ? 0 : firstIdle;
+  }
+
   /** 跑整条流水线：从第一个没跑过的步骤开始，后面的排队。 */
   function startRun() {
     const flow = current();
@@ -4501,8 +4527,7 @@ ${region}
     // 正在跑就别再下一次命令：重复点只会把状态推回去重来一次
     if (flow.state === 'running') return;
 
-    const firstIdle = flow.stages.findIndex(s => s.status !== 'done');
-    const from = firstIdle < 0 ? 0 : firstIdle;
+    const from = resumeFrom(flow);
     flow.stages.forEach((s, i) => {
       if (i < from) return;
       s.status = i === from ? 'running' : 'queued';
