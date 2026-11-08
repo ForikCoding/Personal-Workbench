@@ -21,10 +21,20 @@ dsh-desktop-next/.desktop-next/
 # deepseek-harness submodule
 deepseek-harness/
 
-# Transient captures and stray documents at the repository root. The per-version
-# install docs inside dsh-workbench/ are archived on purpose and stay tracked.
+# Transient captures and stray documents at the repository root.
 /.tmp-*.png
 /INSTALL.md
 /dsh-workbench-2.0.19-install.md
 /dsh-workbench-2.0.25-install.md
+
+# Workbench captures and release artifacts. A screenshot taken to compare the plugin
+# against its prototype is evidence for one session, not source, and it is never the
+# thing the next change is read from. The packed tarball and the per-version install
+# note stayed tracked through 2.9.26 and then stopped: the tarball is reproducible with
+# `npm pack` from the same tree, and the note is a record of one machine's install, so
+# both now live on the installing machine rather than in git or in `git status`.
+.harness/
+docs/prototypes/shots/
+dsh-workbench/*.tgz
+dsh-workbench/*-install.md
 
