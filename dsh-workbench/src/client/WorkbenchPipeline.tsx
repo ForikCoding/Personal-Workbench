@@ -34,7 +34,14 @@ import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
-import { pickOpenPipeline, readOpenPipeline, rememberOpenPipeline } from './pipeline-memory.ts'
+import {
+  forgetOpenStep,
+  pickOpenPipeline,
+  readOpenPipeline,
+  readOpenSteps,
+  rememberOpenPipeline,
+  rememberOpenStep,
+} from './pipeline-memory.ts'
 import type { WorkbenchPipelineRunsFace } from './pipeline-runs.ts'
 import { filledTemplate } from './skill-card/render.ts'
 import { findRegion } from './skill-card/template.ts'
@@ -266,6 +273,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   // Seeded from what the panel last showed, so the first render after a remount is already
   // the right pipeline rather than the first stored one flashing and then correcting.
   const [activeId, setActiveId] = useState<string | undefined>(() => readOpenPipeline())
+  /** The step each pipeline was last showing, kept outside this mount for the same reason. */
+  const [stepMemory, setStepMemory] = useState<Readonly<Record<string, number>>>(() => readOpenSteps())
   const [focus, setFocus] = useState<Focus | undefined>(undefined)
   const [tab, setTab] = useState<InspectorTab>('activity')
   const [cards, setCards] = useState<readonly WorkbenchCardConfigView[]>([])
@@ -471,8 +480,37 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })
   }, [active, cards, chain, history, labelOf, resultOf])
 
-  const selectedIndex = focus?.kind === 'step' ? focus.index : 0
+  // The step to show when nothing on screen names one: either this mount has not been told
+  // yet, or the user opened a card and the inspector is showing that instead. Falling back to
+  // the first step is what made coming back from another session land on step one, so the
+  // fallback is the step this pipeline was last showing — clamped, because the step list can
+  // have lost its tail since then.
+  const rememberedStep = active === undefined ? 0 : stepMemory[active.id] ?? 0
+  const wantedIndex = focus?.kind === 'step' ? focus.index : rememberedStep
+  const selectedIndex = stepViews.length === 0 ? 0 : Math.min(Math.max(wantedIndex, 0), stepViews.length - 1)
   const selected = stepViews[selectedIndex]
+  // One write point, whatever made the step selected — a click on the node, a run, an add, a
+  // removal. This panel is unmounted every time the page moves on, so the selection has to be
+  // written out on the way rather than held in state.
+  const activePipelineId = active?.id
+  useEffect(() => {
+    if (activePipelineId === undefined || stepViews.length === 0) return
+    setStepMemory(previous => previous[activePipelineId] === selectedIndex
+      ? previous
+      : { ...previous, [activePipelineId]: selectedIndex })
+    rememberOpenStep(activePipelineId, selectedIndex)
+  }, [activePipelineId, selectedIndex, stepViews.length])
+  // A deleted pipeline takes its step with it: the id is free again afterwards, and a new
+  // pipeline handed that id should not open onto a step of the one that was deleted.
+  const forgetStep = useCallback((pipelineId: string) => {
+    forgetOpenStep(pipelineId)
+    setStepMemory(previous => {
+      if (previous[pipelineId] === undefined) return previous
+      const kept: Record<string, number> = {}
+      for (const [id, step] of Object.entries(previous)) if (id !== pipelineId) kept[id] = step
+      return kept
+    })
+  }, [])
   // The badge counts what the tab is about to show, so a step in flight carries a count too.
   const traceCount = selected === undefined ? 0 : (selected.live ?? selected.result?.activity ?? []).length
 
@@ -1202,6 +1240,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                                 setConfirmDelete(undefined)
                                 setMenuOpen(false)
                                 void pipelines.remove(active.id)
+                                forgetStep(active.id)
                                 setFocus(undefined)
                               }}
                             >

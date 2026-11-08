@@ -392,6 +392,25 @@ describe('WorkbenchPage', () => {
     })
   })
 
+  it('comes back to the step it was left on when the panel is mounted again', async () => {
+    // 换到别的会话再回来，工作台会重挂：选中哪一步以前只活在 state 里，于是永远落回第 1 步。
+    // 记住的是「这条流水线的第几步」，所以关窗口、切会话都还在。
+    const first = await renderPage()
+    await waitFor(() => { expect(document.querySelectorAll('[data-step-index]').length).toBe(2) })
+    fireEvent.click(document.querySelector('[data-step-index="1"]') as HTMLElement)
+    await waitFor(() => {
+      expect(document.querySelector('[data-insp-title]')?.textContent).toBe('B card')
+    })
+    first.view.unmount()
+    await renderPage()
+    await waitFor(() => {
+      expect(document.querySelector('[data-step-index="1"]')?.getAttribute('aria-selected')).toBe('true')
+    })
+    expect(document.querySelector('[data-insp-title]')?.textContent).toBe('B card')
+    // 记住的是位置：第 1 步跟着回到它自己的位置，不是把某一步钉死。
+    expect(document.querySelector('[data-step-index="0"]')?.getAttribute('aria-selected')).toBe('false')
+  })
+
   it('opens the most recently changed pipeline when the remembered one is gone', async () => {
     // What a deleted pipeline leaves behind: an id that no longer names anything stored.
     rememberOpenPipeline('pipeline-deleted')

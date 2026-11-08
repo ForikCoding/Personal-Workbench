@@ -9,7 +9,14 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { pickOpenPipeline, readOpenPipeline, rememberOpenPipeline } from '../src/client/pipeline-memory.ts'
+import {
+  forgetOpenStep,
+  pickOpenPipeline,
+  readOpenPipeline,
+  readOpenSteps,
+  rememberOpenPipeline,
+  rememberOpenStep,
+} from '../src/client/pipeline-memory.ts'
 import type { WorkbenchPipeline } from '../src/pipeline-contract.ts'
 
 /**
@@ -57,5 +64,46 @@ describe('the pipeline the workbench opens', () => {
     expect(readOpenPipeline()).toBe('pipeline-1')
     rememberOpenPipeline('')
     expect(readOpenPipeline()).toBeUndefined()
+  })
+})
+
+describe('the step each pipeline was showing', () => {
+  it('keeps a step per pipeline, so switching back lands where it was left', () => {
+    expect(readOpenSteps()).toEqual({})
+    rememberOpenStep('pipeline-1', 2)
+    rememberOpenStep('pipeline-2', 0)
+    expect(readOpenSteps()).toEqual({ 'pipeline-1': 2, 'pipeline-2': 0 })
+    // The one just written must not disturb the other: the panel switches pipelines without
+    // unmounting, and both have to keep their own place.
+    rememberOpenStep('pipeline-1', 1)
+    expect(readOpenSteps()).toEqual({ 'pipeline-1': 1, 'pipeline-2': 0 })
+  })
+
+  it('forgets one pipeline without forgetting the others', () => {
+    rememberOpenStep('pipeline-1', 1)
+    rememberOpenStep('pipeline-2', 3)
+    forgetOpenStep('pipeline-1')
+    expect(readOpenSteps()).toEqual({ 'pipeline-2': 3 })
+    // Forgetting something that was never kept is not an error, and writes nothing.
+    forgetOpenStep('pipeline-9')
+    expect(readOpenSteps()).toEqual({ 'pipeline-2': 3 })
+  })
+
+  it('has no memory when the stored document is not one', () => {
+    // Whatever else writes this key, a panel still has to open: an unreadable document reads
+    // as no memory rather than as an exception.
+    globalThis.localStorage.setItem('dsh-workbench:open-step', 'not json')
+    expect(readOpenSteps()).toEqual({})
+    globalThis.localStorage.setItem('dsh-workbench:open-step', '[1,2,3]')
+    expect(readOpenSteps()).toEqual({})
+    globalThis.localStorage.setItem('dsh-workbench:open-step', JSON.stringify({
+      'pipeline-1': 2,
+      'pipeline-2': -1,
+      'pipeline-3': 1.5,
+      'pipeline-4': 'two',
+      'pipeline-5': null,
+    }))
+    // Only the value that could be a position survives.
+    expect(readOpenSteps()).toEqual({ 'pipeline-1': 2 })
   })
 })

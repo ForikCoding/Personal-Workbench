@@ -1,10 +1,12 @@
 /**
- * Which pipeline the workbench opens.
+ * Which pipeline, and which of its steps, the workbench shows.
  *
  * The panel is one mount of the page, and the page is one panel among others: looking at a
  * card and coming back, or reopening the application, unmounts it. A pipeline the user
  * opened is therefore a fact that has to outlive the mount, or the panel opens onto the first
  * stored pipeline every time — which reads as the page forgetting what the user was doing.
+ * The same is true one level down: the step someone has selected is what they were reading,
+ * and coming back to another session to find step one selected is the same forgetting.
  *
  * Storage rather than a field on the pipeline, because this is a preference of the person
  * looking at the screen and not part of the pipeline. `localStorage` rather than the
@@ -24,6 +26,22 @@ export declare function readOpenPipeline(): string | undefined;
  * @param id - the pipeline the user is looking at; an empty string clears the memory.
  */
 export declare function rememberOpenPipeline(id: string): void;
+/**
+ * Read the step each pipeline was last showing.
+ * @returns the kept step by pipeline id; empty when none was kept.
+ */
+export declare function readOpenSteps(): Readonly<Record<string, number>>;
+/**
+ * Keep the step one pipeline is showing.
+ * @param pipelineId - the pipeline the step belongs to.
+ * @param index - the step the panel shows.
+ */
+export declare function rememberOpenStep(pipelineId: string, index: number): void;
+/**
+ * Forget the step kept for one pipeline.
+ * @param pipelineId - the pipeline that no longer exists.
+ */
+export declare function forgetOpenStep(pipelineId: string): void;
 /**
  * Pick the pipeline the panel shows.
  *

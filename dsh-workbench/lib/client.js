@@ -7909,6 +7909,67 @@ window.__ModuleLoader__.load({
 			} catch {}
 		}
 		/**
+		* Key the selected step of each pipeline is kept under.
+		*
+		* One key holding every pipeline's step rather than a key per pipeline: the panel does not
+		* know which ids it will be asked about, and a map is what lets a pipeline keep its step
+		* while the others are being looked at. The value is the step's index, because the step list
+		* itself is the pipeline's, and an index survives a rename — it is the position that moved.
+		*/
+		var OPEN_STEP_KEY = "dsh-workbench:open-step";
+		/**
+		* Read the steps kept for every pipeline, dropping anything unreadable.
+		* @returns step index by pipeline id; empty when nothing was kept or storage is unavailable.
+		*/
+		function readStepMap() {
+			try {
+				const kept = globalThis.localStorage?.getItem(OPEN_STEP_KEY);
+				if (kept === null || kept === void 0 || kept === "") return {};
+				const parsed = JSON.parse(kept);
+				if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+				const steps = {};
+				for (const [id, value] of Object.entries(parsed)) if (typeof value === "number" && Number.isInteger(value) && value >= 0) steps[id] = value;
+				return steps;
+			} catch {
+				return {};
+			}
+		}
+		/**
+		* Read the step each pipeline was last showing.
+		* @returns the kept step by pipeline id; empty when none was kept.
+		*/
+		function readOpenSteps() {
+			return readStepMap();
+		}
+		/**
+		* Keep the step one pipeline is showing.
+		* @param pipelineId - the pipeline the step belongs to.
+		* @param index - the step the panel shows.
+		*/
+		function rememberOpenStep(pipelineId, index) {
+			try {
+				const steps = readStepMap();
+				if (steps[pipelineId] === index) return;
+				globalThis.localStorage?.setItem(OPEN_STEP_KEY, JSON.stringify({
+					...steps,
+					[pipelineId]: index
+				}));
+			} catch {}
+		}
+		/**
+		* Forget the step kept for one pipeline.
+		* @param pipelineId - the pipeline that no longer exists.
+		*/
+		function forgetOpenStep(pipelineId) {
+			try {
+				const steps = readStepMap();
+				if (steps[pipelineId] === void 0) return;
+				const kept = {};
+				for (const [id, step] of Object.entries(steps)) if (id !== pipelineId) kept[id] = step;
+				globalThis.localStorage?.setItem(OPEN_STEP_KEY, JSON.stringify(kept));
+			} catch {}
+		}
+		/**
 		* Pick the pipeline the panel shows.
 		*
 		* The remembered id wins while it still names a stored pipeline. Otherwise the pipeline
@@ -8044,6 +8105,8 @@ window.__ModuleLoader__.load({
 		function WorkbenchPipeline(props) {
 			const { pipelines, runs: recordedRuns, run, facts, api, renderCard, onCreateCard, t, catalog, catalogStatus, catalogFailure, onCatalogNeeded, createCardForSkill, renameStepCard, patchStepCards, modelGroups, workspacePicker, saveStepTemplate, removeCard } = props;
 			const [activeId, setActiveId] = (0, react.useState)(() => readOpenPipeline());
+			/** The step each pipeline was last showing, kept outside this mount for the same reason. */
+			const [stepMemory, setStepMemory] = (0, react.useState)(() => readOpenSteps());
 			const [focus, setFocus] = (0, react.useState)(void 0);
 			const [tab, setTab] = (0, react.useState)("activity");
 			const [cards, setCards] = (0, react.useState)([]);
@@ -8207,8 +8270,32 @@ window.__ModuleLoader__.load({
 				labelOf,
 				resultOf
 			]);
-			const selectedIndex = focus?.kind === "step" ? focus.index : 0;
+			const rememberedStep = active === void 0 ? 0 : stepMemory[active.id] ?? 0;
+			const wantedIndex = focus?.kind === "step" ? focus.index : rememberedStep;
+			const selectedIndex = stepViews.length === 0 ? 0 : Math.min(Math.max(wantedIndex, 0), stepViews.length - 1);
 			const selected = stepViews[selectedIndex];
+			const activePipelineId = active?.id;
+			(0, react.useEffect)(() => {
+				if (activePipelineId === void 0 || stepViews.length === 0) return;
+				setStepMemory((previous) => previous[activePipelineId] === selectedIndex ? previous : {
+					...previous,
+					[activePipelineId]: selectedIndex
+				});
+				rememberOpenStep(activePipelineId, selectedIndex);
+			}, [
+				activePipelineId,
+				selectedIndex,
+				stepViews.length
+			]);
+			const forgetStep = (0, react.useCallback)((pipelineId) => {
+				forgetOpenStep(pipelineId);
+				setStepMemory((previous) => {
+					if (previous[pipelineId] === void 0) return previous;
+					const kept = {};
+					for (const [id, step] of Object.entries(previous)) if (id !== pipelineId) kept[id] = step;
+					return kept;
+				});
+			}, []);
 			const traceCount = selected === void 0 ? 0 : (selected.live ?? selected.result?.activity ?? []).length;
 			const usedSkills = (0, react.useMemo)(() => {
 				const used = /* @__PURE__ */ new Set();
@@ -8899,6 +8986,7 @@ window.__ModuleLoader__.load({
 																setConfirmDelete(void 0);
 																setMenuOpen(false);
 																pipelines.remove(active.id);
+																forgetStep(active.id);
 																setFocus(void 0);
 															},
 															children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
