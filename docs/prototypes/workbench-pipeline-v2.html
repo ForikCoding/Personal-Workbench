@@ -1314,6 +1314,14 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   font-size: 11px;
   line-height: 1.5;
 }
+/* 没有边框控件的行（产出目录这种只读值）：标签和注脚不能再用给输入框调的
+   那 7px 下压，否则它们比值低半个字。三样东西按同一条基线站好就行。 */
+.ruleRow[data-plain="1"] .ruleLabel { padding-top: 0; line-height: 18px; }
+.ruleRow[data-plain="1"] .ruleLine { align-items: baseline; }
+.ruleRow[data-plain="1"] .ruleNote { padding-top: 0; line-height: 18px; }
+/* 值那一轨至少和下拉一样宽（200）：路径一短，注脚就往前凑，
+   同一块里几行注脚起头对不齐，看着像没排过版 */
+.ruleRow[data-plain="1"] .ruleValue { min-width: 200px; }
 
 /* 长一点的技能说明是“读物”不是注脚：两行打住，剩下的自己展开。
    它是配置页里唯一需要阅读的段落，所以给它一个窄栏和一个边界，
@@ -1328,6 +1336,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   background: var(--recess);
 }
 .specNoteBody { margin: 0; color: var(--ink3); font-size: 12px; line-height: 1.6; }
+/* 一行附注，长在控件下面：它说的是"这一行的后果在别处"，不是这一行的值 */
+.ruleExtra { margin-top: 5px; color: var(--ink4); font-size: 11px; line-height: 1.5; }
 .specNote[data-open="false"] .specNoteBody { max-height: 3.2em; overflow: hidden; }
 /* 收起来的那两行，最后半行淡出：看得出下面还有字，而不是被剪断 */
 .specNote[data-open="false"]::after {
@@ -1355,6 +1365,110 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 }
 .specNoteMore:hover { text-decoration: underline; }
 .specNoteMore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* --------------------------------------------------------- 运行参数
+   一个参数在这套界面里只长一个样子：括起来、等宽、淡蓝底。
+   括号不是装饰，是这里的说法——「这个位置由运行时的值填」。
+   同一条视觉语言贯穿三处：声明、模板里的目录、跑完落成的路径，
+   换一处就变成第二个东西，所以这里不给它第二套样式。 */
+.tok {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* 一个名字、一句说明：只在「没有目录」这种一句话的地方用 */
+.paramMeta { color: var(--ink4); font-size: 11px; }
+
+/* 模板里的目录，原样显示：谁也改不了它，它说的是"跑完落在哪" */
+.outDir { display: inline-flex; align-items: center; flex-wrap: wrap; font-family: var(--f-mono); font-size: 12px; color: var(--ink); }
+
+/* --------------------------------------------------------- 运行弹框
+   只在「这条流水线有参数」时出现。它只做一件事：把这次运行要的
+   值问全，并把后果摊在同一屏里——每填一个字，下面那几条路径跟着变。 */
+.runWrap { position: absolute; inset: 0; z-index: 86; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.runWrap[hidden] { display: none; }
+.runScrim { position: absolute; inset: 0; background: var(--scrim); }
+.runDlg {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 540px;
+  max-width: 100%;
+  max-height: 100%;
+  border: 0.5px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--pane);
+  box-shadow: var(--shadow-menu);
+  overflow: hidden;
+}
+.runHead { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 10px; border-bottom: 0.5px solid var(--divider); }
+.runHead span { color: var(--ink); font-size: 13px; font-weight: 600; }
+.runHead em { color: var(--ink4); font-size: 11px; font-style: normal; }
+.runBody { padding: 14px 16px 6px; overflow: auto; }
+.runField { display: flex; align-items: flex-start; gap: 12px; }
+.runField + .runField { margin-top: 12px; }
+.runLabel { flex: 0 0 64px; padding-top: 7px; color: var(--ink3); font-size: 12px; }
+.runFieldMain { flex: 1; min-width: 0; }
+.runInput {
+  width: 100%;
+  max-width: 380px;
+  padding: 6px 9px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: var(--f-mono);
+  font-size: 12px;
+}
+.runInput:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }
+.runInput:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.runInput[aria-invalid="true"] { border-color: var(--danger); }
+.runHint { margin-top: 5px; color: var(--ink4); font-size: 11px; line-height: 1.5; }
+.runErr { margin-top: 5px; color: var(--danger); font-size: 11px; line-height: 1.5; }
+
+/* 后果：这一段是这张弹框里唯一值得看的东西，所以它坐在落下去的底色上，
+   和上面的输入框分开。路径里的值有底，没填的地方还是那个括号。 */
+.runOut { margin-top: 16px; padding: 10px 12px 11px; border-radius: 8px; background: var(--recess); }
+.runOutHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: var(--ink4); font-size: 11px; }
+.runOutRow { display: flex; align-items: baseline; gap: 10px; padding: 2px 0; }
+.runOutStep { flex: 0 0 104px; color: var(--ink3); font-size: 11px; }
+.runOutPath { flex: 1; min-width: 0; color: var(--ink2); font-family: var(--f-mono); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+.runOutNone { flex: 1; color: var(--ink4); font-size: 11px; }
+/* 连续几步没目录并成一行：步骤号仍按序念得出来，但这一行不该抢戏 */
+.runOutSkip { color: var(--ink4); }
+/* 收尾那一句：没有目录的几步、这些路径落在哪。它是一句交代，不是一行数据 */
+.runOutTail { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--divider); color: var(--ink4); font-size: 11px; line-height: 1.6; }
+.runOutWs { color: var(--ink3); font-family: var(--f-mono); }
+.tokFill { padding: 0 4px; border-radius: 4px; background: var(--accent-wash); color: var(--accent); }
+.runFoot { display: flex; align-items: center; gap: 8px; padding: 12px 16px 14px; }
+.runCount { margin-right: auto; color: var(--ink4); font-size: 11px; }
+
+/* 重新生成：这次运行用的值只读地摆在这儿。不显示，就会有人以为
+   重新生成是"新建一份"，然后在两个目录里各有一半。
+   它是一张两行的清单，不是一句话——所以按配置页那套对齐来，别横着缝。 */
+.revParam {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding: 9px 11px 10px;
+  border-radius: 8px;
+  background: var(--recess);
+  color: var(--ink3);
+  font-size: 11px;
+}
+.revParamHead { color: var(--ink4); font-size: 11px; }
+.revParamRow { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.revParamKey { flex: 0 0 56px; color: var(--ink3); }
+.revParamVal { flex: 1; min-width: 0; color: var(--ink); font-family: var(--f-mono); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+.revParamNote { margin-top: 4px; color: var(--ink4); font-size: 11px; line-height: 1.5; }
 
 /* ----------------------------------------------------------------- 运行条 */
 .runbar {
@@ -2108,6 +2222,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           <div class="reviewWho" id="reviewWho"></div>
         </div>
         <div class="reviewBody">
+          <div class="revParam" id="reviewParam" hidden></div>
           <div class="reviewFrom" id="reviewFrom" hidden></div>
           <textarea class="reviewArea" id="reviewArea" rows="3"
                     placeholder="说明要改哪里，例如「按时间倒序」"></textarea>
@@ -2122,6 +2237,24 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
           <div class="spacer"></div>
           <button class="btn ghost" type="button" id="reviewCancel">取消</button>
           <button class="btn primary" type="button" id="reviewSubmit" disabled>重新生成</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 运行：参数填一次，整条流水线共用。只有声明了参数的流水线才走这里 -->
+    <div class="runWrap" id="runWrap" hidden>
+      <div class="runScrim" id="runScrim"></div>
+      <div class="runDlg" role="dialog" aria-modal="true" aria-labelledby="runTitle">
+        <div class="runHead">
+          <span id="runTitle">运行</span>
+          <!-- 参数都是从产出目录里推出来的，所以没有"选填"这一档：一个都不用问的时候，这句话也就不出现了 -->
+          <em>都要填；整条流水线共用，只在这一次运行里</em>
+        </div>
+        <div class="runBody" id="runBody"></div>
+        <div class="runFoot">
+          <span class="runCount" id="runCount"></span>
+          <button class="btn ghost" type="button" id="runCancel">取消</button>
+          <button class="btn primary" type="button" id="runGo">开始运行</button>
         </div>
       </div>
     </div>
@@ -2351,11 +2484,26 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   const PIPELINES = [
     {
       id: 'req-to-ship', name: '需求到交付', updated: '今天 14:07', state: 'running', total: '03:12',
+      // 参数不在这里声明：它来自下面每一步产出目录里的 {名字}。
+      // 这里只有文案——一句提示、一个示例，全删掉也不会改变"有哪几个参数"。
+      paramHints: {
+        '任务编号': {
+          hint: '效能平台上的任务号。产出写进它下面，两个任务的产物不会混在一起。',
+          example: 'T202608242753-1',
+        },
+        '版本号': {
+          hint: '这条需求排在哪个版本。只有详细设计按版本归档。',
+          example: 'V2.3',
+        },
+      },
       stages: [
         {
           // run：这一步的产物来自哪次运行。单点重跑之后只有这一步的号会变
           run: 4, skill: 'requirements-scoping', status: 'done', dur: '12.4s',
-          summary: '2 个文件 · 4 条子任务', dir: 'docs/需求拆解',
+          summary: '2 个文件 · 4 条子任务',
+          // 模板里写的是 {任务编号}/docs/需求拆解，落下来是这一串。目录里带着任务号，
+          // 两个任务的结果才各在各的文件夹里，互不覆盖
+          dir: 'T202608242753-1/docs/需求拆解',
           files: [
             { name: '需求拆解.md', size: '4.2 KB', doc: 'scoping' },
             { name: '验收标准.md', size: '2.1 KB', doc: 'scopingCriteria' },
@@ -2370,7 +2518,9 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
         {
           // 这一步返回的目录用真实的一个，文件名也因此是长的——正好压一压截断
           run: 4, skill: 'design-doc', status: 'done', dur: '31.8s',
-          summary: '3 个文件 · 4 处改动', dir: 'docs/详细设计',
+          summary: '3 个文件 · 4 处改动',
+          // 这一步要两个值：任务号分任务，版本号分版本——需求拆解那一步只要任务号
+          dir: 'T202608242753-1/docs/V2.3/详细设计',
           files: [
             { name: 'workbench-workflow-card-detailed-design.md', size: '56.5 KB', doc: 'design' },
             { name: 'workbench-workflow-card-requirements.md', size: '35.8 KB', doc: 'designFiles' },
@@ -2408,7 +2558,10 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
             { t: '14:05:31', k: 'think', m: '离线态那条还不该断言，先 skip。', d: '—' },
           ],
         },
-        { run: 4, skill: 'code-review', status: 'queued', dur: '—', summary: '', files: [], acts: [] },
+        {
+          // 目录在卡上：审查意见不分任务，所有任务都写这一处，所以这一步不问任何参数
+          run: 4, skill: 'code-review', status: 'queued', dur: '—', summary: '', files: [], acts: [],
+        },
       ],
     },
     {
@@ -2648,14 +2801,14 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   /* 单点重跑要交出来的东西。真实现由 skill 自己决定，这里只是让原型有个可信的产物。 */
   const STEP_PRODUCT = {
     'requirements-scoping': {
-      dir: 'docs/需求拆解', summary: '2 个文件 · 4 条子任务',
+      dir: 'T202608242753-1/docs/需求拆解', summary: '2 个文件 · 4 条子任务',
       files: [
         { name: '需求拆解.md', size: '4.2 KB', doc: 'scoping' },
         { name: '验收标准.md', size: '2.1 KB', doc: 'scopingCriteria' },
       ],
     },
     'design-doc': {
-      dir: 'docs/详细设计', summary: '3 个文件 · 4 处改动',
+      dir: 'T202608242753-1/docs/V2.3/详细设计', summary: '3 个文件 · 4 处改动',
       files: [
         { name: 'workbench-workflow-card-detailed-design.md', size: '56.5 KB', doc: 'design' },
         { name: 'workbench-workflow-card-requirements.md', size: '35.8 KB', doc: 'designFiles' },
@@ -2705,6 +2858,13 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     pickerQ: '',
     // 技能说明展开着没有。默认收起来：一二百字的说明不该决定配置页的高度
     specOpen: false,
+    // 运行参数：这次运行要填的值。不是流水线的状态——关掉页面就没了，下一次重新问
+    paramValues: {},
+    runDlgOpen: false,
+    // 这一次从第几步起跑：0 是整条，>0 是「从这一步重做」
+    runFrom: 0,
+    // 有没有点过一次「开始运行」：报错只在点过之后出现，别一打开就红一片
+    paramTried: false,
     tick: { run: 192, stage: 41 },
   };
 
@@ -2770,14 +2930,60 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   const chipHtml = (s) => `<span class="chipTag" data-s="${s}">${SVG[STAGE_ICON[s] || 'dash']}${STAGE_TEXT[s]}</span>`;
 
   /** 新插入的步骤：还没跑，也没有产物。 */
+  /**
+   * 每个技能把结果写到哪——这是**卡片**的属性，不是步骤的设置。
+   *
+   * 步骤只记「用哪张卡 + 这一步要它做什么」，目录跟着卡来：能力包里没有
+   * data-dsh-files 的卡（整理成一段正文的那种）就没有产出目录。所以新建
+   * 一步不需要回答"要不要产出目录"，换一张卡这一行也就跟着换。
+   * 值是模板里 data-dsh-files 的属性值，花括号是运行时才填的名字。
+   */
+  const CARD_DIRS = {
+    'requirements-scoping': '{任务编号}/docs/需求拆解',
+    'design-doc': '{任务编号}/docs/{版本号}/详细设计',
+    'code-review': 'docs/审查意见',
+    'weekly-report': 'docs/周报',
+  };
+
+  /** 这一步的产出目录模板：卡自带的。步骤上没有第二份可改 */
+  function dirTemplateOf(st) {
+    return (st && CARD_DIRS[st.skill]) || '';
+  }
+
+  /** 这个技能还被别的哪几条流水线用着：改卡的时候它们一起变 */
+  function cardElsewhere(flow, skill) {
+    return PIPELINES.filter(p => p !== flow && (p.stages || []).some(s => s.skill === skill)).length;
+  }
+
   function makeStage(skill) {
     const task = TASKS.find(t => t.skill === skill);
-    // 运行指令和失败处理是**这一步**的事，所以存在步骤上，不是全局常量
+    // 运行指令和失败处理是**这一步**的事；产出目录不在这里，它跟着卡走
     return {
       skill, status: 'idle', dur: '—', summary: '', files: [], acts: [],
       instruction: (task || {}).instruction || '按这个技能的要求做完，产物写成一页摘要。',
       fail: '停止后续步骤',
     };
+  }
+
+  /**
+   * 换卡。指令和产出目录都跟着换——它们是这张卡的东西，不是这一步的。
+   *
+   * 上一张卡留下的解析后的目录（st.dir）也清掉：它记的是"上次写到哪"，
+   * 换了卡这一步就不再写那个地方了，留着它会和新卡说的地址打架。
+   */
+  function applySkill(st, skill) {
+    st.skill = skill;
+    const task = TASKS.find(t => t.skill === skill);
+    st.instruction = (task || {}).instruction || st.instruction;
+    delete st.name;
+    // 上一张卡跑出来的东西不属于新卡：留着"完成 31.8s"就是在说这一步跑过了，
+    // 而它其实没跑。清零是唯一诚实的说法
+    st.status = 'idle';
+    st.dur = '—';
+    st.summary = '';
+    st.files = [];
+    st.acts = [];
+    delete st.dir;
   }
 
   /* ============================================================ 画布 */
@@ -3296,7 +3502,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
    * 下面那层要 aria-hidden，不然读屏会看到两个模态叠在一起。焦点也是同一件事——
    * 开的时候记住从哪来，关的时候还回去，Tab 在层里绕圈，不跑到背后的画布上去。
    */
-  const OVERLAY_IDS = ['#histWrap', '#zoomWrap', '#reviewWrap', '#pickerWrap'];
+  const OVERLAY_IDS = ['#histWrap', '#zoomWrap', '#reviewWrap', '#runWrap', '#pickerWrap'];
   const focusStack = [];
 
   function rememberFocus() {
@@ -3314,6 +3520,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     if (state.histOpen) stack.push('#histWrap');
     if (state.zoomOpen) stack.push('#zoomWrap');
     if (state.reviewOpen) stack.push('#reviewWrap');
+    if (state.runDlgOpen) stack.push('#runWrap');
     if (state.picker) stack.push('#pickerWrap');
     const top = stack[stack.length - 1];
     OVERLAY_IDS.forEach(sel => {
@@ -3324,6 +3531,256 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       const dlg = el.querySelector('[role="dialog"]');
       if (dlg) dlg.setAttribute('aria-modal', String(open && sel === top));
     });
+  }
+
+  /* ============================================================ 运行参数 */
+
+  /** 一个参数的名字：括起来、等宽、淡底。括号就是这套界面的说法 */
+  const tokHtml = (key) => `<span class="tok">{${esc(key)}}</span>`;
+
+  /**
+   * 把一段模板路径里的参数位置换成值。
+   *
+   * 没填的位置仍是那个括号，填好的位置是同一色系的底。于是「这一串里哪几段还没定」
+   * 在一行里自己看得出来——这比在下面写一句「请填写所有参数」有用。
+   */
+  function dirHtml(template, values) {
+    if (!template) return '';
+    return String(template).split(/(\{[^}]+\})/g).map((part) => {
+      const m = /^\{([^}]+)\}$/.exec(part);
+      if (!m) return esc(part);
+      const v = String((values || {})[m[1]] || '').trim();
+      return v === '' ? tokHtml(m[1]) : `<span class="tokFill">${esc(v)}</span>`;
+    }).join('');
+  }
+
+  /**
+   * 这条流水线要问哪些值——不是配置里写的，是从每一步的产出目录里推出来的。
+   *
+   * 目录里有 {名字}，运行时就得问；没有，就什么都不问。所以周报那条自动是空的，
+   * 程序里没有一处需要知道"哪条是周报"。同一个名字出现在几步里，只问一次，
+   * 旁边那句「第 1、2 步要用」就是它的来历。
+   */
+  function runParamsOf(flow, from = 0) {
+    const seen = new Map();
+    (flow.stages || []).forEach((st, i) => {
+      // 只算这次真的要重做的那几步：从第 5 步起跑，就不该问第 1、2 步要的值
+      const tpl = dirTemplateOf(st);
+      if (i < from || !tpl) return;
+      (String(tpl).match(/\{[^{}]{1,20}\}/g) || []).forEach((token) => {
+        const key = token.slice(1, -1);
+        if (!seen.has(key)) seen.set(key, { key, steps: [] });
+        seen.get(key).steps.push(i);
+      });
+    });
+    const hints = flow.paramHints || {};
+    return [...seen.values()].map(p => ({
+      key: p.key,
+      steps: p.steps,
+      // 文案是可选的：没有它也照样问，只是提示少一句
+      hint: (hints[p.key] || {}).hint || '',
+      example: (hints[p.key] || {}).example || '',
+    }));
+  }
+
+  /** 参数值合不合格：任务号要拿去当目录名，所以和目录名守同一套规矩 */
+  function paramProblem(p, value) {
+    const v = String(value || '').trim();
+    // 报错说的是「接着怎么走」，不是复述「这里必填」——必填这件事标签上已经写了
+    if (v === '') return `填上${p.key}才能运行`;
+    if (!/^[A-Za-z0-9._-]{1,40}$/.test(v)) return '只能用字母、数字、点、下划线、短横，最长 40 个字符';
+    return '';
+  }
+
+  /** 这一步的产出目录：卡上写的样子，花括号是运行时才填的名字 */
+  function outDirOf(st) {
+    const tpl = dirTemplateOf(st);
+    if (tpl) return `<span class="outDir">${dirHtml(tpl, {})}</span>`;
+    return '<span class="paramMeta">这张卡不写文件</span>';
+  }
+
+  /**
+   * 产出目录右边那句话：它从哪来、要不要值。
+   *
+   * 说"来自卡片"，是因为这一行看着像这一步的设置，实际改它改的是那个技能的模板——
+   * 别的流水线用到同一个技能，也跟着变。这一点不说，用户会以为在改这一步。
+   */
+  function outDirNote(st, flow) {
+    const card = `卡片「${stageName(st)}」`;
+    const tpl = dirTemplateOf(st);
+    const tokens = tpl ? (tpl.match(/\{[^{}]{1,20}\}/g) || []) : [];
+    if (tokens.length === 0) return cfgNote(`${card}写死的，运行时不问`);
+    if (tokens.length === 1) return cfgNote(`${card}的，运行时问一次`);
+    return cfgNote(`${card}的，运行时一起问`);
+  }
+
+  /** 卡被别的流水线也用着时，得先说明它不只属于这一步 */
+  function outDirExtra(st, flow) {
+    if (!dirTemplateOf(st)) return '';
+    const other = cardElsewhere(flow, st.skill);
+    if (other === 0) return '';
+    return `<div class="ruleExtra">改它就是改这个技能，另外 ${other} 条流水线也变</div>`;
+  }
+
+  /** 弹框右上方那句：几步有目录、几步没有。目录不是每步都有，先说清 */
+  function dirCount(flow, from = 0) {
+    const range = flow.stages.slice(from);
+    const withDir = range.filter(st => dirTemplateOf(st)).length;
+    return `${withDir}/${range.length} 步有目录`;
+  }
+
+  /**
+   * 每一条路径都跟着值走：填一个字，下面这一列就变一次。
+   *
+   * 没有目录的步骤不占一行——三行一样的「这一步没有目录」是噪音，
+   * 一句话说得完的事就让一句话说。相对路径要落地，所以最后交代它在哪下。
+   */
+  function outRows(flow, from = 0) {
+    const values = state.paramValues;
+    const ws = flow.workspace || DEFAULT_WORKSPACE;
+    // 按步骤顺序排，连续几步没有目录就并成一句话夹在中间——
+    // 于是列表里步骤号永远是对的序，不会从第 2 步跳到第 5 步
+    const rows = [];
+    let skip = [];
+    const flushSkip = () => {
+      if (!skip.length) return;
+      rows.push(`
+        <div class="runOutRow">
+          <span class="runOutStep runOutSkip">第 ${skip.map(i => i + 1).join('、')} 步</span>
+          <span class="runOutNone">没有目录，结果是一段内容</span>
+        </div>`);
+      skip = [];
+    };
+    flow.stages.forEach((st, i) => {
+      if (i < from) return;
+      if (!dirTemplateOf(st)) { skip.push(i); return; }
+      rows.push(`
+        <div class="runOutRow">
+          <span class="runOutStep">第 ${i + 1} 步 ${esc(stageName(st))}</span>
+          <span class="runOutPath">${dirHtml(dirTemplateOf(st), values)}</span>
+        </div>`);
+    });
+    flushSkip();
+    return `
+      ${rows.join('')}
+      <div class="runOutTail">以上都在 <span class="runOutWs">${esc(ws)}</span> 下。</div>`;
+  }
+
+  /**
+   * 有参数的流水线：点「运行」先问值。
+   *
+   * 不问的代价是它得自己猜——猜上次那个号，于是新任务的结果写进旧任务的文件夹。
+   * 所以这个弹框是参数的唯一入口；值不落盘，只活在这一次运行里。
+   */
+  function openRunDlg(from = 0) {
+    const flow = current();
+    if (flow.isTask || runParamsOf(flow, from).length === 0) { startRun(); return; }
+    state.runFrom = from;
+    state.paramTried = false;
+    state.runDlgOpen = true;
+    renderRunDlg();
+    const first = $('#runBody [data-param]');
+    if (first) first.focus();
+  }
+
+  /**
+   * 「运行」和「重跑」的共同入口：这一步（这一段）要值就问，不要就直接跑。
+   *
+   * 从第 5 步起跑时不问第 1、2 步要的任务号——那两步不重做，问了也没人用。
+   */
+  function requestRun(from) {
+    const flow = current();
+    if (runParamsOf(flow, from).length > 0) { openRunDlg(from); return; }
+    if (from > 0) startRunAt(from); else startRun();
+  }
+
+  function closeRunDlg() {
+    state.runDlgOpen = false;
+    renderRunDlg();
+  }
+
+  function renderRunDlg() {
+    const wrap = $('#runWrap');
+    const opening = state.runDlgOpen && wrap.hidden;
+    const closing = !state.runDlgOpen && !wrap.hidden;
+    if (opening) rememberFocus();
+    wrap.hidden = !state.runDlgOpen;
+    syncModalStack();
+    if (closing) restoreFocus();
+    if (!state.runDlgOpen) return;
+
+    const flow = current();
+    const from = state.runFrom || 0;
+    const params = runParamsOf(flow, from);
+    $('#runTitle').textContent = `运行 · ${flow.name}`;
+    $('#runBody').innerHTML = `
+      ${params.map(p => `
+        <div class="runField">
+          <span class="runLabel">${esc(p.key)}</span>
+          <div class="runFieldMain">
+            <input class="runInput" data-param="${esc(p.key)}" type="text" spellcheck="false"
+                   autocomplete="off" placeholder="${esc(p.example || '')}"
+                   aria-label="${esc(p.key)}"
+                   aria-required="true"
+                   value="${esc(state.paramValues[p.key] || '')}">
+            ${p.hint ? `<div class="runHint">${esc(p.hint)}</div>` : `<div class="runHint">第 ${p.steps.map(i => i + 1).join('、')} 步的产出目录要用它</div>`}
+            <div class="runErr" data-err="${esc(p.key)}" hidden></div>
+          </div>
+        </div>`).join('')}
+      <div class="runOut">
+        <div class="runOutHead"><span>跑完写进这些目录</span><span>${dirCount(flow, from)}</span></div>
+        <div id="runOutBody">${outRows(flow, from)}</div>
+      </div>`;
+    const todo = flow.stages.length - from;
+    $('#runCount').textContent = from > 0
+      ? `${todo} 个步骤 · 从第 ${from + 1} 步跑到底`
+      : `${todo} 个步骤 · 从头跑一遍`;
+    updateRunDlgLive();
+  }
+
+  /** 值变了只改后果和按钮，不重画输入框——重画会把光标顶回开头 */
+  function updateRunDlgLive() {
+    const flow = current();
+    const params = runParamsOf(flow, state.runFrom || 0);
+    const body = $('#runOutBody');
+    if (body) body.innerHTML = outRows(flow, state.runFrom || 0);
+    params.forEach((p) => {
+      const value = String(state.paramValues[p.key] || '').trim();
+      const problem = paramProblem(p, state.paramValues[p.key]);
+      // 一打开就红一片是在骂人；敲了字的、或者点过「开始运行」的，才把话说出来。
+      // 按钮不置灰：置灰的按钮只会让人猜「为什么不能点」，点了给一句原因更快
+      const show = problem !== '' && (state.paramTried || value !== '');
+      const err = $(`#runBody [data-err="${p.key}"]`);
+      if (err) {
+        err.hidden = !show;
+        err.textContent = show ? problem : '';
+      }
+      const input = $(`#runBody [data-param="${p.key}"]`);
+      if (input) input.setAttribute('aria-invalid', String(show));
+    });
+  }
+
+  function submitRunDlg() {
+    const flow = current();
+    const from = state.runFrom || 0;
+    const params = runParamsOf(flow, from);
+    state.paramTried = true;
+    const problem = params.find(p => paramProblem(p, state.paramValues[p.key]) !== '');
+    if (problem) {
+      updateRunDlgLive();
+      const el = $(`#runBody [data-param="${problem.key}"]`);
+      if (el) el.focus();
+      return;
+    }
+    // 这次用的值记在这条流水线上：审核弹框据此说明「写回同一个目录」，不新建任务
+    flow._runParams = { ...state.paramValues };
+    // 输入框不记值：下一次运行重新问。留着上一次的任务号，第二次就会悄悄写进第一个任务的文件夹
+    state.paramValues = {};
+    state.paramTried = false;
+    state.runDlgOpen = false;
+    state.runFrom = 0;
+    renderRunDlg();
+    if (from > 0) startRunAt(from); else startRun();
   }
 
   /* ============================================================ 审核 */
@@ -3381,6 +3838,25 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     from.textContent = state.reviewFromSnapshot && state.zoomRun
       ? `你正在看的是第 ${state.zoomRun.no} 次运行的快照，它不会变。这次重新生成改的是这一步的现在，会另外产生一次运行。`
       : '';
+
+    // 这次运行用的值只读地摆在这儿。不显示，就会有人以为重新生成是"新建一份"，
+    // 然后在两个目录里各看到一半
+    const values = flow._runParams || state.paramValues;
+    const used = Object.keys(values).filter(k => String(values[k] || '').trim() !== '');
+    const paramRow = $('#reviewParam');
+    paramRow.hidden = used.length === 0;
+    paramRow.innerHTML = used.length === 0 ? '' : `
+      ${used.map(k => `
+        <div class="revParamRow">
+          <span class="revParamKey">${esc(k)}</span>
+          <span class="revParamVal"><span class="tokFill">${esc(values[k])}</span></span>
+        </div>`).join('')}
+      ${dirTemplateOf(st) ? `
+        <div class="revParamRow">
+          <span class="revParamKey">产出目录</span>
+          <span class="revParamVal">${dirHtml(dirTemplateOf(st), values)}</span>
+        </div>` : ''}
+      <span class="revParamNote">这是本次运行用的值；重新生成写回同一个目录，不新建任务。</span>`;
 
     // 空要求不允许提交：没有要求的「重新生成」只是重跑一次，那不是审核
     $('#reviewSubmit').disabled = $('#reviewArea').value.trim() === '';
@@ -4107,9 +4583,15 @@ ${region}
   const cfgNote = (text) => text ? `<span class="ruleNote">${esc(text)}</span>` : '';
 
   /** 一行三轨：标签 / 控件 / 注脚。行高只由控件决定，注脚撑不长它 */
-  function cfgField(label, control, noteHtml, extra) {
+  /**
+   * 一行配置：标签在左轨，控件在中轨，注脚跟在控件右边。
+   *
+   * `plain` 是给没有边框控件的行用的（产出目录这种只读值）——那些行要按文字
+   * 基线对齐，不能沿用输入框那套 7px 下压。
+   */
+  function cfgField(label, control, noteHtml, extra, plain = false) {
     return `
-      <div class="ruleRow">
+      <div class="ruleRow"${plain ? ' data-plain="1"' : ''}>
         <span class="ruleLabel">${label}</span>
         <div class="ruleBody">
           <div class="ruleLine">
@@ -4157,6 +4639,9 @@ ${region}
     const skill = skillParts(st);
     const opt = (v, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(v)}</option>`;
 
+    // 这里没有「运行参数」这一行。参数不是"每一步都跟着"的东西——
+    // 它是某几步的产出目录要的值，就写在那些步骤的「产出目录」里；
+    // 摆进「整条流水线」那块，第 5 步那种不要参数的步骤就会凭空多一行。
     // 单任务不挂在流水线上，没有"整条流水线"这一层
     const shared = flow.isTask ? '' : `
       <div class="cfgBlock">
@@ -4184,6 +4669,7 @@ ${region}
         ${cfgField('失败处理', `<select class="ruleSelect" data-cfg="fail" aria-label="失败处理">
               ${['停止后续步骤', '继续后续步骤'].map(v => `<option value="${esc(v)}"${v === fail ? ' selected' : ''}>${esc(v)}</option>`).join('')}
             </select>`, cfgNote(fail === '停止后续步骤' ? '失败即停，后面的步骤不跑' : '失败了也接着跑后面的步骤'))}
+        ${dirTemplateOf(st) ? cfgField('产出目录', outDirOf(st), outDirNote(st, flow), outDirExtra(st, flow), true) : ''}
       </div>
 
       <div class="cfgBlock">
@@ -4780,13 +5266,7 @@ ${region}
       case 'perm': flow.perm = sel.value; break;
       case 'workspace': renderDirPicker(); return;
       case 'skill':
-        if (st) {
-          st.skill = sel.value;
-          // 指令跟着技能换回默认值：留着上一个技能的话，跑的就是另一件事了
-          const task = TASKS.find(t => t.skill === sel.value);
-          st.instruction = (task || {}).instruction || st.instruction;
-          delete st.name;
-        }
+        if (st) applySkill(st, sel.value);
         break;
       case 'instruction': if (st) st.instruction = sel.value; break;
       case 'fail': if (st) st.fail = sel.value; break;
@@ -4805,6 +5285,8 @@ ${region}
       state.specOpen = !state.specOpen;
       renderInspector();
     }
+    // 参数区是只读的：加一个参数的办法是往产出目录里写一个 {名字}，
+    // 所以这里没有「添加」也没有「删除」——两个入口会成为两个真相
   });
 
   // 模板的编辑框：边打边存进这一步，不重渲染（重渲染会把光标顶回去）
@@ -4911,6 +5393,17 @@ ${region}
   $('#reviewScrim').addEventListener('click', closeReview);
   $('#reviewCancel').addEventListener('click', closeReview);
   $('#reviewSubmit').addEventListener('click', submitReview);
+
+  // 运行弹框：点外面、点取消都关；值一边打一边把下面的路径改掉
+  $('#runScrim').addEventListener('click', closeRunDlg);
+  $('#runCancel').addEventListener('click', closeRunDlg);
+  $('#runGo').addEventListener('click', submitRunDlg);
+  $('#runBody').addEventListener('input', (e) => {
+    const el = e.target.closest('[data-param]');
+    if (!el) return;
+    state.paramValues[el.dataset.param] = el.value;
+    updateRunDlgLive();
+  });
   $('#reviewArea').addEventListener('input', renderReview);
   $('#reviewArea').addEventListener('keydown', (e) => {
     // Ctrl/Cmd + Enter 提交，单行 Enter 留给换行——要求通常不止一行
@@ -4942,9 +5435,9 @@ ${region}
     else if (act === 'down') { state.confirmStepDel = false; moveStage(1); }
     else if (act === 'rerun') {
       // 从这一步起跑到底：它前面的步骤不动，后面的一起重做——"改了这一步的指令，
-      // 后面三步得跟着重来"就是这一件事
+      // 后面三步得跟着重来"就是这一件事。要值就问这一段要的，不问前面那几步的
       state.stepMenu = false;
-      startRunAt(Math.min(state.sel, current().stages.length - 1));
+      requestRun(Math.min(state.sel, current().stages.length - 1));
     }
     else if (act === 'rename') startStepRename();
     else if (act === 'remove') removeStage();
@@ -4962,7 +5455,8 @@ ${region}
     const soloRunning = flow._solo !== undefined && flow.stages[flow._solo]?.status === 'running';
     if (flow.isTask && soloRunning) stopSolo(flow._solo);
     else if (flow.state === 'running') stopRun();
-    else startRun();
+    // 有参数就先问值；没有参数的流水线（周报那种）和多出来的那一下点击都不该有
+    else requestRun(0);
   });
   // 那道缝后面：换这一次跑的范围。点了就开/关，不改变任何状态
   $('#runScopeBtn').addEventListener('click', (e) => {
@@ -4991,6 +5485,8 @@ ${region}
   });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    // 运行弹框在最上面：它是这次运行的起点，别的层都还没开
+    if (state.runDlgOpen) { closeRunDlg(); return; }
     if (state.reviewOpen) { closeReview(); return; }
     // 阅读器套在运行记录上面，所以先关上面那层：Esc 是一级一级退，不是一下全关
     if (state.zoomOpen) { closeZoom(); return; }
@@ -5412,8 +5908,53 @@ ${region}
     const n = Number(params.get('node'));
     if (Number.isInteger(n)) state.sel = n;
   }
+  // 直接开到某条流水线：周报那条没有参数，正是「没用到就什么都没有」的对照
+  if (params.get('pipe') && PIPELINES.some(p => p.id === params.get('pipe'))) {
+    state.focus = { kind: 'pipeline', id: params.get('pipe') };
+    // 点名了第几步就以它为准，别把 ?node= 又踩回去
+    if (params.get('node') === null) state.sel = 2;
+  }
+  // 演示：给周报第一步的目录里写一个 {年-月}。同一屏就能看出来——参数不是
+  // 「周报没有、需求到交付有」，而是「这条流水线排的卡里有没有要填的位置」
+  if (params.get('demo') === 'month') {
+    // 改的是卡（"周报汇总"这个技能），不是某一步：所以这条流水线才跟着有了参数
+    CARD_DIRS['weekly-report'] = 'docs/周报/{年-月}';
+  }
+  // 参数填好的样子 / 空着、被拦下的样子，各截一张。
+  // 一次问几个值的时候用逗号分开：?fill=任务编号:T2026…,版本号:V2.3
+  const fill = params.get('fill');
+  if (fill !== null) {
+    fill.split(',').forEach((pair) => {
+      const at = pair.indexOf(':');
+      const key = at > 0 ? pair.slice(0, at) : (params.get('key') || '任务编号');
+      state.paramValues[key] = at > 0 ? pair.slice(at + 1) : pair;
+    });
+  }
+  if (params.get('tried') === '1') state.paramTried = true;
+  state.runFrom = Number(params.get('from') || 0) || 0;
+  // 这一段不要值时这个弹框不该开——重跑第 5 步问任务号是没有道理的
+  if (params.get('dlg') === 'run' || params.get('dlg') === 'empty') {
+    state.runDlgOpen = runParamsOf(current(), state.runFrom).length > 0;
+  }
 
   renderAll();
+  if (state.runDlgOpen) renderRunDlg();
+
+  // 审核弹框也直接开得到：这一屏要说明的是「重新生成写回同一个目录」
+  if (params.get('dlg') === 'review') openReview(state.sel);
+  // 阅读器：这里能看到「这一份落在哪个目录」——参数最后留下的就是这一行
+  if (params.get('dlg') === 'zoom') openZoom();
+  // 新建步骤：先挑卡，挑完目录跟着卡出现（?pick=1 打开这个选择器）
+  if (params.get('pick') === '1') openPicker(current().stages.length, 'insert');
+  // 换卡：验证产出目录是跟着卡走的，不是这一步自己的设置
+  if (params.get('skill')) {
+    const st = current().stages[state.sel];
+    if (st) { applySkill(st, params.get('skill')); renderAll(); }
+  }
+  if (params.get('scroll') === 'bottom') {
+    const sc = $('#inspScroll');
+    if (sc) sc.scrollTop = sc.scrollHeight;
+  }
 
   // 首屏那条预置成「运行中」的流水线不是死的：用同一套引擎把它跑完，
   // 否则演示里最贵的一个状态（运行中）永远是张静止画
