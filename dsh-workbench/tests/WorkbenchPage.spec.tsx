@@ -76,6 +76,27 @@ function result(cardId: string, html = '<p>done</p>'): WorkbenchCardResult {
   }
 }
 
+/**
+ * One stored result whose run produced nothing and said why.
+ *
+ * This is what the Host writes for a run that died — a 429, a deadline, a child that
+ * faulted: the record exists, states the failure, and carries no region.
+ * @param cardId - the card the run belonged to.
+ * @param failure - the reason the run itself gave.
+ * @returns the record.
+ */
+function failedResult(cardId: string, failure: string): WorkbenchCardResult {
+  return {
+    cardId,
+    runId: `run-${cardId}`,
+    skill: 'git-repo',
+    executedAt: 1,
+    stopReason: 'error',
+    failure,
+    failureCode: 'run-failed',
+  }
+}
+
 /** The two cards every case can arrange. */
 const CARDS = [{ id: 'a-card', order: 100, label: 'A card' }, { id: 'b-card', order: 200, label: 'B card' }]
 
@@ -1419,6 +1440,34 @@ describe('WorkbenchPage', () => {
     })
     // The second step never started: a failed step produced nothing to continue from.
     expect(starts).toHaveLength(1)
+  })
+
+  it('reads a reopened page from the record verdict, not from the record existing', async () => {
+    // 重开面板之后链不在了，能读的只有记录。第二次运行是被 429 结束的：记录里写明了失败、没有
+    // 区域。以前这里读的是「有没有记录」，于是同一个步骤一边 ✓已完成、一边「没有产物」，而结果
+    // 页说的是已失败。状态、标题、运行条、按钮、结果 tab 都要跟着那条判定走。
+    await renderPage({
+      results: [result('a-card'), failedResult('b-card', 'the run ended as error: 429 rate limited')],
+    })
+    await screen.findByText(en.pipeRunResume)
+    expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_failed)
+    expect(document.querySelector('[data-step-index="0"]')?.textContent).toContain(en.pipeStepState_done)
+    const second = document.querySelector('[data-step-index="1"]')
+    expect(second?.textContent).toContain(en.pipeStepState_failed)
+    expect(second?.textContent).not.toContain(en.pipeStepState_done)
+    expect(second?.textContent).toContain('the run ended as error: 429 rate limited')
+    expect(document.querySelector('[data-run-noise]')?.textContent).toBe(
+      en.pipeFailedAt.replace('{done}', '1').replace('{count}', '2').replace('{at}', '2'),
+    )
+    // 整条还剩后半段没跑成，所以按钮是「接着跑」，不是「重跑」——重跑会把第一步的好产物换掉。
+    expect(document.querySelector('[data-run-all]')?.textContent).toContain(en.pipeRunResume)
+    fireEvent.click(second as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    await waitFor(() => {
+      expect(document.querySelector('[data-panel="result"]')?.textContent).toContain(en.pipeResultFailed)
+    })
+    expect(document.querySelector('[data-panel="result"]')?.textContent)
+      .toContain('the run ended as error: 429 rate limited')
   })
 
   it('turns the run button into a stop while a whole run is in flight', async () => {

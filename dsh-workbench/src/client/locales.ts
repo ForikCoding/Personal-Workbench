@@ -431,7 +431,9 @@ export const zh = {
   pipeQueued: '等待前一步完成',
   pipeWorking: '正在生成',
   pipeNeverRan: '还没启动过',
-  pipeFailed: '失败',
+  // 失败的记录不一定会带原因：2.9.x 之前写的旧记录只有一个结束原因。这时候说「没有产物」
+  // 是错的答案 —— 那不是它没交东西，是它没跑完。
+  pipeFailureUnstated: '这次运行没有跑完，记录里没有写原因',
   pipeNoProduct: '没有产物',
   pipeInlineProduct: '区域内容',
   pipeEmptyPanelTitle: '先加一个步骤',
@@ -907,7 +909,7 @@ export const en: Record<keyof typeof zh, string> = {
   pipeQueued: 'Waiting for the step before it',
   pipeWorking: 'Writing',
   pipeNeverRan: 'Not started yet',
-  pipeFailed: 'Failed',
+  pipeFailureUnstated: 'This run did not finish, and the record does not say why',
   pipeNoProduct: 'No product',
   pipeInlineProduct: 'Region content',
   pipeEmptyPanelTitle: 'Add a step first',

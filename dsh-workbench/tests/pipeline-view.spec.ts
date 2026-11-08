@@ -1,17 +1,20 @@
 /**
- * How a whole pipeline stands, and where a run would start.
+ * How a step reads, how a whole pipeline stands, and where a run would start.
  *
- * These two readings are what the canvas title and the run bar are made of, so they are
- * tested apart from React: the failure this guards against is one step finishing and the
- * pipeline claiming it finished too.
+ * These readings are what the canvas, the title and the run bar are made of, so they are
+ * tested apart from React: the failures this guards against are one step finishing and the
+ * pipeline claiming it finished too, and a stored record being read as a success just
+ * because it exists.
  */
 
 import { describe, expect, it } from 'vitest'
 import type { ChainPhase, PipelineStepPhase } from '../src/client/pipeline/pipeline-run.ts'
 import type { PipelineRunEntry, PipelineRunStep } from '../src/client/pipeline/pipeline-view.ts'
+import type { WorkbenchResultRecord } from '../src/skill-card-contract.ts'
 import {
   canStartAt,
   formatBytes,
+  phaseOfResult,
   resultDirectory,
   resumeFrom,
   runScopeOf,
@@ -46,6 +49,50 @@ function entry(
     ...only === undefined ? {} : { only },
   }
 }
+
+/**
+ * One stored result.
+ * @param overrides - the fields the case varies.
+ * @returns the record.
+ */
+function record(overrides: Partial<WorkbenchResultRecord> = {}): WorkbenchResultRecord {
+  return { runId: 'run-1', skill: 'git-repo', executedAt: 1, stopReason: 'completed', ...overrides }
+}
+
+describe('phaseOfResult', () => {
+  it('has nothing to say about a card that never ran', () => {
+    expect(phaseOfResult(undefined)).toBe('idle')
+  })
+
+  it('reads the failure the record states', () => {
+    // 真实的那条：429 把运行结束在半路，记录里写着原因、没有区域。它以前被读成「完成」，
+    // 因为记录存在本身被当成了产物。
+    expect(phaseOfResult(record({
+      stopReason: 'error',
+      failure: 'the run ended as error: 429 rate limited',
+      failureCode: 'run-failed',
+    }))).toBe('failed')
+  })
+
+  it('lets the verdict win over a region, should a record ever carry both', () => {
+    // 记录自己的定义是「为什么没交出可用的结果」，两者同时在就是矛盾，判定这边更安全。
+    expect(phaseOfResult(record({ failure: 'stopped', structured: { html: '<p>x</p>' } }))).toBe('failed')
+  })
+
+  it('reads a committed region as the proof of a finished run', () => {
+    expect(phaseOfResult(record({ structured: { html: '<p>x</p>' } }))).toBe('done')
+  })
+
+  it('reads a finished run with an empty region as done, not as a failure', () => {
+    // 跑完了、区域是空的，也是一个跑完的步骤：没有产物和没跑完是两件事。
+    expect(phaseOfResult(record({ stopReason: 'completed' }))).toBe('done')
+  })
+
+  it('reads a record from before the failure field by its stop reason', () => {
+    // 2.9.x 之前写的记录没有 failure 字段，超时/被打断只留下结束原因：那是唯一的信号。
+    expect(phaseOfResult(record({ stopReason: 'aborted' }))).toBe('failed')
+  })
+})
 
 describe('standOf', () => {
   it('is idle while nothing has produced anything', () => {
@@ -117,6 +164,23 @@ describe('standOf', () => {
 
   it('is failed when the step that failed says it failed inside a whole run', () => {
     expect(standOf({ stepCount: 2, doneCount: 1, failedAt: 1, runs: [], scopes: ['full', 'full'] })).toBe('failed')
+  })
+
+  it('is failed even when an older whole run settled, because the step is broken now', () => {
+    // 昨天整条成功过一次，今天第二步重跑失败：那条 settled 的记录不能被当成现在的答案，
+    // 否则标题会替一个已经坏掉的步骤说「已完成」。
+    expect(standOf({
+      stepCount: 2,
+      doneCount: 1,
+      failedAt: 1,
+      runs: [entry('full', 'settled', [ran('done'), ran('done')])],
+      scopes: ['full', 'full'],
+    })).toBe('failed')
+  })
+
+  it('does not call a pipeline whose only run failed idle', () => {
+    // 失败不是「什么都没发生」：它启动了、没跑完，所以那句话（都还没启动）是假的。
+    expect(standOf({ stepCount: 2, doneCount: 0, failedAt: 0, runs: [], scopes: ['full', undefined] })).toBe('failed')
   })
 
   it('will not call a reopened panel done on a mixture it cannot account for', () => {

@@ -45,7 +45,7 @@ describe('workbench pipeline run service', () => {
     const second = await service.append(draft({ startedAt: 3_000 }))
     expect(first.run.no).toBe(1)
     expect(second.run.no).toBe(2)
-    expect(table.operations.map(operation => operation.key)).toEqual(['pipeline-1#1', 'pipeline-1#2'])
+    expect(table.operations.map(operation => operation.key)).toEqual(['pipeline-1_1', 'pipeline-1_2'])
   })
 
   it('numbers each pipeline on its own', async () => {
@@ -76,7 +76,7 @@ describe('workbench pipeline run service', () => {
     const written = await service.append(draft({ startedAt: 4_000 }))
     expect(written.run.no).toBe(4)
     expect(table.operations.filter(operation => operation.kind === 'delete').map(operation => operation.key).sort())
-      .toEqual(['pipeline-1#1', 'pipeline-1#2'])
+      .toEqual(['pipeline-1_1', 'pipeline-1_2'])
     expect(service.read().runs.map(run => run.no)).toEqual([4, 3])
   })
 
@@ -94,7 +94,20 @@ describe('workbench pipeline run service', () => {
   })
 
   it('keys one record by its pipeline and number', async () => {
-    expect(pipelineRunKey({ pipelineId: 'pipeline-12', no: 34 })).toBe('pipeline-12#34')
+    expect(pipelineRunKey({ pipelineId: 'pipeline-12', no: 34 })).toBe('pipeline-12_34')
+  })
+
+  it('keeps the key path-safe for the per-record storage layout', () => {
+    // 一个记录一个文件：key 会成为文件名的一段，必须落在存储层允许的字符集里。
+    // 这里以前是 `pipeline-12#34`——`#` 不在集合里，于是每一次写入都被存储层拒绝，
+    // 运行记录永远是空的，而唯一的声音是 Host 日志里的一行 warn。
+    expect(pipelineRunKey({ pipelineId: 'pipeline-12', no: 34 })).toMatch(/^[a-zA-Z0-9_-]+$/)
+  })
+
+  it('cannot give two runs the same key, whatever the id is made of', () => {
+    // id 里允许有短横线，所以分隔符还得是 id 里不可能出现的字符，否则
+    // 「a 的第 12 次」和「a-12 的第 1 次」会落到同一个文件上。
+    expect(pipelineRunKey({ pipelineId: 'a', no: 12 })).not.toBe(pipelineRunKey({ pipelineId: 'a-12', no: 1 }))
   })
 
   it('names the operation that failed when storage refuses it', async () => {
@@ -114,7 +127,7 @@ describe('workbench pipeline run service', () => {
     }))
     expect(table.operations[0]).toEqual({
       kind: 'put',
-      key: 'pipeline-1#1',
+      key: 'pipeline-1_1',
       value: {
         pipelineId: 'pipeline-1',
         no: 1,

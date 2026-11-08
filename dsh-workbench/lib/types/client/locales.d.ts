@@ -342,7 +342,7 @@ export declare const zh: {
     pipeQueued: string;
     pipeWorking: string;
     pipeNeverRan: string;
-    pipeFailed: string;
+    pipeFailureUnstated: string;
     pipeNoProduct: string;
     pipeInlineProduct: string;
     pipeEmptyPanelTitle: string;

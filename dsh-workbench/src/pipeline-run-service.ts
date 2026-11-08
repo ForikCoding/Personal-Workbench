@@ -76,12 +76,23 @@ export class WorkbenchPipelineRunStorageError extends Error {
 }
 
 /**
+ * The separator between a pipeline id and a run number in a record key.
+ *
+ * An underscore rather than anything prettier: the table stores one file per record, its
+ * keys have to match `[a-zA-Z0-9_-]+`, and a pipeline id is a lowercase slug of letters,
+ * digits and dashes that cannot contain one — so the join is both path-safe and
+ * unambiguous. A `#` here looked harmless and failed every single write at the storage
+ * layer: the run history stayed empty, and the only trace was a warning in the Host log.
+ */
+const RUN_KEY_SEPARATOR = '_'
+
+/**
  * The table key of one execution.
  * @param run - the record, or the draft plus its number.
  * @returns the key, unique across every pipeline.
  */
 export function pipelineRunKey(run: { readonly pipelineId: string; readonly no: number }): string {
-  return `${run.pipelineId}#${String(run.no)}`
+  return `${run.pipelineId}${RUN_KEY_SEPARATOR}${String(run.no)}`
 }
 
 /** Pipeline execution records over one storage domain table. */

@@ -9,6 +9,8 @@
  */
 
 import { resultPointerPath } from '../../skill-card-contract.ts'
+import type { WorkbenchResultRecord } from '../../skill-card-contract.ts'
+import { resultHtml } from '../skill-card/render.ts'
 import type { ChainPhase, PipelineStepPhase } from './pipeline-run.ts'
 
 /** Text and shape one step's state is drawn with. */
@@ -149,6 +151,30 @@ export function productOf(html: string | undefined): StepProduct {
 }
 
 /**
+ * How a stored result reads as a step's state.
+ *
+ * A record exists for every run that got far enough to have one — including the runs that
+ * produced nothing and said why — so its existence means "something happened", not "it
+ * worked". The verdict is the record's own: `failure`/`failureCode` are written for every
+ * unusable outcome, the region is the product's proof, and `stopReason` is what is left to
+ * read on a record written before those fields existed.
+ *
+ * The order is verdict, then product, then reason. A region is not required for success (a
+ * completed run may hand over an empty region, and that is a finished step with no product),
+ * and a region on its own is not enough to call a failed run good if a record ever carried
+ * both — {@link WorkbenchResultRecord.failure} says the run produced no usable result, so it
+ * wins.
+ * @param result - the step's newest stored result, when the card has one.
+ * @returns the phase the record states.
+ */
+export function phaseOfResult(result: WorkbenchResultRecord | undefined): 'idle' | 'done' | 'failed' {
+  if (result === undefined) return 'idle'
+  if (result.failure !== undefined) return 'failed'
+  if (resultHtml(result.structured) !== undefined) return 'done'
+  return result.stopReason === 'completed' ? 'done' : 'failed'
+}
+
+/**
  * Read the text a region carries, without the markup.
  *
  * The row under the step name is a summary, not a rendering, so tags come out and runs of
@@ -269,6 +295,9 @@ export interface PipelineStandInput {
  * back to the records — and when there are none, the steps holding a result are all that is
  * left to read, which is why that case gets a word of its own instead of a claim about how
  * those results came to be.
+ *
+ * A step that holds a failure is the one thing that outranks the records: 完成 has to mean
+ * every step finished, so the pipeline cannot claim it while one of them did not.
  * @param input - steps, their results, the run in flight, and the runs seen.
  * @returns how the pipeline stands.
  */
@@ -284,6 +313,14 @@ export function standOf(input: PipelineStandInput): PipelineStand {
       return 'done'
     }
   }
+  const scopes = input.scopes ?? []
+  const failedAt = input.failedAt ?? -1
+  // A step that currently holds a failure outranks everything a run once settled as. The
+  // records are what is true now, and a step that did not finish means the chain on screen
+  // cannot be called complete — whatever an older whole run recorded before the step broke.
+  // It is also the only reading that survives the page being reopened, which is when the
+  // chain itself is gone and the records are all that is left.
+  if (failedAt >= 0) return 'failed'
   // A whole run covers the rest of the pipeline, so its own outcome is the pipeline's: it
   // could not have settled with a step unaccounted for, because the chain stops on failure.
   const whole = runs.find(entry => entry.scope === 'full')
@@ -293,15 +330,13 @@ export function standOf(input: PipelineStandInput): PipelineStand {
     if (whole.phase === 'settled') return 'done'
   }
   // An empty pipeline and one nothing has run in are the same answer: nothing is pending,
-  // because nothing has started.
+  // because nothing has started. A step that failed is not that case — it started and did
+  // not finish, which the check above has already answered.
   if (stepCount === 0 || doneCount === 0) return 'idle'
   if (runs.length > 0) return 'solo'
   // No run is remembered, but a product may still say how it was made. A whole run leaves
   // its scope on every step it filled, so every step reading "whole" is a finished
-  // pipeline even with no record of the run; a step that failed in one means the chain did.
-  const scopes = input.scopes ?? []
-  const failedAt = input.failedAt ?? -1
-  if (failedAt >= 0 && scopes[failedAt] === 'full') return 'failed'
+  // pipeline even with no record of the run.
   if (doneCount === stepCount && scopes.every(scope => scope === 'full')) return 'done'
   if (scopes.some(scope => scope !== undefined)) return 'solo'
   return 'kept'

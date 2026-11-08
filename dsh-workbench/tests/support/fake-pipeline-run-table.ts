@@ -5,6 +5,7 @@
  * operation, so a spec can assert exactly what an append stored and what the caps removed.
  */
 import type { WorkbenchPipelineRun } from '../../src/pipeline-contract.ts'
+import { pipelineRunKey } from '../../src/pipeline-run-service.ts'
 import type { PipelineRunTable } from '../../src/pipeline-run-service.ts'
 
 /** One recorded durable operation. */
@@ -22,7 +23,9 @@ export class FakePipelineRunTable implements PipelineRunTable {
    * @param seed - records the table starts with, keyed the way the service keys them.
    */
   constructor(seed: readonly WorkbenchPipelineRun[] = []) {
-    for (const record of seed) this.records.set(`${record.pipelineId}#${String(record.no)}`, record)
+    // Keyed by the service's own function rather than by a copy of its format: a double that
+    // spelled the key itself is what let a key the real store rejects pass every spec.
+    for (const record of seed) this.records.set(pipelineRunKey(record), record)
   }
 
   /** @param key - record key. @returns the stored record. */

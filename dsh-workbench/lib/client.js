@@ -948,7 +948,7 @@ window.__ModuleLoader__.load({
 			pipeQueued: "等待前一步完成",
 			pipeWorking: "正在生成",
 			pipeNeverRan: "还没启动过",
-			pipeFailed: "失败",
+			pipeFailureUnstated: "这次运行没有跑完，记录里没有写原因",
 			pipeNoProduct: "没有产物",
 			pipeInlineProduct: "区域内容",
 			pipeEmptyPanelTitle: "先加一个步骤",
@@ -1373,7 +1373,7 @@ window.__ModuleLoader__.load({
 			pipeQueued: "Waiting for the step before it",
 			pipeWorking: "Writing",
 			pipeNeverRan: "Not started yet",
-			pipeFailed: "Failed",
+			pipeFailureUnstated: "This run did not finish, and the record does not say why",
 			pipeNoProduct: "No product",
 			pipeInlineProduct: "Region content",
 			pipeEmptyPanelTitle: "Add a step first",
@@ -7729,6 +7729,29 @@ window.__ModuleLoader__.load({
 			};
 		}
 		/**
+		* How a stored result reads as a step's state.
+		*
+		* A record exists for every run that got far enough to have one — including the runs that
+		* produced nothing and said why — so its existence means "something happened", not "it
+		* worked". The verdict is the record's own: `failure`/`failureCode` are written for every
+		* unusable outcome, the region is the product's proof, and `stopReason` is what is left to
+		* read on a record written before those fields existed.
+		*
+		* The order is verdict, then product, then reason. A region is not required for success (a
+		* completed run may hand over an empty region, and that is a finished step with no product),
+		* and a region on its own is not enough to call a failed run good if a record ever carried
+		* both — {@link WorkbenchResultRecord.failure} says the run produced no usable result, so it
+		* wins.
+		* @param result - the step's newest stored result, when the card has one.
+		* @returns the phase the record states.
+		*/
+		function phaseOfResult(result) {
+			if (result === void 0) return "idle";
+			if (result.failure !== void 0) return "failed";
+			if (resultHtml(result.structured) !== void 0) return "done";
+			return result.stopReason === "completed" ? "done" : "failed";
+		}
+		/**
 		* Read the text a region carries, without the markup.
 		*
 		* The row under the step name is a summary, not a rendering, so tags come out and runs of
@@ -7751,6 +7774,9 @@ window.__ModuleLoader__.load({
 		* back to the records — and when there are none, the steps holding a result are all that is
 		* left to read, which is why that case gets a word of its own instead of a claim about how
 		* those results came to be.
+		*
+		* A step that holds a failure is the one thing that outranks the records: 完成 has to mean
+		* every step finished, so the pipeline cannot claim it while one of them did not.
 		* @param input - steps, their results, the run in flight, and the runs seen.
 		* @returns how the pipeline stands.
 		*/
@@ -7764,6 +7790,8 @@ window.__ModuleLoader__.load({
 					return "done";
 				}
 			}
+			const scopes = input.scopes ?? [];
+			if ((input.failedAt ?? -1) >= 0) return "failed";
 			const whole = runs.find((entry) => entry.scope === "full");
 			if (whole !== void 0) {
 				if (whole.phase === "failed") return "failed";
@@ -7772,9 +7800,6 @@ window.__ModuleLoader__.load({
 			}
 			if (stepCount === 0 || doneCount === 0) return "idle";
 			if (runs.length > 0) return "solo";
-			const scopes = input.scopes ?? [];
-			const failedAt = input.failedAt ?? -1;
-			if (failedAt >= 0 && scopes[failedAt] === "full") return "failed";
 			if (doneCount === stepCount && scopes.every((scope) => scope === "full")) return "done";
 			if (scopes.some((scope) => scope !== void 0)) return "solo";
 			return "kept";
@@ -8154,7 +8179,7 @@ window.__ModuleLoader__.load({
 					const result = resultOf(step.cardId);
 					const html = resultHtml(result?.structured);
 					const chainStep = chain?.steps[index];
-					const phase = chainStep !== void 0 && chainStep.phase !== "idle" ? chainStep.phase : result === void 0 ? "idle" : "done";
+					const phase = chainStep !== void 0 && chainStep.phase !== "idle" ? chainStep.phase : phaseOfResult(result);
 					const producing = history.find((entry) => entry.steps.some((item) => item.cardId === step.cardId && item.phase === "done"));
 					const keptScope = result?.pipeline?.id === active.id ? result.pipeline.scope : void 0;
 					return {
@@ -8448,7 +8473,7 @@ window.__ModuleLoader__.load({
 				});
 				return standOf({
 					stepCount: pipeline.steps.length,
-					doneCount: pipeline.steps.filter((step) => results.some((entry) => entry.cardId === step.cardId)).length,
+					doneCount: pipeline.steps.filter((step) => results.some((entry) => entry.cardId === step.cardId && entry.failure === void 0)).length,
 					...mine === void 0 ? {} : { chain: {
 						phase: mine.phase,
 						whole
@@ -9689,7 +9714,7 @@ window.__ModuleLoader__.load({
 		* @returns the line.
 		*/
 		function footOf(step, t) {
-			if (step.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [MARK.warn, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: step.failure ?? t("pipeFailed") })] });
+			if (step.phase === "failed") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [MARK.warn, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: step.failure ?? t("pipeFailureUnstated") })] });
 			if (step.phase === "queued") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("pipeQueued", { at: step.index }) });
 			if (step.phase === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				className: css.nodeProg,
@@ -9892,7 +9917,7 @@ window.__ModuleLoader__.load({
 				"data-tone": "danger",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeActivityFailed") }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.failure ?? t("pipeNoProduct") }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.failure ?? t("pipeFailureUnstated") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: `${css.btn} ${css.ghost}`,
@@ -10230,7 +10255,7 @@ window.__ModuleLoader__.load({
 				"data-tone": "danger",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h6", { children: t("pipeResultFailed") }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.failure ?? t("pipeNoProduct") }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.failure ?? t("pipeFailureUnstated") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: `${css.btn} ${css.ghost}`,

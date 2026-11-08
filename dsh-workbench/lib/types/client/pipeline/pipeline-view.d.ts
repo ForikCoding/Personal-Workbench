@@ -7,6 +7,7 @@
  * what a run produced is decided by its stored result, and that is a string to be read.
  * @module dsh-workbench/client/pipeline/pipeline-view
  */
+import type { WorkbenchResultRecord } from '../../skill-card-contract.ts';
 import type { ChainPhase, PipelineStepPhase } from './pipeline-run.ts';
 /** Text and shape one step's state is drawn with. */
 export interface StepStateView {
@@ -85,6 +86,24 @@ export declare function formatBytes(bytes: number | undefined): string;
  * @returns the product, or `none` when the run left nothing to read.
  */
 export declare function productOf(html: string | undefined): StepProduct;
+/**
+ * How a stored result reads as a step's state.
+ *
+ * A record exists for every run that got far enough to have one — including the runs that
+ * produced nothing and said why — so its existence means "something happened", not "it
+ * worked". The verdict is the record's own: `failure`/`failureCode` are written for every
+ * unusable outcome, the region is the product's proof, and `stopReason` is what is left to
+ * read on a record written before those fields existed.
+ *
+ * The order is verdict, then product, then reason. A region is not required for success (a
+ * completed run may hand over an empty region, and that is a finished step with no product),
+ * and a region on its own is not enough to call a failed run good if a record ever carried
+ * both — {@link WorkbenchResultRecord.failure} says the run produced no usable result, so it
+ * wins.
+ * @param result - the step's newest stored result, when the card has one.
+ * @returns the phase the record states.
+ */
+export declare function phaseOfResult(result: WorkbenchResultRecord | undefined): 'idle' | 'done' | 'failed';
 /**
  * Read the text a region carries, without the markup.
  *
@@ -183,6 +202,9 @@ export interface PipelineStandInput {
  * back to the records — and when there are none, the steps holding a result are all that is
  * left to read, which is why that case gets a word of its own instead of a claim about how
  * those results came to be.
+ *
+ * A step that holds a failure is the one thing that outranks the records: 完成 has to mean
+ * every step finished, so the pipeline cannot claim it while one of them did not.
  * @param input - steps, their results, the run in flight, and the runs seen.
  * @returns how the pipeline stands.
  */

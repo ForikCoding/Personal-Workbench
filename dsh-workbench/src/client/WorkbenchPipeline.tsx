@@ -21,6 +21,7 @@ import {
   formatBytes,
   formatDuration,
   formatWhen,
+  phaseOfResult,
   productOf,
   resultDirectory,
   resumeFrom,
@@ -436,11 +437,14 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       const result = resultOf(step.cardId)
       const html = resultHtml(result?.structured)
       const chainStep = chain?.steps[index]
-      // Without a chain in this panel, a step that has a stored result has run before: it
-      // reads as done rather than idle, because that is what the user can see it produced.
+      // The run in this panel knows how each of its steps ended. Without one — a page that
+      // was reopened, a run this panel never saw — the stored result states it, and its
+      // verdict is what the state is read from. A record exists for a failed run too, so
+      // "there is a result" would report a step that produced nothing as finished: that is
+      // how a step whose run died on a 429 kept its ✓ while the result page said 已失败.
       const phase: PipelineStepPhase = chainStep !== undefined && chainStep.phase !== 'idle'
         ? chainStep.phase
-        : result === undefined ? 'idle' : 'done'
+        : phaseOfResult(result)
       const producing = history.find(entry => entry.steps.some(
         item => item.cardId === step.cardId && item.phase === 'done',
       ))
@@ -772,7 +776,11 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })
     return standOf({
       stepCount: pipeline.steps.length,
-      doneCount: pipeline.steps.filter(step => results.some(entry => entry.cardId === step.cardId)).length,
+      // A record that states a failure is not a product: counting it here is what let a
+      // pipeline whose only run died read as 完成 in the switcher.
+      doneCount: pipeline.steps.filter(step => results.some(
+        entry => entry.cardId === step.cardId && entry.failure === undefined,
+      )).length,
       ...mine === undefined ? {} : { chain: { phase: mine.phase, whole } },
       runs: run.history(pipeline.id),
       scopes,
@@ -1917,7 +1925,7 @@ function footOf(step: StepView, t: (key: WorkbenchLocaleKey, params?: Record<str
     return (
       <>
         {MARK.warn}
-        <span>{step.failure ?? t('pipeFailed')}</span>
+        <span>{step.failure ?? t('pipeFailureUnstated')}</span>
       </>
     )
   }
@@ -2008,7 +2016,7 @@ function ActivityPanel(props: {
     return (
       <div className={css.stateBlock} data-tone="danger">
         <h6>{t('pipeActivityFailed')}</h6>
-        <p>{step.failure ?? t('pipeNoProduct')}</p>
+        <p>{step.failure ?? t('pipeFailureUnstated')}</p>
         <button type="button" className={`${css.btn} ${css.ghost}`} onClick={onOpenCard}>{t('pipeOpenRuns')}</button>
       </div>
     )
@@ -2332,7 +2340,7 @@ function ResultPanel(props: {
     return (
       <div className={css.stateBlock} data-tone="danger">
         <h6>{t('pipeResultFailed')}</h6>
-        <p>{step.failure ?? t('pipeNoProduct')}</p>
+        <p>{step.failure ?? t('pipeFailureUnstated')}</p>
         <button type="button" className={`${css.btn} ${css.ghost}`} disabled={busy} onClick={onRun}>{t('pipeRetryStep')}</button>
       </div>
     )
