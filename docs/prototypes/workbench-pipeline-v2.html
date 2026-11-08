@@ -1211,25 +1211,27 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .actDur { margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }
 
 /* 配置面板 */
-.configPanel { padding: 12px 16px 18px; }
+.configPanel { padding: 14px 16px 20px; }
 /* 配置分三层：整条流水线 / 这一步 / 模板。三层之间一条发丝线。 */
-.cfgBlock + .cfgBlock { margin-top: 16px; padding-top: 14px; border-top: 0.5px solid var(--divider); }
+.cfgBlock + .cfgBlock { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--divider); }
 .cfgBlockHead {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   font-size: 12px;
   font-weight: 500;
   color: var(--ink);
 }
 .cfgBlockHead > em { min-width: 0; font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfgBlockHead .segTiny { margin-left: auto; }
-/* 真下拉，不是长得像下拉的死按钮 */
+/* 真下拉，不是长得像下拉的死按钮。宽度统一 200：几行下拉的注脚
+   因此落在同一条竖线上，而不是跟着选项长短各走各的 */
 .ruleSelect {
   display: block;
-  max-width: 240px;
-  padding: 4px 8px;
+  width: 200px;
+  max-width: 100%;
+  padding: 5px 9px;
   border: 0.5px solid var(--hairline);
   border-radius: 7px;
   background: var(--card-bg);
@@ -1239,13 +1241,14 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   cursor: pointer;
 }
 .ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* 能改的行：路径和指令是文本，给输入框，样式和下拉对齐 */
+/* 能改的行：路径和指令是文本，给输入框，样式和下拉对齐。
+   宽度交给控件道（上限 480），这里不再各自另设一个上限。 */
 .ruleInput,
 .ruleArea {
   display: block;
-  width: 100%;
-  max-width: 420px;
-  padding: 5px 8px;
+  width: 480px;
+  max-width: 100%;
+  padding: 6px 9px;
   border: 0.5px solid var(--hairline);
   border-radius: 7px;
   background: var(--card-bg);
@@ -1254,15 +1257,15 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   font-size: 12px;
 }
 .ruleInput { font-family: var(--f-mono); }
-.ruleArea { max-width: 100%; line-height: 1.5; resize: vertical; }
+.ruleArea { line-height: 1.55; resize: vertical; }
 /* 工作目录不是手填的：一行可点的选择器，左边是确认过的路径，右边是「选择目录」 */
 .rulePath {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  max-width: 420px;
-  padding: 6px 10px;
+  width: 480px;
+  max-width: 100%;
+  padding: 7px 10px;
   border: 0.5px solid var(--hairline);
   border-radius: 7px;
   background: var(--card-bg);
@@ -1281,29 +1284,77 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .ruleInput:focus-visible,
 .ruleArea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* ---- 一行三轨：标签 / 控件 / 注脚 --------------------------------
+   控件是这一行里唯一像“东西”的东西，注脚永远待在自己的窄道上。
+   以前注脚铺在控件底下、占满整行，于是每一行都因为“解释”变高，
+   解释本身读起来又和内容一样重——一段技能描述甚至能占掉半屏。
+   现在行的行高只由控件决定。窄到放不下三轨时，注脚折到控件下方，
+   仍和控件共享同一条左边缘：行还是那一行，只是折了一下。 */
 .ruleRow {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
+  align-items: flex-start;
+  gap: 0 14px;
   padding: 10px 0;
   border-bottom: 0.5px solid var(--divider);
 }
 .ruleRow:last-child { border-bottom: 0; }
-.ruleLabel { flex: none; width: 76px; color: var(--ink3); font-size: 12px; }
-.ruleValue { flex: 1; min-width: 0; }
-.ruleValue .val {
-  display: block;
-  font-size: 13px;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* 和控件第一行字对齐，而不是和整行垂直居中：内容再高，标签也不会浮在中间 */
+.ruleLabel { flex: 0 0 84px; padding-top: 7px; color: var(--ink3); font-size: 12px; }
+.ruleBody { flex: 1; min-width: 0; }
+/* 控件和它的注脚是一对：注脚跟在控件右边，隔着固定 16px。
+   窄到放不下才折到控件下方，仍然从控件那条左边缘起。 */
+.ruleLine { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 3px 16px; }
+.ruleValue { flex: 0 1 auto; min-width: 0; }
+.ruleNote {
+  flex: 1 1 200px;
+  min-width: 150px;
+  max-width: 300px;
+  padding-top: 7px;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 1.5;
 }
-.ruleValue .val.mono { font-family: var(--f-mono); font-size: 12px; }
-/* 提示是给控件的注解，不是控件的一部分：和上方的值/控件留 5px，
-   否则贴着输入框边框，看起来像框里掉出来的一行。 */
-.ruleValue .hint { display: block; margin-top: 5px; color: var(--ink4); font-size: 11px; line-height: 1.45; }
+
+/* 长一点的技能说明是“读物”不是注脚：两行打住，剩下的自己展开。
+   它是配置页里唯一需要阅读的段落，所以给它一个窄栏和一个边界，
+   而不是让它铺满一行、把控件挤到下面。 */
+.specNote {
+  position: relative;
+  max-width: 480px;
+  margin-top: 8px;
+  padding: 8px 10px 22px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--recess);
+}
+.specNoteBody { margin: 0; color: var(--ink3); font-size: 12px; line-height: 1.6; }
+.specNote[data-open="false"] .specNoteBody { max-height: 3.2em; overflow: hidden; }
+/* 收起来的那两行，最后半行淡出：看得出下面还有字，而不是被剪断 */
+.specNote[data-open="false"]::after {
+  content: '';
+  position: absolute;
+  left: 0.5px;
+  right: 0.5px;
+  bottom: 21px;
+  height: 22px;
+  border-radius: 0 0 7px 7px;
+  background: linear-gradient(to bottom, transparent, var(--recess));
+  pointer-events: none;
+}
+.specNoteMore {
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.specNoteMore:hover { text-decoration: underline; }
+.specNoteMore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 /* ----------------------------------------------------------------- 运行条 */
 .runbar {
@@ -2131,7 +2182,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
   // instruction 是这个技能的"运行指令"默认值：配置里那行可以改，改的是这一步。
   const TASKS = [
     { skill: 'requirements-scoping', name: '需求拆解', desc: '把一句诉求拆成可验收的子任务', instruction: '把诉求拆成可验收的子任务，每条写清验收标准。' },
-    { skill: 'design-doc', name: '详细设计', desc: '按模板产出实现级设计文档', instruction: '按模板产出实现级设计文档，接口、表结构、异常路径都要写到。' },
+    { skill: 'design-doc', name: '详细设计', desc: '按 UF3.0 工具链产出可直接开工的详细设计文档：先定生成与手写边界，再写 hep 元数据改动（heptabledesign 表列、hep.biz 接口出入参），最后只保留必须手写的业务代码；交付 <任务号>_<主题>_详细设计.md，含方案总览、改动清单、表结构设计、接口设计、手写代码设计，接口与表结构要能贴回代码注释。', instruction: '按模板产出实现级设计文档，接口、表结构、异常路径都要写到。' },
     { skill: 'codegen', name: '代码实现', desc: '按设计文档改代码并自测', instruction: '按详细设计改代码并自测，产物写成一页变更摘要。' },
     { skill: 'unit-test', name: '单元测试', desc: '补测试用例并跑通', instruction: '补测试用例并跑通，失败用例写明原因。' },
     { skill: 'code-review', name: '变更审查', desc: '按团队规范审一遍 diff', instruction: '按团队规范审一遍 diff，问题按严重程度列出。' },
@@ -2652,6 +2703,8 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     confirmDel: false,     // 删除流水线的第二次确认
     picker: null,          // { insertAt: number }
     pickerQ: '',
+    // 技能说明展开着没有。默认收起来：一二百字的说明不该决定配置页的高度
+    specOpen: false,
     tick: { run: 192, stage: 41 },
   };
 
@@ -4040,6 +4093,54 @@ ${region}
     }).join('')}</div>`;
   }
 
+  // 权限的三档说的不是同一件事，注脚跟着取值走，不写一句放之四海而皆准的话
+  const PERM_NOTE = {
+    '工作区内修改': '只改工作目录里的文件',
+    '只读': '一个文件都不动',
+    '工作区外写入': '也能改目录以外的文件',
+  };
+
+  // 超过这个长度的技能说明就不是注脚了，是读物
+  const SPEC_NOTE_MAX = 60;
+
+  /** 注脚：一句话，落在控件右边的窄道上；没话说就干脆不占位 */
+  const cfgNote = (text) => text ? `<span class="ruleNote">${esc(text)}</span>` : '';
+
+  /** 一行三轨：标签 / 控件 / 注脚。行高只由控件决定，注脚撑不长它 */
+  function cfgField(label, control, noteHtml, extra) {
+    return `
+      <div class="ruleRow">
+        <span class="ruleLabel">${label}</span>
+        <div class="ruleBody">
+          <div class="ruleLine">
+            <span class="ruleValue">${control}</span>
+            ${noteHtml || ''}
+          </div>
+          ${extra || ''}
+        </div>
+      </div>`;
+  }
+
+  /**
+   * 技能说明：一句话的当注脚，长的那段收成两行读物，展开由点击决定。
+   *
+   * 两者落在不同的位置不是巧合：注脚跟在控件右边，读物另起一块——
+   * 这段文字的长度由技能自己决定，铺开就是半屏，必须先收着。
+   */
+  function skillParts(st) {
+    const desc = (TASKS.find(t => t.skill === st.skill) || {}).desc || '这条技能没有说明';
+    if (desc.length <= SPEC_NOTE_MAX) return { note: cfgNote(desc), extra: '' };
+    const open = state.specOpen ? 'true' : 'false';
+    return {
+      note: '',
+      extra: `
+          <div class="specNote" data-open="${open}">
+            <p class="specNoteBody">${esc(desc)}</p>
+            <button class="specNoteMore" type="button" data-spec-toggle="1" aria-expanded="${open}">${open === 'true' ? '收起' : '展开说明'}</button>
+          </div>`,
+    };
+  }
+
   /**
    * 配置分三层：整条流水线共用什么、这一步单独是什么、模板长什么样。
    *
@@ -4052,40 +4153,21 @@ ${region}
     const preview = state.resTab === 'preview';
     const model = flow.model || 'deepseek-chat';
     const perm = flow.perm || '工作区内修改';
+    const fail = st.fail || '停止后续步骤';
+    const skill = skillParts(st);
     const opt = (v, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(v)}</option>`;
 
     // 单任务不挂在流水线上，没有"整条流水线"这一层
     const shared = flow.isTask ? '' : `
       <div class="cfgBlock">
         <div class="cfgBlockHead"><span>整条流水线</span><em>改一次，每一步都跟着</em></div>
-        <div class="ruleRow">
-          <span class="ruleLabel">模型</span>
-          <span class="ruleValue">
-            <select class="ruleSelect" data-cfg="model">
-              ${opt('deepseek-chat', model)}${opt('deepseek-reasoner', model)}
-            </select>
-            <span class="hint">这一步没有单独指定，跟着流水线走</span>
-          </span>
-        </div>
-        <div class="ruleRow">
-          <span class="ruleLabel">权限模式</span>
-          <span class="ruleValue">
-            <select class="ruleSelect" data-cfg="perm">
-              ${opt('工作区内修改', perm)}${opt('只读', perm)}${opt('工作区外写入', perm)}
-            </select>
-            <span class="hint">写入限制在工作目录内</span>
-          </span>
-        </div>
-        <div class="ruleRow">
-          <span class="ruleLabel">工作目录</span>
-          <span class="ruleValue">
+        ${cfgField('模型', `<select class="ruleSelect" data-cfg="model">${opt('deepseek-chat', model)}${opt('deepseek-reasoner', model)}</select>`)}
+        ${cfgField('权限模式', `<select class="ruleSelect" data-cfg="perm">${opt('工作区内修改', perm)}${opt('只读', perm)}${opt('工作区外写入', perm)}</select>`, cfgNote(PERM_NOTE[perm] || ''))}
+        ${cfgField('工作目录', `
             <button class="rulePath" type="button" data-cfg="workspace" aria-label="选择工作目录">
               <span class="rulePathText mono">${esc(flow.workspace || DEFAULT_WORKSPACE)}</span>
               <span class="rulePathPick">选择目录</span>
-            </button>
-            <span class="hint">每一步都跑在这个目录里</span>
-          </span>
-        </div>
+            </button>`, cfgNote('每一步都在这里跑'))}
       </div>`;
 
     box.innerHTML = `
@@ -4095,31 +4177,13 @@ ${region}
           <span>${flow.isTask ? '这条任务' : '这一步'}</span>
           <em>${flow.isTask ? esc(stageName(st)) : `第 ${i + 1} 步 · ${esc(stageName(st))}`}</em>
         </div>
-        <div class="ruleRow">
-          <span class="ruleLabel">技能</span>
-          <span class="ruleValue">
-            <select class="ruleSelect" data-cfg="skill" aria-label="技能">
+        ${cfgField('技能', `<select class="ruleSelect" data-cfg="skill" aria-label="技能">
               ${TASKS.map(t => `<option value="${esc(t.skill)}"${t.skill === st.skill ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
-            </select>
-            <span class="hint">${esc((TASKS.find(t => t.skill === st.skill) || {}).desc || '这条技能没有说明')}</span>
-          </span>
-        </div>
-        <div class="ruleRow">
-          <span class="ruleLabel">运行指令</span>
-          <span class="ruleValue">
-            <textarea class="ruleArea" rows="2" data-cfg="instruction" aria-label="运行指令" spellcheck="false">${esc(st.instruction || '')}</textarea>
-            <span class="hint">这句话会跟着这一步一起交给技能</span>
-          </span>
-        </div>
-        <div class="ruleRow">
-          <span class="ruleLabel">失败处理</span>
-          <span class="ruleValue">
-            <select class="ruleSelect" data-cfg="fail" aria-label="失败处理">
-              ${['停止后续步骤', '继续后续步骤'].map(v => `<option value="${esc(v)}"${v === (st.fail || '停止后续步骤') ? ' selected' : ''}>${esc(v)}</option>`).join('')}
-            </select>
-            <span class="hint">${(st.fail || '停止后续步骤') === '停止后续步骤' ? '串行编排，失败即停' : '这一步失败也接着跑后面的'}</span>
-          </span>
-        </div>
+            </select>`, skill.note, skill.extra)}
+        ${cfgField('运行指令', `<textarea class="ruleArea" rows="2" data-cfg="instruction" aria-label="运行指令" spellcheck="false">${esc(st.instruction || '')}</textarea>`, cfgNote('和技能说明一起交给它'))}
+        ${cfgField('失败处理', `<select class="ruleSelect" data-cfg="fail" aria-label="失败处理">
+              ${['停止后续步骤', '继续后续步骤'].map(v => `<option value="${esc(v)}"${v === fail ? ' selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>`, cfgNote(fail === '停止后续步骤' ? '失败即停，后面的步骤不跑' : '失败了也接着跑后面的步骤'))}
       </div>
 
       <div class="cfgBlock">
@@ -4735,7 +4799,12 @@ ${region}
 
   // 工作目录是按钮不是输入框，所以听 click：点了就开选择层
   $('#configPanel').addEventListener('click', (e) => {
-    if (e.target.closest('[data-cfg="workspace"]')) renderDirPicker();
+    if (e.target.closest('[data-cfg="workspace"]')) { renderDirPicker(); return; }
+    // 技能说明的展开/收起：收着的两行是默认，读完是选择
+    if (e.target.closest('[data-spec-toggle]')) {
+      state.specOpen = !state.specOpen;
+      renderInspector();
+    }
   });
 
   // 模板的编辑框：边打边存进这一步，不重渲染（重渲染会把光标顶回去）
