@@ -51,6 +51,19 @@ describe('createWorkbenchPipelineRunsApi.read', () => {
     expect(result.status === 'ok' && result.runs.map(run => run.no)).toEqual([1, 2])
   })
 
+  it('reads where a whole run began, so a re-run of the tail is not a run of everything', async () => {
+    const api = createWorkbenchPipelineRunsApi({
+      // The second record is malformed on purpose: what arrives over the wire is not typed,
+      // and a decode that trusted it would put a string where a step index belongs.
+      fetcher: async () => json(200, {
+        apiVersion: 1,
+        runs: [record({ no: 2, from: 1 }), { ...record({ no: 3 }), from: 'one' }],
+      }),
+    })
+    const result = await api.read()
+    expect(result.status === 'ok' && result.runs.map(run => run.from)).toEqual([1, undefined])
+  })
+
   it('reports a mismatched contract version as unavailable', async () => {
     const api = createWorkbenchPipelineRunsApi({ fetcher: async () => json(200, { apiVersion: 2, runs: [] }) })
     const result = await api.read()

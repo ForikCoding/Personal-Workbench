@@ -201,6 +201,83 @@
 .wb-runOne:disabled { opacity: .45; cursor: default; }
 .wb-runOne:disabled:hover { background: transparent; }
 
+/* ------------------------------------------------------- 运行的作用域 */
+/* 「运行」以前只有一个意思：从第一个没跑完的步骤接着跑。想让已经跑过的那几步再来一遍，
+   就没有地方可以说。现在主按钮自己说出范围（运行 / 接着跑 / 重跑），右边那道缝后面的
+   ▾ 才让它改成别的范围——两个半块是同一个控件：同一高度、共用一圈圆角，
+   缝本身就是"这里还能再选"的那句话。 */
+.wb-runSplit { position: relative; display: inline-flex; align-items: center; }
+/* 三个字的标签不许把按钮撑宽：否则「接着跑」和「重跑」之间，右边那道缝会左右挪 */
+.wb-runSplit .wb-btn.wb-primary { min-width: 96px; justify-content: center; border-radius: 8px 0 0 8px; }
+.wb-runSplitCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+  cursor: pointer;
+  /* 中间那道缝是嵌进去的一条线，不是一个白洞：两个半边在同一个盒子里。
+     隔开它们的是深浅，不是间距。 */
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--primary-ink) 24%, transparent);
+}
+.wb-runSplitCaret svg { width: 12px; height: 12px; }
+.wb-runSplitCaret:hover,
+.wb-runSplit[data-open="1"] .wb-runSplitCaret {
+  background: color-mix(in srgb, var(--primary-ink) 12%, var(--primary-bg));
+}
+/* 右半边不在的时候（跑起来了、没有步骤），左半边自己把右边的圆角接回来。
+   这里不用 data-solo：那个词已经被"这一步是单独跑的"占着，两个意思不能共用一个属性。 */
+.wb-runSplit[data-caret="0"] .wb-btn { border-radius: 8px; }
+.wb-runMenu {
+  position: absolute;
+  /* 摆在按钮下沿之外 6px：面板头高度稳定，用固定偏移比百分比可靠 */
+  top: 36px;
+  right: 0;
+  z-index: 70;
+  width: 276px;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--base);
+  border: 0.5px solid var(--hairline);
+  box-shadow: var(--shadow-menu);
+}
+.wb-runMenuRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.wb-runMenuRow > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.wb-runMenuRow b { font-weight: 500; }
+/* 默认标：这一行就是主按钮按下去会做的事，菜单是在解释按钮，不是和它打架 */
+.wb-runMenuRow i {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 13px;
+}
+.wb-runMenuRow em { color: var(--ink4); font-size: 11px; font-style: normal; line-height: 15px; }
+.wb-runMenuRow:hover { background: var(--hover); }
+.wb-runMenuRow[disabled] { opacity: .38; cursor: default; }
+.wb-runMenuRow[disabled]:hover { background: transparent; }
+
 .wb-panelBody { flex: 1; min-height: 0; display: flex; }
 /* 只剩一个视图了，不再需要切换用的 display 开关 */
 .wb-pipelineView { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -1675,6 +1752,8 @@
   .wb-panelHead { height: 52px; padding: 0 14px; }
   .wb-panelHead h1 { font-size: 17px; }
   .wb-headLabel { display: none; }
+  /* 字没了，那个 96px 的最小宽度就只剩空白：按图标宽度收回原样，右半边照旧留着 */
+  .wb-runSplit .wb-btn.wb-primary { min-width: 0; padding: 0 9px; }
   .wb-runbar { padding: 0 12px; gap: 8px; }
   .wb-segBar i { width: 14px; }
 }

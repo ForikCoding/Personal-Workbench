@@ -139,6 +139,7 @@ function decodeRun(value: unknown): WorkbenchPipelineRun | undefined {
   if (run.phase !== 'settled' && run.phase !== 'failed' && run.phase !== 'stopped') return undefined
   if (run.scope !== 'full' && run.scope !== 'single' && run.scope !== 'refine') return undefined
   const only = typeof run.only === 'number' && Number.isInteger(run.only) && run.only >= 0 ? run.only : undefined
+  const from = typeof run.from === 'number' && Number.isInteger(run.from) && run.from >= 0 ? run.from : undefined
   const instruction = typeof run.instruction === 'string' ? run.instruction : undefined
   const steps = decodeSteps(run.steps)
   if (steps === undefined) return undefined
@@ -150,6 +151,7 @@ function decodeRun(value: unknown): WorkbenchPipelineRun | undefined {
     phase: run.phase,
     scope: run.scope,
     ...only === undefined ? {} : { only },
+    ...from === undefined ? {} : { from },
     ...instruction === undefined ? {} : { instruction },
     steps,
   }

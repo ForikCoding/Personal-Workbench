@@ -201,6 +201,15 @@ export interface PipelineRunEntry {
   readonly scope: 'full' | 'single' | 'refine'
   /** The step a `single` or `refine` run was about, zero-based. */
   readonly only?: number
+  /**
+   * First step a whole run covered, zero-based; absent means it started at the first step.
+   *
+   * A chain can be re-run from any step whose predecessors already finished, and the record
+   * has to say where it began: without this, "ran the whole thing again" and "re-ran the
+   * last two steps" are the same row, and the steps they left alone are indistinguishable
+   * from the ones they replaced.
+   */
+  readonly from?: number
   /** What the review asked for, when the run was one. */
   readonly instruction?: string
   /** One entry per step the run touched, in step order. */
@@ -310,4 +319,115 @@ export function standOf(input: PipelineStandInput): PipelineStand {
 export function resumeFrom(phases: readonly PipelineStepPhase[]): number {
   const first = phases.findIndex(phase => phase !== 'done')
   return first < 0 ? 0 : first
+}
+
+/** Which part of a chain the run button would run, and what it calls itself. */
+export interface RunScope {
+  /** Zero-based step it would start at. */
+  readonly at: number
+  /**
+   * The word the button carries.
+   *
+   * Three words for three ranges rather than a fourth switch: `run` starts a chain nothing
+   * has run, `resume` continues one that stopped halfway, `again` redoes a chain that is
+   * complete. Each says what pressing it will do, which is the whole promise of the button.
+   */
+  readonly word: 'run' | 'resume' | 'again'
+  /** Whether every step already holds a result. */
+  readonly allDone: boolean
+}
+
+/**
+ * Read what a run of the whole pipeline would cover right now.
+ *
+ * One source for the button's word, the button's default start and the menu's first row:
+ * three places that must never disagree. An empty chain is a chain nothing has run.
+ * @param phases - one phase per step, in step order.
+ * @returns the scope, with the word that names it.
+ */
+export function runScopeOf(phases: readonly PipelineStepPhase[]): RunScope {
+  const allDone = phases.length > 0 && phases.every(phase => phase === 'done')
+  if (allDone) return { at: 0, word: 'again', allDone: true }
+  const at = resumeFrom(phases)
+  return { at, word: at > 0 ? 'resume' : 'run', allDone: false }
+}
+
+/**
+ * Whether a run may start at one step.
+ *
+ * A chain that starts in the middle skips every step before it, so those steps have to be
+ * finished already: otherwise the chain would end "complete" with its first half missing,
+ * and no state in this vocabulary says that. The menu rows and the engine read this same
+ * rule, so an offer that cannot be honoured is never shown.
+ * @param phases - one phase per step, in step order.
+ * @param at - zero-based step the run would start at.
+ * @returns whether that start is allowed.
+ */
+export function canStartAt(phases: readonly PipelineStepPhase[], at: number): boolean {
+  if (!Number.isInteger(at) || at < 0 || at >= phases.length) return false
+  return phases.slice(0, at).every(phase => phase === 'done')
+}
+
+/**
+ * One row of the range menu: a start point, and what picking it costs.
+ *
+ * The numbers are kept apart from the words on purpose. What a row says is "these steps,
+ * and this many products replaced" — the sentence is the view's, but which steps and how
+ * many is a fact about the chain, and it is computed once here.
+ */
+export interface RunScopeRow {
+  /** Which of the three ranges it is. */
+  readonly kind: 'resume' | 'all' | 'from'
+  /** Zero-based step the run would start at. */
+  readonly at: number
+  /** First step it covers, counted from one. */
+  readonly first: number
+  /** Last step it covers, counted from one. */
+  readonly last: number
+  /** How many steps already hold a product this run would replace. */
+  readonly replacing: number
+}
+
+/** What {@link runScopeRows} reads. */
+export interface RunScopeRowsInput {
+  /** One phase per step, in step order. */
+  readonly phases: readonly PipelineStepPhase[]
+  /** Zero-based index of the step the panel has selected. */
+  readonly selected: number
+}
+
+/**
+ * Read the range menu: every way this chain can be run, in a fixed order.
+ *
+ * A row that would do exactly what the row above it does is left out rather than printed
+ * twice: "re-run from the beginning" is not offered before anything has run, and "re-run
+ * from step 2" is not offered when the chain would start at or before step 2 anyway.
+ * @param input - the phases and the selected step.
+ * @returns the rows, the default one first.
+ */
+export function runScopeRows(input: RunScopeRowsInput): readonly RunScopeRow[] {
+  const { phases } = input
+  const count = phases.length
+  if (count === 0) return []
+  const replacingIn = (at: number): number => phases.slice(at).filter(phase => phase === 'done').length
+  const row = (kind: RunScopeRow['kind'], at: number): RunScopeRow => ({
+    kind,
+    at,
+    first: at + 1,
+    last: count,
+    replacing: replacingIn(at),
+  })
+  const scope = runScopeOf(phases)
+  // Every step already holds a product: the menu holds the one thing left to do, and it is
+  // also what the button does.
+  if (scope.allDone) return [row('all', 0)]
+  const rows: RunScopeRow[] = [row('resume', scope.at)]
+  const ranAny = phases.some(phase => phase === 'done')
+  if (ranAny) rows.push(row('all', 0))
+  // The selected step sits before where the chain would resume: redoing the slice from
+  // there is a real third option. At or after it, it is the resume row under another name.
+  if (ranAny && input.selected > 0 && input.selected < scope.at) {
+    rows.push(row('from', input.selected))
+  }
+  return rows
 }

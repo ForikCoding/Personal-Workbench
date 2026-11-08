@@ -535,6 +535,11 @@ function parseWorkbenchPipelineRunDraft(value) {
 		status: "invalid",
 		reason: "only must be a zero-based step index"
 	};
+	const from = body.from;
+	if (from !== void 0 && (typeof from !== "number" || !Number.isInteger(from) || from < 0)) return {
+		status: "invalid",
+		reason: "from must be a zero-based step index"
+	};
 	const instruction = body.instruction;
 	if (instruction !== void 0 && typeof instruction !== "string") return {
 		status: "invalid",
@@ -553,6 +558,7 @@ function parseWorkbenchPipelineRunDraft(value) {
 		phase,
 		scope,
 		...only === void 0 ? {} : { only },
+		...from === void 0 ? {} : { from },
 		...instruction === void 0 ? {} : { instruction },
 		steps
 	};

@@ -15,8 +15,20 @@ import './pipeline.css'
 import css from './pipeline-classes.ts'
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts'
 import type { PipelineRunFace, PipelineStepPhase } from './pipeline/pipeline-run.ts'
-import type { PipelineRunEntry, PipelineStand, StepProduct } from './pipeline/pipeline-view.ts'
-import { formatBytes, formatDuration, formatWhen, productOf, resultDirectory, resumeFrom, standOf, stateView } from './pipeline/pipeline-view.ts'
+import type { PipelineRunEntry, PipelineStand, RunScopeRow, StepProduct } from './pipeline/pipeline-view.ts'
+import {
+  canStartAt,
+  formatBytes,
+  formatDuration,
+  formatWhen,
+  productOf,
+  resultDirectory,
+  resumeFrom,
+  runScopeOf,
+  runScopeRows,
+  standOf,
+  stateView,
+} from './pipeline/pipeline-view.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
@@ -258,6 +270,8 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [cards, setCards] = useState<readonly WorkbenchCardConfigView[]>([])
   const [results, setResults] = useState<readonly WorkbenchCardResult[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
+  /** Whether the run button's range menu is open; the button itself is always there. */
+  const [runMenu, setRunMenu] = useState(false)
   const [stepMenu, setStepMenu] = useState<number | undefined>(undefined)
   // Which step's name is being edited in place, and which remove row is armed. Both are
   // per-step, so a menu opened on another step never inherits the armed remove.
@@ -360,19 +374,27 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   // so it must not close anything: the menu would be unmounted before the click landed and
   // every row in it — rename, delete, move step — would silently do nothing.
   useEffect(() => {
-    if (!menuOpen && stepMenu === undefined) return
+    if (!menuOpen && !runMenu && stepMenu === undefined) return
     const close = (event: PointerEvent): void => {
       const from = event.target
-      if (from instanceof Element && from.closest('[data-title-menu], [data-step-menu]') !== null) return
+      if (from instanceof Element && from.closest('[data-title-menu], [data-step-menu], [data-run-menu], [data-run-split]') !== null) return
       setMenuOpen(false)
+      setRunMenu(false)
       setStepMenu(undefined)
       setConfirmRemove(undefined)
     }
     document.addEventListener('pointerdown', close)
     return () => { document.removeEventListener('pointerdown', close) }
-  }, [menuOpen, stepMenu])
+  }, [menuOpen, runMenu, stepMenu])
 
+  // A range menu names a start point and what it costs; a run that started without it, or a
+  // pipeline that changed under it, leaves it describing a chain that is no longer there.
+  useEffect(() => { setRunMenu(false) }, [active?.id])
+
+  // Menus are overlays too, and Escape is the key a keyboard user reaches for: one handler
+  // closes whatever is open, so nothing opens by keyboard and only closes by mouse.
   const anyOverlay = reader !== undefined || historyOpen || review !== undefined || picker !== undefined
+    || menuOpen || runMenu || stepMenu !== undefined
   useEffect(() => {
     if (!anyOverlay) return
     const onKey = (event: KeyboardEvent): void => {
@@ -381,6 +403,10 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       setHistoryOpen(false)
       setReview(undefined)
       setPicker(undefined)
+      setMenuOpen(false)
+      setRunMenu(false)
+      setStepMenu(undefined)
+      setConfirmRemove(undefined)
     }
     document.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('keydown', onKey) }
@@ -644,12 +670,38 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     ? chain.activeIndex
     : undefined
   const stopTitle = stopping ? t('pipeStoppingHint') : t('pipeStopWholeHint')
-  const runAllTitle = running ? t('pipeRunAllBusyHint') : t('pipeRunAllHint')
   /** Whether the step the inspector shows is the one running alone, which owns the stop. */
   const soloRunning = soloHere !== undefined && soloHere === selected?.index
   const runOneTitle = soloRunning
     ? (stopping ? t('pipeStoppingHint') : t('pipeStopSoloHint'))
     : running ? t('pipeRunOneBusyHint') : t('pipeRunOneHint')
+  /** The word this chain's next whole run travels under: 运行 / 接着跑 / 重跑. */
+  const runWord = (word: 'run' | 'resume' | 'again'): WorkbenchLocaleKey => (
+    word === 'run' ? 'pipeRunAll' : word === 'resume' ? 'pipeRunResume' : 'pipeRunAgain'
+  )
+  /**
+   * One range menu row, in words.
+   *
+   * Two sentences in a fixed order — the steps it covers, then what it replaces — because
+   * the second one is what a re-run actually costs. The badge marks the row the button
+   * itself performs, so the menu explains the button instead of contradicting it.
+   * @param row - the row's numbers.
+   * @returns its title, its second line, and whether it is the default.
+   */
+  const scopeRowOf = (row: RunScopeRow): { title: string; note: string; badge: boolean } => {
+    const title = row.kind === 'all'
+      ? t('pipeRunScopeAll')
+      : row.kind === 'resume'
+        // 菜单里的每一行都在回答"跑哪一段"，所以这里说「从头跑」，而不是按钮自己那个
+        // 名字「运行」——那是控件的名字，不是一段范围的名字。
+        ? t(row.at === 0 ? 'pipeRunScopeStart' : 'pipeRunResume')
+        : t('pipeRunScopeFrom', { at: row.at + 1 })
+    const range = row.first === row.last
+      ? t('pipeRunScopeOneStep', { at: row.first })
+      : t('pipeRunScopeSteps', { from: row.first, to: row.last })
+    const cost = row.replacing === 0 ? t('pipeRunScopeFree') : t('pipeRunScopeCost', { count: row.replacing })
+    return { title, note: `${range} · ${cost}`, badge: row.at === scope.at }
+  }
 
   const stepCount = active?.steps.length ?? 0
   const doneCount = stepViews.filter(step => step.phase === 'done').length
@@ -667,9 +719,40 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const alone = stepViews
     .filter(step => step.phase === 'done' && step.runScope !== 'full')
     .map(step => step.index + 1)
-  const resumeAt = resumeFrom(stepViews.map(step => step.phase))
-  /** Session a resumed run continues: the one the step before its first step settled in. */
-  const priorSession = resumeAt > 0 ? chain?.steps[resumeAt - 1]?.sessionId : undefined
+  const phases = stepViews.map(step => step.phase)
+  const resumeAt = resumeFrom(phases)
+  // What the run button would run, and what it calls itself. One reading feeds the button's
+  // word, its default start and the menu's first row, so the three cannot drift apart.
+  const scope = runScopeOf(phases)
+  const scopeRows = runScopeRows({ phases, selected: selectedIndex })
+  // The button's title says what pressing it will run, in the same word the button carries.
+  const runAllTitle = running
+    ? t('pipeRunAllBusyHint')
+    : scope.word === 'run'
+      ? t('pipeRunAllHint')
+      : scope.word === 'resume' ? t('pipeRunResumeHint', { at: scope.at + 1 }) : t('pipeRunAgainHint')
+  // The range menu is for a chain of steps that is not running: a run in flight has exactly
+  // one thing to press, and it is not "some other range".
+  const showScope = active !== undefined && stepCount > 0 && !running
+
+  /**
+   * Run the whole chain from one step.
+   *
+   * The only way a whole run starts, so the rule that a start needs its predecessors
+   * finished lives here once: a step's own menu, the range menu's rows and the button all
+   * arrive through this door, and a start that would leave the chain half-empty is refused
+   * rather than performed.
+   * @param at - zero-based step to start at.
+   */
+  const startAt = (at: number): void => {
+    setRunMenu(false)
+    if (active === undefined || running) return
+    if (!canStartAt(phases, at)) return
+    // The step before the first one this run takes, when it ran in this panel: the resumed
+    // step continues that session instead of opening a cold one.
+    const prior = at > 0 ? chain?.steps[at - 1]?.sessionId : undefined
+    run.runAll(active, at, prior)
+  }
 
   /**
    * How any stored pipeline stands, for the menu rows.
@@ -743,7 +826,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
    * @param entry - the run.
    * @returns a phrase for the row.
    */
-  const runScopeOf = (entry: PipelineRunEntry): string => {
+  const runScopeLabelOf = (entry: PipelineRunEntry): string => {
     if (entry.scope === 'full') return entry.steps.map(step => labelOf(step.cardId)).join(' → ')
     // A one-step run records that step and nothing else, so the record names it.
     const name = labelOf(entry.steps[0]?.cardId ?? '')
@@ -759,7 +842,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     ? ''
     : [
         formatWhen(entry.startedAt, Date.now()),
-        runScopeOf(entry),
+        runScopeLabelOf(entry),
         formatDuration(entry.tookMs),
         t(runStateOf(entry.phase).key),
       ].join(' · ')
@@ -813,6 +896,30 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       )
     }
     if (stand === 'done') {
+      // 整条完成，但各步的产物不一定来自同一次：重跑后半段之后，前几步还停在上一次。
+      // 一个「完成」把这件事盖住，看结果的人就不知道手里这些东西是不是一套。
+      const ages = stepViews.map(step => step.runNo).filter((no): no is number => no !== undefined)
+      const newest = ages.length === 0 ? undefined : Math.max(...ages)
+      const older = stepViews
+        .filter(step => step.runNo !== undefined && newest !== undefined && step.runNo < newest)
+        .map(step => step.index + 1)
+      if (newest !== undefined && older.length > 0) {
+        return (
+          <>
+            <span>{t('pipeBarMixedHead')}</span>
+            <span>·</span>
+            <span>
+              {t('pipeBarMixedAges', {
+                steps: older.join(t('pipeListSeparator')),
+                was: Math.min(...ages),
+                now: newest,
+              })}
+            </span>
+            <span>·</span>
+            <span>{t('pipeBarMixedNext')}</span>
+          </>
+        )
+      }
       // 用时是这一步一步加起来的时间，和画布上每一步的时长同源；没有一步计时就只说完成了几步
       return <span>{runTook === undefined
         ? t('pipeAllDone', { count: stepCount })
@@ -865,28 +972,83 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
           {MARK.plus}
           <span className={css.headLabel}>{t('pipeNewPipeline')}</span>
         </button>
-        <button
-          type="button"
-          className={`${css.btn} ${wholeInFlight ? css.stop : css.primary}`}
-          data-run-all=""
-          data-stop={wholeInFlight ? '1' : '0'}
-          disabled={stopping || active === undefined || active.steps.length === 0 || (running && !chainWhole)}
-          aria-label={wholeInFlight ? stopTitle : runAllTitle}
-          title={wholeInFlight ? stopTitle : runAllTitle}
-          onClick={() => {
-            // The same button both ways: a run in flight is stopped where it was started,
-            // so the reader never has to look for a second control to make this one stop.
-            if (wholeInFlight) { run.stop(); return }
-            // The step before the one this run starts at, when it ran in this panel: the
-            // resumed step continues that session instead of opening a cold one.
-            if (active !== undefined) run.runAll(active, resumeAt, priorSession)
-          }}
+        {/* 运行和它的范围是同一个控件：左边按下去跑默认的那一段，右半边那道缝后面
+            才换范围。两个半块同高、共用一圈圆角——缝本身就在说"这里还能再选"。 */}
+        <div
+          className={css.runSplit}
+          data-run-split=""
+          data-open={runMenu && showScope ? '1' : '0'}
+          data-caret={showScope ? '1' : '0'}
         >
-          {wholeInFlight ? MARK.stop : MARK.play}
-          <span className={css.headLabel}>
-            {wholeInFlight ? (stopping ? t('pipeStopping') : t('pipeStop')) : t('pipeRunAll')}
-          </span>
-        </button>
+          <button
+            type="button"
+            className={`${css.btn} ${wholeInFlight ? css.stop : css.primary}`}
+            data-run-all=""
+            data-stop={wholeInFlight ? '1' : '0'}
+            data-word={wholeInFlight ? 'stop' : scope.word}
+            disabled={stopping || active === undefined || active.steps.length === 0 || (running && !chainWhole)}
+            aria-label={wholeInFlight ? stopTitle : runAllTitle}
+            title={wholeInFlight ? stopTitle : runAllTitle}
+            onClick={() => {
+              // The same button both ways: a run in flight is stopped where it was started,
+              // so the reader never has to look for a second control to make this one stop.
+              if (wholeInFlight) { run.stop(); return }
+              startAt(scope.at)
+            }}
+          >
+            {wholeInFlight ? MARK.stop : MARK.play}
+            <span className={css.headLabel}>
+              {wholeInFlight
+                ? (stopping ? t('pipeStopping') : t('pipeStop'))
+                : t(runWord(scope.word))}
+            </span>
+          </button>
+          {showScope
+            ? (
+              <button
+                type="button"
+                className={css.runSplitCaret}
+                data-run-scope=""
+                aria-haspopup="menu"
+                aria-expanded={runMenu}
+                aria-label={t('pipeRunScopeHint')}
+                title={t('pipeRunScopeHint')}
+                onClick={() => { setRunMenu(!runMenu) }}
+              >
+                {MARK.chev}
+              </button>
+              )
+            : null}
+          {showScope && runMenu
+            ? (
+              <div className={css.runMenu} role="menu" data-run-menu="">
+                {scopeRows.map((row) => {
+                  const text = scopeRowOf(row)
+                  return (
+                    <button
+                      key={row.kind}
+                      type="button"
+                      role="menuitem"
+                      className={css.runMenuRow}
+                      data-run-scope-row={row.kind}
+                      data-at={row.at}
+                      disabled={!canStartAt(phases, row.at)}
+                      onClick={() => { startAt(row.at) }}
+                    >
+                      <span>
+                        <b>{text.title}</b>
+                        {text.badge ? <i>{t('pipeRunScopeDefault')}</i> : null}
+                      </span>
+                      <em>{text.note}</em>
+                    </button>
+                  )
+                })}
+                <div className={css.stepMenuSep} />
+                <div className={css.stepMenuNote}>{t('pipeRunScopeNote')}</div>
+              </div>
+              )
+            : null}
+        </div>
       </header>
       <div className={css.panelBody}>
         <section className={css.pipelineView}>
@@ -1237,9 +1399,14 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                           className={`${css.runOne} ${soloRunning ? css.stop : ''}`}
                           data-run-one=""
                           data-stop={soloRunning ? '1' : '0'}
+                          data-again={selected.phase === 'done' ? '1' : '0'}
                           disabled={stopping || (running && !soloRunning)}
-                          aria-label={runOneTitle}
-                          title={runOneTitle}
+                          aria-label={soloRunning
+                            ? runOneTitle
+                            : selected.phase === 'done' ? t('pipeRunAgainOneHint') : runOneTitle}
+                          title={soloRunning
+                            ? runOneTitle
+                            : selected.phase === 'done' ? t('pipeRunAgainOneHint') : runOneTitle}
                           onClick={() => {
                             // This step is the run: the button that started it is the one
                             // that stops it, and stopping it leaves the rest of the
@@ -1248,10 +1415,12 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             if (active !== undefined) run.runOne(active, selected.index)
                           }}
                         >
-                          {soloRunning ? MARK.stop : MARK.play}
+                          {soloRunning ? MARK.stop : selected.phase === 'done' ? MARK.replay : MARK.play}
                           {soloRunning
                             ? (stopping ? t('pipeStopping') : t('pipeStop'))
-                            : t('pipeRunOne')}
+                            // 跑过的步骤上这颗按钮不是"试试看"，是"再来一遍"：同一个位置、
+                            // 同一件事，但两种心情，字要说对。
+                            : selected.phase === 'done' ? t('pipeRunAgainOne') : t('pipeRunOne')}
                         </button>
                         <button
                           type="button"
@@ -1291,6 +1460,20 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                         onClick={() => { setStepMenu(undefined); void moveStep(selected.index, 1) }}
                       >
                         {t('pipeMoveDown')}
+                      </button>
+                      {/* 改了这一步的指令、只想从这里往下重跑：这一行就是那句话的入口。
+                          放在分隔线以上，因为它和上移下移一样是"对这一步做什么"，
+                          不是分隔线下面那组"改这一步的定义"。 */}
+                      <button
+                        type="button"
+                        className={css.stepMenuRow}
+                        role="menuitem"
+                        data-rerun-step=""
+                        disabled={running || !canStartAt(phases, selected.index)}
+                        onClick={() => { startAt(selected.index) }}
+                      >
+                        {MARK.replay}
+                        <span>{t('pipeRerunFromStep')}</span>
                       </button>
                       <div className={css.stepMenuSep} />
                       <button
@@ -1565,7 +1748,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                           >
                             <span className={css.histNo}>{`#${String(entry.no)}`}</span>
                             <span className={css.histWhen}>{formatWhen(entry.startedAt, Date.now())}</span>
-                            <span className={css.histSum}>{runScopeOf(entry)}</span>
+                            <span className={css.histSum}>{runScopeLabelOf(entry)}</span>
                             <span className={css.histTook}>{formatDuration(entry.tookMs)}</span>
                             <span className={css.histBadge} data-s={runStateOf(entry.phase).s}>
                               {t(runStateOf(entry.phase).key)}
@@ -1767,7 +1950,7 @@ function productLine(html: string | undefined, t: (key: WorkbenchLocaleKey) => s
 }
 
 /** The marks a state is drawn with, so colour is never the only signal. */
-const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'stop' | 'chev' | 'search' | 'dots' | 'back', ReactNode> = {
+const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' | 'plus' | 'play' | 'stop' | 'chev' | 'replay' | 'search' | 'dots' | 'back', ReactNode> = {
   // 方框要在 10px 上还是方框：直角、实线。虚线圆是排队中，两个状态不能共用记号。
   slot: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1" /></svg>,
   dash: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="5.3" strokeDasharray="2.2 2.2" /></svg>,
@@ -1781,6 +1964,8 @@ const MARK: Record<'slot' | 'dash' | 'clock' | 'file' | 'check' | 'warn' | 'x' |
   // 三角换方块：形状先说话，比颜色先被看见。同一颗按钮只换记号，位置和字宽都不动。
   stop: <svg viewBox="0 0 16 16" fill="currentColor"><rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.3" /></svg>,
   chev: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m4.4 6.4 3.6 3.4 3.6-3.4" /></svg>,
+  // 一个圈着一个箭头：这个记号只出现在"再来一遍"上，不用于"开始"。
+  replay: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8a5 5 0 1 1-1.9-3.9" /><path d="M13.2 2.6v3.2H10" /></svg>,
   search: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7.2" cy="7.2" r="4.4" /><path d="m10.6 10.6 2.6 2.6" /></svg>,
   dots: <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.4" cy="8" r="1.15" /><circle cx="8" cy="8" r="1.15" /><circle cx="12.6" cy="8" r="1.15" /></svg>,
   back: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9.6 3.6 5.2 8l4.4 4.4" /></svg>,

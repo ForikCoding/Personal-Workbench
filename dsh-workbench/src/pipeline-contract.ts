@@ -291,6 +291,15 @@ export interface WorkbenchPipelineRun {
   readonly scope: 'full' | 'single' | 'refine'
   /** The step a `single` or `refine` run was about, zero-based. */
   readonly only?: number
+  /**
+   * First step a whole run covered, zero-based; absent means it began at the first step.
+   *
+   * A chain is allowed to be re-run from any step whose predecessors have finished, so a
+   * `full` record is not always a record of all of it. Without this field two records — one
+   * that took every step, one that took the last two — read identically, and the steps the
+   * second one left alone look as if it had replaced them.
+   */
+  readonly from?: number
   /** What the review asked for, when the run was one. */
   readonly instruction?: string
   /** One entry per step the run touched, in step order. */
@@ -356,6 +365,10 @@ export function parseWorkbenchPipelineRunDraft(
   if (only !== undefined && (typeof only !== 'number' || !Number.isInteger(only) || only < 0)) {
     return { status: 'invalid', reason: 'only must be a zero-based step index' }
   }
+  const from = body.from
+  if (from !== undefined && (typeof from !== 'number' || !Number.isInteger(from) || from < 0)) {
+    return { status: 'invalid', reason: 'from must be a zero-based step index' }
+  }
   const instruction = body.instruction
   if (instruction !== undefined && typeof instruction !== 'string') {
     return { status: 'invalid', reason: 'instruction must be a string' }
@@ -372,6 +385,7 @@ export function parseWorkbenchPipelineRunDraft(
     phase,
     scope,
     ...only === undefined ? {} : { only },
+    ...from === undefined ? {} : { from },
     ...instruction === undefined ? {} : { instruction },
     steps,
   }

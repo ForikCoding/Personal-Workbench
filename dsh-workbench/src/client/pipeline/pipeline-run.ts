@@ -461,6 +461,10 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       phase: result.phase === 'settled' ? 'settled' : result.phase === 'failed' ? 'failed' : 'stopped',
       scope: ask.scope,
       ...ask.scope === 'full' ? {} : { only: from },
+      // A whole run that began in the middle says where: otherwise the record of it is
+      // indistinguishable from a record of the whole chain, and the steps it left alone
+      // look like steps it replaced.
+      ...ask.scope === 'full' && from > 0 ? { from } : {},
       ...ask.instruction === undefined ? {} : { instruction: ask.instruction },
       steps,
     }

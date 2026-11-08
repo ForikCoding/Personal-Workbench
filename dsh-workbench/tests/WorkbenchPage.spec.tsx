@@ -1220,7 +1220,10 @@ describe('WorkbenchPage', () => {
       poll: async () => settled,
     }
     const first = await renderPage({ runs: store, pipelines: oneStep, results: [result('a-card', '<b>ok</b>')], run: seams })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    // The step has a product already, so the run button reads as a re-run: pressing it is
+    // the same act, and what it stores is what this test is about.
+    await screen.findByText(en.pipeRunAgain)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
     await waitFor(() => { expect(store.length).toBe(1) })
     // What it stored is the run, not a printout of the panel: which pipeline, how it ended,
     // and the region each step left behind at that moment.
@@ -1271,7 +1274,10 @@ describe('WorkbenchPage', () => {
         }),
       },
     })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    // The step already holds a product, so the button offers a re-run; the run is the same
+    // one either way, and the label is a statement about what it will replace.
+    await screen.findByText(en.pipeRunAgain)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
     await waitFor(() => {
       expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('running')
     })
@@ -1581,5 +1587,180 @@ describe('WorkbenchPage', () => {
     expect(header.getAttribute('aria-label')).toBe(en.pipeRunAllBusyHint)
     fireEvent.click(runOne)
     await waitFor(() => { expect(cancels).toEqual([{ cardId: 'a-card', runId: 'run-1' }]) })
+  })
+
+  it('says which part of the chain it will run, and offers the parts it will not', async () => {
+    // 这一步之前「运行」只有一个意思：从第一个没跑完的步骤接着跑。已经跑过的那几步想再来
+    // 一遍，就没有地方可以说。现在按钮自己说出范围，右边那道缝后面能改。
+    const starts: WorkbenchRunRequest[] = []
+    await renderPage({
+      results: [result('a-card')],
+      run: {
+        start: async (request) => {
+          starts.push(request)
+          return { status: 'ok', state: { cardId: request.cardId, phase: 'running', retried: false } as WorkbenchRunState }
+        },
+        poll: async () => ({
+          status: 'ok',
+          state: { cardId: 'a-card', phase: 'running', retried: false } as WorkbenchRunState,
+        }),
+      },
+    })
+    // 第一步有产物、第二步没有：默认是「接着跑」，不是「运行」。
+    await screen.findByText(en.pipeRunResume)
+    const button = document.querySelector('[data-run-all]') as HTMLButtonElement
+    expect(button.getAttribute('data-word')).toBe('resume')
+    expect(button.getAttribute('aria-label')).toBe(en.pipeRunResumeHint.replace('{at}', '2'))
+    // 右半边那道缝说得清它选什么，默认那一行的两句话是「跑哪几步 · 换掉几份产物」。
+    fireEvent.click(document.querySelector('[data-run-scope]') as HTMLElement)
+    const rows = Array.from(document.querySelectorAll('[data-run-scope-row]'))
+    expect(rows.map(row => row.getAttribute('data-run-scope-row'))).toEqual(['resume', 'all'])
+    expect(rows[0]?.textContent).toContain(en.pipeRunResume)
+    expect(rows[0]?.querySelector('i')?.textContent).toBe(en.pipeRunScopeDefault)
+    // 一段只有一步的时候说「第 2 步」，不说「第 2–2 步」。
+    expect(rows[0]?.querySelector('em')?.textContent).toBe(
+      `${en.pipeRunScopeOneStep.replace('{at}', '2')} · ${en.pipeRunScopeFree}`,
+    )
+    // 从头重跑要换掉一份产物：一行里写清楚代价，按下去之前就知道。
+    expect(rows[1]?.querySelector('em')?.textContent)
+      .toBe(`${en.pipeRunScopeSteps.replace('{from}', '1').replace('{to}', '2')} · ${en.pipeRunScopeCost.replace('{count}', '1')}`)
+    // 重跑不丢东西那句就在菜单里，因为它要回答的正是"我按下去了，上一次的东西还在吗"。
+    expect(document.querySelector('[data-run-menu]')?.textContent).toContain(en.pipeRunScopeNote)
+    // 从头重跑：整条从第一步起，冷启动，不接第二步的会话。
+    fireEvent.click(rows[1] as HTMLElement)
+    await waitFor(() => { expect(starts).toHaveLength(1) })
+    expect(starts[0]?.cardId).toBe('a-card')
+    expect(starts[0]?.sessionId).toBeUndefined()
+    expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0, scope: 'full' } })
+    // 点完就收起来：菜单是选一次范围的地方，不是一块常驻的面板。
+    expect(document.querySelector('[data-run-menu]')).toBeNull()
+  })
+
+  it('says Run again on a finished chain, and hides the caret while a run is in flight', async () => {
+    await renderPage({
+      results: [result('a-card')],
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card' }] })],
+      run: {
+        start: async (request) => ({
+          status: 'ok',
+          state: { cardId: request.cardId, phase: 'running', retried: false } as WorkbenchRunState,
+        }),
+        poll: async () => ({
+          status: 'ok',
+          state: { cardId: 'a-card', phase: 'running', retried: false } as WorkbenchRunState,
+        }),
+      },
+    })
+    // 整条跑过：按钮说的是「重跑」，而且默认就是从第一步重来，不是没有动作。
+    await screen.findByText(en.pipeRunAgain)
+    expect(document.querySelector('[data-run-all]')?.getAttribute('data-word')).toBe('again')
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    // 跑起来之后只剩一个出口（停止），所以那道缝跟着消失了。
+    await waitFor(() => { expect(document.querySelector('[data-run-scope]')).toBeNull() })
+    expect(document.querySelector('[data-run-split]')?.getAttribute('data-caret')).toBe('0')
+    expect(document.querySelector('[data-run-all]')?.textContent).toBe(en.pipeStop)
+  })
+
+  it('re-runs from a step, and the record of that run says where it began', async () => {
+    const starts: WorkbenchRunRequest[] = []
+    const store: WorkbenchPipelineRun[] = []
+    await renderPage({
+      runs: store,
+      results: [result('a-card'), result('b-card')],
+      run: {
+        start: async (request) => {
+          starts.push(request)
+          return { status: 'ok', state: { cardId: request.cardId, phase: 'running', retried: false } as WorkbenchRunState }
+        },
+        poll: async () => ({
+          status: 'ok',
+          state: {
+            cardId: 'b-card',
+            phase: 'settled',
+            retried: false,
+            result: {
+              runId: 'run-2', skill: 's', executedAt: 2, stopReason: 'completed',
+              structured: { html: '<b>ok</b>' }, sessionId: 'session-two',
+            },
+          } as WorkbenchRunState,
+        }),
+      },
+    })
+    await screen.findByText(en.pipeRunAgain)
+    // 第二步自己的菜单里有一行「从这一步起重跑」：前半段不动，后半段换新的。
+    fireEvent.click(document.querySelector('[data-step-index="1"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    const rerun = document.querySelector('[data-rerun-step]') as HTMLButtonElement
+    expect(rerun.disabled).toBe(false)
+    fireEvent.click(rerun)
+    await waitFor(() => { expect(starts).toHaveLength(1) })
+    expect(starts[0]?.cardId).toBe('b-card')
+    // 这是一次整条运行，只是从第二步起：记录要写明起点，否则它和整条跑一遍的记录一模一样，
+    // 被它跳过的第一步看起来像被它换掉了。
+    await waitFor(() => { expect(store.length).toBe(1) })
+    expect(store[0]?.scope).toBe('full')
+    expect(store[0]?.from).toBe(1)
+    expect(store[0]?.steps.map(step => step.cardId)).toEqual(['b-card'])
+  })
+
+  it('says the steps come from different runs once part of the chain was re-run', async () => {
+    // 整条都完成，但重跑了后半段：说「2 步全部完成」不算错，只是把"你手上这些产物不是
+    // 一套"这件事盖住了。看结果的人要知道哪几步还停在上一次。
+    await renderPage({
+      results: [result('a-card'), result('b-card')],
+      runs: [
+        {
+          no: 2,
+          pipelineId: 'pipeline-1',
+          startedAt: 2,
+          tookMs: 1_000,
+          phase: 'settled',
+          scope: 'full',
+          from: 1,
+          steps: [{ cardId: 'b-card', phase: 'done', tookMs: 1_000, html: '<p>done</p>' }],
+        },
+        {
+          no: 1,
+          pipelineId: 'pipeline-1',
+          startedAt: 1,
+          tookMs: 2_000,
+          phase: 'settled',
+          scope: 'full',
+          steps: [
+            { cardId: 'a-card', phase: 'done', tookMs: 1_000, html: '<p>done</p>' },
+            { cardId: 'b-card', phase: 'done', tookMs: 1_000, html: '<p>done</p>' },
+          ],
+        },
+      ],
+    })
+    // 整条依然是「完成」：它确实跑完了，只是各步的产物来自不同的两次。
+    expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
+    expect(document.querySelector('[data-run-noise]')?.textContent).toBe([
+      en.pipeBarMixedHead,
+      en.pipeBarMixedAges.replace('{steps}', '1').replace('{was}', '1').replace('{now}', '2'),
+      en.pipeBarMixedNext,
+    ].join('·'))
+  })
+
+  it('calls a step button a re-run once that step holds a product, and not before', async () => {
+    await renderPage({ results: [result('a-card')] })
+    await screen.findByText(en.pipeRunResume)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    // 跑过的步骤上这颗按钮是「重跑这一步」：同一颗按钮，同一件事，说的却是另一句话。
+    expect(document.querySelector('[data-run-one]')?.textContent).toBe(en.pipeRunAgainOne)
+    expect(document.querySelector('[data-run-one]')?.getAttribute('data-again')).toBe('1')
+    // 没跑过的那一步还是「单独运行」：它没有东西可以换掉。
+    fireEvent.click(document.querySelector('[data-step-index="1"]') as HTMLElement)
+    expect(document.querySelector('[data-run-one]')?.textContent).toBe(en.pipeRunOne)
+    expect(document.querySelector('[data-run-one]')?.getAttribute('data-again')).toBe('0')
+  })
+
+  it('refuses to start at a step whose predecessors have not run', async () => {
+    // 从第二步起跑、第一步却没有产物：跑完会得到一个"缺了前半段却算完成"的流水线，
+    // 没有任何状态说得清那是什么，所以这一行根本按不下去。
+    await renderPage({ results: [result('b-card')] })
+    fireEvent.click(document.querySelector('[data-step-index="1"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
+    expect((document.querySelector('[data-rerun-step]') as HTMLButtonElement).disabled).toBe(true)
   })
 })

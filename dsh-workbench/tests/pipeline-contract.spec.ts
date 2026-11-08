@@ -158,7 +158,19 @@ describe('pipeline execution contract', () => {
     expectRefused(draft({ phase: 'running' }), 'phase must be settled, failed, or stopped')
     expectRefused(draft({ scope: 'everything' }), 'scope must be full, single, or refine')
     expectRefused(draft({ only: -1 }), 'only must be a zero-based step index')
+    expectRefused(draft({ from: -1 }), 'from must be a zero-based step index')
+    expectRefused(draft({ from: 1.5 }), 'from must be a zero-based step index')
     expectRefused(draft({ instruction: 7 }), 'instruction must be a string')
+  })
+
+  it('keeps where a whole run began, and leaves it out when it began at the first step', () => {
+    // Two records — one that took every step, one that took the last two — used to read
+    // identically; the steps the second left alone then looked like steps it replaced.
+    expect(parseWorkbenchPipelineRunDraft(draft({ from: 1 }))).toEqual(draft({ from: 1 }))
+    expect(parseWorkbenchPipelineRunDraft(draft({ from: 0 }))).toEqual(draft({ from: 0 }))
+    const absent = parseWorkbenchPipelineRunDraft(draft())
+    expect(absent).toEqual(draft())
+    expect(absent).not.toHaveProperty('from')
   })
 
   it('refuses a step that never ended, and one that names no card', () => {

@@ -158,6 +158,15 @@ export interface WorkbenchPipelineRun {
     readonly scope: 'full' | 'single' | 'refine';
     /** The step a `single` or `refine` run was about, zero-based. */
     readonly only?: number;
+    /**
+     * First step a whole run covered, zero-based; absent means it began at the first step.
+     *
+     * A chain is allowed to be re-run from any step whose predecessors have finished, so a
+     * `full` record is not always a record of all of it. Without this field two records — one
+     * that took every step, one that took the last two — read identically, and the steps the
+     * second one left alone look as if it had replaced them.
+     */
+    readonly from?: number;
     /** What the review asked for, when the run was one. */
     readonly instruction?: string;
     /** One entry per step the run touched, in step order. */

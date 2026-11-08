@@ -71,7 +71,7 @@
          · 运行记录里，从后半段起的那种运行记着 from（「从第 3 步起重跑 · 共 5 步」），
            没轮到的步骤留着它们的编号 kept——否则第 5 次和第 4 次看起来一模一样
          · 跑完之后又重跑了后半段：整条仍然是「完成」，但运行条要说各步不再来自同一次
-           （「第 1 步还停在第 5 次，后面几步是第 6 次」），不能让一个「完成」盖住它
+           （「第 1 步还停在第 5 次，其余是第 6 次」），不能让一个「完成」盖住它
          · 运行中右半边收起来：那一次运行只有一个出口（停止）
          · 场景里加了「全部完成」：跑完之后四个按钮各叫什么，以前没有地方能看
 -->
@@ -742,7 +742,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
 .runSplitCaret:hover,
 .runSplit[data-open="1"] .runSplitCaret { background: color-mix(in srgb, var(--primary-ink) 12%, var(--primary-bg)); }
 /* 右半边不在的时候（跑起来了、没有步骤、单卡片面板），左半边自己把右边的圆角接回来 */
-.runSplit[data-solo="1"] .btn { border-radius: 8px; }
+.runSplit[data-caret="0"] .btn { border-radius: 8px; }
 /* 跑起来之后右半边收起来：`.runSplitCaret` 自己声明了 display，UA 那条 [hidden]
    赢不过它，得在这里再说一遍，否则停下之后那道缝还站在「停止」旁边 */
 .runSplitCaret[hidden] { display: none; }
@@ -2947,7 +2947,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     const rows = [];
     if (allDone) {
       // 全跑完了：菜单里只剩这一件事，它同时也是主按钮按下去会做的事
-      rows.push({ kind: 'all', at: 0, title: '从头重跑', note: `第 1–${n} 步 · ${n} 份产物换新`, badge: '默认' });
+      rows.push({ kind: 'all', at: 0, title: '从头重跑', note: `第 1–${n} 步 · ${cost(n)}`, badge: '默认' });
       return rows;
     }
     rows.push({
@@ -2989,7 +2989,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
     const show = !flow.isTask && flow.stages.length > 0 && flow.state !== 'running';
     if (!show) state.runMenu = false;
     caret.hidden = !show;
-    wrap.dataset.solo = show ? '0' : '1';
+    wrap.dataset.caret = show ? '1' : '0';
     const open = state.runMenu && show;
     menu.hidden = !open;
     wrap.dataset.open = open ? '1' : '0';
@@ -3057,7 +3057,7 @@ body[data-theme="dark"] .app { box-shadow: 0 18px 48px rgba(0, 0, 0, .6), 0 0 0 
       const older = flow.stages.map((s, i) => (s.run !== undefined && s.run !== newest ? i + 1 : 0)).filter(Boolean);
       noise.innerHTML = older.length === 0
         ? `<span>${flow.stages.length} 步全部完成 · 用时 ${flow.total}</span><span>·</span><span>点「重跑」从头再来一遍</span>`
-        : `<span>整条跑完过</span><span>·</span><span>第 ${older.join('、')} 步还停在第 ${Math.min(...nums)} 次，后面几步是第 ${newest} 次</span><span>·</span><span>点「重跑」让整条一致</span>`;
+        : `<span>整条跑完过</span><span>·</span><span>第 ${older.join('、')} 步还停在第 ${Math.min(...nums)} 次，其余是第 ${newest} 次</span><span>·</span><span>点「重跑」让整条一致</span>`;
     } else if (!runsOf(flow).length) {
       noise.innerHTML = `<span>未整体运行</span><span>·</span><span>${flow.stages.length} 步都还没启动 · 点右上角「运行」按顺序跑完</span>`;
     } else {
