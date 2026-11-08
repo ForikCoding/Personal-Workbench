@@ -21,7 +21,11 @@ import type {
   WorkbenchPipelineRunStep,
   WorkbenchPipelineStep,
 } from '../../pipeline-contract.ts'
-import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts'
+import type {
+  WorkbenchActivityEntry,
+  WorkbenchCardWorkspace,
+  WorkbenchRunState,
+} from '../../skill-card-contract.ts'
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts'
 import type { PipelineRunEntry } from './pipeline-view.ts'
 
@@ -60,6 +64,15 @@ export interface ChainStepOutcome {
  * moment the button was pressed would claim the work had ended before it had.
  */
 export type ChainPhase = 'running' | 'stopping' | 'settled' | 'failed' | 'stopped'
+
+/**
+ * The values a run of a pipeline was told.
+ *
+ * Carried by the chain rather than per step: one run of a pipeline asks once, and every step
+ * substitutes the same values into its own card's directory. Absent for a pipeline whose cards
+ * write no tokens, which is most of them.
+ */
+export type ChainParams = Readonly<Record<string, string>>
 
 /** One chain, as the canvas draws it. */
 export interface PipelineChain {
@@ -121,6 +134,9 @@ export interface ChainSeams {
       readonly sessionId?: string
       readonly terminal: boolean
       readonly instruction?: string
+      readonly params?: Readonly<Record<string, string>>
+      readonly directive?: string
+      readonly workspace?: string
     },
   ): Promise<ChainStartOutcome>
   /**
@@ -157,6 +173,29 @@ export interface ChainSeams {
    * honest answer when nobody knows where the earlier step ran.
    */
   readonly resume?: string
+  /**
+   * Values every step of this chain substitutes into its card's directory.
+   *
+   * Passed through unchanged: the panel asked once for the run, and a step that resolved them
+   * itself would be a second reading of the same card's tokens.
+   */
+  readonly params?: ChainParams
+  /**
+   * The sentence given once for this run, carried by every step of it.
+   *
+   * Beside {@link params} rather than inside them: a value is substituted into a directory,
+   * this is stated to the child. Also carried rather than asked per step, for the same reason
+   * the values are — one run, one answer, and every step sees the same words.
+   */
+  readonly directive?: string
+  /**
+   * The directory the pipeline says every step runs in.
+   *
+   * Read from the pipeline, not from the step's card: the card's own directory is what this
+   * overrides for the length of the run, and a step that resolved it itself would be a second
+   * answer to a question the pipeline already answered.
+   */
+  readonly workspace?: WorkbenchCardWorkspace
 }
 
 /** How a chain ended. */
@@ -238,6 +277,9 @@ export async function runSteps(
       ...sessionId === undefined ? {} : { sessionId },
       terminal: index === to,
       ...step.instruction === undefined ? {} : { instruction: step.instruction },
+      ...seams.params === undefined ? {} : { params: seams.params },
+      ...seams.directive === undefined ? {} : { directive: seams.directive },
+      ...seams.workspace === undefined ? {} : { workspace: seams.workspace.path },
     })
     if (started.status === 'refused') {
       const failed = settledOutcome(index, { phase: 'failed', startedAt, tookMs: seams.now() - startedAt, failure: started.reason })
@@ -340,14 +382,19 @@ export interface PipelineRunFace {
    * @param pipeline - the pipeline to run.
    * @param from - first step to run; absent starts at the first step.
    * @param resume - session the step before `from` settled in, when the run continues it.
+   * @param params - values every step of this run substitutes into its own directory.
+   * @param directive - the sentence typed once for this whole run, when one was.
    */
-  runAll(pipeline: WorkbenchPipeline, from?: number, resume?: string): void
+  runAll(pipeline: WorkbenchPipeline, from?: number, resume?: string, params?: ChainParams, directive?: string): void
   /**
    * Run one step on its own, in a session of its own.
    * @param pipeline - the pipeline the step belongs to.
    * @param index - the step index.
+   * @param params - values the step's own directory names, when it names any.
+   * @param directive - the sentence typed once for this run, when one was. A single-step run
+   *   states it too: it is the same task, and a document written by this step has to name it.
    */
-  runOne(pipeline: WorkbenchPipeline, index: number): void
+  runOne(pipeline: WorkbenchPipeline, index: number, params?: ChainParams, directive?: string): void
   /**
    * Stop the run in flight, whether it is a chain or one step.
    *
@@ -361,8 +408,10 @@ export interface PipelineRunFace {
    * @param pipeline - the pipeline the step belongs to.
    * @param index - the step index.
    * @param instruction - what to change.
+   * @param params - the values the run being revised used, so the revision lands in the same
+   *   directory rather than in a path still carrying `{任务编号}`.
    */
-  refine(pipeline: WorkbenchPipeline, index: number, instruction: string): void
+  refine(pipeline: WorkbenchPipeline, index: number, instruction: string, params?: ChainParams): void
   /**
    * The runs this page has seen for one pipeline, newest first.
    * @param pipelineId - the pipeline to read.
@@ -422,16 +471,28 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
   const finish = useCallback(async (
     pipeline: WorkbenchPipeline,
     result: ChainResult,
-    ask: { scope: PipelineRunEntry['scope']; instruction?: string; previous?: string },
+    ask: {
+      scope: PipelineRunEntry['scope']
+      instruction?: string
+      previous?: string
+      params?: ChainParams
+      directive?: string
+    },
     from: number,
     startedAt: number,
   ) => {
     const products = new Map<string, string>()
+    // The directory each card's newest run resolved its pointer to. Read with the product, from
+    // the same record: both are the Host's statement about what this run wrote.
+    const directories = new Map<string, string>()
     const read = await api.read()
     if (read.status === 'ok') {
       for (const stored of read.snapshot.results) {
         const html = htmlOf(stored.structured)
         if (html !== undefined && !products.has(stored.cardId)) products.set(stored.cardId, html)
+        if (stored.directory !== undefined && !directories.has(stored.cardId)) {
+          directories.set(stored.cardId, stored.directory)
+        }
       }
     }
     const steps: WorkbenchPipelineRunStep[] = []
@@ -446,12 +507,14 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
         ? 'done'
         : outcome.phase === 'failed' ? 'failed' : 'stopped'
       const html = products.get(cardId)
+      const dir = directories.get(cardId)
       steps.push({
         cardId,
         phase,
         ...outcome.tookMs === undefined ? {} : { tookMs: outcome.tookMs },
         ...outcome.failure === undefined ? {} : { failure: outcome.failure },
         ...html === undefined ? {} : { html },
+        ...dir === undefined ? {} : { dir },
       })
     })
     const draft: WorkbenchPipelineRunDraft = {
@@ -466,6 +529,12 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       // look like steps it replaced.
       ...ask.scope === 'full' && from > 0 ? { from } : {},
       ...ask.instruction === undefined ? {} : { instruction: ask.instruction },
+      // What the run was told, so the next one opens on the same values and the record says
+      // which task number this one covered. Omitted entirely when nothing was asked.
+      ...ask.params === undefined || Object.keys(ask.params).length === 0 ? {} : { params: ask.params },
+      // The sentence this run was given, stored so the record says what it was told and so the
+      // next run of the same pipeline can open on the same words instead of a blank field.
+      ...ask.directive === undefined ? {} : { directive: ask.directive },
       steps,
     }
     await record.current?.(draft)
@@ -475,7 +544,14 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
     pipeline: WorkbenchPipeline,
     from: number,
     to: number,
-    ask: { scope: PipelineRunEntry['scope']; instruction?: string; previous?: string; resume?: string },
+    ask: {
+      scope: PipelineRunEntry['scope']
+      instruction?: string
+      previous?: string
+      resume?: string
+      params?: ChainParams
+      directive?: string
+    },
   ) => {
     if (pipeline.steps.length === 0 || from > to) return
     token.current += 1
@@ -501,6 +577,11 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       now: () => Date.now(),
       signal: controller.signal,
       ...ask.resume === undefined ? {} : { resume: ask.resume },
+      ...ask.params === undefined ? {} : { params: ask.params },
+      ...ask.directive === undefined ? {} : { directive: ask.directive },
+      // The pipeline's own directory, read here rather than passed in: it belongs to the
+      // definition being run, so no caller can start this pipeline in a directory it does not name.
+      ...pipeline.workspace === undefined ? {} : { workspace: pipeline.workspace },
       onStep: (index, outcome) => {
         // A step that stopped running is no longer the run a stop could act on. The step
         // that starts next publishes its own run from the start seam below.
@@ -547,6 +628,17 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
                 handoff: { pipelineId: pipeline.id, step: index, scope: cover },
               },
           ...seam.instruction === undefined ? {} : { instruction: seam.instruction },
+          // The values this run was told, for the card's directory. Sent on every mode: a
+          // refinement revises the same document, so it lands in the same folder. An empty map
+          // is not sent: it would be a field saying "nothing", which is what its absence says.
+          ...seam.params === undefined || Object.keys(seam.params).length === 0 ? {} : { params: seam.params },
+          // The sentence typed once for this run. Sent on every step of it, unchanged, and never
+          // merged into `instruction`: the step's own sentence is the card's, and a child told
+          // one sentence where it used to get two could not say which it was following.
+          ...seam.directive === undefined ? {} : { directive: seam.directive },
+          // The pipeline's directory, which the Host prefers over the card's own. Sent on every
+          // mode for the same reason as the values: a revision lands in the folder it belongs to.
+          ...seam.workspace === undefined ? {} : { workspace: seam.workspace },
           outputSchema: WORKBENCH_OUTPUT_SCHEMA,
         })
         if (result.status === 'ok') {
@@ -585,22 +677,39 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
   // A whole run starts where the pipeline actually is: at the first step without a result,
   // or at the first step again when every step holds one. The run bar states that rule in
   // words, so it is applied here rather than left for the button to decide.
-  const runAll = useCallback((pipeline: WorkbenchPipeline, from = 0, resume?: string) => {
+  const runAll = useCallback((
+    pipeline: WorkbenchPipeline,
+    from = 0,
+    resume?: string,
+    params?: ChainParams,
+    directive?: string,
+  ) => {
     const at = from < 0 || from >= pipeline.steps.length ? 0 : from
     // Resuming is a continuation of the step before it: the chain keeps its promise that a
     // step runs in the session the step before it settled in.
     start(pipeline, at, pipeline.steps.length - 1, {
       scope: 'full',
       ...at > 0 && resume !== undefined ? { resume } : {},
+      ...params === undefined ? {} : { params },
+      ...directive === undefined ? {} : { directive },
     })
   }, [start])
 
-  const runOne = useCallback((pipeline: WorkbenchPipeline, index: number) => {
-    start(pipeline, index, index, { scope: 'single' })
+  const runOne = useCallback((
+    pipeline: WorkbenchPipeline,
+    index: number,
+    params?: ChainParams,
+    directive?: string,
+  ) => {
+    start(pipeline, index, index, {
+      scope: 'single',
+      ...params === undefined ? {} : { params },
+      ...directive === undefined ? {} : { directive },
+    })
   }, [start])
 
 
-  const refine = useCallback((pipeline: WorkbenchPipeline, index: number, instruction: string) => {
+  const refine = useCallback((pipeline: WorkbenchPipeline, index: number, instruction: string, params?: ChainParams) => {
     void (async () => {
       const read = await api.read()
       if (read.status !== 'ok') return
@@ -609,7 +718,12 @@ export function usePipelineRun(options: UsePipelineRunOptions): PipelineRunFace 
       const stored = read.snapshot.results.find(entry => entry.cardId === cardId)
       const previous = htmlOf(stored?.structured)
       if (previous === undefined || previous.trim() === '') return
-      start(pipeline, index, index, { scope: 'refine', instruction, previous })
+      start(pipeline, index, index, {
+        scope: 'refine',
+        instruction,
+        previous,
+        ...params === undefined ? {} : { params },
+      })
     })()
   }, [api, start])
 

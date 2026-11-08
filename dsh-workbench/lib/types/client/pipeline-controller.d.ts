@@ -11,6 +11,7 @@
  * @module dsh-workbench/client/pipeline-controller
  */
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts';
+import type { WorkbenchCardWorkspace } from '../skill-card-contract.ts';
 import type { WorkbenchPipelineApi } from './pipeline-api.ts';
 /** What the page knows about the stored pipelines. */
 export interface WorkbenchPipelinesState {
@@ -49,6 +50,16 @@ export interface WorkbenchPipelinesFace extends WorkbenchPipelinesState {
      * @returns whether the steps were stored; a conflict stores the Host's set instead.
      */
     setSteps(id: string, steps: readonly WorkbenchPipelineStep[]): Promise<boolean>;
+    /**
+     * Set the directory this pipeline's steps run in.
+     *
+     * The pipeline's own field, never a write onto its cards: one card can be a step of two
+     * pipelines, and a directory stored on the card would follow it into both.
+     * @param id - pipeline to edit.
+     * @param workspace - the directory, or undefined to stop naming one.
+     * @returns whether the write landed.
+     */
+    setWorkspace(id: string, workspace: WorkbenchCardWorkspace | undefined): Promise<boolean>;
     /** Read the stored set again. */
     reload(): void;
 }

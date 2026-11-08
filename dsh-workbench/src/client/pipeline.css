@@ -1911,3 +1911,286 @@
   background: var(--scroll);
   background-clip: content-box;
 }
+
+/* --------------------------------------------------------------------------
+   产出目录：卡上写的那一行路径
+   --------------------------------------------------------------------------
+   这一行不属于这一步，它属于这张卡——卡片的模板用 data-dsh-files 说自己的产物是
+   某个目录下的文件，路径里带花括号的部分是运行时才知道的名字。所以这里没有输入框：
+   值不是在这里填的，是运行前问一次，然后把名字换掉。
+   花括号那一段是整块里唯一有底色的东西：它是“运行时才定”的唯一记号，别处不再另标。 */
+.wb-outDir {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+.wb-tok {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+/* 这一行的“改动会波及别处”那句，跟在值下面，从值那一轨起 */
+.wb-ruleExtra {
+  margin-top: 4px;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 1.5;
+}
+/* 没有边框控件的行（产出目录这种只读值）：标签和注脚不能再用给输入框调的那 7px 下压，
+   否则它们比值低半个字。三样东西按同一条基线站好。 */
+.wb-ruleRow[data-plain="1"] .wb-ruleLabel { padding-top: 0; line-height: 18px; }
+.wb-ruleRow[data-plain="1"] .wb-ruleLine { align-items: baseline; }
+.wb-ruleRow[data-plain="1"] .wb-ruleNote { padding-top: 0; line-height: 18px; }
+/* 值那一轨至少和下拉一样宽（200）：路径一短，注脚就往前凑，几行注脚起头对不齐 */
+.wb-ruleRow[data-plain="1"] .wb-ruleValue { min-width: 200px; }
+
+/* 运行前取值：一行一个花括号名字，左边名字、中间输入、右边注脚（缺什么就写在那儿） */
+.wb-paramField {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.wb-paramField:last-of-type { border-bottom: 0; }
+.wb-paramName {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--accent);
+}
+.wb-paramInput {
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.wb-paramInput:focus { outline: none; border-color: var(--accent); }
+.wb-paramInput[aria-invalid="true"] { border-color: #c0392b; }
+.wb-paramNote {
+  grid-column: 2;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.wb-paramNote[data-problem="value"] { color: #c0392b; }
+/* 运行弹窗：参数 + 这一次运行的一句话 + 每一步收到的话。宽度按原型 640，预览要放得下两块共用 */
+.wb-reviewWrap[data-params] .wb-review { width: min(640px, calc(100% - 32px)); }
+.wb-reviewWrap[data-params] .wb-reviewBody {
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  padding-bottom: 10px;
+}
+/* 运行指令：这一句每一步都收到，所以给它自己的块，不和参数挤在一行 */
+.wb-noteField {
+  display: block;
+  margin-top: 4px;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--hairline);
+}
+.wb-noteHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.wb-noteHead .wb-paramName { color: var(--ink2); font-family: inherit; font-size: 12px; font-weight: 500; }
+/* 右列：掖着「沿用上次」的 chip、一段话、一句说明、右下角计数 —— 原型 4.1 的次序 */
+.wb-noteMain { min-width: 0; }
+.wb-noteChipRow { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.wb-noteChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: .5px solid var(--divider);
+  border-radius: 999px;
+  background: var(--recess);
+  color: var(--ink2);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+}
+.wb-noteChipX {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink4);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wb-noteChipX:hover { color: var(--ink); }
+.wb-noteLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wb-noteCount {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink4);
+  text-align: right;
+}
+.wb-noteInput {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid var(--divider);
+  border-radius: 7px;
+  background: var(--base);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+.wb-noteInput::placeholder { color: var(--ink4); }
+.wb-noteInput:focus { border-color: var(--accent); }
+.wb-noteMain .wb-paramNote { display: block; margin-top: 4px; }
+
+/* 每一步会读到什么：两块共用、一块这一步自己的，共用与自有用虚线隔开 */
+.wb-pv {
+  margin: 11px 0 0;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: var(--recess);
+  overflow: hidden;
+}
+.wb-pvHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--divider);
+}
+.wb-pvTitle { font-size: 12px; color: var(--ink2); }
+.wb-pvTabs { display: flex; gap: 2px; margin-left: auto; flex-wrap: wrap; }
+.wb-pvTab {
+  padding: 4px 7px;
+  border: .5px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink4);
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wb-pvTab:hover { color: var(--ink); }
+.wb-pvTab[aria-selected="true"] {
+  border-color: var(--hairline);
+  background: var(--base);
+  color: var(--ink);
+}
+/* 一块一行：左边是这一块的标签（固定宽度，三块对齐），右边是它的内容 */
+.wb-pvBody { position: relative; padding: 9px 10px 10px 14px; display: grid; gap: 7px; }
+.wb-pvEmpty { margin: 0; font-size: 11px; line-height: 16px; color: var(--ink4); }
+.wb-blk {
+  position: relative;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.wb-blkTag {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  line-height: 17px;
+  color: var(--ink4);
+  white-space: nowrap;
+}
+.wb-blkBody {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wb-blkBody[data-empty="1"] { color: var(--ink4); }
+/* 新加的那一块：左边一道强调色 + 淡淡一层底色，一眼看出"这句以前没有"。
+   整行铺满预览（含两侧留白），像原型那样从左边缘读到右边缘。 */
+.wb-blkNew[data-new="1"] {
+  margin: 0 -10px 0 -14px;
+  padding: 0 10px 0 14px;
+  border-radius: 0 5px 5px 0;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.wb-blkNew[data-new="1"]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.wb-blkNew .wb-blkTag { color: var(--accent); }
+/* 共用的和这一步自己的，用一道虚线分开：上面每步一样，下面每步是各自的 */
+.wb-blkShare { padding-bottom: 7px; border-bottom: .5px dashed var(--divider); }
+.wb-pvFoot {
+  padding: 0 10px 9px 108px;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--ink4);
+}
+.wb-pvFoot b { font-weight: 600; color: var(--ink2); }
+/* 老卡片迁移提示（只在不改卡片的前提下说一句） */
+.wb-pvLegacy { display: block; margin-top: 4px; color: var(--ink3); }
+
+/* 运行记录里那一条「当时被告知的」：一个号、一句话，读记录时能看到 */
+.wb-histTold {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--divider);
+  border-radius: 7px;
+  background: var(--recess);
+}
+.wb-histToldTag { font-size: 10px; color: var(--ink4); }
+.wb-histToldLine {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink2);
+  overflow-wrap: anywhere;
+}
+
+/* 「沿用上次运行的指令」：预填的那句来自上一次运行，改一个字这条就消失 */
+.wb-noteKept {
+  padding: 1px 6px;
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  background: var(--recess);
+  color: var(--ink4);
+  font-size: 10px;
+  line-height: 14px;
+}

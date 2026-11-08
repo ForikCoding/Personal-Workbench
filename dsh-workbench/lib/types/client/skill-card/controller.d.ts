@@ -370,6 +370,15 @@ export interface WorkbenchCardActions {
      */
     setWorkspace(path: string): void;
     /**
+     * Stop naming a directory for this card.
+     *
+     * The counterpart of {@link setWorkspace}: a card can point at the wrong folder, and the way
+     * back to "this card says nothing about where it runs" must not be "type another path". What
+     * that state means is the other half's business — a pipeline may name the directory, and a run
+     * with nothing to run in is refused with its own reason rather than running somewhere else.
+     */
+    clearWorkspace(): void;
+    /**
      * Store the permission mode this card's runs use.
      *
      * A run rebuilt from a changed mode is a different run: the Host disposes the card's

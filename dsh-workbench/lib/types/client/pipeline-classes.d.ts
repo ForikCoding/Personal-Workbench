@@ -45,6 +45,7 @@ export declare const css: {
     readonly tplRegionTag: "wb-tplRegionTag";
     readonly tplRegionText: "wb-tplRegionText";
     readonly tplPreviewFrame: "wb-tplPreviewFrame";
+    readonly tok: "wb-tok";
     readonly dot: "wb-dot";
     readonly emptyFlow: "wb-emptyFlow";
     readonly emptyMark: "wb-emptyMark";
@@ -64,6 +65,9 @@ export declare const css: {
     readonly histReadonly: "wb-histReadonly";
     readonly histRow: "wb-histRow";
     readonly histSum: "wb-histSum";
+    readonly histTold: "wb-histTold";
+    readonly histToldLine: "wb-histToldLine";
+    readonly histToldTag: "wb-histToldTag";
     readonly histTook: "wb-histTook";
     readonly histTop: "wb-histTop";
     readonly histTopMeta: "wb-histTopMeta";
@@ -102,6 +106,16 @@ export declare const css: {
     readonly metrics: "wb-metrics";
     readonly mono: "wb-mono";
     readonly node: "wb-node";
+    readonly noteCount: "wb-noteCount";
+    readonly noteField: "wb-noteField";
+    readonly noteHead: "wb-noteHead";
+    readonly noteMain: "wb-noteMain";
+    readonly noteChipRow: "wb-noteChipRow";
+    readonly noteChip: "wb-noteChip";
+    readonly noteChipX: "wb-noteChipX";
+    readonly noteLink: "wb-noteLink";
+    readonly noteInput: "wb-noteInput";
+    readonly noteKept: "wb-noteKept";
     readonly nodeDur: "wb-nodeDur";
     readonly nodeFoot: "wb-nodeFoot";
     readonly nodeIndex: "wb-nodeIndex";
@@ -132,6 +146,21 @@ export declare const css: {
     readonly pickerWrap: "wb-pickerWrap";
     readonly pipelineView: "wb-pipelineView";
     readonly primary: "wb-primary";
+    /** 运行弹窗里「每一步会读到」的预览：标签页、代码块、块与块之间的分隔。 */
+    readonly pv: "wb-pv";
+    readonly pvBody: "wb-pvBody";
+    readonly pvEmpty: "wb-pvEmpty";
+    readonly pvFoot: "wb-pvFoot";
+    readonly pvHead: "wb-pvHead";
+    readonly pvLegacy: "wb-pvLegacy";
+    readonly pvTab: "wb-pvTab";
+    readonly pvTabs: "wb-pvTabs";
+    readonly pvTitle: "wb-pvTitle";
+    readonly blk: "wb-blk";
+    readonly blkBody: "wb-blkBody";
+    readonly blkNew: "wb-blkNew";
+    readonly blkShare: "wb-blkShare";
+    readonly blkTag: "wb-blkTag";
     readonly renameInput: "wb-renameInput";
     /** 「运行」跑起来之后的那一态：同一个按钮，描一圈红、换方块记号。 */
     readonly stop: "wb-stop";
@@ -161,7 +190,9 @@ export declare const css: {
     readonly reviewWrap: "wb-reviewWrap";
     readonly revised: "wb-revised";
     readonly root: "wb-root";
+    readonly outDir: "wb-outDir";
     readonly ruleBody: "wb-ruleBody";
+    readonly ruleExtra: "wb-ruleExtra";
     readonly ruleLabel: "wb-ruleLabel";
     readonly ruleLine: "wb-ruleLine";
     readonly ruleNote: "wb-ruleNote";
@@ -220,6 +251,10 @@ export declare const css: {
     readonly zoomScrim: "wb-zoomScrim";
     readonly zoomWarn: "wb-zoomWarn";
     readonly zoomWrap: "wb-zoomWrap";
+    readonly paramField: "wb-paramField";
+    readonly paramInput: "wb-paramInput";
+    readonly paramName: "wb-paramName";
+    readonly paramNote: "wb-paramNote";
     readonly zSize: "wb-zSize";
 };
 export default css;

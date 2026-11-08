@@ -514,6 +514,15 @@ export declare function effectiveWorkbenchInstructionMode(stored: WorkbenchInstr
  */
 export declare const WORKBENCH_RUN_INSTRUCTION_MAX_LENGTH = 2000;
 /**
+ * Longest sentence one whole run may carry, in characters.
+ *
+ * The same bound as an instruction, because it is the same kind of text: one person's sentence
+ * about what this run is for. It is a separate constant rather than sharing that one so the two
+ * can move apart — a pipeline's sentence is read by every step of it, and a deployment that
+ * wants a tighter bound on it should not have to tighten a card's field to get one.
+ */
+export declare const WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH = 2000;
+/**
  * How many instructions the run bar offers back.
  *
  * Three, because the chips are a shortcut for the common case — the same request again,
@@ -732,6 +741,17 @@ export interface WorkbenchResultRecord {
      * reader then falls back to the card's own.
      */
     readonly workspace?: string;
+    /**
+     * Directory this run's product covered, with the run's values put in place.
+     *
+     * Distinct from {@link WorkbenchResultRecord.workspace}: the workspace is where the agent ran,
+     * and this is the folder the document points at — the pointer a template writes, resolved
+     * against the values the run was told. Kept because that pointer can name `{任务编号}`: the
+     * template says `{任务编号}/docs/需求拆解` forever, and only the run knows which task number it
+     * was. Absent for a run whose card writes no files, and for every record written before the
+     * field existed, where the reader falls back to the template's own pointer.
+     */
+    readonly directory?: string;
     /**
      * Which pipeline step produced this record, and what that run covered.
      *
@@ -1129,6 +1149,35 @@ export interface WorkbenchRunRequest {
      * card declares `required`.
      */
     readonly instruction?: string;
+    /**
+     * The sentence typed once for the whole run this step belongs to.
+     *
+     * Different from `instruction` above, which is the card's own work and the card's to keep.
+     * This one says which *instance* of that work this run is — "完成 T202608242753 任务，从需求到交付"
+     * — and is the answer to a pipeline that used to make its owner type the same task number
+     * into every card's instruction. It travels on every step of the run, unchanged, and is
+     * repeated in the prompt as {@link WorkbenchRunRequest} `directive` rather than merged into
+     * `instruction`: a step that received one sentence where it used to receive two could not say
+     * which of them it was following.
+     *
+     * Bounded by {@link WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH}; absent when the person running the
+     * pipeline said nothing, which is every run started before this field existed.
+     */
+    readonly directive?: string;
+    /**
+     * Values for the braced tokens the card's template names in its result pointer.
+     *
+     * A card writes `data-dsh-files="{任务编号}/docs/任务分析"`, and the pipeline that arranges it
+     * asks for that value once per run. Substituted on this side of the wire rather than by the
+     * client, because the wrapper that decides where the product goes is built from the template
+     * here — a client-side substitution would be a second answer to the same question. They are
+     * also stated to the child by name, so a document that has to name the task can quote the
+     * value instead of guessing at a folder segment.
+     *
+     * Absent means the run was told nothing; a token with no value then stays as written, which
+     * keeps the directory honestly incomplete instead of silently becoming a folder named `docs`.
+     */
+    readonly params?: Readonly<Record<string, string>>;
     /**
      * Output contract, carried by every run that fills a template.
      *

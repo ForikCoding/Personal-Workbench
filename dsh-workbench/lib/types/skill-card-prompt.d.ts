@@ -14,6 +14,25 @@
  */
 import type { WorkbenchSkillDefinition } from './skill-card-host.ts';
 /**
+ * What one run tells every step of it.
+ *
+ * Two facts a step cannot read off its own card. The values, because a value substituted into a
+ * directory pointer reaches the model only as a path — it never learns that the number was
+ * called "任务编号", which is why people used to type the same number into every card's
+ * instruction. And the sentence, because someone running a whole pipeline says "this is the
+ * task" once, not once per card.
+ *
+ * Told apart from a step's own `instruction` on purpose: that one is what the card does and is
+ * the card's to keep, this one is which instance of it this run is. A run told neither produces
+ * exactly the prompt this module produced before these blocks existed.
+ */
+export interface WorkbenchRunShare {
+    /** Values the run was given, by name, as the person running it wrote them. */
+    readonly values?: Readonly<Record<string, string>>;
+    /** The sentence typed once for this whole run, verbatim; the panel calls it 运行指令. */
+    readonly directive?: string;
+}
+/**
  * Render one skill, the row that triggered the run, and the document to fill.
  *
  * The whole document travels, comments included: the region's markers say what to fill,
@@ -30,9 +49,22 @@ import type { WorkbenchSkillDefinition } from './skill-card-host.ts';
  * their conversation.
  * @param cwd - the directory this run executes in, when it has one; the base a relative
  * deliverable directory resolves against.
+ * @param share - what the run told every step of it; absent for a run that told nothing.
  * @returns the complete model-facing prompt text.
  */
-export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number, handoff?: string, cwd?: string): string;
+export declare function renderWorkbenchSkillPrompt(skill: WorkbenchSkillDefinition, template: string, payload?: Record<string, unknown>, instruction?: string, budgetMs?: number, handoff?: string, cwd?: string, share?: WorkbenchRunShare): string;
+/**
+ * Put the run's values into the sentence where it named them.
+ *
+ * The same rule the records and the previews use: `{任务编号}` in the sentence becomes the value
+ * this run was given, and a name no value answers stays between its braces — a sentence that
+ * looked a token up by itself would be a second answer to a question the run already answered,
+ * and a silently dropped one would leave a sentence that reads as if it never had a token.
+ * @param text - the sentence as it was typed.
+ * @param values - the run's values, by name; absent when it was given none.
+ * @returns the sentence with every named value filled in.
+ */
+export declare function substituteValues(text: string, values: Readonly<Record<string, string>> | undefined): string;
 /**
  * Render one skill, the document, the result to revise, and the revision request.
  *

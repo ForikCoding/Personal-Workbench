@@ -894,6 +894,40 @@ describe('workbench skill card run route', () => {
     runner.cancel('skill-card')
   })
 
+  it('carries the run’s sentence into the prompt beside the card’s own instruction', async () => {
+    // The whole point of the field: one sentence, typed once for the run, reaches the child —
+    // and the card's instruction is still there, saying what this card does.
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({
+      instruction: '写任务分析',
+      directive: '完成 T202608242753 任务，从需求到交付',
+    })))
+    expect(response.statusCode).toBe(202)
+    const prompt = fake.activations[0]?.request.prompt[0]?.text ?? ''
+    expect(prompt).toContain('<pipeline_instruction>\n完成 T202608242753 任务，从需求到交付\n</pipeline_instruction>')
+    expect(prompt).toContain('<run_instruction>\n写任务分析\n</run_instruction>')
+    runner.cancel('skill-card')
+  })
+
+  it('drops a sentence that was typed and then emptied', async () => {
+    const { run: handle, fake, runner } = runtime({ outcomes: ['hang'] })
+    const response = await run(handle, at(RUN_PATH, 'POST', runBody({ directive: '   ' })))
+    expect(response.statusCode).toBe(202)
+    expect(fake.activations[0]?.request.prompt[0]?.text).not.toContain('<pipeline_instruction>')
+    runner.cancel('skill-card')
+  })
+
+  it('refuses a sentence that is not text or is longer than a run may carry', async () => {
+    const { run: handle, fake } = runtime()
+    const wrongType = await run(handle, at(RUN_PATH, 'POST', runBody({ directive: 7 })))
+    expect(wrongType.statusCode).toBe(400)
+    expect(JSON.parse(wrongType.body).error.message).toBe('directive must be a string when present')
+    const long = await run(handle, at(RUN_PATH, 'POST', runBody({ directive: 'x'.repeat(2_001) })))
+    expect(long.statusCode).toBe(400)
+    expect(JSON.parse(long.body).error.message).toBe('directive is longer than the limit')
+    expect(fake.activations).toEqual([])
+  })
+
   it('accepts a bare run for a card with no template at all', async () => {
     // The skill target names the skill itself, so neither a configured skill nor a
     // template is a precondition. A directory still is: the run has to happen somewhere,

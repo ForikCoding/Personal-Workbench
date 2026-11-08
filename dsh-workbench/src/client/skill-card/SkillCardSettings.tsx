@@ -97,6 +97,8 @@ export interface SkillCardSettingsProps {
   readonly onChooseWorkspace: () => void
   /** Store a directory typed into the field a build without a picker offers. */
   readonly onSetWorkspace: (path: string) => void
+  /** Stop naming a directory for this card; the field draws the control while one is set. */
+  readonly onClearWorkspace?: (() => void) | undefined
   /** Store the template. */
   readonly onSave: (template: string, name: string) => void
   /** Store the card's name; an empty value clears it back to the registered label. */
@@ -159,6 +161,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
     onChooseInstructionMode,
     onChooseWorkspace,
     onSetWorkspace,
+  onClearWorkspace,
     onSave,
     onRename,
     onClose,
@@ -554,6 +557,7 @@ export function SkillCardSettings(props: SkillCardSettingsProps): ReactNode {
           t={t}
           onChooseWorkspace={onChooseWorkspace}
           onSetWorkspace={onSetWorkspace}
+          onClearWorkspace={onClearWorkspace}
         />
           </div>
           {/* What the run may write, and the third row of the grid. Its own row rather than a

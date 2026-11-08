@@ -80,6 +80,26 @@ const REFINE_TASK_INSTRUCTION = [
 ].join('\n')
 
 /**
+ * What one run tells every step of it.
+ *
+ * Two facts a step cannot read off its own card. The values, because a value substituted into a
+ * directory pointer reaches the model only as a path — it never learns that the number was
+ * called "任务编号", which is why people used to type the same number into every card's
+ * instruction. And the sentence, because someone running a whole pipeline says "this is the
+ * task" once, not once per card.
+ *
+ * Told apart from a step's own `instruction` on purpose: that one is what the card does and is
+ * the card's to keep, this one is which instance of it this run is. A run told neither produces
+ * exactly the prompt this module produced before these blocks existed.
+ */
+export interface WorkbenchRunShare {
+  /** Values the run was given, by name, as the person running it wrote them. */
+  readonly values?: Readonly<Record<string, string>>
+  /** The sentence typed once for this whole run, verbatim; the panel calls it 运行指令. */
+  readonly directive?: string
+}
+
+/**
  * Render one skill, the row that triggered the run, and the document to fill.
  *
  * The whole document travels, comments included: the region's markers say what to fill,
@@ -96,6 +116,7 @@ const REFINE_TASK_INSTRUCTION = [
  * their conversation.
  * @param cwd - the directory this run executes in, when it has one; the base a relative
  * deliverable directory resolves against.
+ * @param share - what the run told every step of it; absent for a run that told nothing.
  * @returns the complete model-facing prompt text.
  */
 export function renderWorkbenchSkillPrompt(
@@ -106,6 +127,7 @@ export function renderWorkbenchSkillPrompt(
   budgetMs?: number,
   handoff?: string,
   cwd?: string,
+  share?: WorkbenchRunShare,
 ): string {
   // A template that names a directory is saying its result is files there; the prompt then
   // has to ask for them, because the region alone is a result a child can deliver without
@@ -115,6 +137,10 @@ export function renderWorkbenchSkillPrompt(
   return [
     ...skillBlock(skill),
     ...rowDataBlock(payload),
+    // Before the step's own instruction, because the two answer different questions and this
+    // one is the outer question: which run is this, before what does this card do.
+    ...runValuesBlock(share?.values),
+    ...directiveBlock(share?.directive, share?.values),
     ...instructionBlock(instruction),
     ...handoffBlock(handoff),
     ...budgetBlock(budgetMs),
@@ -125,7 +151,12 @@ export function renderWorkbenchSkillPrompt(
     ...deliverable === undefined ? [] : deliverableBlock(deliverable, cwd),
     '',
     [
-      instruction === undefined ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
+      // A run that named the task anywhere — in the card's instruction or in the sentence given
+      // for the whole run — is applied to that, not to "the workspace", which is what a run
+      // that named nothing falls back to.
+      instruction === undefined && (share?.directive === undefined || share.directive.trim() === '')
+        ? TASK_INSTRUCTION_SUBJECT
+        : TASK_INSTRUCTION_NAMED_SUBJECT,
       '',
       TASK_INSTRUCTION_REGION,
     ].join('\n'),
@@ -189,6 +220,85 @@ function handoffBlock(handoff: string | undefined): string[] {
     handoff,
     '</previous_steps>',
   ]
+}
+
+/**
+ * State the values this run was given, by name, before anything uses them.
+ *
+ * The pointer a card writes already holds them — that is what fills the directory — but a path
+ * is not a statement: from `<deliverable_directory>D:\ses\T202608242753\docs\需求分析</deliverable_directory>`
+ * a child can only guess that the middle segment is the task number it is being asked about.
+ * Told here so a document that has to name the task can name it as the run named it, rather
+ * than paraphrasing a folder.
+ *
+ * The sentence says "quote them as written" because the failure this prevents is a run
+ * normalizing the number into prose of its own ("task 202608242753") while the folder it wrote
+ * keeps the other spelling.
+ * @param values - the run's values, by name; absent or empty for a run told none.
+ * @returns the block's lines, or nothing at all when there is nothing to state.
+ */
+function runValuesBlock(values: Readonly<Record<string, string>> | undefined): string[] {
+  if (values === undefined) return []
+  const entries = Object.entries(values)
+  if (entries.length === 0) return []
+  return [
+    '',
+    'The person running this pipeline gave these values once, for every step. They already fill',
+    'the deliverable directories below; quote them as written when a document has to name them:',
+    '<run_values>',
+    ...entries.map(([name, value]) => `${escapeText(name)}: ${escapeText(value)}`),
+    '</run_values>',
+  ]
+}
+
+/**
+ * Frame the one sentence given for this whole run, when one was given.
+ *
+ * Placed ahead of the step's own instruction and said to be *about the task* rather than to be
+ * obeyed instead of it: the card's instruction is the work, this is which instance of the work,
+ * and a child that read the two as competing orders would pick one. Escaped, because a sentence
+ * quoting a tag — or a person writing one — must not be able to close this block early.
+ * @param directive - the sentence, verbatim; absent for a run that gave none.
+ * @param values - the run's values, so a sentence that writes `{任务编号}` names the task in full
+ * rather than handing the child a token to fill in.
+ * @returns the block's lines, or nothing at all when there is no sentence.
+ */
+function directiveBlock(
+  directive: string | undefined,
+  values: Readonly<Record<string, string>> | undefined,
+): string[] {
+  if (directive === undefined || directive.trim() === '') return []
+  return [
+    '',
+    'One instruction was given for this whole run. It names the task every step is about; it does',
+    'not replace your own instruction:',
+    '<pipeline_instruction>',
+    escapeText(substituteValues(directive, values)),
+    '</pipeline_instruction>',
+  ]
+}
+
+/**
+ * Put the run's values into the sentence where it named them.
+ *
+ * The same rule the records and the previews use: `{任务编号}` in the sentence becomes the value
+ * this run was given, and a name no value answers stays between its braces — a sentence that
+ * looked a token up by itself would be a second answer to a question the run already answered,
+ * and a silently dropped one would leave a sentence that reads as if it never had a token.
+ * @param text - the sentence as it was typed.
+ * @param values - the run's values, by name; absent when it was given none.
+ * @returns the sentence with every named value filled in.
+ */
+export function substituteValues(
+  text: string,
+  values: Readonly<Record<string, string>> | undefined,
+): string {
+  if (values === undefined) return text
+  let filled = text
+  for (const [name, value] of Object.entries(values)) {
+    filled = filled.replaceAll(`{${name}}`, value)
+  }
+  return filled
 }
 
 /**

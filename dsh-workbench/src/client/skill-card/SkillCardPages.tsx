@@ -1114,6 +1114,7 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             t={t}
             onChooseWorkspace={actions.chooseWorkspace}
             onSetWorkspace={actions.setWorkspace}
+              onClearWorkspace={() => { actions.clearWorkspace() }}
             onRun={(instruction) => {
               actions.run(instruction)
               setPrompt(undefined)
@@ -1189,6 +1190,7 @@ export function SkillCardConfigPage(props: SkillCardPageProps): ReactNode {
         onChooseInstructionMode={actions.chooseInstructionMode}
         onChooseWorkspace={actions.chooseWorkspace}
         onSetWorkspace={actions.setWorkspace}
+              onClearWorkspace={() => { actions.clearWorkspace() }}
         onSave={actions.saveTemplate}
         onRename={actions.rename}
         onClose={onBack}

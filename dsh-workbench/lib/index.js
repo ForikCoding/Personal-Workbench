@@ -369,6 +369,406 @@ var WorkbenchLayoutService = class {
 	}
 };
 //#endregion
+//#region src/skill-card-contract.ts
+/**
+* Wire contract shared by the skill card's Host and Client halves: the private
+* routes, their payload types, the limits both sides enforce, and the closed
+* error-code set.
+*
+* Like the layout contract this module carries no runtime dependency, so the
+* browser bundle can inline it. Card identity reuses the workbench's existing
+* rule from the layout contract rather than restating it.
+* @module dsh-workbench/skill-card-contract
+*/
+/** Private same-origin route serving the skill card's configuration and results. */
+const WORKBENCH_SKILL_CARD_PATH = "/api/workbench/skill-card";
+/** Session-scoped skill catalog route. */
+const WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/catalog`;
+/** Run control route: `POST` starts, `GET` polls, `DELETE` cancels. */
+const WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`;
+/**
+* Stored-result edit route: `PUT` replaces one card's region HTML by hand.
+*
+* A route of its own rather than a fourth method on the run route: editing a result is
+* not a run. It spends no model call, it has no phase to poll, and bending the run route
+* into it would make every run precondition answer for an operation that does not run
+* anything.
+*/
+const WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`;
+/**
+* Directory-check route: `GET path=…` answers whether one directory can be a workspace.
+*
+* One narrow read rather than a filesystem bridge: the client needs existence, kind, and
+* writability for exactly one path, which is the card's own workspace. Answers exist
+* because a run is gated on them: a card whose directory was moved has to be stopped
+* before it starts, not after it fails.
+*/
+const WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
+/**
+* Document route: `GET cardId=…&path=…` lists one directory or reads one text file.
+*
+* The one route a card's own script calls. A template cannot read a filesystem — a page has
+* no such API — so the documents a run wrote are read here, by the Host, through a read that
+* is confined to the card's own workspace directory and refuses anything that is not text.
+* `path` is relative to that directory (or absolute, and then it has to resolve inside it);
+* an empty `path` names the directory itself.
+*/
+const WORKBENCH_SKILL_CARD_FILES_PATH = `${WORKBENCH_SKILL_CARD_PATH}/files`;
+/** Maximum bytes of one template. */
+const WORKBENCH_TEMPLATE_MAX_BYTES = 32 * 1024;
+/** Maximum bytes of one stored result, counted over the structured value and the text output. */
+const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024;
+/** Maximum request-body bytes accepted by the configuration route. */
+const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024;
+/**
+* Longest narration text one activity entry carries, in characters.
+*
+* Narration is the model's own words — its reasoning and its reply text — and the card lets
+* the user open a row to read all of it, so the entry carries the whole span up to this
+* budget rather than a preview; the client clamps it to two lines until the user expands.
+* 3000 characters covers the thinking of an ordinary step whole; a pathological step is cut
+* with the ellipsis, and {@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH} bounds the trace.
+* Redaction runs before this cut, so a credential is replaced whole.
+*/
+const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 3e3;
+/** How far into a result document a directory pointer may sit. */
+const RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
+/**
+* Read the directory a document points at.
+*
+* The pointer is the template's own statement that this card's results are files in a
+* directory, and it sits outside the region so a run cannot remove it. A run's stored region
+* may carry one too — that is how results written before the pointer moved are still read.
+*
+* Comments are stripped first, because a template's own header explains the pointer by
+* quoting it — `下面那个 data-dsh-files="docs/设计"` — and that quotation sits ahead of the
+* element it describes. Read without stripping, the explanation wins: an author who edits
+* the element sees no change anywhere, because the panel keeps listing the path the prose
+* happens to mention. The template's own script reads the attribute off the element rather
+* than out of the text, which is exactly how the card page and the panel came to disagree.
+* @param document - a template, or a stored region.
+* @returns the directory the document points at, or undefined when it points at none.
+*/
+function resultPointerPath(document) {
+	if (document === void 0) return void 0;
+	const withoutComments = document.replace(/<!--[\s\S]*?-->/g, "");
+	const path = RESULT_POINTER.exec(withoutComments)?.[1]?.trim();
+	return path === void 0 || path === "" ? void 0 : path;
+}
+/**
+* Skill name grammar, matching the skill registry's own rule exactly: kebab
+* case, with no leading, trailing, or repeated hyphen.
+*/
+const WORKBENCH_SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/**
+* Whether a value is a usable card name.
+*
+* Whitespace is not part of the name, and a name that is only whitespace is no
+* name at all: the card falls back to its registered label instead.
+* @param value - candidate name.
+* @returns whether the value holds visible text within the length limit.
+*/
+function isWorkbenchCardName(value) {
+	return value.trim().length > 0 && value.length <= 60;
+}
+/**
+* Longest instruction the workbench stores for one card.
+*
+* An instruction is the user's own sentence about what this card's runs should do. It is
+* free text, so only its size is bounded: the limit keeps one record small and the prompt
+* the field feeds within a budget a model can read.
+*/
+const WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH = 2e3;
+/**
+* Whether a value is a usable card instruction.
+*
+* Whitespace is not part of it, and a value that is only whitespace is no instruction at
+* all: the card then runs on its skill's own reading of the work, exactly as it did before
+* this field existed.
+* @param value - candidate instruction.
+* @returns whether the value holds visible text within the length limit.
+*/
+function isWorkbenchCardInstruction(value) {
+	return value.trim().length > 0 && value.length <= 2e3;
+}
+/**
+* Whether a value addresses a registered skill.
+* @param value - candidate skill name.
+* @returns whether the value is a kebab-case name within the length limit.
+*/
+function isWorkbenchSkillName(value) {
+	return value.length > 0 && value.length <= 64 && WORKBENCH_SKILL_NAME_PATTERN.test(value);
+}
+/**
+* Separator between the card and the skill in a composite template key.
+*
+* It has to be path-safe: the `per-record` storage layout encodes a record key as
+* a file-name segment and refuses anything outside `[a-zA-Z0-9_-]`. Neither card
+* ids nor skill names admit an underscore, so the first one always splits the two
+* halves.
+*/
+const TEMPLATE_KEY_SEPARATOR = "_";
+/**
+* Compose the storage key holding one card's template for one skill.
+* @param cardId - workbench card identity.
+* @param skill - skill name.
+* @returns the composite record key.
+*/
+function templateKey(cardId, skill) {
+	return `${cardId}${TEMPLATE_KEY_SEPARATOR}${skill}`;
+}
+/**
+* Split a composite template key.
+* @param key - a key produced by {@link templateKey}.
+* @returns the two halves, or undefined when the key is not composite.
+*/
+function parseTemplateKey(key) {
+	const separator = key.indexOf(TEMPLATE_KEY_SEPARATOR);
+	if (separator <= 0) return void 0;
+	const cardId = key.slice(0, separator);
+	const skill = key.slice(separator + 1);
+	if (!isWorkbenchCardId(cardId) || !isWorkbenchSkillName(skill)) return void 0;
+	return {
+		cardId,
+		skill
+	};
+}
+/**
+* Separator between the card and the run in a composite result key.
+*
+* Same character as the template key's separator, and safe for the same reason:
+* card ids and run ids (millisecond timestamps) both admit no underscore, so the
+* first one always splits the halves. The two key spaces live in different tables,
+* so the shared character is not a collision.
+*/
+const RESULT_KEY_SEPARATOR = "_";
+/**
+* Compose the storage key holding one card's one run's result.
+* @param cardId - workbench card identity.
+* @param runId - the run identity from {@link WorkbenchResultRecord.runId}.
+* @returns the composite record key.
+*/
+function resultKey(cardId, runId) {
+	return `${cardId}${RESULT_KEY_SEPARATOR}${runId}`;
+}
+/**
+* Split a composite result key.
+* @param key - a key produced by {@link resultKey}.
+* @returns the two halves, or undefined when the key is not composite.
+*/
+function parseResultKey(key) {
+	const separator = key.indexOf(RESULT_KEY_SEPARATOR);
+	if (separator <= 0) return void 0;
+	const cardId = key.slice(0, separator);
+	const runId = key.slice(separator + 1);
+	if (!isWorkbenchCardId(cardId) || runId.length === 0) return void 0;
+	return {
+		cardId,
+		runId
+	};
+}
+/**
+* Whether a value is a usable card route.
+* @param value - candidate value.
+* @returns whether it holds two non-empty ids.
+*/
+function isWorkbenchCardModel(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const provider = Reflect.get(value, "provider");
+	const model = Reflect.get(value, "model");
+	return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
+}
+/**
+* Longest workspace path the workbench stores, in characters.
+*
+* A bound rather than a grammar: the platform decides what a legal path is, and this
+* only keeps one stored record from carrying an unbounded string. Real picked paths sit
+* far below it — Windows' own extended-length ceiling is 32,767.
+*/
+const WORKBENCH_WORKSPACE_PATH_MAX_LENGTH = 4096;
+/** A drive-qualified Windows path: `C:\…`, `C:/…`, and the bare drive root. */
+const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+/** A UNC share: `\\server\share`, or the forward-slash spelling of the same thing. */
+const UNC_ABSOLUTE_PATH = /^[\\/]{2}[^\\/]/;
+/** A POSIX absolute path, including the root itself. */
+const POSIX_ABSOLUTE_PATH = /^\//;
+/**
+* Whether a value can be stored as a card's workspace path.
+*
+* The full absolute path is the whole of the value — never a workspace id — because the
+* product decision is "whatever directory the user picks", which need not be a registered
+* workspace at all. A relative path is refused rather than resolved against something:
+* resolved against the session it would be a different directory per run, and resolved
+* against the Host it would be a directory the user never saw.
+* @param value - candidate path, as a picker reported it.
+* @returns whether it is an absolute path within the length limit.
+*/
+function isWorkbenchWorkspacePath(value) {
+	if (value.length === 0 || value.length > 4096) return false;
+	if (value.includes("\0")) return false;
+	return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
+}
+/**
+* How much instruction one card's runs need before they can start.
+*
+* A property of the skill rather than of a run: some skills work on their own — a
+* directory reader, a status board — and some only make sense once told what to act on.
+* Declaring it lets the card ask before it starts instead of running on an empty ask, and
+* lets a card that needs nothing stay uncluttered.
+*/
+const WORKBENCH_INSTRUCTION_MODES = [
+	"none",
+	"optional",
+	"required"
+];
+/**
+* Whether a value is an instruction mode a card may store.
+* @param value - candidate value, read from storage or from a request body.
+* @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
+*/
+function isWorkbenchInstructionMode(value) {
+	return typeof value === "string" && WORKBENCH_INSTRUCTION_MODES.includes(value);
+}
+/**
+* Resolve the mode one card actually uses.
+*
+* The single place unset becomes a mode, for the same reason the sandbox mode has one: the
+* settings page displays it, the run bar renders it, and the runner enforces it, so all
+* three read the same answer.
+* @param stored - the mode the card stores, when it stores one.
+* @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
+*/
+function effectiveWorkbenchInstructionMode(stored) {
+	return stored ?? "none";
+}
+/**
+* Longest sentence one whole run may carry, in characters.
+*
+* The same bound as an instruction, because it is the same kind of text: one person's sentence
+* about what this run is for. It is a separate constant rather than sharing that one so the two
+* can move apart — a pipeline's sentence is read by every step of it, and a deployment that
+* wants a tighter bound on it should not have to tighten a card's field to get one.
+*/
+const WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH = 2e3;
+/**
+* Whether a value is a usable card workspace.
+* @param value - candidate value.
+* @returns whether it holds one absolute directory path.
+*/
+function isWorkbenchCardWorkspace(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const path = Reflect.get(value, "path");
+	return typeof path === "string" && isWorkbenchWorkspacePath(path);
+}
+/**
+* Every permission mode a card may run under.
+*
+* The upstream sandbox vocabulary, repeated here because this module carries no runtime
+* dependency. A mode added upstream that this list does not know is refused at the schema
+* and at the route rather than stored and later ignored.
+*/
+const WORKBENCH_SANDBOX_MODES = [
+	"read-only",
+	"workspace-write",
+	"danger-full-access"
+];
+/**
+* Whether a value is a mode a card may store.
+* @param value - candidate value, read from storage or from a request body.
+* @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
+*/
+function isWorkbenchSandboxMode(value) {
+	return typeof value === "string" && WORKBENCH_SANDBOX_MODES.includes(value);
+}
+/**
+* Resolve the mode one run actually uses.
+*
+* This is the single place unset becomes a mode. The configuration page displays it, the
+* runner applies it and the card-agent cache keys on it, so all three read the same answer
+* instead of each defaulting differently.
+* @param stored - the mode the card stores, when it stores one.
+* @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
+*/
+function effectiveWorkbenchSandboxMode(stored) {
+	return stored ?? "workspace-write";
+}
+/**
+* What a value may be made of.
+*
+* A value ends up in a path, so it is held to what every filesystem takes without quoting:
+* letters, digits, dot, underscore and hyphen. A space or a slash is refused rather than escaped,
+* because a parameter is a name the user types, not a path they assemble.
+*/
+const PARAM_VALUE_PATTERN = /^[A-Za-z0-9._-]+$/;
+/**
+* One braced token in a directory: `{任务编号}` names `任务编号`.
+*
+* Braces nest nowhere, so anything between the first opening and the next closing brace is a
+* name: `{v1.2}` and `{版本号}` are both names, and neither is a regular expression. The source is
+* kept, not the compiled pattern: both callers build their own, so no `lastIndex` is carried from
+* one path to the next.
+*/
+const PARAM_TOKEN_SOURCE = `\\{([^{}]{1,${String(20)}})\\}`;
+/**
+* A directory with the values a run holds put in place of its tokens.
+*
+* A token with no value is left as it was written rather than blanked or dropped: the panel shows
+* the path before a run and after it, and `{任务编号}/docs` states plainly that this part is still
+* open, while an empty span says the card's path is broken.
+* @param path - the directory as the card writes it.
+* @param values - what the run holds, by name.
+* @returns the directory as the run will use it.
+*/
+function resolveResultPath(path, values) {
+	return path.replace(new RegExp(PARAM_TOKEN_SOURCE, "g"), (whole, name) => {
+		const value = values[name];
+		return value === void 0 || value === "" ? whole : value;
+	});
+}
+/** The pointer attribute as written, so it can be rewritten in place. */
+const RESULT_POINTER_SOURCE = /(data-dsh-files\s*=\s*")([^"]{1,512})(")/gi;
+/** A template's comments, which are documentation rather than instruction. */
+const TEMPLATE_COMMENT_SOURCE = /(<!--[\s\S]*?-->)/;
+/**
+* A card's template with the values a run holds put into its result pointer.
+*
+* Only the pointer is touched. A template is not a path: it is HTML, CSS and a script, all of which
+* may contain braces of their own, so substituting across the whole document would reach into a
+* rule or a string that has nothing to do with where the product goes. Comments are left as written
+* for the same reason — a header that quotes `data-dsh-files="{编号}/docs"` explains the pointer, and
+* rewriting it would make the explanation describe something else.
+* @param template - the card's template as stored.
+* @param values - what the run holds, by name.
+* @returns the template to run with.
+*/
+function resolveTemplateParams(template, values) {
+	return template.split(TEMPLATE_COMMENT_SOURCE).map((part, index) => index % 2 === 1 ? part : part.replace(RESULT_POINTER_SOURCE, (_whole, open, path, close) => `${open}${resolveResultPath(path, values)}${close}`)).join("");
+}
+/**
+* Whether a value can be used, and why not when it cannot.
+* @param value - what the user typed or the run remembered.
+* @returns the reason it cannot be used, or `undefined` when it can.
+*/
+function paramValueProblem(value) {
+	const trimmed = value.trim();
+	if (trimmed === "") return "empty";
+	if (trimmed.length > 40) return "length";
+	return PARAM_VALUE_PATTERN.test(trimmed) ? void 0 : "charset";
+}
+/**
+* Whether a string can be the name of a parameter.
+*
+* Asked twice per name, from two sides: by a reader of a path, and by the route that receives values
+* from a page. One rule for both, because a name a panel asks for and a name the Host refuses would
+* be a run that cannot start and cannot say why.
+* @param name - candidate name, as written between braces.
+* @returns whether the name has the shape a token allows.
+*/
+function isWorkbenchParamName(name) {
+	if (name.length === 0 || name.length > 20) return false;
+	return !name.includes("{") && !name.includes("}");
+}
+//#endregion
 //#region src/pipeline-contract.ts
 /**
 * Wire contract for the workbench's pipeline definitions.
@@ -438,10 +838,13 @@ function parseOne(raw, index) {
 	if (typeof candidate.updatedAt !== "number" || !Number.isFinite(candidate.updatedAt) || candidate.updatedAt < 0) return invalid(`pipeline ${JSON.stringify(id)} needs a finite updatedAt`);
 	const steps = parseSteps(candidate.steps, id);
 	if ("status" in steps) return steps;
+	const workspace = candidate.workspace;
+	if (workspace !== void 0 && !isWorkbenchCardWorkspace(workspace)) return invalid(`pipeline ${JSON.stringify(id)} has a workspace that is not an absolute directory`);
 	return {
 		id,
 		name,
 		steps,
+		...workspace === void 0 ? {} : { workspace: { path: workspace.path } },
 		updatedAt: candidate.updatedAt
 	};
 }
@@ -549,6 +952,18 @@ function parseWorkbenchPipelineRunDraft(value) {
 		status: "invalid",
 		reason: `instruction is longer than ${String(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH)} characters`
 	};
+	const directive = body.directive;
+	if (directive !== void 0 && typeof directive !== "string") return {
+		status: "invalid",
+		reason: "directive must be a string"
+	};
+	if (directive !== void 0 && directive.length > 2e3) return {
+		status: "invalid",
+		reason: `directive is longer than ${String(WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH)} characters`
+	};
+	const trimmedDirective = directive?.trim();
+	const params = parseRunParams$1(body.params);
+	if (!params.ok) return params.invalid;
 	const steps = parseRunSteps(body.steps);
 	if ("status" in steps) return steps;
 	return {
@@ -560,7 +975,68 @@ function parseWorkbenchPipelineRunDraft(value) {
 		...only === void 0 ? {} : { only },
 		...from === void 0 ? {} : { from },
 		...instruction === void 0 ? {} : { instruction },
+		...trimmedDirective === void 0 || trimmedDirective === "" ? {} : { directive: trimmedDirective },
+		...params.values === void 0 ? {} : { params: params.values },
 		steps
+	};
+}
+/**
+* Validate the values one execution was told.
+*
+* Checks the same two rules the panel applies, because the record's reader applies them too: a
+* name with a brace in it could not have been asked for, and a value with a slash in it never
+* reached a directory. A body that carries nothing gets `undefined` rather than an empty map, so a
+* record of a run with no parameters stays distinguishable from one whose values were erased.
+* @param value - the decoded `params` field.
+* @returns the values, `undefined` when absent, or what is wrong with them.
+*/
+function parseRunParams$1(value) {
+	if (value === void 0) return { ok: true };
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return {
+		ok: false,
+		invalid: {
+			status: "invalid",
+			reason: "params must be an object"
+		}
+	};
+	const entries = Object.entries(value);
+	if (entries.length === 0) return { ok: true };
+	if (entries.length > 64) return {
+		ok: false,
+		invalid: {
+			status: "invalid",
+			reason: `params carries more than ${String(64)} names`
+		}
+	};
+	const values = {};
+	for (const [name, raw] of entries) {
+		if (!isWorkbenchParamName(name)) return {
+			ok: false,
+			invalid: {
+				status: "invalid",
+				reason: `param name ${JSON.stringify(name)} is not a token name`
+			}
+		};
+		if (typeof raw !== "string") return {
+			ok: false,
+			invalid: {
+				status: "invalid",
+				reason: `param ${JSON.stringify(name)} must be a string`
+			}
+		};
+		const problem = paramValueProblem(raw);
+		if (problem !== void 0) return {
+			ok: false,
+			invalid: {
+				status: "invalid",
+				reason: `param ${JSON.stringify(name)} is ${problem}`
+			}
+		};
+		values[name] = raw.trim();
+	}
+	return {
+		ok: true,
+		values
 	};
 }
 /**
@@ -613,12 +1089,22 @@ function parseRunSteps(value) {
 			status: "invalid",
 			reason: `step ${String(index)} html is longer than ${String(WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH)} characters`
 		};
+		const dir = step.dir;
+		if (dir !== void 0 && (typeof dir !== "string" || dir.trim() === "")) return {
+			status: "invalid",
+			reason: `step ${String(index)} dir must be a non-empty string`
+		};
+		if (dir !== void 0 && dir.length > 512) return {
+			status: "invalid",
+			reason: `step ${String(index)} dir is longer than ${String(512)} characters`
+		};
 		steps.push({
 			cardId,
 			phase,
 			...tookMs === void 0 ? {} : { tookMs },
 			...failure === void 0 ? {} : { failure },
-			...html === void 0 ? {} : { html }
+			...html === void 0 ? {} : { html },
+			...dir === void 0 ? {} : { dir }
 		});
 	}
 	return steps;
@@ -1146,321 +1632,6 @@ var WorkbenchPipelineService = class {
 		}
 	}
 };
-//#endregion
-//#region src/skill-card-contract.ts
-/**
-* Wire contract shared by the skill card's Host and Client halves: the private
-* routes, their payload types, the limits both sides enforce, and the closed
-* error-code set.
-*
-* Like the layout contract this module carries no runtime dependency, so the
-* browser bundle can inline it. Card identity reuses the workbench's existing
-* rule from the layout contract rather than restating it.
-* @module dsh-workbench/skill-card-contract
-*/
-/** Private same-origin route serving the skill card's configuration and results. */
-const WORKBENCH_SKILL_CARD_PATH = "/api/workbench/skill-card";
-/** Session-scoped skill catalog route. */
-const WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/catalog`;
-/** Run control route: `POST` starts, `GET` polls, `DELETE` cancels. */
-const WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`;
-/**
-* Stored-result edit route: `PUT` replaces one card's region HTML by hand.
-*
-* A route of its own rather than a fourth method on the run route: editing a result is
-* not a run. It spends no model call, it has no phase to poll, and bending the run route
-* into it would make every run precondition answer for an operation that does not run
-* anything.
-*/
-const WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`;
-/**
-* Directory-check route: `GET path=…` answers whether one directory can be a workspace.
-*
-* One narrow read rather than a filesystem bridge: the client needs existence, kind, and
-* writability for exactly one path, which is the card's own workspace. Answers exist
-* because a run is gated on them: a card whose directory was moved has to be stopped
-* before it starts, not after it fails.
-*/
-const WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
-/**
-* Document route: `GET cardId=…&path=…` lists one directory or reads one text file.
-*
-* The one route a card's own script calls. A template cannot read a filesystem — a page has
-* no such API — so the documents a run wrote are read here, by the Host, through a read that
-* is confined to the card's own workspace directory and refuses anything that is not text.
-* `path` is relative to that directory (or absolute, and then it has to resolve inside it);
-* an empty `path` names the directory itself.
-*/
-const WORKBENCH_SKILL_CARD_FILES_PATH = `${WORKBENCH_SKILL_CARD_PATH}/files`;
-/** Maximum bytes of one template. */
-const WORKBENCH_TEMPLATE_MAX_BYTES = 32 * 1024;
-/** Maximum bytes of one stored result, counted over the structured value and the text output. */
-const WORKBENCH_RESULT_MAX_BYTES = 64 * 1024;
-/** Maximum request-body bytes accepted by the configuration route. */
-const WORKBENCH_SKILL_CARD_MAX_BODY_BYTES = 128 * 1024;
-/**
-* Longest narration text one activity entry carries, in characters.
-*
-* Narration is the model's own words — its reasoning and its reply text — and the card lets
-* the user open a row to read all of it, so the entry carries the whole span up to this
-* budget rather than a preview; the client clamps it to two lines until the user expands.
-* 3000 characters covers the thinking of an ordinary step whole; a pathological step is cut
-* with the ellipsis, and {@link WORKBENCH_ACTIVITY_TOTAL_TEXT_MAX_LENGTH} bounds the trace.
-* Redaction runs before this cut, so a credential is replaced whole.
-*/
-const WORKBENCH_ACTIVITY_TEXT_MAX_LENGTH = 3e3;
-/** How far into a result document a directory pointer may sit. */
-const RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
-/**
-* Read the directory a document points at.
-*
-* The pointer is the template's own statement that this card's results are files in a
-* directory, and it sits outside the region so a run cannot remove it. A run's stored region
-* may carry one too — that is how results written before the pointer moved are still read.
-*
-* Comments are stripped first, because a template's own header explains the pointer by
-* quoting it — `下面那个 data-dsh-files="docs/设计"` — and that quotation sits ahead of the
-* element it describes. Read without stripping, the explanation wins: an author who edits
-* the element sees no change anywhere, because the panel keeps listing the path the prose
-* happens to mention. The template's own script reads the attribute off the element rather
-* than out of the text, which is exactly how the card page and the panel came to disagree.
-* @param document - a template, or a stored region.
-* @returns the directory the document points at, or undefined when it points at none.
-*/
-function resultPointerPath(document) {
-	if (document === void 0) return void 0;
-	const withoutComments = document.replace(/<!--[\s\S]*?-->/g, "");
-	const path = RESULT_POINTER.exec(withoutComments)?.[1]?.trim();
-	return path === void 0 || path === "" ? void 0 : path;
-}
-/**
-* Skill name grammar, matching the skill registry's own rule exactly: kebab
-* case, with no leading, trailing, or repeated hyphen.
-*/
-const WORKBENCH_SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-/**
-* Whether a value is a usable card name.
-*
-* Whitespace is not part of the name, and a name that is only whitespace is no
-* name at all: the card falls back to its registered label instead.
-* @param value - candidate name.
-* @returns whether the value holds visible text within the length limit.
-*/
-function isWorkbenchCardName(value) {
-	return value.trim().length > 0 && value.length <= 60;
-}
-/**
-* Longest instruction the workbench stores for one card.
-*
-* An instruction is the user's own sentence about what this card's runs should do. It is
-* free text, so only its size is bounded: the limit keeps one record small and the prompt
-* the field feeds within a budget a model can read.
-*/
-const WORKBENCH_CARD_INSTRUCTION_MAX_LENGTH = 2e3;
-/**
-* Whether a value is a usable card instruction.
-*
-* Whitespace is not part of it, and a value that is only whitespace is no instruction at
-* all: the card then runs on its skill's own reading of the work, exactly as it did before
-* this field existed.
-* @param value - candidate instruction.
-* @returns whether the value holds visible text within the length limit.
-*/
-function isWorkbenchCardInstruction(value) {
-	return value.trim().length > 0 && value.length <= 2e3;
-}
-/**
-* Whether a value addresses a registered skill.
-* @param value - candidate skill name.
-* @returns whether the value is a kebab-case name within the length limit.
-*/
-function isWorkbenchSkillName(value) {
-	return value.length > 0 && value.length <= 64 && WORKBENCH_SKILL_NAME_PATTERN.test(value);
-}
-/**
-* Separator between the card and the skill in a composite template key.
-*
-* It has to be path-safe: the `per-record` storage layout encodes a record key as
-* a file-name segment and refuses anything outside `[a-zA-Z0-9_-]`. Neither card
-* ids nor skill names admit an underscore, so the first one always splits the two
-* halves.
-*/
-const TEMPLATE_KEY_SEPARATOR = "_";
-/**
-* Compose the storage key holding one card's template for one skill.
-* @param cardId - workbench card identity.
-* @param skill - skill name.
-* @returns the composite record key.
-*/
-function templateKey(cardId, skill) {
-	return `${cardId}${TEMPLATE_KEY_SEPARATOR}${skill}`;
-}
-/**
-* Split a composite template key.
-* @param key - a key produced by {@link templateKey}.
-* @returns the two halves, or undefined when the key is not composite.
-*/
-function parseTemplateKey(key) {
-	const separator = key.indexOf(TEMPLATE_KEY_SEPARATOR);
-	if (separator <= 0) return void 0;
-	const cardId = key.slice(0, separator);
-	const skill = key.slice(separator + 1);
-	if (!isWorkbenchCardId(cardId) || !isWorkbenchSkillName(skill)) return void 0;
-	return {
-		cardId,
-		skill
-	};
-}
-/**
-* Separator between the card and the run in a composite result key.
-*
-* Same character as the template key's separator, and safe for the same reason:
-* card ids and run ids (millisecond timestamps) both admit no underscore, so the
-* first one always splits the halves. The two key spaces live in different tables,
-* so the shared character is not a collision.
-*/
-const RESULT_KEY_SEPARATOR = "_";
-/**
-* Compose the storage key holding one card's one run's result.
-* @param cardId - workbench card identity.
-* @param runId - the run identity from {@link WorkbenchResultRecord.runId}.
-* @returns the composite record key.
-*/
-function resultKey(cardId, runId) {
-	return `${cardId}${RESULT_KEY_SEPARATOR}${runId}`;
-}
-/**
-* Split a composite result key.
-* @param key - a key produced by {@link resultKey}.
-* @returns the two halves, or undefined when the key is not composite.
-*/
-function parseResultKey(key) {
-	const separator = key.indexOf(RESULT_KEY_SEPARATOR);
-	if (separator <= 0) return void 0;
-	const cardId = key.slice(0, separator);
-	const runId = key.slice(separator + 1);
-	if (!isWorkbenchCardId(cardId) || runId.length === 0) return void 0;
-	return {
-		cardId,
-		runId
-	};
-}
-/**
-* Whether a value is a usable card route.
-* @param value - candidate value.
-* @returns whether it holds two non-empty ids.
-*/
-function isWorkbenchCardModel(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const provider = Reflect.get(value, "provider");
-	const model = Reflect.get(value, "model");
-	return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
-}
-/**
-* Longest workspace path the workbench stores, in characters.
-*
-* A bound rather than a grammar: the platform decides what a legal path is, and this
-* only keeps one stored record from carrying an unbounded string. Real picked paths sit
-* far below it — Windows' own extended-length ceiling is 32,767.
-*/
-const WORKBENCH_WORKSPACE_PATH_MAX_LENGTH = 4096;
-/** A drive-qualified Windows path: `C:\…`, `C:/…`, and the bare drive root. */
-const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
-/** A UNC share: `\\server\share`, or the forward-slash spelling of the same thing. */
-const UNC_ABSOLUTE_PATH = /^[\\/]{2}[^\\/]/;
-/** A POSIX absolute path, including the root itself. */
-const POSIX_ABSOLUTE_PATH = /^\//;
-/**
-* Whether a value can be stored as a card's workspace path.
-*
-* The full absolute path is the whole of the value — never a workspace id — because the
-* product decision is "whatever directory the user picks", which need not be a registered
-* workspace at all. A relative path is refused rather than resolved against something:
-* resolved against the session it would be a different directory per run, and resolved
-* against the Host it would be a directory the user never saw.
-* @param value - candidate path, as a picker reported it.
-* @returns whether it is an absolute path within the length limit.
-*/
-function isWorkbenchWorkspacePath(value) {
-	if (value.length === 0 || value.length > 4096) return false;
-	if (value.includes("\0")) return false;
-	return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
-}
-/**
-* How much instruction one card's runs need before they can start.
-*
-* A property of the skill rather than of a run: some skills work on their own — a
-* directory reader, a status board — and some only make sense once told what to act on.
-* Declaring it lets the card ask before it starts instead of running on an empty ask, and
-* lets a card that needs nothing stay uncluttered.
-*/
-const WORKBENCH_INSTRUCTION_MODES = [
-	"none",
-	"optional",
-	"required"
-];
-/**
-* Whether a value is an instruction mode a card may store.
-* @param value - candidate value, read from storage or from a request body.
-* @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
-*/
-function isWorkbenchInstructionMode(value) {
-	return typeof value === "string" && WORKBENCH_INSTRUCTION_MODES.includes(value);
-}
-/**
-* Resolve the mode one card actually uses.
-*
-* The single place unset becomes a mode, for the same reason the sandbox mode has one: the
-* settings page displays it, the run bar renders it, and the runner enforces it, so all
-* three read the same answer.
-* @param stored - the mode the card stores, when it stores one.
-* @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
-*/
-function effectiveWorkbenchInstructionMode(stored) {
-	return stored ?? "none";
-}
-/**
-* Whether a value is a usable card workspace.
-* @param value - candidate value.
-* @returns whether it holds one absolute directory path.
-*/
-function isWorkbenchCardWorkspace(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const path = Reflect.get(value, "path");
-	return typeof path === "string" && isWorkbenchWorkspacePath(path);
-}
-/**
-* Every permission mode a card may run under.
-*
-* The upstream sandbox vocabulary, repeated here because this module carries no runtime
-* dependency. A mode added upstream that this list does not know is refused at the schema
-* and at the route rather than stored and later ignored.
-*/
-const WORKBENCH_SANDBOX_MODES = [
-	"read-only",
-	"workspace-write",
-	"danger-full-access"
-];
-/**
-* Whether a value is a mode a card may store.
-* @param value - candidate value, read from storage or from a request body.
-* @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
-*/
-function isWorkbenchSandboxMode(value) {
-	return typeof value === "string" && WORKBENCH_SANDBOX_MODES.includes(value);
-}
-/**
-* Resolve the mode one run actually uses.
-*
-* This is the single place unset becomes a mode. The configuration page displays it, the
-* runner applies it and the card-agent cache keys on it, so all three read the same answer
-* instead of each defaulting differently.
-* @param stored - the mode the card stores, when it stores one.
-* @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
-*/
-function effectiveWorkbenchSandboxMode(stored) {
-	return stored ?? "workspace-write";
-}
 //#endregion
 //#region src/skill-card-spec.ts
 /**
@@ -2675,13 +2846,16 @@ const REFINE_TASK_INSTRUCTION = [
 * their conversation.
 * @param cwd - the directory this run executes in, when it has one; the base a relative
 * deliverable directory resolves against.
+* @param share - what the run told every step of it; absent for a run that told nothing.
 * @returns the complete model-facing prompt text.
 */
-function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs, handoff, cwd) {
+function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budgetMs, handoff, cwd, share) {
 	const deliverable = resultPointerPath(template);
 	return [
 		...skillBlock(skill),
 		...rowDataBlock(payload),
+		...runValuesBlock(share?.values),
+		...directiveBlock(share?.directive, share?.values),
 		...instructionBlock(instruction),
 		...handoffBlock(handoff),
 		...budgetBlock(budgetMs),
@@ -2692,7 +2866,7 @@ function renderWorkbenchSkillPrompt(skill, template, payload, instruction, budge
 		...deliverable === void 0 ? [] : deliverableBlock(deliverable, cwd),
 		"",
 		[
-			instruction === void 0 ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
+			instruction === void 0 && (share?.directive === void 0 || share.directive.trim() === "") ? TASK_INSTRUCTION_SUBJECT : TASK_INSTRUCTION_NAMED_SUBJECT,
 			"",
 			TASK_INSTRUCTION_REGION
 		].join("\n")
@@ -2751,6 +2925,74 @@ function handoffBlock(handoff) {
 		handoff,
 		"</previous_steps>"
 	];
+}
+/**
+* State the values this run was given, by name, before anything uses them.
+*
+* The pointer a card writes already holds them — that is what fills the directory — but a path
+* is not a statement: from `<deliverable_directory>D:\ses\T202608242753\docs\需求分析</deliverable_directory>`
+* a child can only guess that the middle segment is the task number it is being asked about.
+* Told here so a document that has to name the task can name it as the run named it, rather
+* than paraphrasing a folder.
+*
+* The sentence says "quote them as written" because the failure this prevents is a run
+* normalizing the number into prose of its own ("task 202608242753") while the folder it wrote
+* keeps the other spelling.
+* @param values - the run's values, by name; absent or empty for a run told none.
+* @returns the block's lines, or nothing at all when there is nothing to state.
+*/
+function runValuesBlock(values) {
+	if (values === void 0) return [];
+	const entries = Object.entries(values);
+	if (entries.length === 0) return [];
+	return [
+		"",
+		"The person running this pipeline gave these values once, for every step. They already fill",
+		"the deliverable directories below; quote them as written when a document has to name them:",
+		"<run_values>",
+		...entries.map(([name, value]) => `${escapeText(name)}: ${escapeText(value)}`),
+		"</run_values>"
+	];
+}
+/**
+* Frame the one sentence given for this whole run, when one was given.
+*
+* Placed ahead of the step's own instruction and said to be *about the task* rather than to be
+* obeyed instead of it: the card's instruction is the work, this is which instance of the work,
+* and a child that read the two as competing orders would pick one. Escaped, because a sentence
+* quoting a tag — or a person writing one — must not be able to close this block early.
+* @param directive - the sentence, verbatim; absent for a run that gave none.
+* @param values - the run's values, so a sentence that writes `{任务编号}` names the task in full
+* rather than handing the child a token to fill in.
+* @returns the block's lines, or nothing at all when there is no sentence.
+*/
+function directiveBlock(directive, values) {
+	if (directive === void 0 || directive.trim() === "") return [];
+	return [
+		"",
+		"One instruction was given for this whole run. It names the task every step is about; it does",
+		"not replace your own instruction:",
+		"<pipeline_instruction>",
+		escapeText(substituteValues(directive, values)),
+		"</pipeline_instruction>"
+	];
+}
+/**
+* Put the run's values into the sentence where it named them.
+*
+* The same rule the records and the previews use: `{任务编号}` in the sentence becomes the value
+* this run was given, and a name no value answers stays between its braces — a sentence that
+* looked a token up by itself would be a second answer to a question the run already answered,
+* and a silently dropped one would leave a sentence that reads as if it never had a token.
+* @param text - the sentence as it was typed.
+* @param values - the run's values, by name; absent when it was given none.
+* @returns the sentence with every named value filled in.
+*/
+function substituteValues(text, values) {
+	if (values === void 0) return text;
+	let filled = text;
+	for (const [name, value] of Object.entries(values)) filled = filled.replaceAll(`{${name}}`, value);
+	return filled;
 }
 /**
 * Frame what the user asked for, when they asked for something.
@@ -3092,6 +3334,21 @@ function cardSelection(card) {
 	};
 }
 /**
+* What one step of a run shares with the whole run, in the shape the prompt takes.
+*
+* `undefined` when the run told its steps nothing, which is what keeps the prompt of such a run
+* byte-for-byte the one this feature started from.
+* @param input - the card run about to be attempted.
+* @returns the run's values and sentence, or undefined when it gave neither.
+*/
+function shareOf(input) {
+	if (input.directive === void 0 && input.values === void 0) return void 0;
+	return {
+		...input.values === void 0 ? {} : { values: input.values },
+		...input.directive === void 0 ? {} : { directive: input.directive }
+	};
+}
+/**
 * How many settled runs one card's table keeps besides the ones in flight.
 *
 * The stored results are the card's history; this table exists for the runs a reader is
@@ -3235,6 +3492,8 @@ var WorkbenchSkillCardRunner = class {
 		const model = selection.model;
 		const pinned = model === void 0 ? {} : { model };
 		let inputOf;
+		/** Where this run's product goes, once the template has been resolved. */
+		let directory;
 		if (mode.kind === "bare") inputOf = (agent, scope) => ({
 			kind: "bare",
 			agent,
@@ -3244,8 +3503,10 @@ var WorkbenchSkillCardRunner = class {
 			...request.payload === void 0 ? {} : { payload: request.payload }
 		});
 		else {
-			const template = selection.template;
-			if (template === void 0) return reject("template-missing", `no template is stored for skill "${skill}"`);
+			const storedTemplate = selection.template;
+			if (storedTemplate === void 0) return reject("template-missing", `no template is stored for skill "${skill}"`);
+			const template = resolveTemplateParams(storedTemplate, request.params ?? {});
+			directory = resultPointerPath(template);
 			inputOf = mode.kind === "refine" ? (agent, scope) => ({
 				kind: "refine",
 				agent,
@@ -3265,6 +3526,8 @@ var WorkbenchSkillCardRunner = class {
 				template,
 				...pinned,
 				...carried === void 0 ? {} : { instruction: carried },
+				...request.directive === void 0 ? {} : { directive: request.directive },
+				...request.params === void 0 ? {} : { values: request.params },
 				...handoffNote === void 0 ? {} : { handoff: handoffNote },
 				...request.payload === void 0 ? {} : { payload: request.payload },
 				outputSchema: request.outputSchema
@@ -3321,6 +3584,7 @@ var WorkbenchSkillCardRunner = class {
 			bare: mode.kind === "bare",
 			...carried === void 0 ? {} : { instruction: carried },
 			workspace: workspacePath,
+			...directory === void 0 ? {} : { directory },
 			...mode.kind === "step" && mode.handoff !== void 0 ? { handoff: mode.handoff } : {},
 			...provenance === void 0 ? {} : { pipeline: provenance },
 			session,
@@ -3850,7 +4114,7 @@ var WorkbenchSkillCardRunner = class {
 				parent,
 				prompt: [{
 					type: "text",
-					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs, input.handoff, resolvedCwd) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
+					text: input.kind === "card" ? renderWorkbenchSkillPrompt(skill, input.template, input.payload, input.instruction, this.options.runTimeoutMs, input.handoff, resolvedCwd, shareOf(input)) : input.kind === "refine" ? renderWorkbenchRefinePrompt(skill, input.template, input.previous, input.instruction, input.payload, this.options.runTimeoutMs) : renderWorkbenchBarePrompt(skill, input.payload)
 				}],
 				...resolvedCwd === void 0 ? {} : { cwd: resolvedCwd },
 				toolFilter: WORKBENCH_RUN_TOOL_FILTER,
@@ -3935,11 +4199,15 @@ var WorkbenchSkillCardRunner = class {
 			activity: run.activity
 		};
 		const code = run.timedOut ? "run-timeout" : "run-failed";
-		const record = outcome.kind === "unusable" ? {
+		const addressed = run.directory === void 0 ? traced : {
 			...traced,
+			directory: run.directory
+		};
+		const record = outcome.kind === "unusable" ? {
+			...addressed,
 			failure: outcome.failure,
 			failureCode: code
-		} : traced;
+		} : addressed;
 		run.result = record;
 		run.phase = "settled";
 		if (outcome.kind === "unusable") {
@@ -4734,6 +5002,14 @@ function parseRunRequest(value) {
 		if (typeof instruction !== "string" || instruction.trim() === "") throw new SkillCardRequestError(400, "invalid-request", "instruction must be a non-empty string when present");
 		if (instruction.length > 2e3) throw new SkillCardRequestError(400, "invalid-request", "instruction is longer than the limit");
 	}
+	let directive;
+	if (body.directive !== void 0) {
+		if (typeof body.directive !== "string") throw new SkillCardRequestError(400, "invalid-request", "directive must be a string when present");
+		if (body.directive.length > 2e3) throw new SkillCardRequestError(400, "invalid-request", "directive is longer than the limit");
+		const trimmed = body.directive.trim();
+		if (trimmed !== "") directive = trimmed;
+	}
+	const params = parseRunParams(body.params);
 	return {
 		cardId: body.cardId,
 		...sessionId === void 0 ? {} : { sessionId },
@@ -4742,8 +5018,31 @@ function parseRunRequest(value) {
 		mode: parseRunMode(body.mode),
 		...payload === void 0 ? {} : { payload },
 		...instruction === void 0 ? {} : { instruction },
+		...directive === void 0 ? {} : { directive },
+		...params === void 0 ? {} : { params },
 		...body.outputSchema === void 0 ? {} : { outputSchema: body.outputSchema }
 	};
+}
+/**
+* Validate the values a run was told, keyed by the name its card writes between braces.
+* @param value - the decoded `params` field.
+* @returns the values, or undefined when the run carried none.
+* @throws {SkillCardRequestError} 400 when a name or a value is outside the contract.
+*/
+function parseRunParams(value) {
+	if (value === void 0) return void 0;
+	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new SkillCardRequestError(400, "invalid-request", "params must be an object");
+	const entries = Object.entries(value);
+	if (entries.length > 64) throw new SkillCardRequestError(400, "invalid-request", "params carries more names than a run may be told");
+	const values = {};
+	for (const [name, raw] of entries) {
+		if (!isWorkbenchParamName(name)) throw new SkillCardRequestError(400, "invalid-request", "a param name must be one a template could write between braces");
+		if (typeof raw !== "string") throw new SkillCardRequestError(400, "invalid-request", "a param value must be a string");
+		const problem = paramValueProblem(raw);
+		if (problem !== void 0) throw new SkillCardRequestError(400, "invalid-request", `param "${name}" is ${problem}`);
+		values[name] = raw.trim();
+	}
+	return values;
 }
 /**
 * Validate the mode one run body carries.

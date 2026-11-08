@@ -88,7 +88,7 @@ export declare function InstructionChips({ recent, t, onPick, }: {
  * @param props - the card, its view, the mode, the recent asks, and the two ways out.
  * @returns the dialog.
  */
-export declare function RunPrompt({ cardId, title, view, mode, recent, t, onChooseWorkspace, onSetWorkspace, onRun, onCancel, }: {
+export declare function RunPrompt({ cardId, title, view, mode, recent, t, onChooseWorkspace, onSetWorkspace, onClearWorkspace, onRun, onCancel, }: {
     readonly cardId: string;
     /** The panel's heading: what this particular run is, in the words of the control that opened it. */
     readonly title: string;
@@ -102,6 +102,8 @@ export declare function RunPrompt({ cardId, title, view, mode, recent, t, onChoo
     readonly onChooseWorkspace: () => void;
     /** Store a directory typed into the field this build offers instead of a chooser. */
     readonly onSetWorkspace: (path: string) => void;
+    /** Stop naming a directory for this card, from inside the dialog that runs it. */
+    readonly onClearWorkspace?: (() => void) | undefined;
     readonly onRun: (instruction?: string) => void;
     readonly onCancel: () => void;
 }): ReactNode;

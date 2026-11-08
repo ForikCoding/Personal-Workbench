@@ -338,6 +338,18 @@ describe('resultDirectory', () => {
     expect(resultDirectory('<p>no pointer</p>', { kind: 'none' })).toBeUndefined()
     expect(resultDirectory(template, { kind: 'none' })).toBe('docs/设计')
   })
+
+  it('prefers the directory the run resolved', () => {
+    // A template that names `{任务编号}` says the same thing for every run of its card, so the
+    // template cannot answer "which folder was this about" — the record can.
+    const tokenised = '<div data-dsh-files="{任务编号}/docs/分析" hidden></div>'
+    expect(resultDirectory(tokenised, { kind: 'none' }, 'T202608242753-1/docs/分析'))
+      .toBe('T202608242753-1/docs/分析')
+  })
+
+  it('ignores a recorded directory that says nothing', () => {
+    expect(resultDirectory(template, { kind: 'none' }, '')).toBe('docs/设计')
+  })
 })
 
 describe('formatBytes', () => {

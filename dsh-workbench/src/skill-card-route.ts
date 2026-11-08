@@ -33,6 +33,7 @@ import {
   WORKBENCH_REFINE_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_REFINE_PREVIOUS_MAX_BYTES,
   WORKBENCH_RESULT_MAX_BYTES,
+  WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH,
   WORKBENCH_RUN_INSTRUCTION_MAX_LENGTH,
   WORKBENCH_SANDBOX_MODES,
   WORKBENCH_SKILL_CARD_API_VERSION,
@@ -47,6 +48,11 @@ import {
   isWorkbenchWorkspacePath,
 } from './skill-card-contract.ts'
 import { isWorkbenchCardId } from './layout-contract.ts'
+import {
+  isWorkbenchParamName,
+  paramValueProblem,
+  WORKBENCH_PARAM_MAX_NAMES,
+} from './pipeline-params.ts'
 import { readJsonBody, sendError, sendJson } from './route-io.ts'
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
 import type { WorkbenchSkillCardRunner } from './skill-card-runner.ts'
@@ -867,6 +873,8 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     mode?: unknown
     payload?: unknown
     instruction?: unknown
+    directive?: unknown
+    params?: unknown
     outputSchema?: unknown
   }
   if (typeof body.cardId !== 'string' || !isWorkbenchCardId(body.cardId)) {
@@ -922,6 +930,25 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
       throw new SkillCardRequestError(400, 'invalid-request', 'instruction is longer than the limit')
     }
   }
+  // The sentence given for this whole run, which every step of it receives. Trimmed to nothing
+  // here rather than refused: the field is optional in the dialog, and a box the user typed in
+  // and then emptied is the same as one they never touched. Anything left after trimming is
+  // the user's sentence, bounded like their instruction.
+  let directive: string | undefined
+  if (body.directive !== undefined) {
+    if (typeof body.directive !== 'string') {
+      throw new SkillCardRequestError(400, 'invalid-request', 'directive must be a string when present')
+    }
+    if (body.directive.length > WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH) {
+      throw new SkillCardRequestError(400, 'invalid-request', 'directive is longer than the limit')
+    }
+    const trimmed = body.directive.trim()
+    if (trimmed !== '') directive = trimmed
+  }
+  // The values this run fills into its card's directory. Checked with the same two rules the
+  // panel applies, because both sides write a path: a name has to be a name a template could
+  // have written, and a value has to survive being one path segment.
+  const params = parseRunParams(body.params)
   // Whether the contract itself is usable is the runner's precondition, so it is
   // carried through unchecked here and answered as `schema-rejected` there. It is
   // absent for a bare run, which asks for no value at all.
@@ -933,8 +960,42 @@ function parseRunRequest(value: unknown): WorkbenchRunRequest {
     mode: parseRunMode(body.mode),
     ...payload === undefined ? {} : { payload },
     ...instruction === undefined ? {} : { instruction },
+    ...directive === undefined ? {} : { directive },
+    ...params === undefined ? {} : { params },
     ...body.outputSchema === undefined ? {} : { outputSchema: body.outputSchema },
   }
+}
+
+/**
+ * Validate the values a run was told, keyed by the name its card writes between braces.
+ * @param value - the decoded `params` field.
+ * @returns the values, or undefined when the run carried none.
+ * @throws {SkillCardRequestError} 400 when a name or a value is outside the contract.
+ */
+function parseRunParams(value: unknown): Readonly<Record<string, string>> | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'params must be an object')
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+  if (entries.length > WORKBENCH_PARAM_MAX_NAMES) {
+    throw new SkillCardRequestError(400, 'invalid-request', 'params carries more names than a run may be told')
+  }
+  const values: Record<string, string> = {}
+  for (const [name, raw] of entries) {
+    if (!isWorkbenchParamName(name)) {
+      throw new SkillCardRequestError(400, 'invalid-request', 'a param name must be one a template could write between braces')
+    }
+    if (typeof raw !== 'string') {
+      throw new SkillCardRequestError(400, 'invalid-request', 'a param value must be a string')
+    }
+    const problem = paramValueProblem(raw)
+    if (problem !== undefined) {
+      throw new SkillCardRequestError(400, 'invalid-request', `param "${name}" is ${problem}`)
+    }
+    values[name] = raw.trim()
+  }
+  return values
 }
 
 /**

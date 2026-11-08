@@ -11,6 +11,13 @@
  */
 
 import { isWorkbenchCardId } from './layout-contract.ts'
+import type { WorkbenchCardWorkspace } from './skill-card-contract.ts'
+import { WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH, isWorkbenchCardWorkspace } from './skill-card-contract.ts'
+import {
+  isWorkbenchParamName,
+  paramValueProblem,
+  WORKBENCH_PARAM_MAX_NAMES,
+} from './pipeline-params.ts'
 
 /** Private route this plugin serves pipeline definitions on. */
 export const WORKBENCH_PIPELINE_PATH = '/api/workbench/pipeline'
@@ -62,6 +69,18 @@ export interface WorkbenchPipeline {
   readonly name: string
   /** Ordered steps; empty is a legal draft, not an error. */
   readonly steps: readonly WorkbenchPipelineStep[]
+  /**
+   * The directory every step of this pipeline runs in.
+   *
+   * The pipeline owns this, not the cards: one card can be a step of two pipelines working on
+   * different checkouts, and a directory written onto the cards would quietly make those two share
+   * one. When set, this is the directory a run is told; a step's own card directory stays where it
+   * is and is not consulted.
+   *
+   * Absent means the pipeline says nothing about where it runs, and each step falls back to its own
+   * card — which is what every pipeline written before this field existed does.
+   */
+  readonly workspace?: WorkbenchCardWorkspace
   /** When this definition last changed, in milliseconds since the epoch. */
   readonly updatedAt: number
 }
@@ -72,6 +91,8 @@ export interface WorkbenchPipelineRecord {
   readonly name: string
   /** Ordered steps. */
   readonly steps: readonly WorkbenchPipelineStep[]
+  /** The directory every step of it runs in, when it names one. */
+  readonly workspace?: WorkbenchCardWorkspace
   /** When this definition last changed. */
   readonly updatedAt: number
 }
@@ -153,6 +174,7 @@ function parseOne(raw: unknown, index: number): WorkbenchPipeline | WorkbenchPip
     id?: unknown
     name?: unknown
     steps?: unknown
+    workspace?: unknown
     updatedAt?: unknown
   }
   if (typeof candidate.id !== 'string' || !isWorkbenchPipelineId(candidate.id)) {
@@ -170,7 +192,19 @@ function parseOne(raw: unknown, index: number): WorkbenchPipeline | WorkbenchPip
   }
   const steps = parseSteps(candidate.steps, id)
   if ('status' in steps) return steps
-  return { id, name, steps, updatedAt: candidate.updatedAt }
+  // The same directory rule the cards use: one absolute path, checked by the one predicate both
+  // halves already share, so a path this cannot store is a path no card could store either.
+  const workspace = candidate.workspace
+  if (workspace !== undefined && !isWorkbenchCardWorkspace(workspace)) {
+    return invalid(`pipeline ${JSON.stringify(id)} has a workspace that is not an absolute directory`)
+  }
+  return {
+    id,
+    name,
+    steps,
+    ...workspace === undefined ? {} : { workspace: { path: workspace.path } },
+    updatedAt: candidate.updatedAt,
+  }
 }
 
 /**
@@ -261,12 +295,29 @@ export const WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH = 96_000
 /** How one step of an execution ended. A record is only written once a step is over. */
 export type WorkbenchPipelineRunStepPhase = 'done' | 'failed' | 'stopped'
 
+/**
+ * Ceiling on the directory one step records.
+ *
+ * The pointer a card's template carries is already bounded by one; this is the same bound on
+ * what a run resolved it to, so a value cannot make a record longer than a record may be.
+ */
+export const WORKBENCH_PIPELINE_RUN_DIR_MAX_LENGTH = 512
+
 /** One step of one execution, as it stood when the run settled. */
 export interface WorkbenchPipelineRunStep {
   /** The card this step ran. */
   readonly cardId: string
   /** How it ended. */
   readonly phase: WorkbenchPipelineRunStepPhase
+  /**
+   * The directory this step's card wrote to, with the run's values put in place.
+   *
+   * The card's template states the pointer, and a pointer may name values the run was told
+   * (`{任务编号}/docs/任务分析`). What the template says is therefore not where the files are;
+   * this is. Recorded here rather than re-derived from today's template, because the template can
+   * be edited after the run and yesterday's product would then be looked for in today's folder.
+   */
+  readonly dir?: string
   /** How long it took. */
   readonly tookMs?: number
   /** Why it failed, when it did. */
@@ -302,6 +353,26 @@ export interface WorkbenchPipelineRun {
   readonly from?: number
   /** What the review asked for, when the run was one. */
   readonly instruction?: string
+  /**
+   * The sentence the run was given once for all of its steps.
+   *
+   * Not {@link instruction}: that one is a review's request, addressed at a single step's product.
+   * This one is the answer to "which task is this run", typed in the run dialog before the chain
+   * starts, delivered to every step's prompt as `<pipeline_instruction>`, and repeated here so
+   * the record says what the run was told rather than what its folders happen to be named.
+   *
+   * Absent for a run that was told nothing — every run started before this field existed, and
+   * every run whose dialog was left blank.
+   */
+  readonly directive?: string
+  /**
+   * The values this run was told, by name.
+   *
+   * Kept for two readers: the record is what makes a run legible afterwards ("which task number
+   * did this cover"), and the next run of the same pipeline opens on these values instead of
+   * asking for them again. Absent when the pipeline's cards named nothing.
+   */
+  readonly params?: Readonly<Record<string, string>>
   /** One entry per step the run touched, in step order. */
   readonly steps: readonly WorkbenchPipelineRunStep[]
 }
@@ -376,6 +447,19 @@ export function parseWorkbenchPipelineRunDraft(
   if (instruction !== undefined && instruction.length > WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH) {
     return { status: 'invalid', reason: `instruction is longer than ${String(WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH)} characters` }
   }
+  // The sentence typed once for the whole run. Trimmed to nothing reads as absent, which is
+  // what an emptied field means; anything else is stored as written, up to the bound shared
+  // with the run request that carried it.
+  const directive = body.directive
+  if (directive !== undefined && typeof directive !== 'string') {
+    return { status: 'invalid', reason: 'directive must be a string' }
+  }
+  if (directive !== undefined && directive.length > WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH) {
+    return { status: 'invalid', reason: `directive is longer than ${String(WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH)} characters` }
+  }
+  const trimmedDirective = directive?.trim()
+  const params = parseRunParams(body.params)
+  if (!params.ok) return params.invalid
   const steps = parseRunSteps(body.steps)
   if ('status' in steps) return steps
   return {
@@ -387,9 +471,63 @@ export function parseWorkbenchPipelineRunDraft(
     ...only === undefined ? {} : { only },
     ...from === undefined ? {} : { from },
     ...instruction === undefined ? {} : { instruction },
+    ...trimmedDirective === undefined || trimmedDirective === '' ? {} : { directive: trimmedDirective },
+    ...params.values === undefined ? {} : { params: params.values },
     steps,
   }
 }
+
+/**
+ * Validate the values one execution was told.
+ *
+ * Checks the same two rules the panel applies, because the record's reader applies them too: a
+ * name with a brace in it could not have been asked for, and a value with a slash in it never
+ * reached a directory. A body that carries nothing gets `undefined` rather than an empty map, so a
+ * record of a run with no parameters stays distinguishable from one whose values were erased.
+ * @param value - the decoded `params` field.
+ * @returns the values, `undefined` when absent, or what is wrong with them.
+ */
+function parseRunParams(
+  value: unknown,
+): ParsedRunParams {
+  if (value === undefined) return { ok: true }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ok: false, invalid: { status: 'invalid', reason: 'params must be an object' } }
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+  // An empty map is the same statement as no map: this run was told nothing. Keeping `{}` would
+  // give the record two spellings of "no parameters" and make a reader decide which it believes.
+  if (entries.length === 0) return { ok: true }
+  if (entries.length > WORKBENCH_PARAM_MAX_NAMES) {
+    return { ok: false, invalid: { status: 'invalid', reason: `params carries more than ${String(WORKBENCH_PARAM_MAX_NAMES)} names` } }
+  }
+  const values: Record<string, string> = {}
+  for (const [name, raw] of entries) {
+    if (!isWorkbenchParamName(name)) {
+      return { ok: false, invalid: { status: 'invalid', reason: `param name ${JSON.stringify(name)} is not a token name` } }
+    }
+    if (typeof raw !== 'string') {
+      return { ok: false, invalid: { status: 'invalid', reason: `param ${JSON.stringify(name)} must be a string` } }
+    }
+    const problem = paramValueProblem(raw)
+    if (problem !== undefined) {
+      return { ok: false, invalid: { status: 'invalid', reason: `param ${JSON.stringify(name)} is ${problem}` } }
+    }
+    values[name] = raw.trim()
+  }
+  return { ok: true, values }
+}
+
+/**
+ * The values a draft carried, or why they are not storable.
+ *
+ * A union rather than a nullable record: `params` is user-named, so a name could be `status` and a
+ * value could be `invalid` — a result narrowed by what it contains would answer a question about
+ * the user's data with its own bookkeeping.
+ */
+type ParsedRunParams =
+  | { readonly ok: true; readonly values?: Readonly<Record<string, string>> }
+  | { readonly ok: false; readonly invalid: WorkbenchPipelineRunInvalid }
 
 /**
  * Validate one execution's step list.
@@ -430,12 +568,23 @@ function parseRunSteps(value: unknown): readonly WorkbenchPipelineRunStep[] | Wo
     if (html !== undefined && html.length > WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH) {
       return { status: 'invalid', reason: `step ${String(index)} html is longer than ${String(WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH)} characters` }
     }
+    // Where this step's files are, as the run resolved them. An empty one is refused rather than
+    // kept: "the run wrote nowhere" is said by the field's absence, and an empty path would be
+    // read as a directory the panel could list.
+    const dir = step.dir
+    if (dir !== undefined && (typeof dir !== 'string' || dir.trim() === '')) {
+      return { status: 'invalid', reason: `step ${String(index)} dir must be a non-empty string` }
+    }
+    if (dir !== undefined && dir.length > WORKBENCH_PIPELINE_RUN_DIR_MAX_LENGTH) {
+      return { status: 'invalid', reason: `step ${String(index)} dir is longer than ${String(WORKBENCH_PIPELINE_RUN_DIR_MAX_LENGTH)} characters` }
+    }
     steps.push({
       cardId,
       phase,
       ...tookMs === undefined ? {} : { tookMs },
       ...failure === undefined ? {} : { failure },
       ...html === undefined ? {} : { html },
+      ...dir === undefined ? {} : { dir },
     })
   }
   return steps

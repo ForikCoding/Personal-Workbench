@@ -10,7 +10,7 @@
  * @module dsh-workbench/client/WorkbenchPipeline
  */
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import './pipeline.css'
 import css from './pipeline-classes.ts'
 import type { WorkbenchPipelinesFace } from './pipeline-controller.ts'
@@ -32,7 +32,16 @@ import {
 } from './pipeline/pipeline-view.ts'
 import type { WorkbenchCardFact } from './layout-store.ts'
 import type { WorkbenchPipeline, WorkbenchPipelineStep } from '../pipeline-contract.ts'
+import { WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH, resultPointerPath } from '../skill-card-contract.ts'
 import type { WorkbenchSkillCatalogEntry } from '../skill-card-contract.ts'
+import {
+  missingParamValues,
+  paramPartsOf,
+  paramValueProblem,
+  pipelineParamPlan,
+  WORKBENCH_PARAM_VALUE_MAX_LENGTH,
+} from '../pipeline-params.ts'
+import type { WorkbenchPipelineParam } from '../pipeline-params.ts'
 import type { WorkbenchCatalogStatus } from './skill-card/controller.ts'
 import {
   forgetOpenStep,
@@ -245,6 +254,16 @@ function escapeHtml(text: string): string {
 /** The permission modes in the order the row offers them: ordinary first, broad last. */
 const PERMISSION_ORDER: readonly WorkbenchSandboxMode[] = ['workspace-write', 'read-only', 'danger-full-access']
 
+/**
+ * 几步，用中文说：两三步是最常见的，读起来比「3 步」像人话。
+ * @param count - how many steps the run covers.
+ * @returns the counting word, or the digits once it stops being worth spelling out.
+ */
+function saySteps(count: number): string {
+  const words = ['零', '一', '两', '三', '四', '五', '六', '七', '八', '九', '十']
+  return words[count] ?? String(count)
+}
+
 /** One step as the canvas and the inspector draw it. */
 interface StepView {
   readonly index: number
@@ -316,6 +335,22 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const [historyAt, setHistoryAt] = useState<number | undefined>(undefined)
   const [review, setReview] = useState<{ readonly cardId: string } | undefined>(undefined)
   const [reviewText, setReviewText] = useState('')
+  /**
+   * The run dialog: what the click is about to start, while it is being told what to do.
+   *
+   * Opened by every way a run starts, including a pipeline whose cards write no tokens — the
+   * dialog is where the run's own sentence is typed, so a run that needs no values still has
+   * something to ask. Confirming an empty form is one keypress; the alternative was a run whose
+   * steps each had to be told the task number separately.
+   */
+  const [ask, setAsk] = useState<{ readonly at: number; readonly scope: 'full' | 'single' } | undefined>(undefined)
+  const [askValues, setAskValues] = useState<Readonly<Record<string, string>>>({})
+  /** The sentence typed for this run: one sentence, every step of the run. */
+  const [askNote, setAskNote] = useState('')
+  /** Which step's prompt the preview is showing; an index into the run's cover. */
+  const [askTab, setAskTab] = useState(0)
+  /** The sentence box, so the 「改」 link beside the kept chip can put the caret in it. */
+  const askBox = useRef<HTMLTextAreaElement | null>(null)
 
   // Which pipeline is open is remembered across mounts and restarts: the panel is one mount
   // of the page, and opening a card and coming back would otherwise land on the first stored
@@ -416,7 +451,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   // Menus are overlays too, and Escape is the key a keyboard user reaches for: one handler
   // closes whatever is open, so nothing opens by keyboard and only closes by mouse.
   const anyOverlay = reader !== undefined || historyOpen || review !== undefined || picker !== undefined
-    || menuOpen || runMenu || stepMenu !== undefined
+    || menuOpen || runMenu || stepMenu !== undefined || ask !== undefined
   useEffect(() => {
     if (!anyOverlay) return
     const onKey = (event: KeyboardEvent): void => {
@@ -429,6 +464,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
       setRunMenu(false)
       setStepMenu(undefined)
       setConfirmRemove(undefined)
+      setAsk(undefined)
     }
     document.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('keydown', onKey) }
@@ -492,6 +528,19 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })
   }, [active, cards, chain, history, labelOf, resultOf])
 
+  /**
+   * What the cards this pipeline arranges name between braces, in step order.
+   *
+   * The union, taken once: a name two cards share is one question, and a card whose template has
+   * no pointer contributes nothing. This is the whole of "what does this pipeline need to be told"
+   * — there is no per-pipeline switch and no per-step field to keep in step with it.
+   */
+  const paramPlan = useMemo<readonly WorkbenchPipelineParam[]>(() => (
+    pipelineParamPlan(stepViews.map(step => (
+      step.card === undefined ? undefined : resultPointerPath(step.card.template)
+    )))
+  ), [stepViews])
+
   // The step to show when nothing on screen names one: either this mount has not been told
   // yet, or the user opened a card and the inspector is showing that instead. Falling back to
   // the first step is what made coming back from another session land on step one, so the
@@ -509,7 +558,12 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     : stepViews.find(entry => entry.cardId === reader.cardId)
   const readerLabel = readerStep?.label ?? (reader === undefined ? '' : labelOf(reader.cardId))
   const readerSkill = readerStep?.skill ?? stepViews[0]?.skill
-  const readerPath = (readerStep?.card?.workspace ?? stepViews[0]?.card?.workspace)?.path
+  // The pipeline's directory first: it is where the run actually went, so a nameplate naming the
+  // card's own folder would point at somewhere nothing was written. The card's is the fallback a
+  // pipeline without a directory of its own leaves in place.
+  const readerPath = active?.workspace?.path
+    ?? readerStep?.card?.workspace?.path
+    ?? stepViews[0]?.card?.workspace?.path
   // One write point, whatever made the step selected — a click on the node, a run, an add, a
   // removal. This panel is unmounted every time the page moves on, so the selection has to be
   // written out on the way rather than held in state.
@@ -684,8 +738,17 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     })
   }, [patchStepCards, reload, t])
 
-  const chooseWorkspaceForSteps = useCallback(() => {
-    if (workspacePicker === undefined) return
+  /**
+   * Ask for the directory this pipeline runs in, and store it on the pipeline.
+   *
+   * Written to the pipeline rather than onto its cards. The old path copied the chosen folder into
+   * every step's card, which made the directory belong to the cards: a card arranged by two
+   * pipelines then carried one pipeline's folder into the other, and "the pipeline runs here" was
+   * never actually stored anywhere.
+   */
+  const choosePipelineWorkspace = useCallback(() => {
+    if (workspacePicker === undefined || active === undefined) return
+    const pipeline = active
     void workspacePicker.pick().then((picked) => {
       // Cancelling is an answer, not a failure: nothing is written and nothing is reported.
       if (picked.status === 'cancelled') return
@@ -693,9 +756,19 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
         setConfigProblem(t('pipeCfgPickerRefused'))
         return
       }
-      applyPatch({ workspace: { path: picked.path } })
+      void props.pipelines.setWorkspace(pipeline.id, { path: picked.path }).then((written) => {
+        setConfigProblem(written ? undefined : t('pipeCfgWriteFailed'))
+      })
     })
-  }, [applyPatch, t, workspacePicker])
+  }, [active, props.pipelines, t, workspacePicker])
+
+  /** Stop naming a directory: every step goes back to its own card's. */
+  const clearPipelineWorkspace = useCallback(() => {
+    if (active === undefined) return
+    void props.pipelines.setWorkspace(active.id, undefined).then((written) => {
+      setConfigProblem(written ? undefined : t('pipeCfgWriteFailed'))
+    })
+  }, [active, props.pipelines, t])
 
   const commitStepRename = useCallback((cardId: string, name: string) => {
     setStepRename(undefined)
@@ -811,11 +884,178 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
     setRunMenu(false)
     if (active === undefined || running) return
     if (!canStartAt(phases, at)) return
-    // The step before the first one this run takes, when it ran in this panel: the resumed
-    // step continues that session instead of opening a cold one.
-    const prior = at > 0 ? chain?.steps[at - 1]?.sessionId : undefined
-    run.runAll(active, at, prior)
+    // What the cards this run covers name between braces, if anything. Asked for either way:
+    // the same dialog is where the run's own sentence is typed, and a pipeline with no tokens
+    // still has a task to name.
+    openAsk(at, 'full', paramsFrom(at, 'full'))
   }
+
+  /**
+   * Run one step on its own, through the same dialog.
+   *
+   * The step's own button is the other way a run starts, and it asks the same questions: a card
+   * whose directory writes `{任务编号}` needs the number here too, and a rerun of one step is
+   * still a run of this task, so the sentence is offered back rather than left blank.
+   * @param at - zero-based step to run.
+   */
+  const startOne = (at: number): void => {
+    if (active === undefined || running) return
+    openAsk(at, 'single', paramsFrom(at, 'single'))
+  }
+
+  /**
+   * The values one run would need, out of the pipeline's own plan.
+   *
+   * Read from the plan rather than from the steps: a name two cards share is one value, and a step
+   * whose card writes no files contributes nothing — the question "does this run need values" has
+   * one answer, and it is this list being empty.
+   * @param at - zero-based step the run starts at.
+   * @param scope - whether the run covers the chain from `at`, or that step alone.
+   * @returns the names still to be filled, in the order the plan states them.
+   */
+  const paramsFrom = (at: number, scope: 'full' | 'single'): readonly WorkbenchPipelineParam[] => {
+    const inRange = paramPlan.filter(param => param.steps.some(step => (
+      scope === 'single' ? step === at : step >= at
+    )))
+    return inRange
+  }
+
+  /**
+   * Open the run dialog for one run, seeded from the last run of this pipeline.
+   *
+   * Seeded rather than blank because a pipeline is usually run for the same task twice — a step
+   * that failed, a late edit — and retyping the number and the sentence is the friction this
+   * removes. The seed is only a starting value: every field is editable, and nothing is
+   * remembered until the run starts. Never written onto a card: the sentence belongs to the run
+   * that was told it, which is why the record is where it comes back from.
+   * @param at - zero-based step the run starts at.
+   * @param scope - whether the run covers the chain from `at`, or that step alone.
+   * @param needed - the names this run has to be told; empty when it needs no values.
+   */
+  const openAsk = (at: number, scope: 'full' | 'single', needed: readonly WorkbenchPipelineParam[]): void => {
+    const last = history[0]
+    const seeded: Record<string, string> = {}
+    for (const param of needed) {
+      const value = last?.params?.[param.name]
+      if (value !== undefined) seeded[param.name] = value
+    }
+    setAskValues(seeded)
+    setAskNote(last?.directive ?? '')
+    setAskTab(0)
+    setAsk({ at, scope })
+  }
+
+  /** Why a value cannot be used, as the sentence the dialog states under its field. */
+  const valueProblem = (name: string): string | undefined => {
+    const problem = paramValueProblem(askValues[name] ?? '')
+    if (problem === undefined) return undefined
+    if (problem === 'empty') return t('pipeParamsProblemEmpty')
+    if (problem === 'charset') return t('pipeParamsProblemCharset')
+    return t('pipeParamsProblemLength', { max: WORKBENCH_PARAM_VALUE_MAX_LENGTH })
+  }
+
+  /**
+   * The steps one run's dialog covers, by index, in step order.
+   *
+   * The same cover the start applies — a whole run from `at`, or that step alone — so the tabs
+   * the dialog offers are exactly the steps this run will touch.
+   * @param at - zero-based step the run starts at.
+   * @param scope - whether the run covers the chain from `at`, or that step alone.
+   * @returns the covered step indices.
+   */
+  const coverOf = (at: number, scope: 'full' | 'single'): readonly number[] => (
+    stepViews.map((_step, index) => index)
+      .filter(index => (scope === 'single' ? index === at : index >= at))
+  )
+
+  // What the open dialog would send, read exactly as the start reads it: trimmed, and empty
+  // values left out. One reading for the preview and for the start, so the panel cannot promise
+  // a step something the run does not send.
+  const askCover = ask === undefined ? [] : coverOf(ask.at, ask.scope)
+  const askValuesSent: Record<string, string> = {}
+  if (ask !== undefined) {
+    for (const param of paramsFrom(ask.at, ask.scope)) {
+      const value = (askValues[param.name] ?? '').trim()
+      if (value !== '') askValuesSent[param.name] = value
+    }
+  }
+  const askNoteSent = askNote.trim()
+  // Where the sentence came from, while it is still the one the last run was given: the field is
+  // seeded, and a seeded field that did not say so would look like something the user typed.
+  // Editing it drops the line, because from then on it is theirs.
+  const askKept = askNoteSent !== '' && history[0]?.directive === askNoteSent
+  // The block as it will be read, with this run's values in it: someone who typed {任务编号}
+  // should see the number before starting, not the braces they typed. A name no value answers
+  // stays between its braces — the same rule the prompt applies, spoken by the same words.
+  const askNoteShown = Object.entries(askValuesSent)
+    .reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), askNoteSent)
+  const askTabAt = askCover.length === 0 ? 0 : Math.min(Math.max(askTab, 0), askCover.length - 1)
+  const askStepAt = askCover[askTabAt]
+  /**
+   * 这一步会收到哪句话。
+   *
+   * 步骤自己写了就用它的；步骤没写，跑起来用的是**卡片自己存的那句**（runner 就是这么取的：
+   * 请求里没有 instruction 时退回卡片配置）。所以这里也退回卡片，否则预览会在一块空着的
+   * 「（这一步没有指令）」下面，实际却把卡片那句送进去了 —— 预览就成了谎话。
+   */
+  const askCardInstruction = ((): string | undefined => {
+    if (askStepAt === undefined) return undefined
+    const step = active?.steps[askStepAt]
+    const own = step?.instruction
+    const stored = cards.find(entry => entry.cardId === step?.cardId)?.instruction
+    const effective = own === undefined || own.trim() === '' ? stored : own
+    const trimmed = effective?.trim()
+    return trimmed === undefined || trimmed === '' ? undefined : trimmed
+  })()
+  /** The number this card's instruction still repeats, now that the run supplies it. */
+  const askLegacyValue = askCardInstruction === undefined
+    ? undefined
+    : Object.values(askValuesSent).find(value => askCardInstruction.includes(value))
+  /** 这一步自己的指令按同一个替换规则显示：卡片里写了花括号，这里就先替它填上。 */
+  const askCardShown = askCardInstruction === undefined
+    ? undefined
+    : Object.entries(askValuesSent)
+        .reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), askCardInstruction)
+  const askHasValues = ask !== undefined && paramsFrom(ask.at, ask.scope).length > 0
+  /** 一块值一行「名字 值」，没填的先写（没填）—— 起步按钮那时是灰的。 */
+  const askValueLines = ask === undefined
+    ? ''
+    : paramsFrom(ask.at, ask.scope)
+        .map(param => `${param.name} ${askValuesSent[param.name] ?? t('pipePvNoValue')}`)
+        .join('\n')
+  // 抬头：整条跑说「运行 · 流水线名」，单步重跑说「重跑 · 第 2 步 详细设计」。
+  const askTitle = ask !== undefined && ask.scope === 'single'
+    ? t('pipeParamsTitleOne', { at: ask.at + 1, label: stepViews[ask.at]?.label ?? '' })
+    : active === undefined ? t('pipeParamsTitle') : `${t('pipeParamsTitle')} · ${active.name}`
+  const askCountLine = ask === undefined
+    ? ''
+    : ask.scope === 'single'
+      ? t('pipeParamsHeadOne')
+      : ask.at === 0
+        ? t('pipeParamsHead', { count: stepCount })
+        : t('pipeParamsHeadFrom', { count: askCover.length, at: ask.at + 1 })
+  /** 「三步」用中文数字说，跟原型一致；十步以上退回阿拉伯数字。 */
+  const askStepsWord = saySteps(askCover.length)
+  const askOneStep = askCover.length === 1
+  const askNoteHint = askNoteSent === ''
+    ? (askOneStep ? t('pipeNoteHintEmptyOne') : t('pipeNoteHintEmpty', { count: askCover.length, word: askStepsWord }))
+    : (askOneStep ? t('pipeNoteHintOne') : t('pipeNoteHint', { count: askCover.length, word: askStepsWord }))
+  /** 2 行起，最多长到 5 行：通常一句话，但允许写一段。 */
+  const askNoteRows = Math.min(5, Math.max(2, askNote.split('\n').length))
+  const askParamHint = ask === undefined || askCover.length === 1
+    ? t('pipeParamsHintOne', { at: (ask?.at ?? 0) + 1 })
+    : t('pipeParamsHint', { from: ask.at + 1, to: stepCount })
+  // 脚注只说一句，说最该说的那件：老卡片 → 迁移；没填 → 什么都没有；正常 → 谁共用谁独有。
+  const askFoot: ReactNode = askLegacyValue !== undefined
+    ? (
+      <>
+        <b>{t('pipePvLegacyHead', { value: askLegacyValue })}</b>
+        {t('pipePvLegacyRest')}
+      </>
+      )
+    : askNoteSent !== ''
+      ? t('pipePvFoot', { which: askHasValues ? t('pipePvFootTwo') : t('pipePvFootOne') })
+      : askHasValues ? t('pipePvFootNone') : undefined
 
   /**
    * How any stored pipeline stands, for the menu rows.
@@ -1480,7 +1720,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                             // that stops it, and stopping it leaves the rest of the
                             // pipeline alone.
                             if (soloRunning) { run.stop(); return }
-                            if (active !== undefined) run.runOne(active, selected.index)
+                            startOne(selected.index)
                           }}
                         >
                           {soloRunning ? MARK.stop : selected.phase === 'done' ? MARK.replay : MARK.play}
@@ -1671,9 +1911,15 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               shared={stepViews[0]?.card}
                               models={modelGroups}
                               skills={catalog}
+                              elsewhere={active === undefined
+                                ? 0
+                                : props.pipelines.pipelines.filter(entry => entry.id !== active.id
+                                  && entry.steps.some(entryStep => entryStep.cardId === selected.cardId)).length}
+                              pipelineWorkspace={active?.workspace}
                               onPickWorkspace={workspacePicker === undefined || !canPickWorkspace
                                 ? undefined
-                                : () => { chooseWorkspaceForSteps() }}
+                                : () => { choosePipelineWorkspace() }}
+                              onClearWorkspace={canPickWorkspace ? () => { clearPipelineWorkspace() } : undefined}
                               problem={configProblem}
                               t={t}
                               onSaveTemplate={(html) => {
@@ -1699,7 +1945,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                               listFiles={api.listFiles}
                               onOpen={(file) => { openReader(selected.cardId, file) }}
                               busy={running}
-                              onRun={() => { if (active !== undefined) run.runOne(active, selected.index) }}
+                              onRun={() => { startOne(selected.index) }}
                             />
                           </div>
                           )}
@@ -1832,24 +2078,41 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                         ))}
                       </div>
                       )
-                  : (history[historyAt]?.steps ?? []).map((step, at) => (
-                    <div key={`hist-step-${String(at)}`} className={css.hStep}>
-                      <button
-                        type="button"
-                        className={css.hStepHead}
-                        data-hist-step={at}
-                        onClick={() => {
-                          setHistoryOpen(false)
-                          openReader(step.cardId)
-                        }}
-                      >
-                        <span className={css.hStepNo}>{String(at + 1)}</span>
-                        <span className={css.hStepName}>{labelOf(step.cardId)}</span>
-                        <span className={css.hStepMeta}>{productLine(step.html, t)}</span>
-                        <span className={css.hStepTook}>{formatDuration(step.tookMs)}</span>
-                      </button>
-                    </div>
-                  ))}
+                  : (
+                    <>
+                      {/* 这次运行当时被告知的：一个号、一句话。记录留着的正是这个 —— 目录名只说明
+                          产物落在哪儿，说不出"跑的是哪件事"。 */}
+                      <div className={css.histTold} data-hist-told="">
+                        <span className={css.histToldTag}>{t('pipeHistToldTitle')}</span>
+                        <span className={css.histToldLine} data-hist-values="">
+                          {Object.entries(history[historyAt]?.params ?? {})
+                            .map(([name, value]) => `${name}: ${value}`)
+                            .join(' · ') || t('pipeHistToldNoValues')}
+                        </span>
+                        <span className={css.histToldLine} data-hist-directive="">
+                          {history[historyAt]?.directive ?? t('pipeHistToldNoDirective')}
+                        </span>
+                      </div>
+                      {(history[historyAt]?.steps ?? []).map((step, at) => (
+                        <div key={`hist-step-${String(at)}`} className={css.hStep}>
+                          <button
+                            type="button"
+                            className={css.hStepHead}
+                            data-hist-step={at}
+                            onClick={() => {
+                              setHistoryOpen(false)
+                              openReader(step.cardId)
+                            }}
+                          >
+                            <span className={css.hStepNo}>{String(at + 1)}</span>
+                            <span className={css.hStepName}>{labelOf(step.cardId)}</span>
+                            <span className={css.hStepMeta}>{productLine(step.html, t)}</span>
+                            <span className={css.hStepTook}>{formatDuration(step.tookMs)}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </>
+                    )}
               </div>
             </div>
           </div>
@@ -1912,10 +2175,183 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                     setReviewText('')
                     if (active === undefined || at < 0 || instruction === '') return
                     setReader(undefined)
-                    run.refine(active, at, instruction)
+                    // The values the run being revised used, so the revision lands in the same
+                    // folder instead of in a path still carrying its braces.
+                    run.refine(active, at, instruction, history[0]?.params)
                   }}
                 >
                   {t('pipeRegenerate')}
+                </button>
+              </div>
+            </div>
+          </div>
+          )}
+
+      {/* ── 运行前取值：卡片目录里写着的花括号，一个值只问一遍 ── */}
+      {ask === undefined
+        ? null
+        : (
+          <div className={css.reviewWrap} data-params="">
+            <div className={css.reviewScrim} onClick={() => { setAsk(undefined) }} />
+            <div className={css.review} role="dialog" aria-modal="true" aria-labelledby="pipe-params-title">
+              {/* 抬头两句话：这是哪条流水线、这一次跑哪一段 —— 原型 4.1 就这两句。 */}
+              <div className={css.reviewHead}>
+                <div className={css.reviewTitle}>
+                  <span id="pipe-params-title">{askTitle}</span>
+                  <em>{askCountLine}</em>
+                </div>
+              </div>
+              <div className={css.reviewBody}>
+                {paramsFrom(ask.at, ask.scope).map(param => {
+                  const problem = valueProblem(param.name)
+                  return (
+                    <label key={param.name} className={css.paramField} data-param={param.name}>
+                      <span className={css.paramName}>{param.name}</span>
+                      <input
+                        className={css.paramInput}
+                        type="text"
+                        value={askValues[param.name] ?? ''}
+                        maxLength={WORKBENCH_PARAM_VALUE_MAX_LENGTH}
+                        placeholder={t('pipeParamsPlaceholder')}
+                        aria-invalid={problem !== undefined}
+                        data-param-input={param.name}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setAskValues(previous => ({ ...previous, [param.name]: value }))
+                        }}
+                      />
+                      <span className={css.paramNote} data-problem={problem === undefined ? 'none' : 'value'}>
+                        {problem ?? askParamHint}
+                      </span>
+                    </label>
+                  )
+                })}
+                {/* 运行指令：这一次运行的一句话。每一步都收到，卡片上那句不被它顶掉。 */}
+                <div className={css.paramField} data-note-field="">
+                  <span className={css.paramName}>{t('pipeNoteLabel')}</span>
+                  <div className={css.noteMain}>
+                    {askKept
+                      ? (
+                        <div className={css.noteChipRow} data-note-kept="">
+                          <span className={css.noteChip}>
+                            {t('pipeNoteKept')}
+                            <button
+                              type="button"
+                              className={css.noteChipX}
+                              aria-label={t('pipeNoteKeptClear')}
+                              data-note-chip-x=""
+                              onClick={() => { setAskNote('') }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                          <button type="button" className={css.noteLink} data-note-edit="" onClick={() => { askBox.current?.focus() }}>
+                            {t('pipeNoteEdit')}
+                          </button>
+                        </div>
+                        )
+                      : null}
+                    <textarea
+                      ref={askBox}
+                      className={css.noteInput}
+                      value={askNote}
+                      rows={askNoteRows}
+                      maxLength={WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH}
+                      placeholder={t('pipeNotePlaceholder')}
+                      data-note-input=""
+                      onChange={(event) => { setAskNote(event.target.value) }}
+                    />
+                    <span className={css.paramNote} data-note-hint="">{askNoteHint}</span>
+                    {askNote.length === 0
+                      ? null
+                      : (
+                        <span className={css.noteCount} data-note-count="">
+                          {t('pipeNoteCount', { length: askNote.length, max: WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH })}
+                        </span>
+                        )}
+                  </div>
+                </div>
+                {/* 每一步收到的话：共用的两块 + 这一步自己的那块，虚线隔开。带标签页，因为每步的指令不同。 */}
+                <div className={css.pv} data-preview="">
+                  <div className={css.pvHead}>
+                    <span className={css.pvTitle}>{t('pipePvTitle')}</span>
+                    <div className={css.pvTabs} role="tablist" aria-label={t('pipePvTabs')}>
+                      {askCover.map((index, at) => (
+                        <button
+                          key={index}
+                          type="button"
+                          role="tab"
+                          className={css.pvTab}
+                          aria-selected={at === askTabAt}
+                          data-pv-tab={index}
+                          onClick={() => { setAskTab(at) }}
+                        >
+                          {t('pipePvStepTab', { at: index + 1 })}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={css.pvBody}>
+                    {askHasValues
+                      ? (
+                        <div className={`${css.blk} ${askNoteSent === '' ? '' : css.blkShare}`} data-pv-block="values">
+                          <span className={css.blkTag}>{t('pipePvValues')}</span>
+                          <span className={css.blkBody}>{askValueLines}</span>
+                        </div>
+                        )
+                      : null}
+                    {askNoteSent === ''
+                      ? null
+                      : (
+                        <div className={`${css.blk} ${css.blkShare} ${css.blkNew}`} data-pv-block="note" data-new="1">
+                          <span className={css.blkTag}>{t('pipePvNote')}</span>
+                          <span className={css.blkBody}>{askNoteShown}</span>
+                        </div>
+                        )}
+                    <div className={css.blk} data-pv-block="card">
+                      <span className={css.blkTag}>{t('pipePvCard')}</span>
+                      <span className={css.blkBody} data-empty={askCardShown === undefined ? '1' : '0'}>
+                        {askCardShown ?? t('pipePvCardNone')}
+                      </span>
+                    </div>
+                  </div>
+                  {askFoot === undefined
+                    ? null
+                    : <div className={css.pvFoot} data-pv-foot="">{askFoot}</div>}
+                </div>
+              </div>
+              <div className={css.reviewFoot}>
+                <div className={css.spacer} />
+                <button type="button" className={`${css.btn} ${css.ghost}`} onClick={() => { setAsk(undefined) }}>
+                  {t('pipeCancel')}
+                </button>
+                <button
+                  type="button"
+                  className={`${css.btn} ${css.primary}`}
+                  data-params-start=""
+                  disabled={missingParamValues(paramsFrom(ask.at, ask.scope), askValues).length > 0}
+                  onClick={() => {
+                    if (active === undefined) return
+                    const values: Record<string, string> = {}
+                    for (const param of paramsFrom(ask.at, ask.scope)) {
+                      const value = (askValues[param.name] ?? '').trim()
+                      if (value !== '') values[param.name] = value
+                    }
+                    const at = ask.at
+                    const scope = ask.scope
+                    // An emptied box is no sentence at all: it travels as nothing, so the run's
+                    // prompt and its record both say the run was not told.
+                    const note = askNote.trim()
+                    const directive = note === '' ? undefined : note
+                    setAsk(undefined)
+                    if (scope === 'single') {
+                      run.runOne(active, at, values, directive)
+                      return
+                    }
+                    run.runAll(active, at, at > 0 ? chain?.steps[at - 1]?.sessionId : undefined, values, directive)
+                  }}
+                >
+                  {t('pipeParamsStart')}
                 </button>
               </div>
             </div>
@@ -2137,10 +2573,18 @@ function ConfigRow(props: {
   readonly control: ReactNode
   readonly note?: string | undefined
   readonly below?: ReactNode
+  /**
+   * Whether the control is bare text rather than a field.
+   *
+   * A row with a select or an input has its label and note nudged 7px down so they line up with the
+   * box's first line. A row whose value is just text has no box to line up with, so those 7px push
+   * the label and the note half a character below the value they are about.
+   */
+  readonly plain?: boolean
 }): ReactNode {
   const note = props.note === undefined || props.note === '' ? null : <span className={css.ruleNote}>{props.note}</span>
   return (
-    <div className={css.ruleRow}>
+    <div className={css.ruleRow} {...props.plain === true ? { 'data-plain': '1' } : {}}>
       <span className={css.ruleLabel}>{props.label}</span>
       <div className={css.ruleBody}>
         <div className={css.ruleLine}>
@@ -2153,10 +2597,38 @@ function ConfigRow(props: {
   )
 }
 
+/**
+ * A result directory with its braced names drawn as chips.
+ *
+ * The chip is the only device this panel uses to say "this part is filled at run time", so the
+ * braces are shown rather than swallowed: `{任务编号}` is the name a run is asked for, and a reader
+ * who later sees `T2026…/docs` in the result has already seen where it came from.
+ * @param props - the path as the card writes it.
+ * @returns the path, name by name.
+ */
+function ResultPath(props: { readonly path: string }): ReactNode {
+  return (
+    <span className={css.outDir} data-cfg-result="">
+      {paramPartsOf(props.path).map((part, index) => (part.kind === 'name'
+        ? <span key={index} className={css.tok}>{`{${part.name}}`}</span>
+        : <span key={index}>{part.text}</span>))}
+    </span>
+  )
+}
+
 /** What one step's config panel shows: what it is, and what its document looks like. */
 function ConfigPanel(props: {
   readonly step: StepView
   readonly shared: WorkbenchCardConfigView | undefined
+  /**
+   * The directory the pipeline itself names, when it names one.
+   *
+   * The pipeline's field, not a card's: one card can be a step of two pipelines working on
+   * different checkouts, and a directory stored on the card would follow it into both. This is
+   * also why the row is not read from the first step's card any more — that showed one card's
+   * folder as if the whole chain agreed with it.
+   */
+  readonly pipelineWorkspace: WorkbenchCardWorkspace | undefined
   /** Models the pipeline's cards may be pointed at; empty means the directory said nothing. */
   readonly models: readonly WorkbenchModelGroup[]
   /** Skills a step may run, in catalog order. */
@@ -2176,13 +2648,25 @@ function ConfigPanel(props: {
   readonly onStepPatch: (patch: StepCardPatch) => void
   /** Store this step's template; the box commits on blur, not per keystroke. */
   readonly onSaveTemplate: (html: string) => void
-  /** Ask the platform for one directory; disabled when there is no chooser. */
+  /** Ask the platform for the pipeline's directory; disabled when there is no chooser. */
   readonly onPickWorkspace: (() => void) | undefined
+  /** Stop naming a directory for the pipeline, so each step falls back to its own card. */
+  readonly onClearWorkspace: (() => void) | undefined
   /** Why the last write did not land; absent when it did. */
   readonly problem: string | undefined
+  /** How many other pipelines arrange this same card, which is how far a change to it reaches. */
+  readonly elsewhere: number
 }): ReactNode {
-  const { step, shared, models, skills, t, onSaveTemplate, onPatch, onStepPatch, onPickWorkspace, problem } = props
+  const {
+    step, shared, pipelineWorkspace, models, skills, t, onSaveTemplate, onPatch, onStepPatch,
+    onPickWorkspace, onClearWorkspace, problem, elsewhere,
+  } = props
   const template = step.card?.template
+  // The directory this card's template states, and the names inside it that a run has to be told.
+  // Both are read from the card, not from the step: a step that runs this card writes where the
+  // card says, which is what makes "change the card, both steps follow" true.
+  const resultPath = resultPointerPath(template)
+  const paramCount = resultPath === undefined ? 0 : paramPartsOf(resultPath).filter(part => part.kind === 'name').length
   // This step's own card: the rows under 这一步 speak for this step, whatever the pipeline's
   // first card happens to hold.
   const mine = step.card
@@ -2274,21 +2758,37 @@ function ConfigPanel(props: {
         <ConfigRow
           label={t('pipeCfgWorkspace')}
           control={(
-            <button
-              type="button"
-              className={css.rulePath}
-              data-cfg-workspace=""
-              aria-label={t('pipeCfgWorkspacePick')}
-              disabled={onPickWorkspace === undefined}
-              onClick={() => { onPickWorkspace?.() }}
-            >
-              <span className={`${css.rulePathText} ${shared?.workspace === undefined ? '' : css.mono}`}>
-                {shared?.workspace?.path ?? t('pipeCfgNoWorkspace')}
-              </span>
-              <span className={css.rulePathPick}>{onPickWorkspace === undefined ? t('pipeCfgWorkspaceNoPicker') : t('pipeCfgWorkspacePick')}</span>
-            </button>
+            <div className={css.ruleLine}>
+              <button
+                type="button"
+                className={css.rulePath}
+                data-cfg-workspace=""
+                aria-label={t('pipeCfgWorkspacePick')}
+                disabled={onPickWorkspace === undefined}
+                onClick={() => { onPickWorkspace?.() }}
+              >
+                <span className={`${css.rulePathText} ${pipelineWorkspace === undefined ? '' : css.mono}`}>
+                  {pipelineWorkspace?.path ?? t('pipeCfgNoWorkspace')}
+                </span>
+                <span className={css.rulePathPick}>{onPickWorkspace === undefined ? t('pipeCfgWorkspaceNoPicker') : t('pipeCfgWorkspacePick')}</span>
+              </button>
+              {/* Only when there is something to undo: a clear button on an empty row is a
+                  control that does nothing, which reads as broken rather than as idle. */}
+              {pipelineWorkspace === undefined || onClearWorkspace === undefined
+                ? null
+                : (
+                  <button
+                    type="button"
+                    className={`${css.btn} ${css.ghost}`}
+                    data-cfg-workspace-clear=""
+                    onClick={() => { onClearWorkspace() }}
+                  >
+                    {t('pipeCfgWorkspaceClear')}
+                  </button>
+                  )}
+            </div>
           )}
-          note={t('pipeCfgWorkspaceNote')}
+          note={pipelineWorkspace === undefined ? t('pipeCfgWorkspaceNone') : t('pipeCfgWorkspaceNote')}
         />
       </div>
 
@@ -2366,6 +2866,28 @@ function ConfigPanel(props: {
           control={<span className={css.val}>{t('pipeCfgFailureStop')}</span>}
           note={t('pipeCfgFailureNote')}
         />
+        {/* Where this card says its result goes. Read out of the template, never typed here: the
+            pointer is the card's statement about its own product, and the row that shows it is not
+            a field. A card without one writes no files, so the row is absent rather than blank —
+            an empty row would read as "this step has no directory yet", which is a different and
+            wrong claim. */}
+        {resultPath === undefined
+          ? null
+          : (
+            <ConfigRow
+              plain
+              label={t('pipeCfgResult')}
+              control={<ResultPath path={resultPath} />}
+              note={paramCount === 0
+                ? t('pipeCfgResultFixed', { card: step.label })
+                : paramCount === 1
+                  ? t('pipeCfgResultAsked', { card: step.label })
+                  : t('pipeCfgResultAskedMany', { card: step.label })}
+              below={elsewhere === 0
+                ? undefined
+                : <div className={css.ruleExtra} data-cfg-result-shared="">{t('pipeCfgResultShared', { count: elsewhere })}</div>}
+            />
+            )}
       </div>
 
       <div className={css.cfgBlock}>
@@ -2484,7 +3006,9 @@ function ResultPanel(props: {
   const product = step.product
   const summary = product.kind === 'inline' && product.text !== '' ? product.text : t('pipeInlineProduct')
   // 目录先问模板：指针写在模板里，才不会被这次运行盖掉（区域每次都被替换）
-  const dir = resultDirectory(template, product)
+  // …then the run that made it: a pointer with a token in it is not a directory until a run says
+  // which value it stood for, and the record is where that is written down.
+  const dir = resultDirectory(template, product, step.result.directory)
   return (
     <div className={css.resBlock}>
       <div className={css.resBlockHead}>

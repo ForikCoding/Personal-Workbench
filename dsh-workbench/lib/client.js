@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
 // The Loader never fetches a sibling stylesheet, so this one ships inside
 // the factory and installs on first evaluation.
 {
-  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_nfmcv_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_nfmcv_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_nfmcv_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_nfmcv_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_nfmcv_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_nfmcv_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_nfmcv_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_nfmcv_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_nfmcv_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_nfmcv_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_nfmcv_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide.\n   \n   The track is stated rather than left implicit: an implicit `auto` track sizes itself\n   from the item's content, so the creation tile — whose only content is a mark and a\n   short word — collapsed into a narrow column while the cards beside it stayed wide. */\n._cell_nfmcv_95 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  min-width: 0;\n}\n\n._createRoot_nfmcv_101 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n/* Same frame as a card, drawn as an outline: it belongs in the row of cards without\n   claiming to be one of them. */\n._createTile_nfmcv_112 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease,\n    transform 0.15s ease;\n}\n\n._createTile_nfmcv_112:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n  transform: translateY(-1px);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. It is the size and shape of the\n   monogram every card carries, which is what makes the tile read as a peer of the cards\n   rather than as a hole in the grid. */\n._createMark_nfmcv_145 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  /* Mixed from the label colour, not filled with a layer token: the light theme's layers\n     are all the same white as the tile, which would leave the mark with no shape. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  font-size: 16px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_nfmcv_112:hover ._createMark_nfmcv_145 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_nfmcv_112:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_nfmcv_81 {\n    grid-template-columns: 1fr;\n  }\n}\n\n/* ---------------------------------------------------------------------------\n   The pipeline workbench: a rail of pipelines and single cards, a canvas of\n   steps, and an inspector that mounts one card's own views.\n\n   Three fixed columns rather than one flowing column: the rail is a list, the\n   canvas is a sequence, and the inspector is a document — each scrolls on its\n   own, so a long run history never pushes the canvas out of view.\n   --------------------------------------------------------------------------- */\n\n/* The page's own frame when it hosts the pipeline: the surface is one panel that fills\n   it exactly — own head, two columns, run bar — so the page adds no gutter, no gap and\n   no scrollbar of its own. `position: relative` is what the panel anchors to: it covers\n   the whole page whatever height the host hands down, so the run bar cannot fall below\n   the fold. */\n._pagePipeline_nfmcv_191 {\n  /* One grid row sized `minmax(0, 1fr)`: the panel is handed the page's exact height and\n     may be shorter than its content, which is what keeps the run bar on screen. A flex\n     column would have sized the panel to its content instead, and clipped the bar. */\n  display: grid;\n  grid-template-rows: minmax(0, 1fr);\n  align-items: stretch;\n  gap: 0;\n  height: 100%;\n  min-height: 0;\n  overflow: hidden;\n  padding: 0;\n  position: relative;\n}\n\n._shell_nfmcv_206 {\n  display: grid;\n  flex: 1 1 auto;\n  grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr);\n  box-sizing: border-box;\n  min-height: 0;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  overflow: hidden;\n}\n\n@media (max-width: 760px) {\n  /* Below the panel's own minimum the inspector is what has to survive: the rail\n     folds away and the canvas narrows, because a pipeline you cannot read is worse\n     than one you cannot switch. */\n  ._shell_nfmcv_206 {\n    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);\n  }\n\n  ._rail_nfmcv_225 {\n    display: none;\n  }\n}\n\n/* --- rail ---------------------------------------------------------------- */\n\n._rail_nfmcv_225 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 10px 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n._railHead_nfmcv_244 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n  padding: 4px 6px 2px;\n}\n\n._railTitle_nfmcv_252 {\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railAction_nfmcv_259,\n._linkBtn_nfmcv_260 {\n  padding: 2px 4px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n  border-radius: 6px;\n}\n\n._railAction_nfmcv_259:hover,\n._linkBtn_nfmcv_260:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._railAction_nfmcv_259:focus-visible,\n._linkBtn_nfmcv_260:focus-visible,\n._menuBtn_nfmcv_280:focus-visible,\n._toolBtn_nfmcv_281:focus-visible,\n._stepBadge_nfmcv_282:focus-visible,\n._stepMain_nfmcv_283:focus-visible,\n._railRowMain_nfmcv_284:focus-visible,\n._railRowTask_nfmcv_285:focus-visible,\n._tab_nfmcv_286:focus-visible,\n._primaryBtn_nfmcv_287:focus-visible,\n._stopBtn_nfmcv_288:focus-visible,\n._addStep_nfmcv_289:focus-visible,\n._pickerRow_nfmcv_290:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._railList_nfmcv_295 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._railEmpty_nfmcv_304 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railRow_nfmcv_284 {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  border-radius: 8px;\n}\n\n._railRowActive_nfmcv_319 {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowMain_nfmcv_284 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 1px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 6px 8px;\n  border: none;\n  border-radius: 8px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._railRowTask_nfmcv_285 {\n  width: 100%;\n  padding: 6px 8px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n  border-radius: 8px;\n}\n\n._railRowTask_nfmcv_285:hover,\n._railRowMain_nfmcv_284:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowName_nfmcv_361 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._railCount_nfmcv_367 {\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._menuBtn_nfmcv_280 {\n  flex: none;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 14px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._menuBtn_nfmcv_280:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._menu_nfmcv_280 {\n  position: absolute;\n  z-index: 2;\n  margin-top: 32px;\n  display: flex;\n  flex-direction: column;\n  min-width: 132px;\n  padding: 4px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n  box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);\n}\n\n._menuRow_nfmcv_406 {\n  padding: 6px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._menuRow_nfmcv_406:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._menuRowDanger_nfmcv_423 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._renameInput_nfmcv_427 {\n  box-sizing: border-box;\n  width: 100%;\n  padding: 6px 8px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 18px;\n}\n\n/* --- canvas -------------------------------------------------------------- */\n\n._canvas_nfmcv_442 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 12px 12px 16px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  overflow: auto;\n}\n\n._canvasHead_nfmcv_453 {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n._canvasTitleGroup_nfmcv_460 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n._canvasTitle_nfmcv_460 {\n  margin: 0;\n  overflow: hidden;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: var(--dsw-alias-label-primary);\n}\n\n._canvasMeta_nfmcv_478,\n._canvasHint_nfmcv_479 {\n  margin: 0;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._canvasHint_nfmcv_479 {\n  padding: 8px 2px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runBar_nfmcv_491 {\n  display: flex;\n  flex: none;\n  gap: 6px;\n}\n\n._primaryBtn_nfmcv_287,\n._stopBtn_nfmcv_288 {\n  padding: 4px 10px;\n  border: 1px solid transparent;\n  border-radius: 8px;\n  background: var(--dsw-alias-brand-primary);\n  color: #fff;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._primaryBtn_nfmcv_287:hover {\n  filter: brightness(1.06);\n}\n\n._primaryBtn_nfmcv_287:disabled {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  cursor: default;\n}\n\n._stopBtn_nfmcv_288 {\n  background: none;\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chainLine_nfmcv_526 {\n  margin: 0;\n  padding: 6px 8px;\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chainLineFailed_nfmcv_536 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._stepList_nfmcv_540 {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._step_nfmcv_282 {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px 6px 6px 4px;\n  border: 1px solid transparent;\n  border-radius: 10px;\n}\n\n._stepSelected_nfmcv_559 {\n  border-color: var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._stepRow_nfmcv_564 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._stepBadge_nfmcv_282 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 20px;\n  height: 20px;\n  margin-top: 2px;\n  border: none;\n  border-radius: 7px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._stepMain_nfmcv_283 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 3px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 0;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n._stepName_nfmcv_605 {\n  overflow: hidden;\n  font-size: 13px;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepNameMissing_nfmcv_613 {\n  color: var(--dsw-alias-label-tertiary);\n  text-decoration: line-through;\n}\n\n._stepSub_nfmcv_618 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._stepAsk_nfmcv_628 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepTook_nfmcv_634 {\n  font-variant-numeric: tabular-nums;\n}\n\n._chip_nfmcv_638 {\n  flex: none;\n  padding: 1px 6px;\n  border-radius: 999px;\n  font-size: 11px;\n  line-height: 14px;\n}\n\n._chipIdle_nfmcv_646 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipQueued_nfmcv_651 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipRunning_nfmcv_656 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._chipDone_nfmcv_661 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._chipFailed_nfmcv_666 {\n  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chipStopped_nfmcv_671 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* The per-step controls appear on hover or focus: a canvas of six steps showing six\n   toolbars reads as a settings form rather than as an order of operations. */\n._stepTools_nfmcv_678 {\n  display: flex;\n  gap: 4px;\n  padding-left: 28px;\n  opacity: 0;\n  transition: opacity 0.12s ease;\n}\n\n._step_nfmcv_282:hover ._stepTools_nfmcv_678,\n._step_nfmcv_282:focus-within ._stepTools_nfmcv_678,\n._stepSelected_nfmcv_559 ._stepTools_nfmcv_678 {\n  opacity: 1;\n}\n\n._toolBtn_nfmcv_281 {\n  padding: 1px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._toolBtn_nfmcv_281:hover {\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._connector_nfmcv_709 {\n  display: block;\n  width: 1px;\n  height: 10px;\n  margin: 2px 0 2px 14px;\n  background: var(--dsw-alias-border-l2);\n}\n\n._addStep_nfmcv_289 {\n  padding: 6px 10px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._addStep_nfmcv_289:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  color: var(--dsw-alias-label-primary);\n}\n\n._picker_nfmcv_290 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._pickerHead_nfmcv_745 {\n  padding: 2px 6px 4px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._pickerRow_nfmcv_290 {\n  padding: 5px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._pickerRow_nfmcv_290:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._pickerEmpty_nfmcv_769 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* --- inspector ----------------------------------------------------------- */\n\n._inspector_nfmcv_779 {\n  display: flex;\n  flex-direction: column;\n  box-sizing: border-box;\n  min-height: 0;\n  min-width: 0;\n}\n\n._tabs_nfmcv_787 {\n  display: flex;\n  flex: none;\n  gap: 2px;\n  padding: 8px 12px 0;\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._tab_nfmcv_286 {\n  padding: 6px 10px;\n  border: none;\n  border-bottom: 2px solid transparent;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._tab_nfmcv_286:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n._tabActive_nfmcv_811 {\n  border-bottom-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n/* The mounted card view brings its own padding and its own scroller; this box only\n   has to give it a bounded height so it can own both. */\n._tabBody_nfmcv_819 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  min-height: 0;\n  overflow: hidden;\n}\n\n._tabBody_nfmcv_819 > * {\n  min-height: 0;\n}\n\n._noFocus_nfmcv_831 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 40px 16px;\n  text-align: center;\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_b8gil_4 {\n  display: block;\n}\n\n._body_b8gil_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* The face's way into configuration, as a quiet pill rather than a bare word: at rest it\n   is a control with an edge, and the grid stops reading as three titles with a stray\n   \"配置\" floating at the end of each. */\n._cardActions_b8gil_17 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* The tint is mixed from the label colour rather than taken from a layer token: in the\n   light theme every layer token is the same white as the card, so a control filled with\n   one would have no edge at all. */\n._cardActions_b8gil_17 button {\n  height: 24px;\n  padding: 0 9px;\n  border-radius: 6px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--dsw-alias-label-secondary);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._cardActions_b8gil_17 button:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* What the face fills its frame with: the line the last run produced, and the two facts\n   a glance at the grid wants. Both are secondary; the card's name is the only primary\n   thing on it. */\n._faceBody_b8gil_44 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n  /* Fills the shell's body slot so the footer can be pushed to the bottom: the run\n     count then sits on one line across the whole grid, whether the card's summary ran\n     to two lines or to none. */\n  height: 100%;\n}\n\n._faceSummary_b8gil_55 {\n  display: -webkit-box;\n  margin: 2px 0 0;\n  overflow: hidden;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* An invitation is not a summary: it sits a level quieter than the text a run produced. */\n._faceSummary_b8gil_55[data-face-summary='empty'] {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* A card that cannot run has three things to say in a cell sized for two: the result it\n   last produced, why 运行 is closed, and how many runs there have been. The summary gives up\n   a line, because the reason is the part the user can act on. */\n._faceBody_b8gil_44[data-face-blocked] ._faceSummary_b8gil_55 {\n  -webkit-line-clamp: 1;\n}\n\n/* Why the card's run control is closed. Two lines at most, clamped: the face is an index\n   entry, and a card that shouted the whole sentence would out-shout the result under it.\n   Tinted like the run pages' version, so the two read as one statement in two sizes. */\n._faceProblem_b8gil_81 {\n  display: -webkit-box;\n  margin: 0;\n  padding: 4px 8px;\n  overflow: hidden;\n  border-radius: var(--dsw-radius-sm);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* Tabular figures keep the times in one column across the grid. */\n._faceFoot_b8gil_96 {\n  margin: auto 0 0;\n  font-size: 11px;\n  line-height: 16px;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_b8gil_107 {\n  display: flex;\n  flex-direction: column;\n  /* One step of rhythm between the zones — head, composer, document, its actions, the\n     trace — so the document does not read as stuck to the composer above it. */\n  gap: 18px;\n  width: 100%;\n  min-width: 0;\n}\n\n/* The nameplate every full-panel view opens with: the way back, what this is, and the\n   facts that name it — one line, one left edge, one type scale.\n\n   It used to be three tiers: a bar for the way back, the title at display size, then a\n   line of facts under it. On a page whose content is a document that spent about 96px\n   and two competing scales before the document began — the chrome shouted louder than\n   the thing it introduced, and the title was stated a second time by whatever the reader\n   had already said above it. A nameplate at the content's own scale gives the display\n   scale back to the document. */\n._pageHead_b8gil_126 {\n  /* Pinned: these views grow with the document under them, and the way back and the card's\n     name used to scroll out of sight within one long report. The scrollport is the workbench\n     panel, which is this head's ancestor. */\n  position: sticky;\n  top: 0;\n  z-index: 2;\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 2px 8px;\n  min-width: 0;\n  /* Opaque because the document scrolls under it, and the hairline is what separates the\n     two once it is pinned. */\n  padding: 5px 0 7px;\n  background: var(--dsw-alias-bg-base);\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* Icon only: the chevron is the control and its accessible name is the word it used to\n   print, so the way back costs 22px of a line instead of a bar of its own. */\n._pageHeadBack_b8gil_147 {\n  flex: none;\n  justify-content: center;\n  /* Cancels the button's own inset so the chevron's edge, not its padding, lands on the\n     page's left edge. */\n  margin-left: -4px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* A nameplate, not a headline. It stays the largest thing in the head and the smallest\n   thing on the page: the document owns the display scale. One line, ellipsis rather than\n   wrapping, so a long card name never turns the nameplate back into a tower. */\n._pageHeadTitle_b8gil_159 {\n  margin: 0;\n  flex: 0 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  letter-spacing: -0.005em;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n/* The facts beside the title, at caption scale, separated by a middot: the skill is a chip\n   because it is a name, a path stays a path. */\n._pageHeadMeta_b8gil_174 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 18px;\n}\n\n._pageHeadMeta_b8gil_174 > * + *::before {\n  content: '·';\n  margin: 0 7px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The skill a card runs: a chip, because it is a name rather than part of a sentence.\n\n   The separator above is drawn by a pseudo element on the item, and on a chip that lands\n   *inside* the box: the dot sat against the chip's own left padding, with the box starting\n   flush against the word before it. A box is its own separator, so it takes a margin on\n   that side instead. */\n._pageHeadChip_b8gil_196 {\n  flex: none;\n  padding: 1px 7px;\n  border-radius: 6px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._pageHeadMeta_b8gil_174 > ._pageHeadChip_b8gil_196::before {\n  content: none;\n}\n\n._pageHeadMeta_b8gil_174 > ._pageHeadChip_b8gil_196:not(:first-child) {\n  margin-left: 10px;\n}\n\n._runProblem_b8gil_214 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result.\n *\n * No box. It was a tinted slab with a hairline, and next to the act dock — the same tint,\n * the same radius, the same weight — the two read as one banded form under the document, so\n * neither the place to write nor the record of how the document was made stood out. The\n * dock took the surface for writing; this keeps none and is what it is: one line of history\n * under the place that acts, with the trace folded behind it. */\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom. The rows wear the conversation's run-record\n   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,\n   so a long trace reads like the chat it came from rather than a log dump.\n\n   The list is not bounded: like the conversation's own run record, it grows with its\n   content and the page scrolls, so a long reasoning span opens to its full text rather\n   than a narrow frame. */\n._runTraceList_b8gil_240 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._activityList_b8gil_246 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 4px 0 0;\n  padding: 0;\n  list-style: none;\n}\n\n._activityItem_b8gil_255 {\n  display: block;\n  min-width: 0;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityToolRow_b8gil_261 {\n  min-width: 0;\n}\n\n/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header\n   with the secondary tier; the workbench only sizes the pieces it supplies. */\n._activityRow_b8gil_267 {\n  min-width: 0;\n}\n\n._activityTitle_b8gil_271 {\n  font-weight: 400;\n}\n\n/* The 2x2 separator between the title and the collapsed summary, matching the\n   conversation's run rows. */\n._activitySep_b8gil_277 {\n  flex: none;\n  width: 2px;\n  height: 2px;\n  margin: 0 8px;\n  border-radius: 1px;\n  background: var(--dsw-alias-label-caption);\n}\n\n/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */\n._activitySummary_b8gil_287 {\n  flex: 1 1 auto;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n}\n\n/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */\n._activityBody_b8gil_298 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  padding: 4px 0 4px 22px;\n}\n\n._activityBodyLabel_b8gil_306 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n._activityBodyText_b8gil_312 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The model thinking: a disclosure row like the conversation's, set apart from the calls\n   because it is what the card is *reasoning*, not what it is doing. */\n._activityReasoning_b8gil_322 {\n  min-width: 0;\n}\n\n/* The model speaking to the user: plain narration, no chrome — it is the reply, not a\n   step. Reads like an assistant message in the conversation. */\n._activityNarration_b8gil_328 {\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  overflow-wrap: anywhere;\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_b8gil_338 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The settled turn-process header above a trace, matching the conversation's Turn process\n   row: a full-width button with the outcome word and a chevron that folds the whole stream. */\n/* No rule of its own any more: the block's edge is the boundary, and the header is the\n   block's first line. It carries a step count because 已完成 alone gave no reason to open\n   it — the summary said how the run ended and nothing about what was inside. */\n/* A chip, not a bar. Full width put the chevron a page away from the words it folds, which\n   is the one thing on the line nobody could connect to it; sized to its own text, the\n   outcome, the count and the chevron read as one control and its hover area agrees with\n   what it looks like. The negative start padding is only so the chip's own inset does not\n   push its text off the document's left edge. */\n._turnProcess_b8gil_354 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  width: auto;\n  max-width: 100%;\n  margin-left: -4px;\n  padding: 3px 8px 3px 4px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 12px;\n  font-weight: 500;\n  cursor: pointer;\n  text-align: left;\n  transition: color 100ms ease, background 100ms ease;\n}\n\n._turnProcess_b8gil_354:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The outcome at a glance, before the word is read: a quiet dot for a settled run and the\n   warning colour for one that failed or was stopped. */\n._turnProcessDot_b8gil_381 {\n  flex: none;\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 24%, transparent);\n}\n\n._turnProcess_b8gil_354[data-turn-process=\"failed\"] ._turnProcessDot_b8gil_381 {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._turnProcessLabel_b8gil_393 {\n  min-width: 0;\n  overflow: hidden;\n  font-size: inherit;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* How many entries the fold hides, in the colour of a count rather than of the outcome. */\n._turnProcessSteps_b8gil_403 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-weight: 400;\n  font-variant-numeric: tabular-nums;\n}\n\n/* Right after the count: the chevron belongs to the words it folds. */\n._turnProcessChevron_b8gil_412 {\n  flex: none;\n  width: 14px;\n  height: 14px;\n  color: inherit;\n  transition: transform 100ms ease;\n}\n\n._turnProcess_b8gil_354[data-open] ._turnProcessChevron_b8gil_412 {\n  transform: rotate(180deg);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._turnProcess_b8gil_354,\n  ._turnProcessChevron_b8gil_412 {\n    transition: none;\n  }\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_b8gil_439 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The same slot with no frame of its own.\n\n   For a host that already draws one: the reader is a bordered surface with its own padding,\n   so the frame here put a card inside a card and 12px of padding between the reader's edge\n   and the document's. The page keeps its frame when it is the page; the reader lets the\n   document sit on its own surface. */\n._resultBare_b8gil_454 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_b8gil_463 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* The page's one place to act: three quiet controls where the document they change ends, and\n   the revision log under them. It was a selector plus a dock with a field in it; choosing a\n   way of changing the result now opens a dialog, so there is nothing to write here and\n   nothing to frame.\n\n   The row is the shape the chat's own message actions have: icons with their labels, quiet at\n   rest, one tinted pill under the pointer. Its controls are the page's only way to act on\n   what is above them, so they stay readable rather than waiting for a hover — hiding them\n   would leave a page that looks like it cannot do anything. */\n._actBlock_b8gil_479 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n._actRow_b8gil_486 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 2px;\n  margin-left: -8px;\n  min-width: 0;\n}\n\n/* The run's fold sits on the same line as the ways of changing the result, and it is not one\n   of them: it says how the run behind the result ended and opens its steps. So it keeps the\n   gap the actions have between them on its left and its own padding on its right, rather\n   than hanging off the row at the page's edge the way it did when it headed a section. */\n._actRow_b8gil_486 ._turnProcess_b8gil_354 {\n  margin-left: 6px;\n}\n\n._actAction_b8gil_503 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 4px 8px;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  cursor: pointer;\n  transition: background 100ms ease, color 100ms ease;\n}\n\n._actAction_b8gil_503:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._actAction_b8gil_503:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A way of changing the result that this one cannot offer — nothing to revise, or a run\n   already holding the card — reads as unavailable rather than disappearing, so the row keeps\n   the same length whichever state the page is in. */\n._actAction_b8gil_503:disabled {\n  color: var(--dsw-alias-label-caption);\n  cursor: not-allowed;\n}\n\n._actAction_b8gil_503:disabled:hover {\n  background: transparent;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The dialog a sentence is written in. Portalled to the body by `PromptDialog`, so these\n   classes are not nested under anything the page controls. */\n._dialogOverlay_b8gil_545 {\n  position: fixed;\n  inset: 0;\n  z-index: 60;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 24px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 28%, transparent);\n}\n\n._dialogPanel_b8gil_556 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  width: min(560px, 100%);\n  max-height: calc(100vh - 48px);\n  padding: 18px 18px 16px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-alias-bg-layer-1);\n  box-shadow: 0 24px 48px -20px color-mix(in srgb, var(--dsw-alias-label-primary) 45%, transparent);\n  overflow: hidden;\n}\n\n/* Keyboard users land on the panel when it holds no field; the field takes the caret itself. */\n._dialogPanel_b8gil_556:focus-visible {\n  outline: none;\n}\n\n/* The window that holds a document instead of a form: as wide as the window allows and as\n   tall as the viewport does, because what is inside was laid out for a screen rather than\n   for a column. The height is stated rather than left to the content so that a short\n   document does not shrink the panel and a long one scrolls inside the well. */\n._dialogPanel_b8gil_556[data-dialog-size='wide'] {\n  width: min(1040px, 100%);\n  height: min(84vh, 900px);\n  max-height: calc(100vh - 48px);\n}\n\n._dialogHead_b8gil_586 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._dialogTitle_b8gil_593 {\n  flex: 1 1 auto;\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  min-width: 0;\n}\n\n._dialogClose_b8gil_603 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  margin: -2px -2px 0 0;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  cursor: pointer;\n}\n\n._dialogClose_b8gil_603:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._dialogClose_b8gil_603:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._dialogHint_b8gil_629 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* A refusal, inside the dialog rather than beside the page: the form was submitted and the\n   Host would not take it, which is the same sentence the run bar states in its own layout.\n   It is the error colour, not the hint's grey, because it is about the press and not the\n   form. */\n._dialogProblem_b8gil_640 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The form's own surface: unlike the row, this *is* written into, so it carries the frame the\n   block used to. Taller than the bar's field because the dialog exists to give a sentence\n   room. */\n._dialogField_b8gil_650 {\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 96px;\n  max-height: 40vh;\n  padding: 10px 12px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-specific-input-major);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 20px;\n  resize: none;\n  overflow-y: auto;\n}\n\n._dialogField_b8gil_650::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._dialogField_b8gil_650:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._dialogField_b8gil_650:focus-visible {\n  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 30%, transparent);\n  outline: 2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);\n  outline-offset: 1px;\n}\n\n/* The two ways out, at the end the form submits from. */\n._dialogFoot_b8gil_683 {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n  padding-top: 2px;\n}\n\n/* The directory this run happens in, at the top of the run dialog: a label, the value, and the\n   picker beside it. The same three pieces the configuration page's workspace field draws, so\n   the dialog and the page it writes to cannot describe one directory two ways. */\n._runWorkspace_b8gil_693 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The picker keeps its own width whatever the path beside it is: two characters of a button\n   wrapping onto a second line is the one thing that makes the row look broken. */\n._runWorkspace_b8gil_693 button {\n  flex: none;\n  white-space: nowrap;\n}\n\n/* Where a result happened: one item in the head's row of facts, beside the skill that made it.\n   The path is the exact one and never the folder's name, because the name is a display\n   convenience and the directory that ran is the whole path. Quiet enough to read as a fact\n   rather than a warning — unless the directory is gone, which the path's own colour says. */\n._runWorkspaceLine_b8gil_711 {\n  display: inline-flex;\n  align-items: baseline;\n  gap: 4px;\n  min-width: 0;\n  max-width: 100%;\n}\n\n._runWorkspaceLineLabel_b8gil_719 {\n  flex: none;\n}\n\n._runWorkspaceLinePath_b8gil_723 {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runWorkspaceLine_b8gil_711[data-run-workspace-line='invalid'] ._runWorkspaceLinePath_b8gil_723 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The instructions this card was recently given, offered back as chips in the run dialog.\n   A shortcut for the common case — the same ask again, with a small edit — so a click refills\n   the field rather than starting a run. */\n._runChips_b8gil_737 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n}\n\n._runChipsLabel_b8gil_745 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runChip_b8gil_737 {\n  max-width: 220px;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 999px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  line-height: 16px;\n  white-space: nowrap;\n  text-overflow: ellipsis;\n  overflow: hidden;\n  cursor: pointer;\n}\n\n._runChip_b8gil_737:hover {\n  border-color: var(--dsw-alias-border-l3);\n  color: var(--dsw-alias-label-primary);\n}\n\n._runChip_b8gil_737:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_b8gil_779 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_b8gil_787 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_b8gil_795 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_b8gil_802 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_b8gil_812 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_b8gil_824 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_b8gil_829 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_b8gil_834 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_b8gil_843 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_b8gil_850 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_b8gil_857 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_b8gil_864 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_b8gil_873 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_b8gil_882 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 18px 0;\n}\n\n/* A group's first line: its name, and whatever belongs to the group as a whole — the\n   template's three actions, the preview's caption. The controls used to sit inside the\n   sentence about the region and the byte count, where an underlined 添加动作 read as one\n   more fact instead of the one thing on the line a user could press. */\n._sectionHead_b8gil_894 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 12px;\n  min-width: 0;\n}\n\n._sectionTools_b8gil_902 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin-left: auto;\n  min-width: 0;\n}\n\n/* Not flush against the head: the head is pinned and carries a hairline, and a section\n   title one line under it reads as part of the head rather than as the first group. */\n._section_b8gil_882:first-child {\n  padding-top: 18px;\n}\n\n._section_b8gil_882 + ._section_b8gil_882 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_b8gil_920 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_b8gil_932 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_b8gil_932 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_b8gil_932 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_b8gil_957 {\n  margin: 0;\n  box-sizing: border-box;\n  display: flex;\n  align-items: center;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_b8gil_974 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_b8gil_982 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n/* One line, like every other control in the grid: the leaf name on the left, the exact\n   path flushing right. Two lines made this cell taller than its neighbour, so no two rows\n   of the group ever lined up — and the row's whole purpose is that they do. */\n._workspaceValue_b8gil_996 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_b8gil_1015 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n/* The same row, with a field to type into instead of a value to read. It matches the value\n   control's height and border so a card on a build without a chooser does not look like a\n   different kind of card, and it takes the space the button beside it does not. */\n._workspaceInput_b8gil_1022 {\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._workspaceInput_b8gil_1022:focus {\n  outline: none;\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._workspaceInputInvalid_b8gil_1042 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceInput_b8gil_1022::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._workspaceLeaf_b8gil_1050 {\n  flex: none;\n  max-width: 62%;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  line-height: 18px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_b8gil_1062 {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  text-align: right;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_b8gil_1076 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The page's controls are one size and one surface: a form whose fields are 28px tall\n   reads as a settings list from a denser app, and a name field the height of a table row\n   is not obviously a place you can type. */\n._select_b8gil_1086,\n._editor_b8gil_1087 {\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n}\n\n._select_b8gil_1086 {\n  box-sizing: border-box;\n  height: 32px;\n  padding: 0 8px;\n}\n\n/* Tall enough to hold a page of template on a laptop window without pushing the save bar\n   half way up the screen, and still growing on a large one.\n\n   The height comes from the pane's stated row; the field fills it and, with the content\n   taller than the box, scrolls inside it. `min-height: 0` is what lets a text area shrink\n   into a row instead of pushing the row open to fit its text. */\n._editor_b8gil_1087 {\n  min-height: 0;\n  padding: 6px;\n  font-family: monospace;\n  /* Not resizable: dragging the handle wrote a height on the field, the pane's row stayed as\n     stated and clipped it, so the handle was a control that broke the layout it sat in. */\n  resize: none;\n}\n\n/* The editor's status rail, at the foot of the pane: where the region is, what the\n   template declares, and how much of the size budget it uses. These are readings of the\n   text above them, so they belong under it — a line of facts above a code block reads as\n   a caption for the section, and it took a whole row away from the editor. */\n._editorStatus_b8gil_1121 {\n  grid-column: 1 / -1;\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 2px 10px;\n  box-sizing: border-box;\n  padding: 5px 10px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Pushed to the rail's far end: it is about the whole file, not about the region's range. */\n._editorStatusDirty_b8gil_1137 {\n  margin-left: auto;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_b8gil_1144 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_b8gil_1149 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The template read as structure. Same metrics as the field it replaces, so switching\n   between the two does not move the text a line up or down, and the same tinted number\n   column, so the two views read as one pane. */\n._foldView_b8gil_1156 {\n  grid-column: 1 / -1;\n  /* Fills the pane's stated row, like the field it replaces: the two presentations have to be\n     the same size to read as one pane, and a view that grows with its document is a page. */\n  min-height: 0;\n  padding: 6px 0;\n  overflow: auto;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  font-size: 12px;\n  line-height: 18px;\n  /* The scrollbar a long document brings must not narrow the code mid-read. */\n  scrollbar-gutter: stable;\n}\n\n._foldRow_b8gil_1170 {\n  display: flex;\n  align-items: flex-start;\n  min-width: max-content;\n}\n\n/* Fills the rest of the row so the row's hover tint covers the whole width, while the\n   count stays against the text it belongs to instead of at the far edge of a long pane. */\n._foldRow_b8gil_1170::after {\n  content: '';\n  flex: 1 1 auto;\n}\n\n._foldRow_b8gil_1170:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n}\n\n/* The number column, the caret, and the text are three buttons in one row. Nothing here is\n   a tab stop: the row's job is to hand a line to the field, and the field is a keyboard\n   control on its own. */\n._foldNumber_b8gil_1190,\n._foldCaret_b8gil_1191,\n._foldText_b8gil_1192 {\n  margin: 0;\n  border: 0;\n  background: transparent;\n  font: inherit;\n  line-height: inherit;\n  cursor: pointer;\n}\n\n._foldNumber_b8gil_1190 {\n  flex: none;\n  width: 44px;\n  padding: 0 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  text-align: right;\n  user-select: none;\n}\n\n._foldCaret_b8gil_1191,\n._foldCaretBlank_b8gil_1213 {\n  flex: none;\n  width: 18px;\n  padding: 0;\n  color: var(--dsw-alias-label-secondary);\n  text-align: center;\n  user-select: none;\n}\n\n._foldText_b8gil_1192 {\n  flex: 0 0 auto;\n  padding: 0 10px 0 0;\n  color: var(--dsw-alias-label-primary);\n  text-align: left;\n  white-space: pre;\n}\n\n/* What one folded line stands for: the size of what is hidden, so a fold that swallowed\n   the whole stylesheet cannot be mistaken for a fold that hid three lines. */\n._foldCount_b8gil_1232 {\n  flex: none;\n  padding: 0 12px 0 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n/* Gutter and text on the first row, the status rail under both of them. The gutter and\n   the text must share font, size, line height and vertical padding, or the numbers stop\n   lining up with the lines they label.\n\n   The first row's height is stated rather than divided. `minmax(0, 1fr)` inside a grid that\n   is as tall as its own content has nothing to divide, so the row grew to the code's full\n   height: a three-hundred-line template made a five-thousand-pixel field, the page scrolled\n   instead of the field, and a jump selected a line that was nowhere on screen. A stated row\n   makes the field and the gutter the scrollers, and keeps the page a page. */\n._editorPane_b8gil_1249 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  grid-template-rows: clamp(280px, 44vh, 560px) auto;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_b8gil_1263 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  /* A tint rather than a layer token: both layer tokens are the same white in this theme,\n     which left the numbers floating in the code with nothing separating them. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_b8gil_1283 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_b8gil_1283:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_b8gil_1303 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_b8gil_1311 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_b8gil_1249 ._editor_b8gil_1087 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n  /* A number labels a row only while one line of the file is one row on screen: a wrapped\n     line pushed every number under it onto its neighbour's line, and indentation read as\n     ragged because the glyphs were not on a grid. Long lines scroll sideways instead, in a\n     stack that is monospaced on every Windows without the shell's default font deciding. */\n  white-space: pre;\n  overflow-wrap: normal;\n  /* Both axes are stated: a long file scrolls inside the field, and a jump moves that scroll.\n     Leaving the vertical axis to be inferred from the horizontal one made the pane's own\n     scroller a candidate for a jump, and a jump that scrolls the wrong box looks like a jump\n     that did nothing. */\n  overflow-x: auto;\n  overflow-y: auto;\n  tab-size: 2;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  /* The scrollbar that appears with a long file must not narrow the text mid-edit. */\n  scrollbar-gutter: stable;\n}\n\n._editorPane_b8gil_1249 ._editor_b8gil_1087:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_b8gil_1249:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_b8gil_1087:focus-visible,\n._select_b8gil_1086:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_b8gil_1356 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_b8gil_1366 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_b8gil_1366:hover,\n._violationJump_b8gil_1366:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The frame the document is drawn in, inside the preview window: tinted, inset, and the one\n   thing in the panel that scrolls, so a document taller than the window scrolls inside it\n   rather than pushing the head and the footer out of view. */\n._previewFrame_b8gil_1387 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  min-height: 0;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n}\n\n/* The well the document is drawn in: white on the tinted frame, so the user's own card\n   reads as the document and the frame reads as the page around it. */\n._preview_b8gil_1387 {\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 8px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n\n._settingsActions_b8gil_1415 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_b8gil_1422 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_b8gil_1433 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_b8gil_1440 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_b8gil_1450 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_b8gil_1457 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall.\n\n   Sticky insets resolve against the scrollport's *content* edge, so `bottom: 0` pinned\n   this bar one page-padding up (48px, from the panel's own `.page`) — and the template's\n   lines kept scrolling through the strip underneath it, which read as the bar cutting the\n   editor in half. The negative inset puts the reference back on the padding's outer edge,\n   which is the window's own bottom. */\n._configFooter_b8gil_1469 {\n  position: sticky;\n  bottom: -48px;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 8px;\n  padding: 12px 0 14px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n  /* A hairline alone left the editor's last lines looking cut rather than covered: the bar\n     and the page are the same white, so the bar has to cast something to read as a bar. */\n  box-shadow: 0 -12px 20px -18px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);\n}\n\n/* What the save button would keep, stated beside it. */\n._footerHint_b8gil_1487 {\n  margin-left: 4px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._footerActions_b8gil_1494 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_b8gil_1500 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_b8gil_1505 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_b8gil_1494 ._deleteCard_b8gil_1513 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_b8gil_1494 ._deleteCard_b8gil_1513:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_b8gil_1523 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_b8gil_1533 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_b8gil_1542 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_b8gil_1542 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_b8gil_1542 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The directory the panel proposes, and the sentence saying what it is for: the field is the\n   same one the card's own page uses, so only the breathing room under it is set here. */\n._actionFacts_b8gil_1542 [data-action-workspace-note] {\n  margin-top: 4px;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_b8gil_1568 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_b8gil_1584 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_b8gil_1584[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n\n/* The run-history page: its heading, the count line, the empty state, and the runs.\n\n   The list is read as days: one heading per day, rows under it, a hairline between rows.\n   A row is two lines of its own — what the run produced, then the facts that tell it\n   apart from its neighbours — with the outcome opposite, so a reader scanning for a run\n   lands on content rather than on seven identical completion words. */\n\n._runsHeadText_b8gil_1604 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n._runsHeadTitle_b8gil_1612 {\n  margin: 0;\n  font-size: 18px;\n  font-weight: 600;\n  line-height: 26px;\n  overflow-wrap: anywhere;\n}\n\n._runsHeadMeta_b8gil_1620 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 8px;\n  margin: 0;\n  min-width: 0;\n}\n\n._runHistoryCount_b8gil_1629 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runHistoryEmpty_b8gil_1636 {\n  margin: 0;\n  padding: 32px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  line-height: 20px;\n  text-align: center;\n}\n\n._runHistoryList_b8gil_1647 {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  min-width: 0;\n}\n\n._runHistoryGroup_b8gil_1654 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n}\n\n/* The day a group of rows completed on. It is a caption, not a title: the rows below it\n   are what the page is about, and a heavier heading would make the list read as days.\n\n   It sticks to the top of the list while its own group scrolls past, because a long\n   history is read one day at a time and the rows themselves carry only a clock: without\n   the caption on screen, \"22:47\" is a time on no particular day. */\n._runHistoryDay_b8gil_1667 {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  margin: 0;\n  padding: 5px 10px 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-caption);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  letter-spacing: 0.04em;\n}\n\n._runHistoryItems_b8gil_1681 {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n  min-width: 0;\n}\n\n._runHistoryItem_b8gil_1681 {\n  min-width: 0;\n}\n\n/* Rows separate by a hairline rather than by their own borders: seven outlined boxes\n   read as seven unrelated cards, while one column of rows reads as one day's work. */\n._runHistoryItem_b8gil_1681 + ._runHistoryItem_b8gil_1681 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* The row is a container rather than the button itself: a run in flight carries a stop\n   control of its own, and a button inside a button is not a thing a browser can draw. */\n._runHistoryRow_b8gil_1700 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  min-width: 0;\n  margin: 0;\n  padding: 10px;\n  border-radius: var(--dsw-radius-sm);\n}\n\n._runHistoryRow_b8gil_1700:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._runHistoryOpen_b8gil_1715 {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n/* A run that did not finish earns a mark on the row's edge.\n\n   Seven rows of one card are mostly the same shape, and the one that failed differs\n   only in a small word on the far right: the eye scanning the titles had nothing to\n   catch on. The bar is that catch, and it is drawn inside the row's padding so that no\n   row's text moves — the list keeps one left edge, marked rows included. */\n._runHistoryOpen_b8gil_1715::before {\n  content: '';\n  position: absolute;\n  /* On the row's own left edge, one row's padding away from the text: far enough that it\n     reads as a margin mark rather than as part of the first glyph. */\n  left: -10px;\n  top: 50%;\n  width: 2px;\n  height: 18px;\n  margin-top: -9px;\n  border-radius: 1px;\n  background: transparent;\n}\n\n._runHistoryOpen_b8gil_1715[data-run-outcome='aborted']::before {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryOpen_b8gil_1715[data-run-outcome='error']::before,\n._runHistoryOpen_b8gil_1715[data-run-outcome='failed']::before {\n  background: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryOpen_b8gil_1715[data-run-outcome='running']::before {\n  background: var(--dsw-alias-link);\n}\n\n/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and\n   only the row of a run in flight has one. */\n._runHistoryStop_b8gil_1767 {\n  flex: none;\n  margin: 0;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-sm);\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._runHistoryStop_b8gil_1767:hover {\n  color: var(--dsw-alias-label-primary);\n  border-color: var(--dsw-alias-border-primary);\n}\n\n._runHistoryBody_b8gil_1786 {\n  display: flex;\n  flex-direction: column;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The run's content is the row's title: the only line at reading weight, and the only\n   one allowed to be the first thing the eye lands on. */\n._runHistoryTitle_b8gil_1796 {\n  min-width: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 14px;\n  font-weight: 500;\n  line-height: 21px;\n  /* One line: a two-line clamp let one long title stand taller than its neighbours and\n     made the rhythm of the list ragged. */\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A run that stored nothing still owns the row's first line. Without it the row was a\n   lone grey meta line, which read as a row that had failed to load rather than a run that\n   had nothing to say. */\n._runHistoryTitle_b8gil_1796[data-empty='true'] {\n  font-weight: 400;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._runHistoryMeta_b8gil_1817 {\n  display: flex;\n  align-items: baseline;\n  min-width: 0;\n  flex-wrap: wrap;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The same middot the page head uses between its facts, for the same reason: a clock, a\n   model id, and an ordinal set in one grey with only space between them read as one\n   string. */\n._runHistoryMeta_b8gil_1817 > * + *::before {\n  content: '·';\n  margin: 0 6px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The clock is the one fact on this line a reader compares across rows, so it is a step\n   above the model id and the ordinal, in figures that line up column-wise. */\n._runHistoryTime_b8gil_1838 {\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n._runHistoryModel_b8gil_1845 {\n  /* Wide enough for a real model id — `GLM-FLASH-LATEST` — so the truncation lands on a\n     name that is actually long rather than on the one this workbench runs. */\n  max-width: 24ch;\n  color: var(--dsw-alias-label-tertiary);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryOrdinal_b8gil_1855,\n._runHistoryEdited_b8gil_1856 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  white-space: nowrap;\n}\n\n/* What the run was asked for: one line under the row's own meta, because two runs of one\n   card differ by this and a wrapped quote would make every row's height depend on how much\n   was typed. The full text is on the result page that opens from the row. */\n._runHistoryInstruction_b8gil_1865 {\n  display: block;\n  max-width: 100%;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistorySide_b8gil_1876 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n}\n\n/* The outcome is a quiet dot and a word. Only a run that did not complete earns a\n   hearing: a wall of neutral \"已完成\" would compete with the titles it sits beside.\n\n   Right-aligned in a column of its own width, so the dots and the words line up down the\n   right edge instead of starting wherever each word's length puts them. */\n._runHistoryOutcome_b8gil_1888 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 5px;\n  min-width: 4em;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n\n._runHistoryDot_b8gil_1900 {\n  width: 6px;\n  height: 6px;\n  flex: none;\n  border-radius: 50%;\n  background: currentColor;\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='aborted'] ._runHistoryOutcome_b8gil_1888 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='error'] ._runHistoryOutcome_b8gil_1888,\n._runHistoryRow_b8gil_1700 [data-run-outcome='failed'] ._runHistoryOutcome_b8gil_1888 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='running'] ._runHistoryOutcome_b8gil_1888 {\n  color: var(--dsw-alias-link);\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='running'] ._runHistoryDot_b8gil_1900 {\n  animation: _runHistoryPulse_b8gil_1 1.4s ease-in-out infinite;\n}\n\n@keyframes _runHistoryPulse_b8gil_1 {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.25; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._runHistoryRow_b8gil_1700[data-run-outcome='running'] ._runHistoryDot_b8gil_1900 {\n    animation: none;\n  }\n}\n\n/* The way in, quiet at rest and nudged on hover: the whole row is the control, and this\n   only has to say which direction it goes. */\n._runHistoryChevron_b8gil_1938 {\n  display: inline-flex;\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  line-height: 1;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n._runHistoryRow_b8gil_1700:hover ._runHistoryChevron_b8gil_1938,\n._runHistoryOpen_b8gil_1715:focus-visible ._runHistoryChevron_b8gil_1938 {\n  color: var(--dsw-alias-label-secondary);\n  transform: translateX(2px);\n}/* ==========================================================================\n   宸ヤ綔鍙?路 娴佹按绾块潰鏉?   --------------------------------------------------------------------------\n   鍘熷瀷 docs/prototypes/workbench-pipeline-v2.html 鐨勬牱寮忥紝閫愭潯鎼繃鏉ワ紝鍙敼浜嗕袱澶勶細\n\n   1. 绫诲悕鍓嶇紑 wb-銆傚師鍨嬫槸鐙珛椤甸潰锛屾彃浠惰鍜屽涓荤殑鏍峰紡鍚屽涓€寮犺〃锛涘墠缂€鏄敮涓€鐨?      鍛藉悕绌洪棿锛屼篃鎰忓懗鐫€ DOM 閲岀殑绫诲悕灏辨槸杩欎釜鏂囦欢閲岀殑绫诲悕锛屼笉缁忚繃鍝堝笇杩欎竴灞傘€?   2. 閰嶈壊涓嶅啀鍐欐涓ゅ鑹叉澘锛屾敼涓?DSH 鐨勮璁′护鐗岋紙瑙?.wb-root锛夈€傛繁娴呰壊璺熼殢 DSH\n      鑷繁鍒囨崲锛屾彃浠朵笉缁存姢绗簩濂楅鑹层€?\n   鍏朵綑閫夋嫨鍣ㄣ€佹暟鍊笺€侀棿璺濅繚鎸佸師鍨嬪師鏍凤紝鏂逛究閫愭潯瀵圭収銆?   ========================================================================== */\n/**\n * 流水线工作台的样式，逐条取自 docs/prototypes/workbench-pipeline-v2.html。\n *\n * 原型自带两套固定色板（浅色/深色写在 body[data-theme] 上）。这里把它的令牌改写为\n * DSH 的同义令牌，于是插件跟 DSH 一起换肤，不必再维护第二套颜色。除此之外，选择器、\n * 数值、间距、圆角、阴影都保持原型的写法，改起来仍能一句一句对回原型。\n */\n\n.wb-root {\n  /* 字体 */\n  --f-sans: var(--dsw-font-family);\n  --f-mono: ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;\n\n  /* 底色：面板、凹槽、卡片。原型里 pane 与 base 同为白，分界只靠那条竖线，\n     所以这里也不再给检查器垫底灰——保持原型的样子。 */\n  --base: var(--dsw-alias-bg-base);\n  --pane: var(--dsw-alias-bg-base);\n  --rail: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  --card-bg: var(--dsw-alias-bg-base);\n  --recess: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n\n  /* 交互。宿主的 hover 底色叫 -interactive-bg-hover（rgba(38,49,72,.06) / rgba(255,255,255,.08)），\n     正是原型 --hover 的两个值；此前挂的 -bg-fill-hover 在宿主里根本没有定义，\n     var() 失效又不报错，于是标签底色、空态方块、各行 hover 一律变成透明。 */\n  --hover: var(--dsw-alias-interactive-bg-hover);\n  --hover-strong: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n\n  /* 文字 */\n  font-family: var(--f-sans);\n\n  --ink: var(--dsw-alias-label-primary);\n  --ink2: var(--dsw-alias-label-secondary);\n  /* 原型 ink3（浅色 rgb(92,97,103)）比 ink2 再深一点，宿主的 -label-tertiary 在浅色里是\n     rgb(129,133,140)（比 secondary 还浅），只有 -label-secondary 对得上；深色下会略亮，认了。 */\n  --ink3: var(--dsw-alias-label-secondary);\n  --ink4: var(--dsw-alias-label-tertiary);\n\n  /* 分隔与边框。宿主给的 border-l1 在浅色主题里只有百分之二的黑，等于没有；\n     原型是 rgba(0,0,0,.1) / .08，这里按墨色混出同样的浓度，深浅主题都成立。 */\n  --hairline: color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);\n  --divider: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);\n\n  /* 强调与状态 */\n  /* -brand-primary 在宿主浅色主题里是 rgb(15,17,21)（近黑），原型是蓝的：选中的页签、\n     下划线、运行中的分段条全靠它，黑着就等于没强调。-state-business-primary 是宿主的强调蓝\n     （浅色 rgb(65,118,230)，深色 rgb(122,170,255)——和原型深色精确相同）。 */\n  --accent: var(--dsw-alias-state-business-primary);\n  --accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);\n  --accent-wash: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent);\n  --success: #22c55e;\n  --warn: #f59e0b;\n  --danger: var(--dsw-alias-state-error-primary);\n  --danger-wash: color-mix(in srgb, var(--dsw-alias-state-error-primary) 7%, transparent);\n  --idle: color-mix(in srgb, var(--dsw-alias-label-primary) 17%, transparent);\n\n  /* 主按钮、阴影、遮罩 */\n  --primary-bg: var(--dsw-alias-label-primary);\n  --primary-ink: var(--dsw-alias-bg-base);\n  --shadow-menu: 0 12px 32px color-mix(in srgb, #000 14%, transparent), 0 2px 8px color-mix(in srgb, #000 6%, transparent);\n  --shadow-node: 0 1px 2px color-mix(in srgb, #000 5%, transparent);\n  --scrim: color-mix(in srgb, #000 24%, transparent);\n  --scroll: color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent);\n}\n/* ==========================================================================\n   工作台原型 · 两栏版\n   --------------------------------------------------------------------------\n   与原版（workbench-pipeline.html）的差别只有一件事：宽度按 DSH Desktop\n   主面板的真实可用宽度来设计，不再假设一个 1348px 的壳。\n\n   插件占的就是主面板那一列，整块、无内部侧栏；DSH 自己的左侧栏在插件外面，\n   不属于这个插件。所以下面这个原型框 = 面板本身，宽度可切。\n\n   面板宽度取自仓库代码（窗口宽 - 侧栏 - 右侧面板）：\n     大窗口（最大化）        → 约 1280\n     窗口默认 1280x840      → 侧栏 280 → 1000   （settings-bridge.ts:158）\n     窗口最小 900x640       → 侧栏 56  → 844    （columns.ts:13/19/23）\n     TaskManagerPage 断点   → 760               （其 module.css:1439）\n     右侧面板打开           → 424（CENTER_MIN 400 托底）\n\n   因此：\n     - 常驻三栏取消。任务库变弹出选择器。\n     - 画布 + 检查器并排需 >=820；更窄时检查器滑动覆盖。\n     - 断点用容器查询（@container），因为面板宽度 != 视口宽度。\n   ========================================================================== */\n\n.wb-root *, .wb-root *::before, .wb-root *::after { box-sizing: border-box; }\n.wb-root [hidden] { display: none !important; }\n\n/* 内联 svg 的兜底尺寸：任何一处忘了单独指定的图标都不会撑成一块黑板。\n   具体规则（.wb-btn svg / .wb-iconBtn svg …）单类选择器优先级更高，照常覆盖。 */\n.wb-root svg { flex: none; width: 14px; height: 14px; }\n\n\n\n/* ---------------------------------------------------------------- 主题令牌 */\n\n\n\n/* ---------------------------------------------------------------- 原型外壳 */\n\n\n\n\n\n\n\n\n\n\n\n/* ------------------------------------------------------------------ 应用帧 */\n/* 原型框 = 面板本身。DSH 左侧栏（新会话 / 插件 / 工作台 / 工作区）在插件外面，\n   不属于这个插件，所以这里不画，宽度就是切换器标的那个数。 */\n\n\n/* -------------------------------------------------------------------- 面板 */\n/* 高度由宿主那一格给死（见 workbench.module.css 的 .wb-pagePipeline 网格行）：\n   .wb-panel 只负责把这一格分给 面板头 / 两栏 / 运行条，自己绝不被内容撑高 */\n.wb-panel {\n  flex: 1;\n  min-height: 0;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  position: relative;\n  overflow: hidden;\n  background: var(--base);\n  color: var(--ink);\n  font-size: 13px;\n  /* 断点跟着面板走，不跟视口走 */\n  container-type: inline-size;\n  container-name: panel;\n}\n\n.wb-panelHead {\n  flex: none;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  height: 58px;\n  padding: 0 18px;\n  border-bottom: 0.5px solid var(--hairline);\n}\n.wb-panelHead h1 {\n  margin: 0;\n  font-size: 20px;\n  line-height: 28px;\n  font-weight: 500;\n  letter-spacing: -.01em;\n  white-space: nowrap;\n}\n.wb-headSpacer { flex: 1; }\n.wb-btn {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  height: 30px;\n  padding: 0 12px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.wb-btn svg { width: 14px; height: 14px; flex: none; }\n.wb-btn:hover { background: var(--hover); }\n.wb-btn.wb-ghost { border: 0.5px solid var(--hairline); }\n.wb-btn.wb-ghost:hover { background: var(--hover-strong); }\n.wb-btn.wb-primary { background: var(--primary-bg); color: var(--primary-ink); font-weight: 500; }\n.wb-btn.wb-primary:hover { opacity: .86; }\n/* 禁用态要看得出来。审核弹框靠它表达「先写要求」这件事。 */\n.wb-btn:disabled { opacity: .38; cursor: default; }\n.wb-btn:disabled:hover { background: transparent; opacity: .38; }\n.wb-btn.wb-ghost:disabled:hover { background: transparent; }\n.wb-btn.wb-primary:disabled:hover { opacity: .38; }\n/* 运行中那颗「运行」变成「停止」：同一个盒子、同一段字宽（运行 / 停止都是两个字），\n   只换记号（三角 → 方块）和描边色。填成实心红会被读成「出错了」，所以只描一圈。 */\n.wb-btn.wb-stop,\n.wb-runOne.wb-stop {\n  background: transparent;\n  color: var(--danger);\n  border: 0.5px solid color-mix(in srgb, var(--danger) 42%, var(--hairline));\n  font-weight: 500;\n}\n.wb-btn.wb-stop:hover,\n.wb-runOne.wb-stop:hover { background: var(--danger-wash); }\n.wb-btn.wb-stop:active,\n.wb-runOne.wb-stop:active { background: color-mix(in srgb, var(--danger) 14%, transparent); }\n.wb-btn.wb-stop:disabled:hover { background: transparent; }\n/* 按不下去的时候要看得出来：这一步正在整条里跑，或者停止已经在收尾了。 */\n.wb-runOne:disabled { opacity: .45; cursor: default; }\n.wb-runOne:disabled:hover { background: transparent; }\n\n/* ------------------------------------------------------- 运行的作用域 */\n/* 「运行」以前只有一个意思：从第一个没跑完的步骤接着跑。想让已经跑过的那几步再来一遍，\n   就没有地方可以说。现在主按钮自己说出范围（运行 / 接着跑 / 重跑），右边那道缝后面的\n   ▾ 才让它改成别的范围——两个半块是同一个控件：同一高度、共用一圈圆角，\n   缝本身就是\"这里还能再选\"的那句话。 */\n.wb-runSplit { position: relative; display: inline-flex; align-items: center; }\n/* 三个字的标签不许把按钮撑宽：否则「接着跑」和「重跑」之间，右边那道缝会左右挪 */\n.wb-runSplit .wb-btn.wb-primary { min-width: 96px; justify-content: center; border-radius: 8px 0 0 8px; }\n.wb-runSplitCaret {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 25px;\n  height: 30px;\n  padding: 0;\n  border: 0;\n  border-radius: 0 8px 8px 0;\n  background: var(--primary-bg);\n  color: var(--primary-ink);\n  cursor: pointer;\n  /* 中间那道缝是嵌进去的一条线，不是一个白洞：两个半边在同一个盒子里。\n     隔开它们的是深浅，不是间距。 */\n  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--primary-ink) 24%, transparent);\n}\n.wb-runSplitCaret svg { width: 12px; height: 12px; }\n.wb-runSplitCaret:hover,\n.wb-runSplit[data-open=\"1\"] .wb-runSplitCaret {\n  background: color-mix(in srgb, var(--primary-ink) 12%, var(--primary-bg));\n}\n/* 右半边不在的时候（跑起来了、没有步骤），左半边自己把右边的圆角接回来。\n   这里不用 data-solo：那个词已经被\"这一步是单独跑的\"占着，两个意思不能共用一个属性。 */\n.wb-runSplit[data-caret=\"0\"] .wb-btn { border-radius: 8px; }\n.wb-runMenu {\n  position: absolute;\n  /* 摆在按钮下沿之外 6px：面板头高度稳定，用固定偏移比百分比可靠 */\n  top: 36px;\n  right: 0;\n  z-index: 70;\n  width: 276px;\n  padding: 5px;\n  border-radius: 10px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n.wb-runMenuRow {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  width: 100%;\n  padding: 7px 9px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-runMenuRow > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }\n.wb-runMenuRow b { font-weight: 500; }\n/* 默认标：这一行就是主按钮按下去会做的事，菜单是在解释按钮，不是和它打架 */\n.wb-runMenuRow i {\n  padding: 1px 5px;\n  border-radius: 4px;\n  background: var(--accent-wash);\n  color: var(--accent);\n  font-size: 10px;\n  font-style: normal;\n  line-height: 13px;\n}\n.wb-runMenuRow em { color: var(--ink4); font-size: 11px; font-style: normal; line-height: 15px; }\n.wb-runMenuRow:hover { background: var(--hover); }\n.wb-runMenuRow[disabled] { opacity: .38; cursor: default; }\n.wb-runMenuRow[disabled]:hover { background: transparent; }\n\n.wb-panelBody { flex: 1; min-height: 0; display: flex; }\n/* 只剩一个视图了，不再需要切换用的 display 开关 */\n.wb-pipelineView { flex: 1; min-width: 0; display: flex; flex-direction: column; }\n\n/* -------------------------------------------------------------- 步骤轨道 + 结果 */\n/* 执行时看的是产出。步骤是导航，结果是主体，所以这里反过来：\n   轨道固定窄，结果吃掉剩余全部宽度。 */\n.wb-panes { position: relative; flex: 1; min-height: 0; display: flex; }\n\n.wb-canvas {\n  flex: none;\n  width: 280px;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  border-right: 0.5px solid var(--divider);\n}\n\n.wb-canvasHead {\n  flex: none;\n  position: relative;\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 12px 14px 10px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-canvasTitleRow { display: flex; align-items: center; gap: 8px; min-width: 0; }\n.wb-canvasTitleBtn {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 15px;\n  font-weight: 500;\n  cursor: pointer;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-canvasTitleBtn svg { width: 13px; height: 13px; flex: none; color: var(--ink3); }\n.wb-canvasTitleBtn:hover svg { color: var(--ink); }\n.wb-chipState {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 20px;\n  padding: 0 8px;\n  border-radius: 10px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-size: 12px;\n  white-space: nowrap;\n}\n.wb-chipState[data-s=\"running\"] { background: var(--accent-wash); color: var(--accent); }\n.wb-chipState[data-s=\"done\"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 82%, var(--ink)); }\n.wb-chipState[data-s=\"failed\"] { background: var(--danger-wash); color: var(--danger); }\n.wb-chipState[data-s=\"idle\"], .wb-chipState[data-s=\"stopped\"] { background: var(--hover); color: var(--ink2); }\n/* 整条跑过 = 填实；只跑过其中几步 = 描边。形状先说话，颜色只是补一句：\n   单步跑过描绿，已有结果描灰——后者连\"怎么跑出来的\"都还不确定，不该用绿 */\n.wb-chipState[data-s=\"solo\"] {\n  background: transparent;\n  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--success) 55%, transparent);\n  color: color-mix(in srgb, var(--success) 60%, var(--ink));\n}\n.wb-chipState[data-s=\"kept\"] {\n  background: transparent;\n  box-shadow: inset 0 0 0 0.5px var(--hairline);\n  color: var(--ink3);\n}\n/* 这行字是运行记录的入口：它本来就在说\"上一次运行改了什么\"，所以让它能点 */\n.wb-canvasMeta {\n  display: block;\n  width: 100%;\n  margin-top: 4px;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  cursor: pointer;\n}\n.wb-canvasMeta:not(:disabled):hover { color: var(--ink); }\n.wb-canvasMeta:disabled { cursor: default; }\n.wb-iconBtn {\n  width: 26px; height: 26px;\n  padding: 0;\n  display: grid; place-items: center;\n  border: 0;\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink3);\n  cursor: pointer;\n}\n.wb-iconBtn svg { width: 15px; height: 15px; }\n.wb-iconBtn:hover { background: var(--hover); color: var(--ink); }\n\n.wb-canvasScroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }\n.wb-flow { padding: 12px 14px 16px; }\n\n/* 节点 */\n.wb-node {\n  position: relative;\n  display: block;\n  width: 100%;\n  text-align: left;\n  padding: 9px 11px 0;\n  border: 0.5px solid var(--hairline);\n  border-radius: 12px;\n  background: var(--card-bg);\n  box-shadow: var(--shadow-node);\n  font: inherit;\n  color: inherit;\n  cursor: pointer;\n  transition: border-color .12s, box-shadow .12s;\n}\n.wb-node::before {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  top: 13px;\n  bottom: 13px;\n  width: 2px;\n  border-radius: 0 2px 2px 0;\n  background: var(--idle);\n}\n.wb-node[data-s=\"done\"]::before { background: var(--success); }\n.wb-node[data-s=\"running\"]::before { background: var(--accent); }\n.wb-node[data-s=\"failed\"]::before { background: var(--danger); }\n.wb-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }\n.wb-node[aria-selected=\"true\"] { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent-soft); }\n/* 待运行：位置留好了、还没启动，所以是虚线框和空心序号，不是灰掉的实心卡片 */\n.wb-node[data-s=\"idle\"] { border-style: dashed; }\n.wb-node[data-s=\"idle\"] .wb-nodeIndex { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink4); }\n.wb-node[data-s=\"idle\"] .wb-nodeState { color: var(--ink3); }\n.wb-node[data-s=\"idle\"] .wb-nodeDur { color: var(--ink4); }\n\n.wb-nodeTop { display: flex; align-items: center; gap: 7px; }\n.wb-nodeIndex {\n  flex: none;\n  width: 18px; height: 18px;\n  display: grid; place-items: center;\n  border-radius: 5px;\n  background: var(--hover);\n  color: var(--ink3);\n  font-family: var(--f-mono);\n  font-size: 11px;\n}\n.wb-node[data-s=\"running\"] .wb-nodeIndex { background: var(--accent-wash); color: var(--accent); }\n.wb-node[data-s=\"done\"] .wb-nodeIndex { color: var(--ink2); }\n.wb-nodeTitle {\n  min-width: 0;\n  font-size: 13px;\n  font-weight: 500;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n/* 就地改名：边框 + 光晕，跟只读标题分开；字号跟标题一致，换的时候不跳 */\n.wb-nodeNameInput {\n  flex: 1 1 0;\n  min-width: 40px;\n  margin: -3px 0;\n  padding: 2px 6px;\n  border: 1px solid var(--accent);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  font-weight: 500;\n  outline: none;\n  box-shadow: 0 0 0 2px var(--accent-soft);\n}\n.wb-nodeState {\n  margin-left: auto;\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  color: var(--ink3);\n  white-space: nowrap;\n}\n.wb-nodeState svg { width: 12px; height: 12px; }\n.wb-node[data-s=\"done\"] .wb-nodeState { color: color-mix(in srgb, var(--success) 72%, var(--ink)); }\n.wb-node[data-s=\"running\"] .wb-nodeState { color: var(--accent); }\n.wb-node[data-s=\"failed\"] .wb-nodeState { color: var(--danger); }\n.wb-nodeDur {\n  flex: none;\n  min-width: 44px;\n  text-align: right;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n  font-variant-numeric: tabular-nums;\n}\n/* 轨道上放不下「技能·模型·权限」这一行，技能 id 交给右侧检查器头部显示 */\n.wb-nodeFoot {\n  margin: 7px -11px 0;\n  padding: 5px 11px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  border-top: 0.5px solid var(--divider);\n  border-radius: 0 0 12px 12px;\n  background: var(--recess);\n  font-size: 11px;\n  color: var(--ink3);\n  min-height: 24px;\n}\n.wb-node[data-s=\"failed\"] .wb-nodeFoot { background: var(--danger-wash); color: var(--danger); }\n.wb-node[data-s=\"running\"] .wb-nodeFoot { background: var(--accent-wash); color: var(--accent); }\n.wb-nodeFoot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n/* 这一步的产物来自哪次运行。单点重跑之后只有它会变 */\n.wb-nodeRun { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 产物来自单独跑的那一次：脚注写「单步 #1」，和整条运行的「#4」分开读 */\n.wb-nodeRun[data-solo=\"1\"] { color: color-mix(in srgb, var(--success) 50%, var(--ink4)); }\n.wb-nodeProg { flex: none; width: 34px; height: 3px; border-radius: 2px; background: var(--accent-soft); overflow: hidden; }\n.wb-nodeProg i { display: block; height: 100%; width: 40%; border-radius: 2px; background: var(--accent); animation: prog 1.5s ease-in-out infinite; }\n@keyframes prog { 0% { transform: translateX(-100%) } 100% { transform: translateX(280%) } }\n\n/* 连接线 + 插入点：线和按钮叠在同一个 grid 单元格里，居中靠布局而不是靠绝对定位猜 */\n.wb-connector {\n  position: relative;\n  height: 24px;\n  display: grid;\n  place-items: center;\n}\n.wb-connector::before {\n  content: \"\";\n  grid-area: 1 / 1;\n  width: 1px;\n  height: 100%;\n  background: var(--divider);\n}\n.wb-insertBtn {\n  grid-area: 1 / 1;\n  z-index: 1;\n  width: 20px;\n  height: 20px;\n  /* button 元素自带 UA padding，不清零会把图标挤出边框 */\n  padding: 0;\n  display: grid;\n  place-items: center;\n  border: 0.5px solid var(--hairline);\n  border-radius: 50%;\n  background: var(--base);\n  color: var(--ink3);\n  cursor: pointer;\n  /* 每条连接线上都挂一个 +，五步就是四个噪点。默认藏起来，鼠标过来或者键盘\n     聚焦时才浮出；真的想加步骤，底下常驻的「添加步骤」永远在那儿 */\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity .12s, color .12s, background .12s, border-color .12s;\n}\n.wb-connector:hover .wb-insertBtn,\n.wb-connector:focus-within .wb-insertBtn {\n  opacity: 1;\n  pointer-events: auto;\n}\n.wb-insertBtn svg { width: 11px; height: 11px; }\n.wb-connector:hover .wb-insertBtn {\n  opacity: 1;\n  border-color: color-mix(in srgb, var(--accent) 38%, transparent);\n  color: var(--accent);\n}\n.wb-insertBtn:hover { background: var(--accent-wash); color: var(--accent); }\n\n.wb-connectorShort { height: 14px; display: flex; justify-content: center; }\n.wb-connectorShort::before { content: \"\"; width: 1px; height: 100%; background: var(--divider); }\n\n/* 空流水线 */\n.wb-emptyFlow {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  padding: 34px 24px;\n  border: 1px dashed var(--hairline);\n  border-radius: 12px;\n  color: var(--ink3);\n}\n.wb-emptyMark {\n  width: 36px; height: 36px;\n  display: grid; place-items: center;\n  border-radius: 10px;\n  background: var(--hover);\n  color: var(--ink3);\n  margin-bottom: 11px;\n}\n.wb-emptyMark svg { width: 17px; height: 17px; }\n.wb-emptyFlow h4 { margin: 0 0 5px; font-size: 13px; font-weight: 500; color: var(--ink); }\n.wb-emptyFlow p { margin: 0 0 14px; max-width: 300px; font-size: 12px; line-height: 19px; }\n\n.wb-addStep {\n  width: 100%;\n  height: 42px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  border: 1px dashed var(--hairline);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 13px;\n  cursor: pointer;\n}\n.wb-addStep svg { width: 13px; height: 13px; }\n.wb-addStep:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }\n\n/* ------------------------------------------------------------------ 检查器 */\n/* 结果区吃掉剩余全部宽度。执行时看的是产出，不是步骤定义。 */\n.wb-inspector {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  min-height: 0;\n  background: var(--pane);\n}\n\n.wb-inspHead {\n  flex: none;\n  position: relative;\n  padding: 12px 16px 0;\n}\n\n/* 当前步骤的操作菜单：上移 / 下移 / 移除 */\n.wb-stepMenu {\n  position: absolute;\n  /* 落在标题行下沿：kicker + 标题行高度稳定，用固定偏移比百分比可靠 */\n  top: 62px;\n  right: 14px;\n  z-index: 60;\n  width: 184px;\n  padding: 5px;\n  border-radius: 10px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n.wb-stepMenuRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 9px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-stepMenuRow svg { width: 13px; height: 13px; color: var(--ink3); }\n.wb-stepMenuRow:hover { background: var(--hover); }\n.wb-stepMenuRow[data-danger] { color: var(--danger); }\n.wb-stepMenuRow[data-danger] svg { color: var(--danger); }\n.wb-stepMenuRow[data-danger]:hover { background: var(--danger-wash); }\n.wb-stepMenuRow[disabled] { opacity: .38; cursor: default; }\n.wb-stepMenuRow[disabled]:hover { background: transparent; }\n.wb-stepMenuSep { height: 0.5px; margin: 4px 8px; background: var(--divider); }\n.wb-stepMenuNote {\n  padding: 6px 9px 3px;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 15px;\n}\n.wb-inspKicker {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  color: var(--ink3);\n  font-size: 12px;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-inspKicker b { font-weight: 500; color: var(--ink2); }\n.wb-inspTitleRow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }\n.wb-inspTitle {\n  min-width: 0;\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-runOne {\n  margin-left: auto;\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 26px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 13px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.wb-runOne svg { width: 11px; height: 11px; }\n.wb-runOne:hover { background: var(--hover-strong); }\n.wb-inspMeta {\n  margin-top: 5px;\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n}\n.wb-inspMeta code { font-family: var(--f-mono); font-size: 11px; color: var(--ink3); }\n.wb-chipTag {\n  display: inline-flex;\n  align-items: center;\n  height: 18px;\n  padding: 0 7px;\n  border-radius: 9px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-size: 11px;\n}\n.wb-chipTag svg { flex: none; width: 10px; height: 10px; }\n.wb-chipTag[data-s=\"running\"] { background: var(--accent-wash); color: var(--accent); }\n.wb-chipTag[data-s=\"done\"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 78%, var(--ink)); }\n.wb-chipTag[data-s=\"failed\"] { background: var(--danger-wash); color: var(--danger); }\n/* 待运行 / 排队中都是灰的，所以标签也换画法：描边不填底 vs 浅灰填底 */\n.wb-chipTag[data-s=\"idle\"] { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink3); }\n\n.wb-inspTabs {\n  flex: none;\n  display: flex;\n  gap: 16px;\n  margin-top: 10px;\n  padding: 0 16px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-inspTab {\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: var(--ink2);\n  font: inherit;\n  font-size: 13px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n.wb-inspTab:hover { color: var(--ink); }\n.wb-inspTab[aria-selected=\"true\"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }\n.wb-inspTab em { font-style: normal; color: var(--ink4); margin-left: 3px; }\n\n.wb-inspScroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }\n\n/* 结果面板 */\n.wb-resultPanel { padding: 12px 16px 18px; }\n.wb-resultBar { display: flex; align-items: center; gap: 4px; margin-bottom: 9px; }\n/* 宽屏阅读跟 预览/源码 是一组：都是\"换个读法\"，所以贴着放，不甩到右边去 */\n.wb-resultBar .wb-iconBtn { width: 24px; height: 24px; }\n\n/* 重生成之后的痕迹：留着「这次是按什么要求改的」，否则改了什么会丢 */\n.wb-revised {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  margin-bottom: 11px;\n  padding: 6px 9px;\n  border-radius: 7px;\n  background: var(--accent-wash);\n  font-size: 11px;\n}\n.wb-revised span { flex: none; color: var(--accent); }\n.wb-revised em {\n  font-style: normal;\n  min-width: 0;\n  color: var(--ink2);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* 结果区两块：这次的结果（清单）/ 模板（预览·源码）。中间一条发丝线分开。 */\n.wb-resBlock + .wb-resBlock { margin-top: 18px; padding-top: 15px; border-top: 0.5px solid var(--divider); }\n.wb-resBlockHead { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; font-weight: 500; }\n.wb-resBlockHead > em {\n  min-width: 0;\n  font-style: normal;\n  font-weight: 400;\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-resBlockHead .wb-segTiny { margin-left: auto; }\n\n/* 这次交出来的东西：一行一个文件。窄栏只列清单，正文去阅读器读 */\n.wb-resList { display: flex; flex-direction: column; gap: 4px; }\n.wb-resItem {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 8px 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-resItem:hover { background: var(--hover); border-color: color-mix(in srgb, var(--ink) 18%, transparent); }\n.wb-resItem > svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }\n.wb-resItemName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.wb-resItemSize { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 目录读不到时的原因：没有这一行，这一步看起来只是「目录里没有文件」 */\n.wb-resProblem { margin: 2px 0 0; font-size: 11.5px; line-height: 17px; color: var(--danger); }\n/* 箭头朝右 = 进去读，不是展开 */\n.wb-resItem > svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }\n/* 无目录的步骤：没有清单可列，就一个按钮进去读。摘要那行在区块标题右边 */\n.wb-resOpen {\n  display: inline-flex;\n  align-items: center;\n  /* 放在 column flex 里不被拉满，按钮就是按钮的宽度 */\n  align-self: flex-start;\n  gap: 6px;\n  height: 28px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink2);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n  transition: background .12s, color .12s, border-color .12s;\n}\n.wb-resOpen:hover {\n  background: var(--hover);\n  color: var(--ink);\n  border-color: color-mix(in srgb, var(--accent) 34%, transparent);\n}\n.wb-resOpen svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }\n/* 摘要跟在动作后面，是同一行里的补充，不是另一句\"有结果了\" */\n.wb-resOpen em { font-style: normal; font-size: 11px; color: var(--ink4); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.wb-resOpen svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }\n.wb-resOpen:hover svg:first-child { color: var(--accent); }\n.wb-resEmpty { padding: 10px 2px; font-size: 12px; line-height: 19px; color: var(--ink3); }\n.wb-resEmpty em { display: block; font-style: normal; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n/* 模板预览：一块标了名字的空位。不用骨架条，那不是\"占位\"，那是\"加载中\" */\n.wb-tplSlotLabel { margin-bottom: 7px; font-size: 11px; color: var(--ink4); }\n.wb-tplSlotBox {\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  padding: 18px 14px;\n  border: 0.5px dashed var(--hairline);\n  border-radius: 9px;\n  background: var(--recess);\n}\n.wb-tplSlotTag {\n  flex: none;\n  padding: 2px 7px;\n  border-radius: 5px;\n  background: var(--hover-strong);\n  font-size: 11px;\n  color: var(--ink2);\n}\n.wb-tplSlotText { min-width: 0; font-size: 12px; line-height: 17px; color: var(--ink3); }\n\n/* 源头说明：告诉读者「源码」只是区域片段，文件正文不在里面 */\n.wb-srcNote {\n  /* 横向 padding 由 .wb-resultPanel 给，这里只补下方间距 */\n  padding: 0 0 9px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink4);\n}\n.wb-srcNote code { font-family: var(--f-mono); font-size: 11px; }\n\n/* 源码那一栏：卡片的 HTML 模板全文，等宽、可滚、底色压暗。\n   区域标记之间就是模型每次执行要替换的那段。 */\n/* 编辑框：字是原型那套（等宽 11px / 17px 行高 / 圆角 10px），但底色和字色得是\n   「可以在这里打字」的样子——压暗的底 + 次要墨色读起来就是个禁用的块。 */\n.wb-docSrc {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin: 0;\n  padding: 10px 12px;\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 17px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  max-height: 420px;\n  min-height: 160px;\n  overflow-y: auto;\n  resize: vertical;\n  cursor: text;\n}\n.wb-docSrc:focus {\n  outline: none;\n  border-color: var(--accent);\n  box-shadow: 0 0 0 2px var(--accent-wash);\n}\n\n/* 预览是模板自己的渲染：外面这层只负责给个框和滚动，里面长什么样由模板决定 */\n.wb-tplPreviewBody {\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--card-bg);\n  max-height: 420px;\n  overflow-y: auto;\n}\n.wb-tplPreviewFrame { display: block; min-height: 120px; }\n\n/* 区域说明：模板里没有区域标记的时候，把它放在框下面，而不是什么都不放 */\n.wb-tplRegion {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 10px 0 0;\n  padding: 12px;\n  border: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent);\n  border-radius: 8px;\n}\n.wb-tplRegionTag {\n  padding: 2px 7px;\n  border-radius: 5px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-family: var(--f-mono);\n  font-size: 11px;\n}\n.wb-tplRegionText { font-size: 11px; color: var(--ink3); }\n.wb-segTiny { display: flex; gap: 1px; padding: 1px; border-radius: 6px; background: var(--hover); }\n.wb-segTiny button {\n  border: 0;\n  padding: 2px 8px;\n  border-radius: 5px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n.wb-segTiny button[aria-pressed=\"true\"] { background: var(--base); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }\n.wb-resultBar .wb-spacer { flex: 1; }\n.wb-docPad {\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--base);\n  padding: 12px 14px 14px;\n}\n.wb-docPad[data-tone=\"danger\"] { background: var(--danger-wash); border-color: color-mix(in srgb, var(--danger) 28%, transparent); }\n\n/* 结果文档 */\n.wb-doc { color: var(--ink); font-size: 13px; line-height: 20px; }\n.wb-doc h5 { margin: 0 0 7px; font-size: 13px; font-weight: 500; line-height: 20px; }\n.wb-doc h6 { margin: 11px 0 5px; font-size: 11px; font-weight: 500; color: var(--ink3); letter-spacing: .02em; }\n.wb-doc p { margin: 0 0 9px; }\n.wb-doc ul { margin: 0 0 8px; padding-left: 16px; }\n.wb-doc li { margin-bottom: 3px; }\n.wb-doc code { font-family: var(--f-mono); font-size: 11px; padding: 1px 4px; border-radius: 4px; background: var(--hover); }\n.wb-doc strong { font-weight: 500; }\n.wb-doc table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 9px; font-size: 12px; }\n.wb-doc th:nth-child(1), .wb-doc td:nth-child(1) { width: 44%; }\n.wb-doc th:nth-child(2), .wb-doc td:nth-child(2) { width: 34%; }\n.wb-doc th:nth-child(3), .wb-doc td:nth-child(3) { width: 22%; }\n.wb-doc th {\n  text-align: left;\n  font-weight: 400;\n  font-size: 11px;\n  color: var(--ink4);\n  padding: 0 0 5px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-doc td { padding: 6px 0; border-bottom: 0.5px solid var(--divider); vertical-align: top; overflow-wrap: anywhere; }\n.wb-doc tr:last-child td { border-bottom: 0; }\n.wb-doc .wb-num { text-align: right; font-family: var(--f-mono); font-size: 11px; }\n.wb-doc .wb-add { color: rgb(34, 160, 90); }\n.wb-doc .wb-del { color: var(--danger); }\n.wb-doc .wb-callout {\n  margin: 9px 0 0;\n  padding: 8px 10px;\n  border-radius: 8px;\n  background: var(--accent-wash);\n  color: var(--ink2);\n  font-size: 12px;\n  line-height: 18px;\n}\n.wb-doc .wb-checks { margin: 0; }\n.wb-doc .wb-check { display: flex; align-items: flex-start; gap: 7px; padding: 5px 0; font-size: 12px; border-bottom: 0.5px solid var(--divider); }\n.wb-doc .wb-check:last-child { border-bottom: 0; }\n.wb-doc .wb-check i { flex: none; width: 11px; height: 11px; margin-top: 4px; border-radius: 50%; background: var(--success); }\n.wb-doc .wb-check[data-s=\"todo\"] i { background: var(--idle); }\n.wb-doc .wb-check span { flex: 1; min-width: 0; }\n.wb-doc .wb-check em { flex: none; font-style: normal; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-doc .wb-metrics { display: flex; gap: 8px; margin: 0 0 9px; }\n.wb-doc .wb-metric { flex: 1; padding: 8px 10px; border-radius: 8px; background: var(--hover); }\n.wb-doc .wb-metric .wb-k { display: block; font-size: 11px; color: var(--ink3); }\n.wb-doc .wb-metric .wb-v { display: block; margin-top: 1px; font-size: 17px; font-weight: 500; line-height: 22px; }\n.wb-doc .wb-metric small { font-size: 11px; font-weight: 400; color: var(--ink4); }\n\n\n/* 结果占位：运行中 / 排队 / 未运行 / 失败 */\n.wb-stateBlock { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 0 2px; }\n.wb-stateBlock h6 { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink); }\n.wb-stateBlock p { margin: 0; color: var(--ink3); font-size: 12px; line-height: 19px; }\n.wb-skel { display: flex; flex-direction: column; gap: 7px; }\n.wb-skel i {\n  display: block;\n  height: 9px;\n  border-radius: 5px;\n  background: linear-gradient(90deg, var(--hover) 25%, var(--hover-strong) 37%, var(--hover) 63%);\n  background-size: 400% 100%;\n  animation: shimmer 1.4s ease-in-out infinite;\n}\n@keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }\n.wb-inlineFail {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 9px 11px;\n  border-radius: 9px;\n  background: var(--danger-wash);\n  color: var(--danger);\n  font-size: 12px;\n  line-height: 18px;\n}\n.wb-inlineFail svg { flex: none; width: 14px; height: 14px; margin-top: 2px; }\n.wb-inlineFail b { display: block; font-weight: 500; }\n.wb-inlineFail em { display: block; font-style: normal; color: var(--ink2); margin-top: 2px; }\n\n/* 活动时间线 */\n.wb-activityPanel { padding: 10px 16px 18px; }\n.wb-actList { display: flex; flex-direction: column; }\n.wb-act {\n  position: relative;\n  display: flex;\n  gap: 9px;\n  padding: 0 0 13px;\n}\n.wb-act:last-child { padding-bottom: 0; }\n.wb-act::before {\n  content: \"\";\n  position: absolute;\n  left: 6px;\n  top: 16px;\n  bottom: 0;\n  width: 1px;\n  background: var(--divider);\n}\n.wb-act:last-child::before { display: none; }\n.wb-actIcon {\n  position: relative;\n  z-index: 1;\n  flex: none;\n  width: 13px; height: 13px;\n  margin-top: 2px;\n  display: grid;\n  place-items: center;\n  background: var(--pane);\n  color: var(--ink4);\n}\n.wb-actIcon svg { width: 11px; height: 11px; }\n.wb-act[data-k=\"done\"] .wb-actIcon { color: var(--success); }\n.wb-act[data-k=\"fail\"] .wb-actIcon { color: var(--danger); }\n.wb-act[data-k=\"write\"] .wb-actIcon { color: var(--accent); }\n.wb-actBody { min-width: 0; flex: 1; }\n.wb-actTop { display: flex; align-items: baseline; gap: 6px; }\n.wb-actName { font-size: 12px; color: var(--ink); white-space: nowrap; }\n.wb-actArg {\n  min-width: 0;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink3);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.wb-actT { margin-left: auto; flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-actMsg { margin-top: 2px; color: var(--ink2); font-size: 12px; line-height: 17px; }\n.wb-actDur { margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n/* 配置面板 */\n.wb-configPanel { padding: 14px 16px 20px; }\n/* 配置分三层：整条流水线 / 这一步 / 模板。三层之间一条发丝线。 */\n.wb-cfgBlock + .wb-cfgBlock { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--divider); }\n.wb-cfgBlockHead {\n  display: flex;\n  /* 和标签的第一行字对齐，不和整行垂直居中 */\n  align-items: baseline;\n  gap: 8px;\n  margin-bottom: 3px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--ink);\n}\n.wb-cfgBlockHead > em { min-width: 0; font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-cfgBlockHead .wb-segTiny { margin-left: auto; }\n/* 真下拉，不是长得像下拉的死按钮。宽度统一 200：几行下拉的注脚\n   因此落在同一条竖线上，而不是跟着选项长短各走各的 */\n.wb-ruleSelect {\n  display: block;\n  width: 200px;\n  max-width: 100%;\n  padding: 5px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n.wb-ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n/* 能改的行里放文本的地方：路径和指令，边框和下拉同一套 */\n/* 写不进去时的一句话：在出错的那一块里，不在别处 */\n.wb-cfgProblem {\n  margin: 0 0 4px;\n  padding: 6px 9px;\n  border-radius: 7px;\n  background: var(--danger-wash);\n  color: var(--danger);\n  font-size: 11px;\n  line-height: 1.5;\n}\n\n/* 工作目录：一行可点的选择器，左边是确认过的路径，右边是「选择目录」 */\n.wb-rulePath {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  width: 480px;\n  max-width: 100%;\n  padding: 7px 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-rulePath:hover:not(:disabled) { border-color: var(--divider); background: var(--hover); }\n.wb-rulePath:disabled { cursor: default; color: var(--ink4); }\n.wb-rulePath:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n.wb-rulePathText { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-rulePathText.wb-mono { font-family: var(--f-mono); font-size: 12px; }\n.wb-rulePathPick { flex: none; font-size: 11px; color: var(--accent); }\n.wb-rulePath:disabled .wb-rulePathPick { color: var(--ink4); }\n\n.wb-ruleInput,\n.wb-ruleArea {\n  display: block;\n  width: 480px;\n  max-width: 100%;\n  padding: 6px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n}\n.wb-ruleInput { font-family: var(--f-mono); }\n.wb-ruleArea { line-height: 1.55; resize: vertical; }\n.wb-ruleInput:hover,\n.wb-ruleArea:hover { border-color: var(--hairline-strong, var(--divider)); }\n.wb-ruleInput:focus-visible,\n.wb-ruleArea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n\n/* ---- 一行三轨：标签 / 控件 / 注脚 --------------------------------\n   控件是这一行里唯一像“东西”的东西，注脚永远待在自己的窄道上。\n   以前注脚铺在控件底下、占满整行，于是每一行都因为“解释”变高，\n   解释本身读起来又和内容一样重——一段技能描述甚至能占掉半屏。\n   现在行的行高只由控件决定。窄到放不下三轨时，注脚折到控件下方，\n   仍和控件共享同一条左边缘：行还是那一行，只是折了一下。 */\n.wb-ruleRow {\n  display: flex;\n  align-items: flex-start;\n  gap: 0 14px;\n  padding: 10px 0;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-ruleRow:last-child { border-bottom: 0; }\n/* 和控件第一行字对齐，而不是和整行垂直居中：内容再高，标签也不会浮在中间 */\n.wb-ruleLabel { flex: 0 0 84px; padding-top: 7px; color: var(--ink3); font-size: 12px; }\n.wb-ruleBody { flex: 1; min-width: 0; }\n/* 控件和它的注脚是一对：注脚跟在控件右边，隔着固定 16px。\n   窄到放不下才折到控件下方，仍然从控件那条左边缘起。 */\n.wb-ruleLine { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 3px 16px; }\n.wb-ruleValue { flex: 0 1 auto; min-width: 0; }\n.wb-ruleNote {\n  flex: 1 1 200px;\n  min-width: 150px;\n  max-width: 300px;\n  padding-top: 7px;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 1.5;\n}\n.wb-ruleValue .wb-val {\n  display: block;\n  padding-top: 6px;\n  font-size: 13px;\n  color: var(--ink);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-ruleValue .wb-val.wb-mono { font-family: var(--f-mono); font-size: 12px; }\n\n/* 长一点的技能说明是“读物”不是注脚：两行打住，剩下的自己展开。\n   它是配置页里唯一需要阅读的段落，所以给它一个窄栏和一个边界，\n   而不是让它铺满一行、把控件挤到下面。 */\n.wb-specNote {\n  position: relative;\n  max-width: 480px;\n  margin-top: 8px;\n  padding: 8px 10px 22px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--recess);\n}\n.wb-specNoteBody { margin: 0; color: var(--ink3); font-size: 12px; line-height: 1.6; }\n.wb-specNote[data-open=\"false\"] .wb-specNoteBody { max-height: 3.2em; overflow: hidden; }\n/* 收起来的那两行，最后半行淡出：看得出下面还有字，而不是被剪断 */\n.wb-specNote[data-open=\"false\"]::after {\n  content: '';\n  position: absolute;\n  left: 0.5px;\n  right: 0.5px;\n  bottom: 21px;\n  height: 22px;\n  border-radius: 0 0 7px 7px;\n  background: linear-gradient(to bottom, transparent, var(--recess));\n  pointer-events: none;\n}\n.wb-specNoteMore {\n  position: absolute;\n  right: 10px;\n  bottom: 3px;\n  padding: 2px 0;\n  border: 0;\n  background: none;\n  color: var(--accent);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n.wb-specNoteMore:hover { text-decoration: underline; }\n.wb-specNoteMore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }\n\n/* ----------------------------------------------------------------- 运行条 */\n.wb-runbar {\n  flex: none;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  height: 46px;\n  padding: 0 16px;\n  border-top: 0.5px solid var(--hairline);\n  background: var(--pane);\n}\n.wb-segBar { flex: none; display: flex; gap: 3px; }\n/* 运行条不只靠颜色区分状态：完成了是实心，排队是空心的点阵，失败是斜纹 */\n.wb-segBar i { display: block; width: 22px; height: 4px; border-radius: 2px; background: var(--divider); }\n.wb-segBar i[data-s=\"done\"] { background: var(--success); }\n.wb-segBar i[data-s=\"running\"] {\n  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, color-mix(in srgb, var(--accent) 38%, transparent) 4px 8px);\n}\n.wb-segBar i[data-s=\"failed\"] {\n  background: repeating-linear-gradient(45deg, var(--danger) 0 2px, transparent 2px 5px);\n  box-shadow: inset 0 0 0 0.5px var(--danger);\n}\n.wb-segBar i[data-s=\"queued\"] {\n  background: repeating-linear-gradient(90deg, var(--ink4) 0 1.5px, transparent 1.5px 4px);\n  opacity: .75;\n}\n/* 单独跑过的一步：段不满，是描边的。整条跑完的段才填实，\n   4px 高的条上只描一圈太淡，所以里面留一层很浅的绿 */\n.wb-segBar i[data-s=\"solo\"] {\n  background: color-mix(in srgb, var(--success) 22%, transparent);\n  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 58%, transparent);\n}\n.wb-runNoise { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }\n.wb-runNoise b { font-weight: 500; color: var(--ink); }\n.wb-runNoise .wb-timer { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }\n\n/* 点 */\n.wb-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--idle); }\n.wb-dot[data-s=\"done\"] { background: var(--success); }\n.wb-dot[data-s=\"running\"] { background: var(--accent); }\n.wb-dot[data-s=\"failed\"] { background: var(--danger); }\n.wb-dot[data-s=\"queued\"] { background: var(--idle); }\n.wb-dot[data-s=\"stopped\"] { background: var(--ink4); }\n/* 6px 上也看得出实心/空心 */\n.wb-dot[data-s=\"idle\"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink4); }\n/* 只跑过其中几步：空心绿。填满的绿点才是整条跑完 */\n.wb-dot[data-s=\"solo\"] { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--success) 70%, transparent); }\n.wb-dot[data-s=\"kept\"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink3); }\n\n/* ------------------------------------------------------------- 标题下拉菜单 */\n.wb-renameInput {\n  width: 190px;\n  max-width: 100%;\n  padding: 2px 6px;\n  border: 0.5px solid var(--accent);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink);\n  font: inherit;\n  font-size: 15px;\n  outline: none;\n}\n.wb-pickerUsed { flex: none; font-size: 11px; color: var(--ink4); }\n.wb-canvasMenu {\n  position: absolute;\n  top: calc(100% - 2px);\n  left: 18px;\n  z-index: 60;\n  width: min(330px, calc(100% - 36px));\n  max-height: min(440px, calc(100vh - 220px));\n  overflow-y: auto;\n  padding: 5px;\n  border-radius: 12px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n.wb-menuSect {\n  padding: 6px 8px 4px;\n  color: var(--ink4);\n  font-size: 11px;\n  letter-spacing: .02em;\n}\n.wb-menuRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 8px;\n  border: 0;\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-menuRow:hover { background: var(--hover); }\n.wb-menuRow[aria-current=\"true\"] { background: var(--hover-strong); }\n.wb-menuRowMain { flex: 1; min-width: 0; }\n.wb-menuRowTitle { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-menuRowSub { display: block; margin-top: 1px; color: var(--ink4); font-size: 11px; font-family: var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-menuRowTail { flex: none; display: flex; align-items: center; gap: 6px; color: var(--ink4); font-size: 11px; }\n.wb-menuRun {\n  flex: none;\n  width: 22px; height: 22px;\n  display: grid; place-items: center;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink3);\n  cursor: pointer;\n  opacity: 0;\n}\n.wb-menuRun svg { width: 11px; height: 11px; }\n.wb-menuRow:hover .wb-menuRun { opacity: 1; }\n.wb-menuRun:hover { background: var(--hover-strong); color: var(--ink); }\n.wb-menuSep { height: 0.5px; margin: 5px 8px; background: var(--divider); }\n\n/* ------------------------------------------------------------ 任务选择器 */\n.wb-pickerWrap { position: absolute; inset: 0; z-index: 80; display: flex; align-items: flex-start; justify-content: center; padding-top: 84px; }\n.wb-pickerScrim { position: absolute; inset: 0; background: var(--scrim); }\n.wb-picker {\n  position: relative;\n  width: min(400px, calc(100% - 32px));\n  max-height: min(430px, calc(100% - 140px));\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n.wb-pickerHead { flex: none; padding: 11px 12px 9px; border-bottom: 0.5px solid var(--divider); }\n.wb-pickerTitle { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; font-weight: 500; }\n.wb-pickerTitle span { flex: 1; min-width: 0; }\n.wb-pickerTitle em { font-style: normal; font-weight: 400; color: var(--ink4); font-size: 11px; }\n.wb-searchField {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  height: 30px;\n  padding: 0 9px;\n  border-radius: 8px;\n  background: var(--recess);\n  border: 0.5px solid var(--divider);\n}\n.wb-searchField svg { flex: none; width: 13px; height: 13px; color: var(--ink4); }\n.wb-searchField input {\n  flex: 1;\n  min-width: 0;\n  border: 0;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  outline: none;\n}\n.wb-searchField input::placeholder { color: var(--ink4); }\n.wb-pickerList { flex: 1; min-height: 0; overflow-y: auto; padding: 5px; }\n.wb-pickerRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-pickerRow:hover { background: var(--hover); }\n.wb-pickerRow svg { width: 13px; height: 13px; color: var(--ink4); }\n.wb-pickerRow:hover svg { color: var(--accent); }\n.wb-pickerRowMain { flex: 1; min-width: 0; }\n.wb-pickerRowTitle { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-pickerRowDesc { display: block; margin-top: 1px; font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-pickerEmpty { padding: 16px 8px; text-align: center; color: var(--ink4); font-size: 12px; }\n/* 加了没加上：原因写在点它的地方，而不是让按钮看着像坏了 */\n.wb-pickerProblem {\n  margin: 6px 2px 2px;\n  padding: 6px 8px;\n  border-radius: 6px;\n  background: var(--err-bg, rgba(198, 40, 40, 0.08));\n  color: var(--err, #c62828);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* ------------------------------------------------------------ 运行记录 */\n/*\n * 一条记录 = 一次流水线运行 = 它当时每一步的状态与产物快照。\n * 回看某一次，看到的是那天的文件，不是今天被改过的同一份——所以产物必须跟着\n * 那次运行存，而不是回读磁盘。\n */\n.wb-histBody { flex: 1; min-height: 0; overflow-y: auto; }\n\n.wb-histDay {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  padding: 9px 14px 6px;\n  background: var(--base);\n  font-size: 11px;\n  color: var(--ink4);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n/* 记录没写进去的时候说的那句话。运行本身可能已经成功，所以这是提醒，不是失败。 */\n.wb-histProblem {\n  margin: 0;\n  padding: 10px 14px;\n  font-size: 12px;\n  line-height: 19px;\n  color: var(--ink2);\n  background: color-mix(in srgb, var(--warn) 8%, transparent);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n.wb-histRow {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  width: 100%;\n  padding: 11px 14px;\n  font: inherit;\n  text-align: left;\n  background: transparent;\n  border: 0;\n  border-bottom: 0.5px solid var(--divider);\n  cursor: pointer;\n}\n.wb-histRow:hover { background: var(--hover); }\n.wb-histNo { flex: none; width: 28px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-histWhen { flex: none; width: 92px; font-size: 12px; }\n.wb-histSum {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  color: var(--ink3);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-histTook { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-histBadge { flex: none; width: 44px; font-size: 11px; }\n.wb-histBadge[data-s=\"ok\"] { color: rgb(34, 160, 90); }\n.wb-histBadge[data-s=\"fail\"] { color: var(--danger); }\n.wb-histBadge[data-s=\"running\"] { color: var(--accent); }\n.wb-histBadge[data-s=\"stopped\"] { color: var(--ink3); }\n.wb-histRow > svg { flex: none; width: 12px; height: 12px; color: var(--ink4); }\n\n/* 详情 */\n.wb-histTop {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 10px 14px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-histTopWhen { font-size: 12px; font-weight: 500; }\n.wb-histTopMeta { min-width: 0; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-histReadonly {\n  flex: none;\n  margin-left: auto;\n  padding: 2px 7px;\n  border-radius: 20px;\n  background: var(--recess);\n  font-size: 11px;\n  color: var(--ink3);\n}\n\n/* 重生成那条运行带着\"要改什么\"，回看时它就是这次改动的由来 */\n.wb-histAsk {\n  padding: 9px 14px;\n  background: var(--accent-wash);\n  font-size: 12px;\n  line-height: 17px;\n  color: var(--ink2);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n.wb-hStep {\n  position: relative;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-hStep:last-child { border-bottom: 0; }\n/* 失败的那一步在快照里没有产物可读，但可以现在就重跑 */\n.wb-hStepRetry {\n  position: absolute;\n  top: 50%;\n  right: 12px;\n  transform: translateY(-50%);\n  padding: 2px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink2);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n.wb-hStepRetry:hover { background: var(--hover); color: var(--ink); }\n.wb-hStepMuted { padding-right: 82px; }\n.wb-hStepHead {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 11px 14px;\n  font: inherit;\n  text-align: left;\n  background: transparent;\n  border: 0;\n  cursor: pointer;\n}\n.wb-hStepHead:hover { background: var(--hover); }\n.wb-hStepNo { flex: none; width: 15px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-hStepName { flex: none; font-size: 13px; }\n.wb-hStepMeta { flex: 1; min-width: 0; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-hStepTook { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 这一步的产物是点开看的：箭头朝右表示\"进去\"，不是一个会展开的手风琴 */\n.wb-hStepHead > svg { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); transition: transform .14s; }\n.wb-hStepHead:hover > svg { transform: rotate(-90deg) translateY(-2px); }\n\n/* 返回箭头：chev 朝下，转 90° 朝左 */\n.wb-histBack svg { transform: rotate(90deg); }\n\n/* 没东西可点的那一步（还没跑）：同样的格子，但不是按钮 */\n.wb-hStepMuted { cursor: default; }\n.wb-hStepMuted:hover { background: transparent; }\n.wb-hStepMuted .wb-hStepName { color: var(--ink3); }\n\n.wb-hError {\n  padding: 9px 11px;\n  border-radius: 8px;\n  background: var(--danger-wash);\n  font-size: 12px;\n  color: var(--danger);\n}\n/* ------------------------------------------------------------ 阅读器 */\n/*\n * 读长文的唯一地方。\n *\n * 结果区那列最宽 690，去掉留白只剩 650——一份五万字的文档摆进去就是条窄带子，\n * 所以正文要在宽的场合读：从结果区打开读「现在这份」，从运行记录打开读「第 N 次那份」。\n * 两处是同一个阅读器，只是身份不同（live / snapshot），差别只在标题和一条只读提示。\n */\n.wb-zoomWrap { position: absolute; inset: 0; z-index: 78; display: flex; padding: 10px; }\n/* 阅读器会盖在运行记录上面（从历史里点开一步就是），所以它得在上一级 */\n/* 闃呰鍣ㄤ笌杩愯璁板綍涓嶅悓鏃跺嚭鐜帮紝涓嶉渶瑕侀澶栫殑灞傜骇 */\n.wb-zoomScrim { position: absolute; inset: 0; background: var(--scrim); }\n.wb-zoom {\n  position: relative;\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n/* 阅读器的头就是它的铭牌：读的是什么、谁的、从哪儿出来的，一行说完。\n\n   原来是「阅读结果 / 详细设计」两个小标题，正文里那张卡片页又把自己的标题和返回按钮\n   印一遍，于是同一个名字在一屏里出现两次，而真正的内容排在 96px 之后才开头。这里只留\n   一份，剩下的交给那一行。 */\n.wb-zoomHead {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 9px 14px;\n  border-bottom: 0.5px solid var(--divider);\n}\n/* 一行里最小的两样：它是什么（阅读结果）和它在哪儿（目录）。铭牌上它们是注脚，不是标题。\n\n   「阅读结果」和后面的名字只隔 8px 时读成一个词（阅读结果详细设计），所以中间落一条 1px\n   的竖线：它不是一个符号，是把注脚和名字分开的那面墙。 */\n.wb-zoomKicker { flex: none; font-size: 11px; line-height: 16px; color: var(--ink4); }\n.wb-zoomKicker::after {\n  content: '';\n  display: inline-block;\n  width: 1px;\n  height: 10px;\n  margin-left: 9px;\n  vertical-align: -1px;\n  background: var(--divider);\n}\n.wb-zoomMeta {\n  flex: 0 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  color: var(--ink);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n/* 技能是一个名字，所以是一个 chip；目录是一条路径，所以是 mono。都比它们的标题轻。 */\n.wb-zoomChip {\n  flex: none;\n  padding: 1px 7px;\n  border-radius: 6px;\n  background: color-mix(in srgb, var(--ink) 5%, transparent);\n  color: var(--ink3);\n  font-size: 11px;\n  line-height: 16px;\n}\n.wb-zoomPath {\n  flex: 0 1 auto;\n  min-width: 0;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-zoomHint { flex: none; margin-left: auto; font-size: 11px; color: var(--ink4); }\n\n/* 文件清单照旧横向排、长名省略号，只是宽裕了所以能放得更长 */\n.wb-zoomFiles { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px; border-bottom: 0.5px solid var(--divider); }\n.wb-zoomFiles:empty { display: none; }\n.wb-zFile {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  max-width: 380px;\n  min-width: 0;\n  padding: 6px 10px;\n  border: 0.5px solid var(--divider);\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n.wb-zFile svg { flex: none; width: 13px; height: 13px; color: var(--ink4); }\n.wb-zFile:hover { background: var(--hover); color: var(--ink); }\n.wb-zFile[aria-pressed=\"true\"] { background: var(--hover-strong); border-color: var(--hairline); color: var(--ink); }\n.wb-zFile[aria-pressed=\"true\"] svg { color: var(--accent); }\n.wb-zName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.wb-zFile[aria-pressed=\"true\"] .wb-zName { font-weight: 500; }\n.wb-zSize { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n.wb-zoomBody { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 26px; }\n/* 历史快照：说清楚\"这不是现在磁盘上的那份\" */\n.wb-zoomWarn {\n  flex: none;\n  padding: 8px 18px;\n  border-bottom: 0.5px solid var(--divider);\n  background: var(--recess);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink3);\n}\n\n/* 面积大了一倍，正文也该松一档，不然字全挤在左边一小条里 */\n.wb-zoomBody .wb-doc { font-size: 13px; line-height: 22px; }\n.wb-zoomBody .wb-doc h5 { margin-bottom: 9px; font-size: 15px; line-height: 22px; }\n.wb-zoomBody .wb-doc h6 { margin: 16px 0 6px; font-size: 12px; }\n.wb-zoomBody .wb-doc p { margin-bottom: 11px; }\n.wb-zoomBody .wb-doc td { padding: 8px 14px 8px 0; }\n.wb-zoomBody .wb-doc td:last-child { padding-right: 0; }\n/* 结果区的表格是固定比例（给窄列用的），放大后按内容分 */\n.wb-zoomBody .wb-doc table { table-layout: auto; font-size: 13px; }\n.wb-zoomBody .wb-doc th:nth-child(1), .wb-zoomBody .wb-doc td:nth-child(1),\n.wb-zoomBody .wb-doc th:nth-child(2), .wb-zoomBody .wb-doc td:nth-child(2),\n.wb-zoomBody .wb-doc th:nth-child(3), .wb-zoomBody .wb-doc td:nth-child(3) { width: auto; }\n\n/* ------------------------------------------------------------ 审核（提要求重生成） */\n/* 和任务选择器同一套外壳：同一块面板里，两个浮层的形状不该有两套语言 */\n.wb-reviewWrap { position: absolute; inset: 0; z-index: 85; display: flex; align-items: flex-start; justify-content: center; padding-top: 84px; }\n.wb-reviewScrim { position: absolute; inset: 0; background: var(--scrim); }\n.wb-review {\n  position: relative;\n  width: min(420px, calc(100% - 32px));\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n.wb-reviewHead { padding: 12px 13px 10px; border-bottom: 0.5px solid var(--divider); }\n.wb-reviewTitle { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }\n.wb-reviewTitle span { flex: 1; min-width: 0; }\n.wb-reviewTitle em { font-style: normal; font-weight: 400; color: var(--ink4); font-size: 11px; }\n.wb-reviewWho {\n  margin-top: 5px;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink3);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-reviewBody { padding: 11px 13px 0; }\n.wb-reviewArea {\n  display: block;\n  width: 100%;\n  min-height: 84px;\n  max-height: 180px;\n  padding: 9px 10px;\n  border: 0.5px solid var(--divider);\n  border-radius: 9px;\n  background: var(--recess);\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  line-height: 19px;\n  resize: vertical;\n  outline: none;\n}\n.wb-reviewArea::placeholder { color: var(--ink4); }\n.wb-reviewArea:focus { border-color: color-mix(in srgb, var(--accent) 42%, transparent); }\n.wb-reviewChips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }\n.wb-reviewChip {\n  padding: 4px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n.wb-reviewChip:hover { background: var(--hover); color: var(--ink); }\n.wb-reviewNote { margin-top: 9px; font-size: 11px; line-height: 16px; color: var(--ink4); }\n/* 从历史快照点进来的：先讲清楚\"重做的是现在这一步，不是那条记录\" */\n.wb-reviewFrom {\n  margin: 0 0 9px;\n  padding: 7px 10px;\n  border-radius: 8px;\n  background: var(--recess);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink3);\n}\n.wb-zoomHead .wb-zoomReview { flex: none; height: 24px; padding: 0 9px; font-size: 12px; }\n.wb-reviewFoot {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  padding: 11px 13px;\n}\n.wb-reviewFoot .wb-spacer { flex: 1; }\n\n/* ============================ 断点（容器查询，按面板宽度） ============================ */\n/* 轨道宽度阶梯：面板越宽，轨道稍微放宽一点，但永远是配角；\n   低于 700 时轨道改成横向条，结果仍然占满整块。 */\n\n@container panel (min-width: 1200px) {\n  .wb-canvas { width: 312px; }\n  .wb-flow { padding: 14px 16px 18px; }\n}\n\n@container panel (min-width: 900px) and (max-width: 1199.98px) {\n  .wb-canvas { width: 280px; }\n}\n\n@container panel (min-width: 700px) and (max-width: 899.98px) {\n  .wb-canvas { width: 248px; }\n  .wb-flow { padding: 11px 12px 14px; }\n  .wb-canvasHead { padding: 11px 12px 9px; }\n}\n\n/* < 700：竖轨道放不下，改成顶部横向步骤条，结果独占整块 */\n@container panel (max-width: 699.98px) {\n  .wb-panes { flex-direction: column; }\n  .wb-canvas {\n    width: 100%;\n    border-right: 0;\n    border-bottom: 0.5px solid var(--divider);\n  }\n  .wb-canvasScroll { display: none; }\n  .wb-stepStrip { display: flex; }\n  .wb-canvasHead { padding: 10px 12px 8px; }\n  .wb-panelHead { height: 52px; padding: 0 14px; }\n  .wb-panelHead h1 { font-size: 17px; }\n  .wb-headLabel { display: none; }\n  /* 字没了，那个 96px 的最小宽度就只剩空白：按图标宽度收回原样，右半边照旧留着 */\n  .wb-runSplit .wb-btn.wb-primary { min-width: 0; padding: 0 9px; }\n  .wb-runbar { padding: 0 12px; gap: 8px; }\n  .wb-segBar i { width: 14px; }\n}\n\n/* ---------------------------------------------------------------- 步骤横条 */\n.wb-stepStrip {\n  display: none;\n  gap: 6px;\n  overflow-x: auto;\n  padding: 7px 12px;\n  scrollbar-width: none;\n}\n.wb-stepStrip::-webkit-scrollbar { display: none; }\n.wb-stepChip {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 30px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--card-bg);\n  color: var(--ink2);\n  font: inherit;\n  font-size: 12px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.wb-stepChip b {\n  font-weight: 500;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n}\n.wb-stepChip:hover { background: var(--hover); }\n.wb-stepChip[aria-selected=\"true\"] { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); }\n.wb-stepChip[aria-selected=\"true\"] b { color: var(--accent); }\n.wb-stepChip[data-s=\"failed\"] { color: var(--danger); }\n.wb-stepChip[data-s=\"failed\"] .wb-dot { background: var(--danger); }\n\n/* ---------------------------------------------------------------- 滚动条 */\n.wb-scroll::-webkit-scrollbar, .wb-canvasScroll::-webkit-scrollbar, .wb-inspScroll::-webkit-scrollbar,\n.wb-histBody::-webkit-scrollbar, .wb-zoomBody::-webkit-scrollbar,\n.wb-pickerList::-webkit-scrollbar, .wb-canvasMenu::-webkit-scrollbar { width: 9px; height: 9px; }\n.wb-scroll::-webkit-scrollbar-thumb, .wb-canvasScroll::-webkit-scrollbar-thumb, .wb-inspScroll::-webkit-scrollbar-thumb,\n.wb-histBody::-webkit-scrollbar-thumb, .wb-zoomBody::-webkit-scrollbar-thumb,\n.wb-pickerList::-webkit-scrollbar-thumb, .wb-canvasMenu::-webkit-scrollbar-thumb {\n  border: 2px solid transparent;\n  border-radius: 6px;\n  background: var(--scroll);\n  background-clip: content-box;\n}\n/* Workbench card shell: the frame every card renders inside. */\n\n._card_13mto_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  height: 100%;\n  /* A card is an index entry, not a panel: with the name, the meta line, and the body\n     it carries it does not need the height an empty cell used to ask for, and the\n     shorter frame is what stops three cards from reading as three blanks. */\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_13mto_20 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_13mto_27 {\n  cursor: pointer;\n}\n\n._activatable_13mto_27:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_13mto_27:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_13mto_44 {\n  grid-row: span 2;\n}\n\n._spanLarge_13mto_48 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_13mto_53 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The card's monogram: the first character of the user's own name for the card, on a\n   tint that is stable per card.\n   \n   Three cards of one workbench differ only in their titles, and a title is read rather\n   than seen — so the grid needed one mark each that the eye can pick out before the\n   text is read. The hue comes from the card id (see the shell), never from the name: a\n   card keeps its colour when it is renamed. Tints are mixed from a single hue so the\n   mark works in both themes without a second set of tokens. */\n._mark_13mto_68 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  background: color-mix(in srgb, hsl(var(--wb-hue, 250) 68% 52%) 16%, transparent);\n  color: color-mix(in srgb, hsl(var(--wb-hue, 250) 66% 42%) 78%, var(--dsw-alias-label-primary));\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 1;\n  user-select: none;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_13mto_89 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_13mto_96 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* Everything the card states about itself that is not its name: the skill it runs and\n   the run it last finished. One row under the title, in the secondary colour, so the\n   title keeps the whole width and the facts line up across the grid. */\n._meta_13mto_109 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 4px 10px;\n  min-width: 0;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_13mto_119 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_13mto_132 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_13mto_142 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_13mto_149 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_13mto_3:hover ._iconButton_13mto_149,\n._card_13mto_3:focus-within ._iconButton_13mto_149 {\n  opacity: 1;\n}\n\n._iconButton_13mto_149:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_13mto_149:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_13mto_185 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_13mto_185:active {\n  cursor: grabbing;\n}\n\n._body_13mto_195 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._failure_13mto_203 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_13mto_211 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
+  const css = "/* Workbench page: a centred column with its head row and the card grid. */\n\n._page_nfmcv_3 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 24px;\n  box-sizing: border-box;\n  height: 100%;\n  overflow: auto;\n  padding: 0 clamp(24px, 4vw, 48px) 48px;\n  color: var(--dsw-alias-label-primary);\n}\n\n._page_nfmcv_3 > * {\n  width: 100%;\n  max-width: 1200px;\n}\n\n._pageHead_nfmcv_20 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  box-sizing: border-box;\n  /* The page's top inset lives here so the strip above the content drags the window. */\n  padding-top: 28px;\n}\n\n[data-platform='darwin'] ._pageHead_nfmcv_20 {\n  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));\n}\n\n._pageTitle_nfmcv_34 {\n  margin: 0;\n  font-size: 24px;\n  font-weight: 600;\n  line-height: 32px;\n  letter-spacing: -0.01em;\n}\n\n._pageIntro_nfmcv_42 {\n  margin: 6px 0 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._notice_nfmcv_49 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._empty_nfmcv_58 {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n  padding: 64px 16px;\n  text-align: center;\n}\n\n._emptyTitle_nfmcv_67 {\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n}\n\n._emptyBody_nfmcv_74 {\n  margin: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._grid_nfmcv_81 {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));\n  gap: 24px;\n  align-content: start;\n}\n\n/* A cell is a one-track grid so whatever it holds fills it on both axes. A flex\n   container would size the child to its content along the main axis, which left the\n   cards narrow and the columns wide.\n   \n   The track is stated rather than left implicit: an implicit `auto` track sizes itself\n   from the item's content, so the creation tile — whose only content is a mark and a\n   short word — collapsed into a narrow column while the cards beside it stayed wide. */\n._cell_nfmcv_95 {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  min-width: 0;\n}\n\n._createRoot_nfmcv_101 {\n  display: flex;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The creation entry is a grid tile, so it reads as the place cards come from\n   rather than as a toolbar action detached from the grid. */\n\n/* Same frame as a card, drawn as an outline: it belongs in the row of cards without\n   claiming to be one of them. */\n._createTile_nfmcv_112 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  font-size: 13px;\n  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease,\n    transform 0.15s ease;\n}\n\n._createTile_nfmcv_112:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n  transform: translateY(-1px);\n}\n\n/* The mark is what turns the tile from \"empty slot\" into \"entry\". Without it the\n   dashed box reads as something that failed to load. It is the size and shape of the\n   monogram every card carries, which is what makes the tile read as a peer of the cards\n   rather than as a hole in the grid. */\n._createMark_nfmcv_145 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  /* Mixed from the label colour, not filled with a layer token: the light theme's layers\n     are all the same white as the tile, which would leave the mark with no shape. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  font-size: 16px;\n  line-height: 1;\n  color: var(--dsw-alias-label-tertiary);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._createTile_nfmcv_112:hover ._createMark_nfmcv_145 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._createTile_nfmcv_112:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n@media (max-width: 720px) {\n  ._grid_nfmcv_81 {\n    grid-template-columns: 1fr;\n  }\n}\n\n/* ---------------------------------------------------------------------------\n   The pipeline workbench: a rail of pipelines and single cards, a canvas of\n   steps, and an inspector that mounts one card's own views.\n\n   Three fixed columns rather than one flowing column: the rail is a list, the\n   canvas is a sequence, and the inspector is a document — each scrolls on its\n   own, so a long run history never pushes the canvas out of view.\n   --------------------------------------------------------------------------- */\n\n/* The page's own frame when it hosts the pipeline: the surface is one panel that fills\n   it exactly — own head, two columns, run bar — so the page adds no gutter, no gap and\n   no scrollbar of its own. `position: relative` is what the panel anchors to: it covers\n   the whole page whatever height the host hands down, so the run bar cannot fall below\n   the fold. */\n._pagePipeline_nfmcv_191 {\n  /* One grid row sized `minmax(0, 1fr)`: the panel is handed the page's exact height and\n     may be shorter than its content, which is what keeps the run bar on screen. A flex\n     column would have sized the panel to its content instead, and clipped the bar. */\n  display: grid;\n  grid-template-rows: minmax(0, 1fr);\n  align-items: stretch;\n  gap: 0;\n  height: 100%;\n  min-height: 0;\n  overflow: hidden;\n  padding: 0;\n  position: relative;\n}\n\n._shell_nfmcv_206 {\n  display: grid;\n  flex: 1 1 auto;\n  grid-template-columns: 196px minmax(216px, 268px) minmax(0, 1fr);\n  box-sizing: border-box;\n  min-height: 0;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  overflow: hidden;\n}\n\n@media (max-width: 760px) {\n  /* Below the panel's own minimum the inspector is what has to survive: the rail\n     folds away and the canvas narrows, because a pipeline you cannot read is worse\n     than one you cannot switch. */\n  ._shell_nfmcv_206 {\n    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);\n  }\n\n  ._rail_nfmcv_225 {\n    display: none;\n  }\n}\n\n/* --- rail ---------------------------------------------------------------- */\n\n._rail_nfmcv_225 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 10px 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n._railHead_nfmcv_244 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n  padding: 4px 6px 2px;\n}\n\n._railTitle_nfmcv_252 {\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railAction_nfmcv_259,\n._linkBtn_nfmcv_260 {\n  padding: 2px 4px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n  border-radius: 6px;\n}\n\n._railAction_nfmcv_259:hover,\n._linkBtn_nfmcv_260:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._railAction_nfmcv_259:focus-visible,\n._linkBtn_nfmcv_260:focus-visible,\n._menuBtn_nfmcv_280:focus-visible,\n._toolBtn_nfmcv_281:focus-visible,\n._stepBadge_nfmcv_282:focus-visible,\n._stepMain_nfmcv_283:focus-visible,\n._railRowMain_nfmcv_284:focus-visible,\n._railRowTask_nfmcv_285:focus-visible,\n._tab_nfmcv_286:focus-visible,\n._primaryBtn_nfmcv_287:focus-visible,\n._stopBtn_nfmcv_288:focus-visible,\n._addStep_nfmcv_289:focus-visible,\n._pickerRow_nfmcv_290:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._railList_nfmcv_295 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._railEmpty_nfmcv_304 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._railRow_nfmcv_284 {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  border-radius: 8px;\n}\n\n._railRowActive_nfmcv_319 {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowMain_nfmcv_284 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 1px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 6px 8px;\n  border: none;\n  border-radius: 8px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._railRowTask_nfmcv_285 {\n  width: 100%;\n  padding: 6px 8px;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n  border-radius: 8px;\n}\n\n._railRowTask_nfmcv_285:hover,\n._railRowMain_nfmcv_284:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._railRowName_nfmcv_361 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._railCount_nfmcv_367 {\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._menuBtn_nfmcv_280 {\n  flex: none;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 14px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._menuBtn_nfmcv_280:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n  color: var(--dsw-alias-label-primary);\n}\n\n._menu_nfmcv_280 {\n  position: absolute;\n  z-index: 2;\n  margin-top: 32px;\n  display: flex;\n  flex-direction: column;\n  min-width: 132px;\n  padding: 4px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n  box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);\n}\n\n._menuRow_nfmcv_406 {\n  padding: 6px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._menuRow_nfmcv_406:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._menuRowDanger_nfmcv_423 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._renameInput_nfmcv_427 {\n  box-sizing: border-box;\n  width: 100%;\n  padding: 6px 8px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 18px;\n}\n\n/* --- canvas -------------------------------------------------------------- */\n\n._canvas_nfmcv_442 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 12px 12px 16px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  overflow: auto;\n}\n\n._canvasHead_nfmcv_453 {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n._canvasTitleGroup_nfmcv_460 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n\n._canvasTitle_nfmcv_460 {\n  margin: 0;\n  overflow: hidden;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: var(--dsw-alias-label-primary);\n}\n\n._canvasMeta_nfmcv_478,\n._canvasHint_nfmcv_479 {\n  margin: 0;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._canvasHint_nfmcv_479 {\n  padding: 8px 2px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._runBar_nfmcv_491 {\n  display: flex;\n  flex: none;\n  gap: 6px;\n}\n\n._primaryBtn_nfmcv_287,\n._stopBtn_nfmcv_288 {\n  padding: 4px 10px;\n  border: 1px solid transparent;\n  border-radius: 8px;\n  background: var(--dsw-alias-brand-primary);\n  color: #fff;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._primaryBtn_nfmcv_287:hover {\n  filter: brightness(1.06);\n}\n\n._primaryBtn_nfmcv_287:disabled {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-tertiary);\n  cursor: default;\n}\n\n._stopBtn_nfmcv_288 {\n  background: none;\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chainLine_nfmcv_526 {\n  margin: 0;\n  padding: 6px 8px;\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1);\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chainLineFailed_nfmcv_536 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._stepList_nfmcv_540 {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n._step_nfmcv_282 {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px 6px 6px 4px;\n  border: 1px solid transparent;\n  border-radius: 10px;\n}\n\n._stepSelected_nfmcv_559 {\n  border-color: var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-layer-1);\n}\n\n._stepRow_nfmcv_564 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._stepBadge_nfmcv_282 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 20px;\n  height: 20px;\n  margin-top: 2px;\n  border: none;\n  border-radius: 7px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 1;\n  cursor: pointer;\n}\n\n._stepMain_nfmcv_283 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  gap: 3px;\n  box-sizing: border-box;\n  min-width: 0;\n  padding: 0;\n  border: none;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n._stepName_nfmcv_605 {\n  overflow: hidden;\n  font-size: 13px;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepNameMissing_nfmcv_613 {\n  color: var(--dsw-alias-label-tertiary);\n  text-decoration: line-through;\n}\n\n._stepSub_nfmcv_618 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._stepAsk_nfmcv_628 {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._stepTook_nfmcv_634 {\n  font-variant-numeric: tabular-nums;\n}\n\n._chip_nfmcv_638 {\n  flex: none;\n  padding: 1px 6px;\n  border-radius: 999px;\n  font-size: 11px;\n  line-height: 14px;\n}\n\n._chipIdle_nfmcv_646 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipQueued_nfmcv_651 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-secondary);\n}\n\n._chipRunning_nfmcv_656 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  color: var(--dsw-alias-brand-primary);\n}\n\n._chipDone_nfmcv_661 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._chipFailed_nfmcv_666 {\n  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._chipStopped_nfmcv_671 {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* The per-step controls appear on hover or focus: a canvas of six steps showing six\n   toolbars reads as a settings form rather than as an order of operations. */\n._stepTools_nfmcv_678 {\n  display: flex;\n  gap: 4px;\n  padding-left: 28px;\n  opacity: 0;\n  transition: opacity 0.12s ease;\n}\n\n._step_nfmcv_282:hover ._stepTools_nfmcv_678,\n._step_nfmcv_282:focus-within ._stepTools_nfmcv_678,\n._stepSelected_nfmcv_559 ._stepTools_nfmcv_678 {\n  opacity: 1;\n}\n\n._toolBtn_nfmcv_281 {\n  padding: 1px 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._toolBtn_nfmcv_281:hover {\n  border-color: var(--dsw-alias-border-l2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._connector_nfmcv_709 {\n  display: block;\n  width: 1px;\n  height: 10px;\n  margin: 2px 0 2px 14px;\n  background: var(--dsw-alias-border-l2);\n}\n\n._addStep_nfmcv_289 {\n  padding: 6px 10px;\n  border: 1px dashed var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._addStep_nfmcv_289:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  border-style: solid;\n  color: var(--dsw-alias-label-primary);\n}\n\n._picker_nfmcv_290 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 6px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._pickerHead_nfmcv_745 {\n  padding: 2px 6px 4px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._pickerRow_nfmcv_290 {\n  padding: 5px 8px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n\n._pickerRow_nfmcv_290:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._pickerEmpty_nfmcv_769 {\n  margin: 0;\n  padding: 6px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* --- inspector ----------------------------------------------------------- */\n\n._inspector_nfmcv_779 {\n  display: flex;\n  flex-direction: column;\n  box-sizing: border-box;\n  min-height: 0;\n  min-width: 0;\n}\n\n._tabs_nfmcv_787 {\n  display: flex;\n  flex: none;\n  gap: 2px;\n  padding: 8px 12px 0;\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n._tab_nfmcv_286 {\n  padding: 6px 10px;\n  border: none;\n  border-bottom: 2px solid transparent;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 18px;\n  cursor: pointer;\n}\n\n._tab_nfmcv_286:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n._tabActive_nfmcv_811 {\n  border-bottom-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n  font-weight: 500;\n}\n\n/* The mounted card view brings its own padding and its own scroller; this box only\n   has to give it a bounded height so it can own both. */\n._tabBody_nfmcv_819 {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  min-height: 0;\n  overflow: hidden;\n}\n\n._tabBody_nfmcv_819 > * {\n  min-height: 0;\n}\n\n._noFocus_nfmcv_831 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 40px 16px;\n  text-align: center;\n}\n/* Skill card content. The frame and the reorder/removal controls belong to the\n   shared shell, so this sheet styles only the body and the card's own actions. */\n\n._template_b8gil_4 {\n  display: block;\n}\n\n._body_b8gil_8 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* The face's way into configuration, as a quiet pill rather than a bare word: at rest it\n   is a control with an edge, and the grid stops reading as three titles with a stray\n   \"配置\" floating at the end of each. */\n._cardActions_b8gil_17 {\n  display: inline-flex;\n  gap: 4px;\n}\n\n/* The tint is mixed from the label colour rather than taken from a layer token: in the\n   light theme every layer token is the same white as the card, so a control filled with\n   one would have no edge at all. */\n._cardActions_b8gil_17 button {\n  height: 24px;\n  padding: 0 9px;\n  border-radius: 6px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--dsw-alias-label-secondary);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  transition: background 0.15s ease, color 0.15s ease;\n}\n\n._cardActions_b8gil_17 button:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* What the face fills its frame with: the line the last run produced, and the two facts\n   a glance at the grid wants. Both are secondary; the card's name is the only primary\n   thing on it. */\n._faceBody_b8gil_44 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n  /* Fills the shell's body slot so the footer can be pushed to the bottom: the run\n     count then sits on one line across the whole grid, whether the card's summary ran\n     to two lines or to none. */\n  height: 100%;\n}\n\n._faceSummary_b8gil_55 {\n  display: -webkit-box;\n  margin: 2px 0 0;\n  overflow: hidden;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* An invitation is not a summary: it sits a level quieter than the text a run produced. */\n._faceSummary_b8gil_55[data-face-summary='empty'] {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* A card that cannot run has three things to say in a cell sized for two: the result it\n   last produced, why 运行 is closed, and how many runs there have been. The summary gives up\n   a line, because the reason is the part the user can act on. */\n._faceBody_b8gil_44[data-face-blocked] ._faceSummary_b8gil_55 {\n  -webkit-line-clamp: 1;\n}\n\n/* Why the card's run control is closed. Two lines at most, clamped: the face is an index\n   entry, and a card that shouted the whole sentence would out-shout the result under it.\n   Tinted like the run pages' version, so the two read as one statement in two sizes. */\n._faceProblem_b8gil_81 {\n  display: -webkit-box;\n  margin: 0;\n  padding: 4px 8px;\n  overflow: hidden;\n  border-radius: var(--dsw-radius-sm);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* Tabular figures keep the times in one column across the grid. */\n._faceFoot_b8gil_96 {\n  margin: auto 0 0;\n  font-size: 11px;\n  line-height: 16px;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* One full-panel view: the card's result or its configuration, in the whole\n   display column rather than a grid cell. */\n\n._pageView_b8gil_107 {\n  display: flex;\n  flex-direction: column;\n  /* One step of rhythm between the zones — head, composer, document, its actions, the\n     trace — so the document does not read as stuck to the composer above it. */\n  gap: 18px;\n  width: 100%;\n  min-width: 0;\n}\n\n/* The nameplate every full-panel view opens with: the way back, what this is, and the\n   facts that name it — one line, one left edge, one type scale.\n\n   It used to be three tiers: a bar for the way back, the title at display size, then a\n   line of facts under it. On a page whose content is a document that spent about 96px\n   and two competing scales before the document began — the chrome shouted louder than\n   the thing it introduced, and the title was stated a second time by whatever the reader\n   had already said above it. A nameplate at the content's own scale gives the display\n   scale back to the document. */\n._pageHead_b8gil_126 {\n  /* Pinned: these views grow with the document under them, and the way back and the card's\n     name used to scroll out of sight within one long report. The scrollport is the workbench\n     panel, which is this head's ancestor. */\n  position: sticky;\n  top: 0;\n  z-index: 2;\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 2px 8px;\n  min-width: 0;\n  /* Opaque because the document scrolls under it, and the hairline is what separates the\n     two once it is pinned. */\n  padding: 5px 0 7px;\n  background: var(--dsw-alias-bg-base);\n  border-bottom: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* Icon only: the chevron is the control and its accessible name is the word it used to\n   print, so the way back costs 22px of a line instead of a bar of its own. */\n._pageHeadBack_b8gil_147 {\n  flex: none;\n  justify-content: center;\n  /* Cancels the button's own inset so the chevron's edge, not its padding, lands on the\n     page's left edge. */\n  margin-left: -4px;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n/* A nameplate, not a headline. It stays the largest thing in the head and the smallest\n   thing on the page: the document owns the display scale. One line, ellipsis rather than\n   wrapping, so a long card name never turns the nameplate back into a tower. */\n._pageHeadTitle_b8gil_159 {\n  margin: 0;\n  flex: 0 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  letter-spacing: -0.005em;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n/* The facts beside the title, at caption scale, separated by a middot: the skill is a chip\n   because it is a name, a path stays a path. */\n._pageHeadMeta_b8gil_174 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 18px;\n}\n\n._pageHeadMeta_b8gil_174 > * + *::before {\n  content: '·';\n  margin: 0 7px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The skill a card runs: a chip, because it is a name rather than part of a sentence.\n\n   The separator above is drawn by a pseudo element on the item, and on a chip that lands\n   *inside* the box: the dot sat against the chip's own left padding, with the box starting\n   flush against the word before it. A box is its own separator, so it takes a margin on\n   that side instead. */\n._pageHeadChip_b8gil_196 {\n  flex: none;\n  padding: 1px 7px;\n  border-radius: 6px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._pageHeadMeta_b8gil_174 > ._pageHeadChip_b8gil_196::before {\n  content: none;\n}\n\n._pageHeadMeta_b8gil_174 > ._pageHeadChip_b8gil_196:not(:first-child) {\n  margin-left: 10px;\n}\n\n._runProblem_b8gil_214 {\n  margin: 0;\n  padding: 8px 10px;\n  border: 1px solid var(--dsw-alias-brand-primary);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The run's output section: the trace beneath the result.\n *\n * No box. It was a tinted slab with a hairline, and next to the act dock — the same tint,\n * the same radius, the same weight — the two read as one banded form under the document, so\n * neither the place to write nor the record of how the document was made stood out. The\n * dock took the surface for writing; this keeps none and is what it is: one line of history\n * under the place that acts, with the trace folded behind it. */\n\n/* The run's activity stream: one row per entry — a tool call, a span of the model's own\n   words, or the marker — read top to bottom. The rows wear the conversation's run-record\n   chrome: a leading icon, a title, a 2x2 separator, and a one-line summary that expands,\n   so a long trace reads like the chat it came from rather than a log dump.\n\n   The list is not bounded: like the conversation's own run record, it grows with its\n   content and the page scrolls, so a long reasoning span opens to its full text rather\n   than a narrow frame. */\n._runTraceList_b8gil_240 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n._activityList_b8gil_246 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 4px 0 0;\n  padding: 0;\n  list-style: none;\n}\n\n._activityItem_b8gil_255 {\n  display: block;\n  min-width: 0;\n}\n\n/* The tool's own name, unshrunk: it is the column a reader scans. */\n._activityToolRow_b8gil_261 {\n  min-width: 0;\n}\n\n/* One trace row's shared chrome: the conversation DisclosureRow keeps its own 24px header\n   with the secondary tier; the workbench only sizes the pieces it supplies. */\n._activityRow_b8gil_267 {\n  min-width: 0;\n}\n\n._activityTitle_b8gil_271 {\n  font-weight: 400;\n}\n\n/* The 2x2 separator between the title and the collapsed summary, matching the\n   conversation's run rows. */\n._activitySep_b8gil_277 {\n  flex: none;\n  width: 2px;\n  height: 2px;\n  margin: 0 8px;\n  border-radius: 1px;\n  background: var(--dsw-alias-label-caption);\n}\n\n/* The one-line collapsed summary: secondary tier, ellipsized, filling the row. */\n._activitySummary_b8gil_287 {\n  flex: 1 1 auto;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(24px + var(--dsh-content-font-delta, 0px));\n}\n\n/* The expanded body under a row: the full stored text, wrapped, at the secondary tier. */\n._activityBody_b8gil_298 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n  padding: 4px 0 4px 22px;\n}\n\n._activityBodyLabel_b8gil_306 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n._activityBodyText_b8gil_312 {\n  min-width: 0;\n  overflow-wrap: anywhere;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The model thinking: a disclosure row like the conversation's, set apart from the calls\n   because it is what the card is *reasoning*, not what it is doing. */\n._activityReasoning_b8gil_322 {\n  min-width: 0;\n}\n\n/* The model speaking to the user: plain narration, no chrome — it is the reply, not a\n   step. Reads like an assistant message in the conversation. */\n._activityNarration_b8gil_328 {\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: var(--dsh-content-font-size, 14px);\n  line-height: calc(22px + var(--dsh-content-font-delta, 0px));\n  overflow-wrap: anywhere;\n}\n\n/* A bounded trace's own row. Set apart from the calls because it is not one. */\n._activityTruncated_b8gil_338 {\n  color: var(--dsw-alias-label-tertiary);\n  font-size: var(--dsh-content-font-size-secondary, 13px);\n  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));\n}\n\n/* The settled turn-process header above a trace, matching the conversation's Turn process\n   row: a full-width button with the outcome word and a chevron that folds the whole stream. */\n/* No rule of its own any more: the block's edge is the boundary, and the header is the\n   block's first line. It carries a step count because 已完成 alone gave no reason to open\n   it — the summary said how the run ended and nothing about what was inside. */\n/* A chip, not a bar. Full width put the chevron a page away from the words it folds, which\n   is the one thing on the line nobody could connect to it; sized to its own text, the\n   outcome, the count and the chevron read as one control and its hover area agrees with\n   what it looks like. The negative start padding is only so the chip's own inset does not\n   push its text off the document's left edge. */\n._turnProcess_b8gil_354 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  width: auto;\n  max-width: 100%;\n  margin-left: -4px;\n  padding: 3px 8px 3px 4px;\n  border: none;\n  border-radius: 6px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 12px;\n  font-weight: 500;\n  cursor: pointer;\n  text-align: left;\n  transition: color 100ms ease, background 100ms ease;\n}\n\n._turnProcess_b8gil_354:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The outcome at a glance, before the word is read: a quiet dot for a settled run and the\n   warning colour for one that failed or was stopped. */\n._turnProcessDot_b8gil_381 {\n  flex: none;\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 24%, transparent);\n}\n\n._turnProcess_b8gil_354[data-turn-process=\"failed\"] ._turnProcessDot_b8gil_381 {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._turnProcessLabel_b8gil_393 {\n  min-width: 0;\n  overflow: hidden;\n  font-size: inherit;\n  line-height: 18px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* How many entries the fold hides, in the colour of a count rather than of the outcome. */\n._turnProcessSteps_b8gil_403 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-weight: 400;\n  font-variant-numeric: tabular-nums;\n}\n\n/* Right after the count: the chevron belongs to the words it folds. */\n._turnProcessChevron_b8gil_412 {\n  flex: none;\n  width: 14px;\n  height: 14px;\n  color: inherit;\n  transition: transform 100ms ease;\n}\n\n._turnProcess_b8gil_354[data-open] ._turnProcessChevron_b8gil_412 {\n  transform: rotate(180deg);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._turnProcess_b8gil_354,\n  ._turnProcessChevron_b8gil_412 {\n    transition: none;\n  }\n}\n\n/* The card's rendered document sits in its own frame. Without a border the template's\n   content reads as the page's own. Nothing inside it is styled here: the document is\n   the user's, inside its own shadow root.\n\n   The boundary rests on the padding alone: this surface carried a heading row with a\n   hairline under it until the product owner removed that row as noise, and what keeps\n   the rendered document — which brings its own shadow and radius — off the border is\n   now the 12px gutter around it. Lowering it would leave the document flush. */\n._resultSurface_b8gil_439 {\n  display: flex;\n  flex-direction: column;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  min-width: 0;\n}\n\n/* The same slot with no frame of its own.\n\n   For a host that already draws one: the reader is a bordered surface with its own padding,\n   so the frame here put a card inside a card and 12px of padding between the reader's edge\n   and the document's. The page keeps its frame when it is the page; the reader lets the\n   document sit on its own surface. */\n._resultBare_b8gil_454 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* The result's own editor, which takes the surface's content slot where the rendered\n   document was. Gaps rather than margins: the status line, the field, the refusals and the\n   two controls are one column of four things. */\n._resultEditor_b8gil_463 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n}\n\n/* The page's one place to act: three quiet controls where the document they change ends, and\n   the revision log under them. It was a selector plus a dock with a field in it; choosing a\n   way of changing the result now opens a dialog, so there is nothing to write here and\n   nothing to frame.\n\n   The row is the shape the chat's own message actions have: icons with their labels, quiet at\n   rest, one tinted pill under the pointer. Its controls are the page's only way to act on\n   what is above them, so they stay readable rather than waiting for a hover — hiding them\n   would leave a page that looks like it cannot do anything. */\n._actBlock_b8gil_479 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  min-width: 0;\n}\n\n._actRow_b8gil_486 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 2px;\n  margin-left: -8px;\n  min-width: 0;\n}\n\n/* The run's fold sits on the same line as the ways of changing the result, and it is not one\n   of them: it says how the run behind the result ended and opens its steps. So it keeps the\n   gap the actions have between them on its left and its own padding on its right, rather\n   than hanging off the row at the page's edge the way it did when it headed a section. */\n._actRow_b8gil_486 ._turnProcess_b8gil_354 {\n  margin-left: 6px;\n}\n\n._actAction_b8gil_503 {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 4px 8px;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n  cursor: pointer;\n  transition: background 100ms ease, color 100ms ease;\n}\n\n._actAction_b8gil_503:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._actAction_b8gil_503:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A way of changing the result that this one cannot offer — nothing to revise, or a run\n   already holding the card — reads as unavailable rather than disappearing, so the row keeps\n   the same length whichever state the page is in. */\n._actAction_b8gil_503:disabled {\n  color: var(--dsw-alias-label-caption);\n  cursor: not-allowed;\n}\n\n._actAction_b8gil_503:disabled:hover {\n  background: transparent;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The dialog a sentence is written in. Portalled to the body by `PromptDialog`, so these\n   classes are not nested under anything the page controls. */\n._dialogOverlay_b8gil_545 {\n  position: fixed;\n  inset: 0;\n  z-index: 60;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 24px;\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 28%, transparent);\n}\n\n._dialogPanel_b8gil_556 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  width: min(560px, 100%);\n  max-height: calc(100vh - 48px);\n  padding: 18px 18px 16px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-panel);\n  background: var(--dsw-alias-bg-layer-1);\n  box-shadow: 0 24px 48px -20px color-mix(in srgb, var(--dsw-alias-label-primary) 45%, transparent);\n  overflow: hidden;\n}\n\n/* Keyboard users land on the panel when it holds no field; the field takes the caret itself. */\n._dialogPanel_b8gil_556:focus-visible {\n  outline: none;\n}\n\n/* The window that holds a document instead of a form: as wide as the window allows and as\n   tall as the viewport does, because what is inside was laid out for a screen rather than\n   for a column. The height is stated rather than left to the content so that a short\n   document does not shrink the panel and a long one scrolls inside the well. */\n._dialogPanel_b8gil_556[data-dialog-size='wide'] {\n  width: min(1040px, 100%);\n  height: min(84vh, 900px);\n  max-height: calc(100vh - 48px);\n}\n\n._dialogHead_b8gil_586 {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  min-width: 0;\n}\n\n._dialogTitle_b8gil_593 {\n  flex: 1 1 auto;\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  min-width: 0;\n}\n\n._dialogClose_b8gil_603 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  margin: -2px -2px 0 0;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-tertiary);\n  cursor: pointer;\n}\n\n._dialogClose_b8gil_603:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);\n  color: var(--dsw-alias-label-primary);\n}\n\n._dialogClose_b8gil_603:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._dialogHint_b8gil_629 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* A refusal, inside the dialog rather than beside the page: the form was submitted and the\n   Host would not take it, which is the same sentence the run bar states in its own layout.\n   It is the error colour, not the hint's grey, because it is about the press and not the\n   form. */\n._dialogProblem_b8gil_640 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The form's own surface: unlike the row, this *is* written into, so it carries the frame the\n   block used to. Taller than the bar's field because the dialog exists to give a sentence\n   room. */\n._dialogField_b8gil_650 {\n  box-sizing: border-box;\n  width: 100%;\n  min-height: 96px;\n  max-height: 40vh;\n  padding: 10px 12px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-specific-input-major);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n  line-height: 20px;\n  resize: none;\n  overflow-y: auto;\n}\n\n._dialogField_b8gil_650::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._dialogField_b8gil_650:disabled {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: not-allowed;\n}\n\n._dialogField_b8gil_650:focus-visible {\n  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 30%, transparent);\n  outline: 2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);\n  outline-offset: 1px;\n}\n\n/* The two ways out, at the end the form submits from. */\n._dialogFoot_b8gil_683 {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n  padding-top: 2px;\n}\n\n/* The directory this run happens in, at the top of the run dialog: a label, the value, and the\n   picker beside it. The same three pieces the configuration page's workspace field draws, so\n   the dialog and the page it writes to cannot describe one directory two ways. */\n._runWorkspace_b8gil_693 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The picker keeps its own width whatever the path beside it is: two characters of a button\n   wrapping onto a second line is the one thing that makes the row look broken. */\n._runWorkspace_b8gil_693 button {\n  flex: none;\n  white-space: nowrap;\n}\n\n/* Where a result happened: one item in the head's row of facts, beside the skill that made it.\n   The path is the exact one and never the folder's name, because the name is a display\n   convenience and the directory that ran is the whole path. Quiet enough to read as a fact\n   rather than a warning — unless the directory is gone, which the path's own colour says. */\n._runWorkspaceLine_b8gil_711 {\n  display: inline-flex;\n  align-items: baseline;\n  gap: 4px;\n  min-width: 0;\n  max-width: 100%;\n}\n\n._runWorkspaceLineLabel_b8gil_719 {\n  flex: none;\n}\n\n._runWorkspaceLinePath_b8gil_723 {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runWorkspaceLine_b8gil_711[data-run-workspace-line='invalid'] ._runWorkspaceLinePath_b8gil_723 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The instructions this card was recently given, offered back as chips in the run dialog.\n   A shortcut for the common case — the same ask again, with a small edit — so a click refills\n   the field rather than starting a run. */\n._runChips_b8gil_737 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n}\n\n._runChipsLabel_b8gil_745 {\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runChip_b8gil_737 {\n  max-width: 220px;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 999px;\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font-family: var(--dsw-font-family);\n  font-size: 12px;\n  line-height: 16px;\n  white-space: nowrap;\n  text-overflow: ellipsis;\n  overflow: hidden;\n  cursor: pointer;\n}\n\n._runChip_b8gil_737:hover {\n  border-color: var(--dsw-alias-border-l3);\n  color: var(--dsw-alias-label-primary);\n}\n\n._runChip_b8gil_737:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* A refusal of the last revision, stated where the ask was made. */\n._composerProblem_b8gil_779 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The log reads as a conversation: the instruction, then when it was applied. */\n._refineLog_b8gil_787 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The log's header: how many revisions it holds, and the one step back they allow. */\n._refineLogHead_b8gil_795 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._refineLogTitle_b8gil_802 {\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-weight: 500;\n  line-height: 18px;\n}\n\n._refineLogList_b8gil_812 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n/* One entry is a sentence and its moment, in that order. The row used to be a flex line\n   with the time pushed to the far edge, which put the two facts at opposite ends of a\n   full-width row and made the time look like a column of its own. */\n._refineLogItem_b8gil_824 {\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._refineLogInstruction_b8gil_829 {\n  color: var(--dsw-alias-label-primary);\n  overflow-wrap: anywhere;\n}\n\n._refineLogTime_b8gil_834 {\n  margin-left: 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n/* The block's last line, and the only place that says how long any of it lives. */\n._refineLogNote_b8gil_843 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._notice_b8gil_850 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 4px 0;\n}\n\n._noticeTitle_b8gil_857 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 500;\n}\n\n._noticeBody_b8gil_864 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n/* The editor opens in place of the body, so it inherits the card's width. */\n\n._settings_b8gil_873 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\n/* One group of the configuration page: a heading, its controls, and a hairline above\n   every group but the first. Groups rather than nested cards — a card inside the\n   page's own surface reads as a second frame around the same thing. */\n._section_b8gil_882 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  min-width: 0;\n  padding: 18px 0;\n}\n\n/* A group's first line: its name, and whatever belongs to the group as a whole — the\n   template's three actions, the preview's caption. The controls used to sit inside the\n   sentence about the region and the byte count, where an underlined 添加动作 read as one\n   more fact instead of the one thing on the line a user could press. */\n._sectionHead_b8gil_894 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 12px;\n  min-width: 0;\n}\n\n._sectionTools_b8gil_902 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin-left: auto;\n  min-width: 0;\n}\n\n/* Not flush against the head: the head is pinned and carries a hairline, and a section\n   title one line under it reads as part of the head rather than as the first group. */\n._section_b8gil_882:first-child {\n  padding-top: 18px;\n}\n\n._section_b8gil_882 + ._section_b8gil_882 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n._sectionTitle_b8gil_920 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 20px;\n}\n\n/* Four fields, laid out as two rows of two. One row of four crowded every label against\n   the next control and pushed the last field past the page's edge; a grid makes the shape\n   explicit instead of leaving it to how the labels happen to wrap, and each cell is wide\n   enough for a long name or a full path. */\n._fieldGrid_b8gil_932 {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 16px 24px;\n  min-width: 0;\n}\n\n/* Narrower than two comfortable fields, one per row: half a phone's width per field is\n   worse than a longer page. */\n@media (max-width: 640px) {\n  ._fieldGrid_b8gil_932 {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n\n._field_b8gil_932 {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  gap: 6px;\n}\n\n/* The model field has two states that are text rather than a control: a route the card\n   cannot offer, and no route at all. Both occupy the place the picker would, at the same\n   height, so the row does not jump between the three states. */\n._fieldValue_b8gil_957 {\n  margin: 0;\n  box-sizing: border-box;\n  display: flex;\n  align-items: center;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._fieldLabel_b8gil_974 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n}\n\n/* The workspace value and the button that changes it share one row: the value is the\n   widest thing in the field, and the button reads as the action on it. */\n._workspaceRow_b8gil_982 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n/* Two lines in the space one control occupies: the leaf name is what the user scans, and\n   the full path underneath is the exact directory. It matches `.fieldValue`'s border and\n   background so the four fields of this group read as one set, but it is taller because it\n   carries two lines. */\n/* One line, like every other control in the grid: the leaf name on the left, the exact\n   path flushing right. Two lines made this cell taller than its neighbour, so no two rows\n   of the group ever lined up — and the row's whole purpose is that they do. */\n._workspaceValue_b8gil_996 {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* A path that is no longer a directory is stated by the value itself, in the same warn\n   colour the template's own warnings use: the field is a fact about the card, not an\n   alert to dismiss. */\n._workspaceValueInvalid_b8gil_1015 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n/* The same row, with a field to type into instead of a value to read. It matches the value\n   control's height and border so a card on a build without a chooser does not look like a\n   different kind of card, and it takes the space the button beside it does not. */\n._workspaceInput_b8gil_1022 {\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  height: 32px;\n  padding: 0 8px;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._workspaceInput_b8gil_1022:focus {\n  outline: none;\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._workspaceInputInvalid_b8gil_1042 {\n  border-color: var(--dsw-alias-state-warn-label);\n}\n\n._workspaceInput_b8gil_1022::placeholder {\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._workspaceLeaf_b8gil_1050 {\n  flex: none;\n  max-width: 62%;\n  color: var(--dsw-alias-label-primary);\n  font-size: 13px;\n  line-height: 18px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Tertiary and small: the exact path, always readable, never competing with the name. */\n._workspacePath_b8gil_1062 {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 14px;\n  text-align: right;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A field's own note: what is wrong with this value, or why the control beside it cannot\n   be used. Under the value, because that is what it is about. */\n._fieldNote_b8gil_1076 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The page's controls are one size and one surface: a form whose fields are 28px tall\n   reads as a settings list from a denser app, and a name field the height of a table row\n   is not obviously a place you can type. */\n._select_b8gil_1086,\n._editor_b8gil_1087 {\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family);\n  font-size: 13px;\n}\n\n._select_b8gil_1086 {\n  box-sizing: border-box;\n  height: 32px;\n  padding: 0 8px;\n}\n\n/* Tall enough to hold a page of template on a laptop window without pushing the save bar\n   half way up the screen, and still growing on a large one.\n\n   The height comes from the pane's stated row; the field fills it and, with the content\n   taller than the box, scrolls inside it. `min-height: 0` is what lets a text area shrink\n   into a row instead of pushing the row open to fit its text. */\n._editor_b8gil_1087 {\n  min-height: 0;\n  padding: 6px;\n  font-family: monospace;\n  /* Not resizable: dragging the handle wrote a height on the field, the pane's row stayed as\n     stated and clipped it, so the handle was a control that broke the layout it sat in. */\n  resize: none;\n}\n\n/* The editor's status rail, at the foot of the pane: where the region is, what the\n   template declares, and how much of the size budget it uses. These are readings of the\n   text above them, so they belong under it — a line of facts above a code block reads as\n   a caption for the section, and it took a whole row away from the editor. */\n._editorStatus_b8gil_1121 {\n  grid-column: 1 / -1;\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 2px 10px;\n  box-sizing: border-box;\n  padding: 5px 10px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Pushed to the rail's far end: it is about the whole file, not about the region's range. */\n._editorStatusDirty_b8gil_1137 {\n  margin-left: auto;\n  color: var(--dsw-alias-label-secondary);\n}\n\n/* A template with no region cannot run at all, so the whole line turns into the\n   warning rather than one clause of it. */\n._editorStatusMissing_b8gil_1144 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* Above 85% of the byte budget the count is the fact that matters. */\n._editorStatusWarn_b8gil_1149 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n/* The template read as structure. Same metrics as the field it replaces, so switching\n   between the two does not move the text a line up or down, and the same tinted number\n   column, so the two views read as one pane. */\n._foldView_b8gil_1156 {\n  grid-column: 1 / -1;\n  /* Fills the pane's stated row, like the field it replaces: the two presentations have to be\n     the same size to read as one pane, and a view that grows with its document is a page. */\n  min-height: 0;\n  padding: 6px 0;\n  overflow: auto;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  font-size: 12px;\n  line-height: 18px;\n  /* The scrollbar a long document brings must not narrow the code mid-read. */\n  scrollbar-gutter: stable;\n}\n\n._foldRow_b8gil_1170 {\n  display: flex;\n  align-items: flex-start;\n  min-width: max-content;\n}\n\n/* Fills the rest of the row so the row's hover tint covers the whole width, while the\n   count stays against the text it belongs to instead of at the far edge of a long pane. */\n._foldRow_b8gil_1170::after {\n  content: '';\n  flex: 1 1 auto;\n}\n\n._foldRow_b8gil_1170:hover {\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n}\n\n/* The number column, the caret, and the text are three buttons in one row. Nothing here is\n   a tab stop: the row's job is to hand a line to the field, and the field is a keyboard\n   control on its own. */\n._foldNumber_b8gil_1190,\n._foldCaret_b8gil_1191,\n._foldText_b8gil_1192 {\n  margin: 0;\n  border: 0;\n  background: transparent;\n  font: inherit;\n  line-height: inherit;\n  cursor: pointer;\n}\n\n._foldNumber_b8gil_1190 {\n  flex: none;\n  width: 44px;\n  padding: 0 8px;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  text-align: right;\n  user-select: none;\n}\n\n._foldCaret_b8gil_1191,\n._foldCaretBlank_b8gil_1213 {\n  flex: none;\n  width: 18px;\n  padding: 0;\n  color: var(--dsw-alias-label-secondary);\n  text-align: center;\n  user-select: none;\n}\n\n._foldText_b8gil_1192 {\n  flex: 0 0 auto;\n  padding: 0 10px 0 0;\n  color: var(--dsw-alias-label-primary);\n  text-align: left;\n  white-space: pre;\n}\n\n/* What one folded line stands for: the size of what is hidden, so a fold that swallowed\n   the whole stylesheet cannot be mistaken for a fold that hid three lines. */\n._foldCount_b8gil_1232 {\n  flex: none;\n  padding: 0 12px 0 6px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n/* Gutter and text on the first row, the status rail under both of them. The gutter and\n   the text must share font, size, line height and vertical padding, or the numbers stop\n   lining up with the lines they label.\n\n   The first row's height is stated rather than divided. `minmax(0, 1fr)` inside a grid that\n   is as tall as its own content has nothing to divide, so the row grew to the code's full\n   height: a three-hundred-line template made a five-thousand-pixel field, the page scrolled\n   instead of the field, and a jump selected a line that was nowhere on screen. A stated row\n   makes the field and the gutter the scrollers, and keeps the page a page. */\n._editorPane_b8gil_1249 {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  grid-template-rows: clamp(280px, 44vh, 560px) auto;\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-md);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: hidden;\n}\n\n/* The gutter. Its lines are separate elements so one band can be drawn across the\n   region's lines and a second, subtler one across the action block. Font, size, line\n   height and vertical padding are restated on the lines themselves, because a band\n   that changes any of them pulls the numbers off the text they label. */\n._gutter_b8gil_1263 {\n  margin: 0;\n  padding: 6px 0;\n  border-right: 1px solid var(--dsw-alias-border-l1);\n  /* A tint rather than a layer token: both layer tokens are the same white in this theme,\n     which left the numbers floating in the code with nothing separating them. */\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  color: var(--dsw-alias-label-tertiary);\n  font-family: monospace;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: right;\n  /* Scrolling happens in the text area; the gutter follows it in code. */\n  overflow: hidden;\n  user-select: none;\n}\n\n/* One numbered line, which is also its own click target. The transparent left border\n   is what keeps every number in one column once a banded line adds a coloured border\n   of the same width. */\n._gutterLine_b8gil_1283 {\n  display: block;\n  width: 100%;\n  margin: 0;\n  padding: 0 8px;\n  border: 0;\n  border-left: 2px solid transparent;\n  background: none;\n  color: inherit;\n  font: inherit;\n  line-height: inherit;\n  text-align: right;\n  cursor: pointer;\n}\n\n._gutterLine_b8gil_1283:hover {\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The region a child fills: the two marker lines and everything between them. */\n._gutterLineRegion_b8gil_1303 {\n  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent);\n  border-left-color: var(--dsw-alias-brand-primary);\n  color: var(--dsw-alias-label-primary);\n}\n\n/* The action declaration block, drawn more faintly so the two bands stay\n   distinguishable in a template that has both. */\n._gutterLineActions_b8gil_1311 {\n  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);\n  border-left-color: var(--dsw-alias-label-tertiary);\n}\n\n._editorPane_b8gil_1249 ._editor_b8gil_1087 {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n  font-size: 12px;\n  line-height: 18px;\n  padding: 6px 8px;\n  /* A number labels a row only while one line of the file is one row on screen: a wrapped\n     line pushed every number under it onto its neighbour's line, and indentation read as\n     ragged because the glyphs were not on a grid. Long lines scroll sideways instead, in a\n     stack that is monospaced on every Windows without the shell's default font deciding. */\n  white-space: pre;\n  overflow-wrap: normal;\n  /* Both axes are stated: a long file scrolls inside the field, and a jump moves that scroll.\n     Leaving the vertical axis to be inferred from the horizontal one made the pane's own\n     scroller a candidate for a jump, and a jump that scrolls the wrong box looks like a jump\n     that did nothing. */\n  overflow-x: auto;\n  overflow-y: auto;\n  tab-size: 2;\n  font-family: ui-monospace, \"Cascadia Mono\", Consolas, \"Courier New\", monospace;\n  /* The scrollbar that appears with a long file must not narrow the text mid-edit. */\n  scrollbar-gutter: stable;\n}\n\n._editorPane_b8gil_1249 ._editor_b8gil_1087:focus-visible {\n  border: 0;\n  outline: none;\n}\n\n._editorPane_b8gil_1249:focus-within {\n  border-color: var(--dsw-alias-brand-primary);\n}\n\n._editor_b8gil_1087:focus-visible,\n._select_b8gil_1086:focus-visible {\n  border-color: var(--dsw-alias-brand-primary);\n  outline: none;\n}\n\n._violations_b8gil_1356 {\n  margin: 0;\n  padding-left: 18px;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 1.6;\n}\n\n/* A violation is a jump target: clicking it puts the caret on the construct it names.\n   It keeps the list's own type and colour so the list still reads as a list. */\n._violationJump_b8gil_1366 {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  text-decoration: underline;\n  text-decoration-style: dotted;\n  cursor: pointer;\n}\n\n._violationJump_b8gil_1366:hover,\n._violationJump_b8gil_1366:focus-visible {\n  color: var(--dsw-alias-label-primary);\n  text-decoration-style: solid;\n}\n\n/* The frame the document is drawn in, inside the preview window: tinted, inset, and the one\n   thing in the panel that scrolls, so a document taller than the window scrolls inside it\n   rather than pushing the head and the footer out of view. */\n._previewFrame_b8gil_1387 {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  box-sizing: border-box;\n  flex: 1 1 auto;\n  min-width: 0;\n  min-height: 0;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-md);\n  background: color-mix(in srgb, var(--dsw-alias-label-primary) 2%, transparent);\n}\n\n/* The well the document is drawn in: white on the tinted frame, so the user's own card\n   reads as the document and the frame reads as the page around it. */\n._preview_b8gil_1387 {\n  flex: 1 1 auto;\n  box-sizing: border-box;\n  min-height: 0;\n  padding: 8px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-1);\n  overflow: auto;\n}\n\n\n._settingsActions_b8gil_1415 {\n  display: flex;\n  gap: 6px;\n}\n\n/* The declaration builder: a small form that writes one line into the template. */\n\n._actionBuilder_b8gil_1422 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  padding: 12px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n}\n\n._builderRow_b8gil_1433 {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 16px;\n  min-width: 0;\n}\n\n._builderField_b8gil_1440 {\n  display: flex;\n  flex: 1 1 160px;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The key's grammar, and the reason the confirm button is disabled. It is a line of\n   text rather than a tooltip because it has to be readable while typing. */\n._hint_b8gil_1450 {\n  margin: 0;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._hintError_b8gil_1457 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* The page's footer, pinned to the bottom of the scroll container: saving must not\n   depend on scrolling past a preview that can be arbitrarily tall.\n\n   Sticky insets resolve against the scrollport's *content* edge, so `bottom: 0` pinned\n   this bar one page-padding up (48px, from the panel's own `.page`) — and the template's\n   lines kept scrolling through the strip underneath it, which read as the bar cutting the\n   editor in half. The negative inset puts the reference back on the padding's outer edge,\n   which is the window's own bottom. */\n._configFooter_b8gil_1469 {\n  position: sticky;\n  bottom: -48px;\n  z-index: 1;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  box-sizing: border-box;\n  margin-top: 8px;\n  padding: 12px 0 14px;\n  border-top: 1px solid var(--dsw-alias-border-l1);\n  background: var(--dsw-alias-bg-base);\n  /* A hairline alone left the editor's last lines looking cut rather than covered: the bar\n     and the page are the same white, so the bar has to cast something to read as a bar. */\n  box-shadow: 0 -12px 20px -18px color-mix(in srgb, var(--dsw-alias-label-primary) 55%, transparent);\n}\n\n/* What the save button would keep, stated beside it. */\n._footerHint_b8gil_1487 {\n  margin-left: 4px;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n._footerActions_b8gil_1494 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n._footerSpacer_b8gil_1500 {\n  flex: 1 1 auto;\n}\n\n/* What the second press will do, stated where the press happens. */\n._deletePrompt_b8gil_1505 {\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* Both selectors carry two classes so the colour wins over the shared Button's own\n   `color` and `:hover` rules whatever order the two stylesheets load in. */\n._footerActions_b8gil_1494 ._deleteCard_b8gil_1513 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._footerActions_b8gil_1494 ._deleteCard_b8gil_1513:hover:not(:disabled) {\n  background: var(--dsw-alias-interactive-bg-hover-danger);\n  color: var(--dsw-alias-state-error-primary);\n}\n\n/* A write the controller refused used to leave the page looking untouched. */\n._writeFailure_b8gil_1523 {\n  margin: 0;\n  color: var(--dsw-alias-state-error-primary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* The in-place confirmation panel, which takes the card's display area the way the\n   editor does. */\n\n._actionPanel_b8gil_1533 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 10px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n}\n\n._actionFacts_b8gil_1542 {\n  display: grid;\n  grid-template-columns: max-content 1fr;\n  gap: 6px 12px;\n  margin: 0;\n  font-size: 12px;\n}\n\n._actionFacts_b8gil_1542 dt {\n  color: var(--dsw-alias-label-secondary);\n}\n\n._actionFacts_b8gil_1542 dd {\n  margin: 0;\n  min-width: 0;\n  overflow-wrap: anywhere;\n}\n\n/* The directory the panel proposes, and the sentence saying what it is for: the field is the\n   same one the card's own page uses, so only the breathing room under it is set here. */\n._actionFacts_b8gil_1542 [data-action-workspace-note] {\n  margin-top: 4px;\n}\n\n/* The payload whole: scrollable, never truncated, never collapsed. It is the one thing\n   standing between a model-authored row and the run that receives it. */\n._actionPayload_b8gil_1568 {\n  max-height: 240px;\n  margin: 0;\n  padding: 8px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: var(--dsw-radius-sm);\n  background: var(--dsw-alias-bg-layer-2);\n  overflow: auto;\n  font-family: monospace;\n  font-size: 12px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* A bare run's one line: whether it is still going, and how it ended. */\n\n._bareRun_b8gil_1584 {\n  margin: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 12px;\n  line-height: 18px;\n  overflow-wrap: anywhere;\n}\n\n._bareRun_b8gil_1584[data-bare-run='settled'] {\n  color: var(--dsw-alias-label-secondary);\n}\n\n\n/* The run-history page: its heading, the count line, the empty state, and the runs.\n\n   The list is read as days: one heading per day, rows under it, a hairline between rows.\n   A row is two lines of its own — what the run produced, then the facts that tell it\n   apart from its neighbours — with the outcome opposite, so a reader scanning for a run\n   lands on content rather than on seven identical completion words. */\n\n._runsHeadText_b8gil_1604 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n._runsHeadTitle_b8gil_1612 {\n  margin: 0;\n  font-size: 18px;\n  font-weight: 600;\n  line-height: 26px;\n  overflow-wrap: anywhere;\n}\n\n._runsHeadMeta_b8gil_1620 {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 8px;\n  margin: 0;\n  min-width: 0;\n}\n\n._runHistoryCount_b8gil_1629 {\n  margin: 0;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n._runHistoryEmpty_b8gil_1636 {\n  margin: 0;\n  padding: 32px 12px;\n  border: 1px dashed var(--dsw-alias-border-l2);\n  border-radius: var(--dsw-radius-sm);\n  color: var(--dsw-alias-label-secondary);\n  font-size: 13px;\n  line-height: 20px;\n  text-align: center;\n}\n\n._runHistoryList_b8gil_1647 {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  min-width: 0;\n}\n\n._runHistoryGroup_b8gil_1654 {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-width: 0;\n}\n\n/* The day a group of rows completed on. It is a caption, not a title: the rows below it\n   are what the page is about, and a heavier heading would make the list read as days.\n\n   It sticks to the top of the list while its own group scrolls past, because a long\n   history is read one day at a time and the rows themselves carry only a clock: without\n   the caption on screen, \"22:47\" is a time on no particular day. */\n._runHistoryDay_b8gil_1667 {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  margin: 0;\n  padding: 5px 10px 6px;\n  background: var(--dsw-alias-bg-base);\n  color: var(--dsw-alias-label-caption);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  letter-spacing: 0.04em;\n}\n\n._runHistoryItems_b8gil_1681 {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n  min-width: 0;\n}\n\n._runHistoryItem_b8gil_1681 {\n  min-width: 0;\n}\n\n/* Rows separate by a hairline rather than by their own borders: seven outlined boxes\n   read as seven unrelated cards, while one column of rows reads as one day's work. */\n._runHistoryItem_b8gil_1681 + ._runHistoryItem_b8gil_1681 {\n  border-top: 1px solid var(--dsw-alias-border-l1);\n}\n\n/* The row is a container rather than the button itself: a run in flight carries a stop\n   control of its own, and a button inside a button is not a thing a browser can draw. */\n._runHistoryRow_b8gil_1700 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  min-width: 0;\n  margin: 0;\n  padding: 10px;\n  border-radius: var(--dsw-radius-sm);\n}\n\n._runHistoryRow_b8gil_1700:hover {\n  background: var(--dsw-alias-bg-fill-hover);\n}\n\n._runHistoryOpen_b8gil_1715 {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex: 1 1 auto;\n  min-width: 0;\n  margin: 0;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: inherit;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n\n/* A run that did not finish earns a mark on the row's edge.\n\n   Seven rows of one card are mostly the same shape, and the one that failed differs\n   only in a small word on the far right: the eye scanning the titles had nothing to\n   catch on. The bar is that catch, and it is drawn inside the row's padding so that no\n   row's text moves — the list keeps one left edge, marked rows included. */\n._runHistoryOpen_b8gil_1715::before {\n  content: '';\n  position: absolute;\n  /* On the row's own left edge, one row's padding away from the text: far enough that it\n     reads as a margin mark rather than as part of the first glyph. */\n  left: -10px;\n  top: 50%;\n  width: 2px;\n  height: 18px;\n  margin-top: -9px;\n  border-radius: 1px;\n  background: transparent;\n}\n\n._runHistoryOpen_b8gil_1715[data-run-outcome='aborted']::before {\n  background: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryOpen_b8gil_1715[data-run-outcome='error']::before,\n._runHistoryOpen_b8gil_1715[data-run-outcome='failed']::before {\n  background: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryOpen_b8gil_1715[data-run-outcome='running']::before {\n  background: var(--dsw-alias-link);\n}\n\n/* The stop control is quiet until it is wanted: it sits beside the outcome it ends, and\n   only the row of a run in flight has one. */\n._runHistoryStop_b8gil_1767 {\n  flex: none;\n  margin: 0;\n  padding: 2px 8px;\n  border: 1px solid var(--dsw-alias-border-secondary);\n  border-radius: var(--dsw-radius-sm);\n  background: none;\n  color: var(--dsw-alias-label-secondary);\n  font: inherit;\n  font-size: 11px;\n  line-height: 16px;\n  cursor: pointer;\n}\n\n._runHistoryStop_b8gil_1767:hover {\n  color: var(--dsw-alias-label-primary);\n  border-color: var(--dsw-alias-border-primary);\n}\n\n._runHistoryBody_b8gil_1786 {\n  display: flex;\n  flex-direction: column;\n  gap: 1px;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n/* The run's content is the row's title: the only line at reading weight, and the only\n   one allowed to be the first thing the eye lands on. */\n._runHistoryTitle_b8gil_1796 {\n  min-width: 0;\n  color: var(--dsw-alias-label-primary);\n  font-size: 14px;\n  font-weight: 500;\n  line-height: 21px;\n  /* One line: a two-line clamp let one long title stand taller than its neighbours and\n     made the rhythm of the list ragged. */\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* A run that stored nothing still owns the row's first line. Without it the row was a\n   lone grey meta line, which read as a row that had failed to load rather than a run that\n   had nothing to say. */\n._runHistoryTitle_b8gil_1796[data-empty='true'] {\n  font-weight: 400;\n  color: var(--dsw-alias-label-tertiary);\n}\n\n._runHistoryMeta_b8gil_1817 {\n  display: flex;\n  align-items: baseline;\n  min-width: 0;\n  flex-wrap: wrap;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n}\n\n/* The same middot the page head uses between its facts, for the same reason: a clock, a\n   model id, and an ordinal set in one grey with only space between them read as one\n   string. */\n._runHistoryMeta_b8gil_1817 > * + *::before {\n  content: '·';\n  margin: 0 6px;\n  color: var(--dsw-alias-label-caption);\n}\n\n/* The clock is the one fact on this line a reader compares across rows, so it is a step\n   above the model id and the ordinal, in figures that line up column-wise. */\n._runHistoryTime_b8gil_1838 {\n  color: var(--dsw-alias-label-secondary);\n  font-size: 12px;\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n\n._runHistoryModel_b8gil_1845 {\n  /* Wide enough for a real model id — `GLM-FLASH-LATEST` — so the truncation lands on a\n     name that is actually long rather than on the one this workbench runs. */\n  max-width: 24ch;\n  color: var(--dsw-alias-label-tertiary);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistoryOrdinal_b8gil_1855,\n._runHistoryEdited_b8gil_1856 {\n  flex: none;\n  color: var(--dsw-alias-label-tertiary);\n  white-space: nowrap;\n}\n\n/* What the run was asked for: one line under the row's own meta, because two runs of one\n   card differ by this and a wrapped quote would make every row's height depend on how much\n   was typed. The full text is on the result page that opens from the row. */\n._runHistoryInstruction_b8gil_1865 {\n  display: block;\n  max-width: 100%;\n  color: var(--dsw-alias-label-secondary);\n  font-size: 11px;\n  line-height: 16px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n._runHistorySide_b8gil_1876 {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n}\n\n/* The outcome is a quiet dot and a word. Only a run that did not complete earns a\n   hearing: a wall of neutral \"已完成\" would compete with the titles it sits beside.\n\n   Right-aligned in a column of its own width, so the dots and the words line up down the\n   right edge instead of starting wherever each word's length puts them. */\n._runHistoryOutcome_b8gil_1888 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 5px;\n  min-width: 4em;\n  color: var(--dsw-alias-label-tertiary);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n\n._runHistoryDot_b8gil_1900 {\n  width: 6px;\n  height: 6px;\n  flex: none;\n  border-radius: 50%;\n  background: currentColor;\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='aborted'] ._runHistoryOutcome_b8gil_1888 {\n  color: var(--dsw-alias-state-warn-label);\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='error'] ._runHistoryOutcome_b8gil_1888,\n._runHistoryRow_b8gil_1700 [data-run-outcome='failed'] ._runHistoryOutcome_b8gil_1888 {\n  color: var(--dsw-alias-state-error-primary);\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='running'] ._runHistoryOutcome_b8gil_1888 {\n  color: var(--dsw-alias-link);\n}\n\n._runHistoryRow_b8gil_1700 [data-run-outcome='running'] ._runHistoryDot_b8gil_1900 {\n  animation: _runHistoryPulse_b8gil_1 1.4s ease-in-out infinite;\n}\n\n@keyframes _runHistoryPulse_b8gil_1 {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.25; }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  ._runHistoryRow_b8gil_1700[data-run-outcome='running'] ._runHistoryDot_b8gil_1900 {\n    animation: none;\n  }\n}\n\n/* The way in, quiet at rest and nudged on hover: the whole row is the control, and this\n   only has to say which direction it goes. */\n._runHistoryChevron_b8gil_1938 {\n  display: inline-flex;\n  flex: none;\n  color: var(--dsw-alias-label-caption);\n  line-height: 1;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n._runHistoryRow_b8gil_1700:hover ._runHistoryChevron_b8gil_1938,\n._runHistoryOpen_b8gil_1715:focus-visible ._runHistoryChevron_b8gil_1938 {\n  color: var(--dsw-alias-label-secondary);\n  transform: translateX(2px);\n}/* ==========================================================================\n   宸ヤ綔鍙?路 娴佹按绾块潰鏉?   --------------------------------------------------------------------------\n   鍘熷瀷 docs/prototypes/workbench-pipeline-v2.html 鐨勬牱寮忥紝閫愭潯鎼繃鏉ワ紝鍙敼浜嗕袱澶勶細\n\n   1. 绫诲悕鍓嶇紑 wb-銆傚師鍨嬫槸鐙珛椤甸潰锛屾彃浠惰鍜屽涓荤殑鏍峰紡鍚屽涓€寮犺〃锛涘墠缂€鏄敮涓€鐨?      鍛藉悕绌洪棿锛屼篃鎰忓懗鐫€ DOM 閲岀殑绫诲悕灏辨槸杩欎釜鏂囦欢閲岀殑绫诲悕锛屼笉缁忚繃鍝堝笇杩欎竴灞傘€?   2. 閰嶈壊涓嶅啀鍐欐涓ゅ鑹叉澘锛屾敼涓?DSH 鐨勮璁′护鐗岋紙瑙?.wb-root锛夈€傛繁娴呰壊璺熼殢 DSH\n      鑷繁鍒囨崲锛屾彃浠朵笉缁存姢绗簩濂楅鑹层€?\n   鍏朵綑閫夋嫨鍣ㄣ€佹暟鍊笺€侀棿璺濅繚鎸佸師鍨嬪師鏍凤紝鏂逛究閫愭潯瀵圭収銆?   ========================================================================== */\n/**\n * 流水线工作台的样式，逐条取自 docs/prototypes/workbench-pipeline-v2.html。\n *\n * 原型自带两套固定色板（浅色/深色写在 body[data-theme] 上）。这里把它的令牌改写为\n * DSH 的同义令牌，于是插件跟 DSH 一起换肤，不必再维护第二套颜色。除此之外，选择器、\n * 数值、间距、圆角、阴影都保持原型的写法，改起来仍能一句一句对回原型。\n */\n\n.wb-root {\n  /* 字体 */\n  --f-sans: var(--dsw-font-family);\n  --f-mono: ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;\n\n  /* 底色：面板、凹槽、卡片。原型里 pane 与 base 同为白，分界只靠那条竖线，\n     所以这里也不再给检查器垫底灰——保持原型的样子。 */\n  --base: var(--dsw-alias-bg-base);\n  --pane: var(--dsw-alias-bg-base);\n  --rail: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n  --card-bg: var(--dsw-alias-bg-base);\n  --recess: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);\n\n  /* 交互。宿主的 hover 底色叫 -interactive-bg-hover（rgba(38,49,72,.06) / rgba(255,255,255,.08)），\n     正是原型 --hover 的两个值；此前挂的 -bg-fill-hover 在宿主里根本没有定义，\n     var() 失效又不报错，于是标签底色、空态方块、各行 hover 一律变成透明。 */\n  --hover: var(--dsw-alias-interactive-bg-hover);\n  --hover-strong: color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);\n\n  /* 文字 */\n  font-family: var(--f-sans);\n\n  --ink: var(--dsw-alias-label-primary);\n  --ink2: var(--dsw-alias-label-secondary);\n  /* 原型 ink3（浅色 rgb(92,97,103)）比 ink2 再深一点，宿主的 -label-tertiary 在浅色里是\n     rgb(129,133,140)（比 secondary 还浅），只有 -label-secondary 对得上；深色下会略亮，认了。 */\n  --ink3: var(--dsw-alias-label-secondary);\n  --ink4: var(--dsw-alias-label-tertiary);\n\n  /* 分隔与边框。宿主给的 border-l1 在浅色主题里只有百分之二的黑，等于没有；\n     原型是 rgba(0,0,0,.1) / .08，这里按墨色混出同样的浓度，深浅主题都成立。 */\n  --hairline: color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);\n  --divider: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);\n\n  /* 强调与状态 */\n  /* -brand-primary 在宿主浅色主题里是 rgb(15,17,21)（近黑），原型是蓝的：选中的页签、\n     下划线、运行中的分段条全靠它，黑着就等于没强调。-state-business-primary 是宿主的强调蓝\n     （浅色 rgb(65,118,230)，深色 rgb(122,170,255)——和原型深色精确相同）。 */\n  --accent: var(--dsw-alias-state-business-primary);\n  --accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);\n  --accent-wash: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent);\n  --success: #22c55e;\n  --warn: #f59e0b;\n  --danger: var(--dsw-alias-state-error-primary);\n  --danger-wash: color-mix(in srgb, var(--dsw-alias-state-error-primary) 7%, transparent);\n  --idle: color-mix(in srgb, var(--dsw-alias-label-primary) 17%, transparent);\n\n  /* 主按钮、阴影、遮罩 */\n  --primary-bg: var(--dsw-alias-label-primary);\n  --primary-ink: var(--dsw-alias-bg-base);\n  --shadow-menu: 0 12px 32px color-mix(in srgb, #000 14%, transparent), 0 2px 8px color-mix(in srgb, #000 6%, transparent);\n  --shadow-node: 0 1px 2px color-mix(in srgb, #000 5%, transparent);\n  --scrim: color-mix(in srgb, #000 24%, transparent);\n  --scroll: color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent);\n}\n/* ==========================================================================\n   工作台原型 · 两栏版\n   --------------------------------------------------------------------------\n   与原版（workbench-pipeline.html）的差别只有一件事：宽度按 DSH Desktop\n   主面板的真实可用宽度来设计，不再假设一个 1348px 的壳。\n\n   插件占的就是主面板那一列，整块、无内部侧栏；DSH 自己的左侧栏在插件外面，\n   不属于这个插件。所以下面这个原型框 = 面板本身，宽度可切。\n\n   面板宽度取自仓库代码（窗口宽 - 侧栏 - 右侧面板）：\n     大窗口（最大化）        → 约 1280\n     窗口默认 1280x840      → 侧栏 280 → 1000   （settings-bridge.ts:158）\n     窗口最小 900x640       → 侧栏 56  → 844    （columns.ts:13/19/23）\n     TaskManagerPage 断点   → 760               （其 module.css:1439）\n     右侧面板打开           → 424（CENTER_MIN 400 托底）\n\n   因此：\n     - 常驻三栏取消。任务库变弹出选择器。\n     - 画布 + 检查器并排需 >=820；更窄时检查器滑动覆盖。\n     - 断点用容器查询（@container），因为面板宽度 != 视口宽度。\n   ========================================================================== */\n\n.wb-root *, .wb-root *::before, .wb-root *::after { box-sizing: border-box; }\n.wb-root [hidden] { display: none !important; }\n\n/* 内联 svg 的兜底尺寸：任何一处忘了单独指定的图标都不会撑成一块黑板。\n   具体规则（.wb-btn svg / .wb-iconBtn svg …）单类选择器优先级更高，照常覆盖。 */\n.wb-root svg { flex: none; width: 14px; height: 14px; }\n\n\n\n/* ---------------------------------------------------------------- 主题令牌 */\n\n\n\n/* ---------------------------------------------------------------- 原型外壳 */\n\n\n\n\n\n\n\n\n\n\n\n/* ------------------------------------------------------------------ 应用帧 */\n/* 原型框 = 面板本身。DSH 左侧栏（新会话 / 插件 / 工作台 / 工作区）在插件外面，\n   不属于这个插件，所以这里不画，宽度就是切换器标的那个数。 */\n\n\n/* -------------------------------------------------------------------- 面板 */\n/* 高度由宿主那一格给死（见 workbench.module.css 的 .wb-pagePipeline 网格行）：\n   .wb-panel 只负责把这一格分给 面板头 / 两栏 / 运行条，自己绝不被内容撑高 */\n.wb-panel {\n  flex: 1;\n  min-height: 0;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  position: relative;\n  overflow: hidden;\n  background: var(--base);\n  color: var(--ink);\n  font-size: 13px;\n  /* 断点跟着面板走，不跟视口走 */\n  container-type: inline-size;\n  container-name: panel;\n}\n\n.wb-panelHead {\n  flex: none;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  height: 58px;\n  padding: 0 18px;\n  border-bottom: 0.5px solid var(--hairline);\n}\n.wb-panelHead h1 {\n  margin: 0;\n  font-size: 20px;\n  line-height: 28px;\n  font-weight: 500;\n  letter-spacing: -.01em;\n  white-space: nowrap;\n}\n.wb-headSpacer { flex: 1; }\n.wb-btn {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  height: 30px;\n  padding: 0 12px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.wb-btn svg { width: 14px; height: 14px; flex: none; }\n.wb-btn:hover { background: var(--hover); }\n.wb-btn.wb-ghost { border: 0.5px solid var(--hairline); }\n.wb-btn.wb-ghost:hover { background: var(--hover-strong); }\n.wb-btn.wb-primary { background: var(--primary-bg); color: var(--primary-ink); font-weight: 500; }\n.wb-btn.wb-primary:hover { opacity: .86; }\n/* 禁用态要看得出来。审核弹框靠它表达「先写要求」这件事。 */\n.wb-btn:disabled { opacity: .38; cursor: default; }\n.wb-btn:disabled:hover { background: transparent; opacity: .38; }\n.wb-btn.wb-ghost:disabled:hover { background: transparent; }\n.wb-btn.wb-primary:disabled:hover { opacity: .38; }\n/* 运行中那颗「运行」变成「停止」：同一个盒子、同一段字宽（运行 / 停止都是两个字），\n   只换记号（三角 → 方块）和描边色。填成实心红会被读成「出错了」，所以只描一圈。 */\n.wb-btn.wb-stop,\n.wb-runOne.wb-stop {\n  background: transparent;\n  color: var(--danger);\n  border: 0.5px solid color-mix(in srgb, var(--danger) 42%, var(--hairline));\n  font-weight: 500;\n}\n.wb-btn.wb-stop:hover,\n.wb-runOne.wb-stop:hover { background: var(--danger-wash); }\n.wb-btn.wb-stop:active,\n.wb-runOne.wb-stop:active { background: color-mix(in srgb, var(--danger) 14%, transparent); }\n.wb-btn.wb-stop:disabled:hover { background: transparent; }\n/* 按不下去的时候要看得出来：这一步正在整条里跑，或者停止已经在收尾了。 */\n.wb-runOne:disabled { opacity: .45; cursor: default; }\n.wb-runOne:disabled:hover { background: transparent; }\n\n/* ------------------------------------------------------- 运行的作用域 */\n/* 「运行」以前只有一个意思：从第一个没跑完的步骤接着跑。想让已经跑过的那几步再来一遍，\n   就没有地方可以说。现在主按钮自己说出范围（运行 / 接着跑 / 重跑），右边那道缝后面的\n   ▾ 才让它改成别的范围——两个半块是同一个控件：同一高度、共用一圈圆角，\n   缝本身就是\"这里还能再选\"的那句话。 */\n.wb-runSplit { position: relative; display: inline-flex; align-items: center; }\n/* 三个字的标签不许把按钮撑宽：否则「接着跑」和「重跑」之间，右边那道缝会左右挪 */\n.wb-runSplit .wb-btn.wb-primary { min-width: 96px; justify-content: center; border-radius: 8px 0 0 8px; }\n.wb-runSplitCaret {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 25px;\n  height: 30px;\n  padding: 0;\n  border: 0;\n  border-radius: 0 8px 8px 0;\n  background: var(--primary-bg);\n  color: var(--primary-ink);\n  cursor: pointer;\n  /* 中间那道缝是嵌进去的一条线，不是一个白洞：两个半边在同一个盒子里。\n     隔开它们的是深浅，不是间距。 */\n  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--primary-ink) 24%, transparent);\n}\n.wb-runSplitCaret svg { width: 12px; height: 12px; }\n.wb-runSplitCaret:hover,\n.wb-runSplit[data-open=\"1\"] .wb-runSplitCaret {\n  background: color-mix(in srgb, var(--primary-ink) 12%, var(--primary-bg));\n}\n/* 右半边不在的时候（跑起来了、没有步骤），左半边自己把右边的圆角接回来。\n   这里不用 data-solo：那个词已经被\"这一步是单独跑的\"占着，两个意思不能共用一个属性。 */\n.wb-runSplit[data-caret=\"0\"] .wb-btn { border-radius: 8px; }\n.wb-runMenu {\n  position: absolute;\n  /* 摆在按钮下沿之外 6px：面板头高度稳定，用固定偏移比百分比可靠 */\n  top: 36px;\n  right: 0;\n  z-index: 70;\n  width: 276px;\n  padding: 5px;\n  border-radius: 10px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n.wb-runMenuRow {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  width: 100%;\n  padding: 7px 9px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-runMenuRow > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }\n.wb-runMenuRow b { font-weight: 500; }\n/* 默认标：这一行就是主按钮按下去会做的事，菜单是在解释按钮，不是和它打架 */\n.wb-runMenuRow i {\n  padding: 1px 5px;\n  border-radius: 4px;\n  background: var(--accent-wash);\n  color: var(--accent);\n  font-size: 10px;\n  font-style: normal;\n  line-height: 13px;\n}\n.wb-runMenuRow em { color: var(--ink4); font-size: 11px; font-style: normal; line-height: 15px; }\n.wb-runMenuRow:hover { background: var(--hover); }\n.wb-runMenuRow[disabled] { opacity: .38; cursor: default; }\n.wb-runMenuRow[disabled]:hover { background: transparent; }\n\n.wb-panelBody { flex: 1; min-height: 0; display: flex; }\n/* 只剩一个视图了，不再需要切换用的 display 开关 */\n.wb-pipelineView { flex: 1; min-width: 0; display: flex; flex-direction: column; }\n\n/* -------------------------------------------------------------- 步骤轨道 + 结果 */\n/* 执行时看的是产出。步骤是导航，结果是主体，所以这里反过来：\n   轨道固定窄，结果吃掉剩余全部宽度。 */\n.wb-panes { position: relative; flex: 1; min-height: 0; display: flex; }\n\n.wb-canvas {\n  flex: none;\n  width: 280px;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  border-right: 0.5px solid var(--divider);\n}\n\n.wb-canvasHead {\n  flex: none;\n  position: relative;\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 12px 14px 10px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-canvasTitleRow { display: flex; align-items: center; gap: 8px; min-width: 0; }\n.wb-canvasTitleBtn {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 15px;\n  font-weight: 500;\n  cursor: pointer;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-canvasTitleBtn svg { width: 13px; height: 13px; flex: none; color: var(--ink3); }\n.wb-canvasTitleBtn:hover svg { color: var(--ink); }\n.wb-chipState {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 20px;\n  padding: 0 8px;\n  border-radius: 10px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-size: 12px;\n  white-space: nowrap;\n}\n.wb-chipState[data-s=\"running\"] { background: var(--accent-wash); color: var(--accent); }\n.wb-chipState[data-s=\"done\"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 82%, var(--ink)); }\n.wb-chipState[data-s=\"failed\"] { background: var(--danger-wash); color: var(--danger); }\n.wb-chipState[data-s=\"idle\"], .wb-chipState[data-s=\"stopped\"] { background: var(--hover); color: var(--ink2); }\n/* 整条跑过 = 填实；只跑过其中几步 = 描边。形状先说话，颜色只是补一句：\n   单步跑过描绿，已有结果描灰——后者连\"怎么跑出来的\"都还不确定，不该用绿 */\n.wb-chipState[data-s=\"solo\"] {\n  background: transparent;\n  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--success) 55%, transparent);\n  color: color-mix(in srgb, var(--success) 60%, var(--ink));\n}\n.wb-chipState[data-s=\"kept\"] {\n  background: transparent;\n  box-shadow: inset 0 0 0 0.5px var(--hairline);\n  color: var(--ink3);\n}\n/* 这行字是运行记录的入口：它本来就在说\"上一次运行改了什么\"，所以让它能点 */\n.wb-canvasMeta {\n  display: block;\n  width: 100%;\n  margin-top: 4px;\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  cursor: pointer;\n}\n.wb-canvasMeta:not(:disabled):hover { color: var(--ink); }\n.wb-canvasMeta:disabled { cursor: default; }\n.wb-iconBtn {\n  width: 26px; height: 26px;\n  padding: 0;\n  display: grid; place-items: center;\n  border: 0;\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink3);\n  cursor: pointer;\n}\n.wb-iconBtn svg { width: 15px; height: 15px; }\n.wb-iconBtn:hover { background: var(--hover); color: var(--ink); }\n\n.wb-canvasScroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }\n.wb-flow { padding: 12px 14px 16px; }\n\n/* 节点 */\n.wb-node {\n  position: relative;\n  display: block;\n  width: 100%;\n  text-align: left;\n  padding: 9px 11px 0;\n  border: 0.5px solid var(--hairline);\n  border-radius: 12px;\n  background: var(--card-bg);\n  box-shadow: var(--shadow-node);\n  font: inherit;\n  color: inherit;\n  cursor: pointer;\n  transition: border-color .12s, box-shadow .12s;\n}\n.wb-node::before {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  top: 13px;\n  bottom: 13px;\n  width: 2px;\n  border-radius: 0 2px 2px 0;\n  background: var(--idle);\n}\n.wb-node[data-s=\"done\"]::before { background: var(--success); }\n.wb-node[data-s=\"running\"]::before { background: var(--accent); }\n.wb-node[data-s=\"failed\"]::before { background: var(--danger); }\n.wb-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }\n.wb-node[aria-selected=\"true\"] { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent-soft); }\n/* 待运行：位置留好了、还没启动，所以是虚线框和空心序号，不是灰掉的实心卡片 */\n.wb-node[data-s=\"idle\"] { border-style: dashed; }\n.wb-node[data-s=\"idle\"] .wb-nodeIndex { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink4); }\n.wb-node[data-s=\"idle\"] .wb-nodeState { color: var(--ink3); }\n.wb-node[data-s=\"idle\"] .wb-nodeDur { color: var(--ink4); }\n\n.wb-nodeTop { display: flex; align-items: center; gap: 7px; }\n.wb-nodeIndex {\n  flex: none;\n  width: 18px; height: 18px;\n  display: grid; place-items: center;\n  border-radius: 5px;\n  background: var(--hover);\n  color: var(--ink3);\n  font-family: var(--f-mono);\n  font-size: 11px;\n}\n.wb-node[data-s=\"running\"] .wb-nodeIndex { background: var(--accent-wash); color: var(--accent); }\n.wb-node[data-s=\"done\"] .wb-nodeIndex { color: var(--ink2); }\n.wb-nodeTitle {\n  min-width: 0;\n  font-size: 13px;\n  font-weight: 500;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n/* 就地改名：边框 + 光晕，跟只读标题分开；字号跟标题一致，换的时候不跳 */\n.wb-nodeNameInput {\n  flex: 1 1 0;\n  min-width: 40px;\n  margin: -3px 0;\n  padding: 2px 6px;\n  border: 1px solid var(--accent);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  font-weight: 500;\n  outline: none;\n  box-shadow: 0 0 0 2px var(--accent-soft);\n}\n.wb-nodeState {\n  margin-left: auto;\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  color: var(--ink3);\n  white-space: nowrap;\n}\n.wb-nodeState svg { width: 12px; height: 12px; }\n.wb-node[data-s=\"done\"] .wb-nodeState { color: color-mix(in srgb, var(--success) 72%, var(--ink)); }\n.wb-node[data-s=\"running\"] .wb-nodeState { color: var(--accent); }\n.wb-node[data-s=\"failed\"] .wb-nodeState { color: var(--danger); }\n.wb-nodeDur {\n  flex: none;\n  min-width: 44px;\n  text-align: right;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n  font-variant-numeric: tabular-nums;\n}\n/* 轨道上放不下「技能·模型·权限」这一行，技能 id 交给右侧检查器头部显示 */\n.wb-nodeFoot {\n  margin: 7px -11px 0;\n  padding: 5px 11px;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  border-top: 0.5px solid var(--divider);\n  border-radius: 0 0 12px 12px;\n  background: var(--recess);\n  font-size: 11px;\n  color: var(--ink3);\n  min-height: 24px;\n}\n.wb-node[data-s=\"failed\"] .wb-nodeFoot { background: var(--danger-wash); color: var(--danger); }\n.wb-node[data-s=\"running\"] .wb-nodeFoot { background: var(--accent-wash); color: var(--accent); }\n.wb-nodeFoot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n/* 这一步的产物来自哪次运行。单点重跑之后只有它会变 */\n.wb-nodeRun { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 产物来自单独跑的那一次：脚注写「单步 #1」，和整条运行的「#4」分开读 */\n.wb-nodeRun[data-solo=\"1\"] { color: color-mix(in srgb, var(--success) 50%, var(--ink4)); }\n.wb-nodeProg { flex: none; width: 34px; height: 3px; border-radius: 2px; background: var(--accent-soft); overflow: hidden; }\n.wb-nodeProg i { display: block; height: 100%; width: 40%; border-radius: 2px; background: var(--accent); animation: prog 1.5s ease-in-out infinite; }\n@keyframes prog { 0% { transform: translateX(-100%) } 100% { transform: translateX(280%) } }\n\n/* 连接线 + 插入点：线和按钮叠在同一个 grid 单元格里，居中靠布局而不是靠绝对定位猜 */\n.wb-connector {\n  position: relative;\n  height: 24px;\n  display: grid;\n  place-items: center;\n}\n.wb-connector::before {\n  content: \"\";\n  grid-area: 1 / 1;\n  width: 1px;\n  height: 100%;\n  background: var(--divider);\n}\n.wb-insertBtn {\n  grid-area: 1 / 1;\n  z-index: 1;\n  width: 20px;\n  height: 20px;\n  /* button 元素自带 UA padding，不清零会把图标挤出边框 */\n  padding: 0;\n  display: grid;\n  place-items: center;\n  border: 0.5px solid var(--hairline);\n  border-radius: 50%;\n  background: var(--base);\n  color: var(--ink3);\n  cursor: pointer;\n  /* 每条连接线上都挂一个 +，五步就是四个噪点。默认藏起来，鼠标过来或者键盘\n     聚焦时才浮出；真的想加步骤，底下常驻的「添加步骤」永远在那儿 */\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity .12s, color .12s, background .12s, border-color .12s;\n}\n.wb-connector:hover .wb-insertBtn,\n.wb-connector:focus-within .wb-insertBtn {\n  opacity: 1;\n  pointer-events: auto;\n}\n.wb-insertBtn svg { width: 11px; height: 11px; }\n.wb-connector:hover .wb-insertBtn {\n  opacity: 1;\n  border-color: color-mix(in srgb, var(--accent) 38%, transparent);\n  color: var(--accent);\n}\n.wb-insertBtn:hover { background: var(--accent-wash); color: var(--accent); }\n\n.wb-connectorShort { height: 14px; display: flex; justify-content: center; }\n.wb-connectorShort::before { content: \"\"; width: 1px; height: 100%; background: var(--divider); }\n\n/* 空流水线 */\n.wb-emptyFlow {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  padding: 34px 24px;\n  border: 1px dashed var(--hairline);\n  border-radius: 12px;\n  color: var(--ink3);\n}\n.wb-emptyMark {\n  width: 36px; height: 36px;\n  display: grid; place-items: center;\n  border-radius: 10px;\n  background: var(--hover);\n  color: var(--ink3);\n  margin-bottom: 11px;\n}\n.wb-emptyMark svg { width: 17px; height: 17px; }\n.wb-emptyFlow h4 { margin: 0 0 5px; font-size: 13px; font-weight: 500; color: var(--ink); }\n.wb-emptyFlow p { margin: 0 0 14px; max-width: 300px; font-size: 12px; line-height: 19px; }\n\n.wb-addStep {\n  width: 100%;\n  height: 42px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  border: 1px dashed var(--hairline);\n  border-radius: 12px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 13px;\n  cursor: pointer;\n}\n.wb-addStep svg { width: 13px; height: 13px; }\n.wb-addStep:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }\n\n/* ------------------------------------------------------------------ 检查器 */\n/* 结果区吃掉剩余全部宽度。执行时看的是产出，不是步骤定义。 */\n.wb-inspector {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  min-height: 0;\n  background: var(--pane);\n}\n\n.wb-inspHead {\n  flex: none;\n  position: relative;\n  padding: 12px 16px 0;\n}\n\n/* 当前步骤的操作菜单：上移 / 下移 / 移除 */\n.wb-stepMenu {\n  position: absolute;\n  /* 落在标题行下沿：kicker + 标题行高度稳定，用固定偏移比百分比可靠 */\n  top: 62px;\n  right: 14px;\n  z-index: 60;\n  width: 184px;\n  padding: 5px;\n  border-radius: 10px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n.wb-stepMenuRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 9px;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-stepMenuRow svg { width: 13px; height: 13px; color: var(--ink3); }\n.wb-stepMenuRow:hover { background: var(--hover); }\n.wb-stepMenuRow[data-danger] { color: var(--danger); }\n.wb-stepMenuRow[data-danger] svg { color: var(--danger); }\n.wb-stepMenuRow[data-danger]:hover { background: var(--danger-wash); }\n.wb-stepMenuRow[disabled] { opacity: .38; cursor: default; }\n.wb-stepMenuRow[disabled]:hover { background: transparent; }\n.wb-stepMenuSep { height: 0.5px; margin: 4px 8px; background: var(--divider); }\n.wb-stepMenuNote {\n  padding: 6px 9px 3px;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 15px;\n}\n.wb-inspKicker {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  color: var(--ink3);\n  font-size: 12px;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-inspKicker b { font-weight: 500; color: var(--ink2); }\n.wb-inspTitleRow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }\n.wb-inspTitle {\n  min-width: 0;\n  margin: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-runOne {\n  margin-left: auto;\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 26px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 13px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.wb-runOne svg { width: 11px; height: 11px; }\n.wb-runOne:hover { background: var(--hover-strong); }\n.wb-inspMeta {\n  margin-top: 5px;\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n}\n.wb-inspMeta code { font-family: var(--f-mono); font-size: 11px; color: var(--ink3); }\n.wb-chipTag {\n  display: inline-flex;\n  align-items: center;\n  height: 18px;\n  padding: 0 7px;\n  border-radius: 9px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-size: 11px;\n}\n.wb-chipTag svg { flex: none; width: 10px; height: 10px; }\n.wb-chipTag[data-s=\"running\"] { background: var(--accent-wash); color: var(--accent); }\n.wb-chipTag[data-s=\"done\"] { background: color-mix(in srgb, var(--success) 12%, transparent); color: color-mix(in srgb, var(--success) 78%, var(--ink)); }\n.wb-chipTag[data-s=\"failed\"] { background: var(--danger-wash); color: var(--danger); }\n/* 待运行 / 排队中都是灰的，所以标签也换画法：描边不填底 vs 浅灰填底 */\n.wb-chipTag[data-s=\"idle\"] { background: transparent; box-shadow: inset 0 0 0 0.5px var(--hairline); color: var(--ink3); }\n\n.wb-inspTabs {\n  flex: none;\n  display: flex;\n  gap: 16px;\n  margin-top: 10px;\n  padding: 0 16px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-inspTab {\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: var(--ink2);\n  font: inherit;\n  font-size: 13px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n.wb-inspTab:hover { color: var(--ink); }\n.wb-inspTab[aria-selected=\"true\"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }\n.wb-inspTab em { font-style: normal; color: var(--ink4); margin-left: 3px; }\n\n.wb-inspScroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }\n\n/* 结果面板 */\n.wb-resultPanel { padding: 12px 16px 18px; }\n.wb-resultBar { display: flex; align-items: center; gap: 4px; margin-bottom: 9px; }\n/* 宽屏阅读跟 预览/源码 是一组：都是\"换个读法\"，所以贴着放，不甩到右边去 */\n.wb-resultBar .wb-iconBtn { width: 24px; height: 24px; }\n\n/* 重生成之后的痕迹：留着「这次是按什么要求改的」，否则改了什么会丢 */\n.wb-revised {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  margin-bottom: 11px;\n  padding: 6px 9px;\n  border-radius: 7px;\n  background: var(--accent-wash);\n  font-size: 11px;\n}\n.wb-revised span { flex: none; color: var(--accent); }\n.wb-revised em {\n  font-style: normal;\n  min-width: 0;\n  color: var(--ink2);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* 结果区两块：这次的结果（清单）/ 模板（预览·源码）。中间一条发丝线分开。 */\n.wb-resBlock + .wb-resBlock { margin-top: 18px; padding-top: 15px; border-top: 0.5px solid var(--divider); }\n.wb-resBlockHead { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; font-weight: 500; }\n.wb-resBlockHead > em {\n  min-width: 0;\n  font-style: normal;\n  font-weight: 400;\n  font-size: 11px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-resBlockHead .wb-segTiny { margin-left: auto; }\n\n/* 这次交出来的东西：一行一个文件。窄栏只列清单，正文去阅读器读 */\n.wb-resList { display: flex; flex-direction: column; gap: 4px; }\n.wb-resItem {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 8px 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-resItem:hover { background: var(--hover); border-color: color-mix(in srgb, var(--ink) 18%, transparent); }\n.wb-resItem > svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }\n.wb-resItemName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.wb-resItemSize { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 目录读不到时的原因：没有这一行，这一步看起来只是「目录里没有文件」 */\n.wb-resProblem { margin: 2px 0 0; font-size: 11.5px; line-height: 17px; color: var(--danger); }\n/* 箭头朝右 = 进去读，不是展开 */\n.wb-resItem > svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }\n/* 无目录的步骤：没有清单可列，就一个按钮进去读。摘要那行在区块标题右边 */\n.wb-resOpen {\n  display: inline-flex;\n  align-items: center;\n  /* 放在 column flex 里不被拉满，按钮就是按钮的宽度 */\n  align-self: flex-start;\n  gap: 6px;\n  height: 28px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink2);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n  transition: background .12s, color .12s, border-color .12s;\n}\n.wb-resOpen:hover {\n  background: var(--hover);\n  color: var(--ink);\n  border-color: color-mix(in srgb, var(--accent) 34%, transparent);\n}\n.wb-resOpen svg:first-child { flex: none; width: 13px; height: 13px; color: var(--ink3); }\n/* 摘要跟在动作后面，是同一行里的补充，不是另一句\"有结果了\" */\n.wb-resOpen em { font-style: normal; font-size: 11px; color: var(--ink4); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.wb-resOpen svg:last-child { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); }\n.wb-resOpen:hover svg:first-child { color: var(--accent); }\n.wb-resEmpty { padding: 10px 2px; font-size: 12px; line-height: 19px; color: var(--ink3); }\n.wb-resEmpty em { display: block; font-style: normal; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n/* 模板预览：一块标了名字的空位。不用骨架条，那不是\"占位\"，那是\"加载中\" */\n.wb-tplSlotLabel { margin-bottom: 7px; font-size: 11px; color: var(--ink4); }\n.wb-tplSlotBox {\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  padding: 18px 14px;\n  border: 0.5px dashed var(--hairline);\n  border-radius: 9px;\n  background: var(--recess);\n}\n.wb-tplSlotTag {\n  flex: none;\n  padding: 2px 7px;\n  border-radius: 5px;\n  background: var(--hover-strong);\n  font-size: 11px;\n  color: var(--ink2);\n}\n.wb-tplSlotText { min-width: 0; font-size: 12px; line-height: 17px; color: var(--ink3); }\n\n/* 源头说明：告诉读者「源码」只是区域片段，文件正文不在里面 */\n.wb-srcNote {\n  /* 横向 padding 由 .wb-resultPanel 给，这里只补下方间距 */\n  padding: 0 0 9px;\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink4);\n}\n.wb-srcNote code { font-family: var(--f-mono); font-size: 11px; }\n\n/* 源码那一栏：卡片的 HTML 模板全文，等宽、可滚、底色压暗。\n   区域标记之间就是模型每次执行要替换的那段。 */\n/* 编辑框：字是原型那套（等宽 11px / 17px 行高 / 圆角 10px），但底色和字色得是\n   「可以在这里打字」的样子——压暗的底 + 次要墨色读起来就是个禁用的块。 */\n.wb-docSrc {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin: 0;\n  padding: 10px 12px;\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 17px;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  max-height: 420px;\n  min-height: 160px;\n  overflow-y: auto;\n  resize: vertical;\n  cursor: text;\n}\n.wb-docSrc:focus {\n  outline: none;\n  border-color: var(--accent);\n  box-shadow: 0 0 0 2px var(--accent-wash);\n}\n\n/* 预览是模板自己的渲染：外面这层只负责给个框和滚动，里面长什么样由模板决定 */\n.wb-tplPreviewBody {\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--card-bg);\n  max-height: 420px;\n  overflow-y: auto;\n}\n.wb-tplPreviewFrame { display: block; min-height: 120px; }\n\n/* 区域说明：模板里没有区域标记的时候，把它放在框下面，而不是什么都不放 */\n.wb-tplRegion {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 10px 0 0;\n  padding: 12px;\n  border: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent);\n  border-radius: 8px;\n}\n.wb-tplRegionTag {\n  padding: 2px 7px;\n  border-radius: 5px;\n  background: var(--hover);\n  color: var(--ink2);\n  font-family: var(--f-mono);\n  font-size: 11px;\n}\n.wb-tplRegionText { font-size: 11px; color: var(--ink3); }\n.wb-segTiny { display: flex; gap: 1px; padding: 1px; border-radius: 6px; background: var(--hover); }\n.wb-segTiny button {\n  border: 0;\n  padding: 2px 8px;\n  border-radius: 5px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n.wb-segTiny button[aria-pressed=\"true\"] { background: var(--base); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }\n.wb-resultBar .wb-spacer { flex: 1; }\n.wb-docPad {\n  border: 0.5px solid var(--divider);\n  border-radius: 10px;\n  background: var(--base);\n  padding: 12px 14px 14px;\n}\n.wb-docPad[data-tone=\"danger\"] { background: var(--danger-wash); border-color: color-mix(in srgb, var(--danger) 28%, transparent); }\n\n/* 结果文档 */\n.wb-doc { color: var(--ink); font-size: 13px; line-height: 20px; }\n.wb-doc h5 { margin: 0 0 7px; font-size: 13px; font-weight: 500; line-height: 20px; }\n.wb-doc h6 { margin: 11px 0 5px; font-size: 11px; font-weight: 500; color: var(--ink3); letter-spacing: .02em; }\n.wb-doc p { margin: 0 0 9px; }\n.wb-doc ul { margin: 0 0 8px; padding-left: 16px; }\n.wb-doc li { margin-bottom: 3px; }\n.wb-doc code { font-family: var(--f-mono); font-size: 11px; padding: 1px 4px; border-radius: 4px; background: var(--hover); }\n.wb-doc strong { font-weight: 500; }\n.wb-doc table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 9px; font-size: 12px; }\n.wb-doc th:nth-child(1), .wb-doc td:nth-child(1) { width: 44%; }\n.wb-doc th:nth-child(2), .wb-doc td:nth-child(2) { width: 34%; }\n.wb-doc th:nth-child(3), .wb-doc td:nth-child(3) { width: 22%; }\n.wb-doc th {\n  text-align: left;\n  font-weight: 400;\n  font-size: 11px;\n  color: var(--ink4);\n  padding: 0 0 5px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-doc td { padding: 6px 0; border-bottom: 0.5px solid var(--divider); vertical-align: top; overflow-wrap: anywhere; }\n.wb-doc tr:last-child td { border-bottom: 0; }\n.wb-doc .wb-num { text-align: right; font-family: var(--f-mono); font-size: 11px; }\n.wb-doc .wb-add { color: rgb(34, 160, 90); }\n.wb-doc .wb-del { color: var(--danger); }\n.wb-doc .wb-callout {\n  margin: 9px 0 0;\n  padding: 8px 10px;\n  border-radius: 8px;\n  background: var(--accent-wash);\n  color: var(--ink2);\n  font-size: 12px;\n  line-height: 18px;\n}\n.wb-doc .wb-checks { margin: 0; }\n.wb-doc .wb-check { display: flex; align-items: flex-start; gap: 7px; padding: 5px 0; font-size: 12px; border-bottom: 0.5px solid var(--divider); }\n.wb-doc .wb-check:last-child { border-bottom: 0; }\n.wb-doc .wb-check i { flex: none; width: 11px; height: 11px; margin-top: 4px; border-radius: 50%; background: var(--success); }\n.wb-doc .wb-check[data-s=\"todo\"] i { background: var(--idle); }\n.wb-doc .wb-check span { flex: 1; min-width: 0; }\n.wb-doc .wb-check em { flex: none; font-style: normal; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-doc .wb-metrics { display: flex; gap: 8px; margin: 0 0 9px; }\n.wb-doc .wb-metric { flex: 1; padding: 8px 10px; border-radius: 8px; background: var(--hover); }\n.wb-doc .wb-metric .wb-k { display: block; font-size: 11px; color: var(--ink3); }\n.wb-doc .wb-metric .wb-v { display: block; margin-top: 1px; font-size: 17px; font-weight: 500; line-height: 22px; }\n.wb-doc .wb-metric small { font-size: 11px; font-weight: 400; color: var(--ink4); }\n\n\n/* 结果占位：运行中 / 排队 / 未运行 / 失败 */\n.wb-stateBlock { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 0 2px; }\n.wb-stateBlock h6 { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink); }\n.wb-stateBlock p { margin: 0; color: var(--ink3); font-size: 12px; line-height: 19px; }\n.wb-skel { display: flex; flex-direction: column; gap: 7px; }\n.wb-skel i {\n  display: block;\n  height: 9px;\n  border-radius: 5px;\n  background: linear-gradient(90deg, var(--hover) 25%, var(--hover-strong) 37%, var(--hover) 63%);\n  background-size: 400% 100%;\n  animation: shimmer 1.4s ease-in-out infinite;\n}\n@keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }\n.wb-inlineFail {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n  padding: 9px 11px;\n  border-radius: 9px;\n  background: var(--danger-wash);\n  color: var(--danger);\n  font-size: 12px;\n  line-height: 18px;\n}\n.wb-inlineFail svg { flex: none; width: 14px; height: 14px; margin-top: 2px; }\n.wb-inlineFail b { display: block; font-weight: 500; }\n.wb-inlineFail em { display: block; font-style: normal; color: var(--ink2); margin-top: 2px; }\n\n/* 活动时间线 */\n.wb-activityPanel { padding: 10px 16px 18px; }\n.wb-actList { display: flex; flex-direction: column; }\n.wb-act {\n  position: relative;\n  display: flex;\n  gap: 9px;\n  padding: 0 0 13px;\n}\n.wb-act:last-child { padding-bottom: 0; }\n.wb-act::before {\n  content: \"\";\n  position: absolute;\n  left: 6px;\n  top: 16px;\n  bottom: 0;\n  width: 1px;\n  background: var(--divider);\n}\n.wb-act:last-child::before { display: none; }\n.wb-actIcon {\n  position: relative;\n  z-index: 1;\n  flex: none;\n  width: 13px; height: 13px;\n  margin-top: 2px;\n  display: grid;\n  place-items: center;\n  background: var(--pane);\n  color: var(--ink4);\n}\n.wb-actIcon svg { width: 11px; height: 11px; }\n.wb-act[data-k=\"done\"] .wb-actIcon { color: var(--success); }\n.wb-act[data-k=\"fail\"] .wb-actIcon { color: var(--danger); }\n.wb-act[data-k=\"write\"] .wb-actIcon { color: var(--accent); }\n.wb-actBody { min-width: 0; flex: 1; }\n.wb-actTop { display: flex; align-items: baseline; gap: 6px; }\n.wb-actName { font-size: 12px; color: var(--ink); white-space: nowrap; }\n.wb-actArg {\n  min-width: 0;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink3);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.wb-actT { margin-left: auto; flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-actMsg { margin-top: 2px; color: var(--ink2); font-size: 12px; line-height: 17px; }\n.wb-actDur { margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n/* 配置面板 */\n.wb-configPanel { padding: 14px 16px 20px; }\n/* 配置分三层：整条流水线 / 这一步 / 模板。三层之间一条发丝线。 */\n.wb-cfgBlock + .wb-cfgBlock { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--divider); }\n.wb-cfgBlockHead {\n  display: flex;\n  /* 和标签的第一行字对齐，不和整行垂直居中 */\n  align-items: baseline;\n  gap: 8px;\n  margin-bottom: 3px;\n  font-size: 12px;\n  font-weight: 500;\n  color: var(--ink);\n}\n.wb-cfgBlockHead > em { min-width: 0; font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-cfgBlockHead .wb-segTiny { margin-left: auto; }\n/* 真下拉，不是长得像下拉的死按钮。宽度统一 200：几行下拉的注脚\n   因此落在同一条竖线上，而不是跟着选项长短各走各的 */\n.wb-ruleSelect {\n  display: block;\n  width: 200px;\n  max-width: 100%;\n  padding: 5px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n.wb-ruleSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n/* 能改的行里放文本的地方：路径和指令，边框和下拉同一套 */\n/* 写不进去时的一句话：在出错的那一块里，不在别处 */\n.wb-cfgProblem {\n  margin: 0 0 4px;\n  padding: 6px 9px;\n  border-radius: 7px;\n  background: var(--danger-wash);\n  color: var(--danger);\n  font-size: 11px;\n  line-height: 1.5;\n}\n\n/* 工作目录：一行可点的选择器，左边是确认过的路径，右边是「选择目录」 */\n.wb-rulePath {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  width: 480px;\n  max-width: 100%;\n  padding: 7px 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-rulePath:hover:not(:disabled) { border-color: var(--divider); background: var(--hover); }\n.wb-rulePath:disabled { cursor: default; color: var(--ink4); }\n.wb-rulePath:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n.wb-rulePathText { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-rulePathText.wb-mono { font-family: var(--f-mono); font-size: 12px; }\n.wb-rulePathPick { flex: none; font-size: 11px; color: var(--accent); }\n.wb-rulePath:disabled .wb-rulePathPick { color: var(--ink4); }\n\n.wb-ruleInput,\n.wb-ruleArea {\n  display: block;\n  width: 480px;\n  max-width: 100%;\n  padding: 6px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: var(--card-bg);\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n}\n.wb-ruleInput { font-family: var(--f-mono); }\n.wb-ruleArea { line-height: 1.55; resize: vertical; }\n.wb-ruleInput:hover,\n.wb-ruleArea:hover { border-color: var(--hairline-strong, var(--divider)); }\n.wb-ruleInput:focus-visible,\n.wb-ruleArea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }\n\n/* ---- 一行三轨：标签 / 控件 / 注脚 --------------------------------\n   控件是这一行里唯一像“东西”的东西，注脚永远待在自己的窄道上。\n   以前注脚铺在控件底下、占满整行，于是每一行都因为“解释”变高，\n   解释本身读起来又和内容一样重——一段技能描述甚至能占掉半屏。\n   现在行的行高只由控件决定。窄到放不下三轨时，注脚折到控件下方，\n   仍和控件共享同一条左边缘：行还是那一行，只是折了一下。 */\n.wb-ruleRow {\n  display: flex;\n  align-items: flex-start;\n  gap: 0 14px;\n  padding: 10px 0;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-ruleRow:last-child { border-bottom: 0; }\n/* 和控件第一行字对齐，而不是和整行垂直居中：内容再高，标签也不会浮在中间 */\n.wb-ruleLabel { flex: 0 0 84px; padding-top: 7px; color: var(--ink3); font-size: 12px; }\n.wb-ruleBody { flex: 1; min-width: 0; }\n/* 控件和它的注脚是一对：注脚跟在控件右边，隔着固定 16px。\n   窄到放不下才折到控件下方，仍然从控件那条左边缘起。 */\n.wb-ruleLine { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 3px 16px; }\n.wb-ruleValue { flex: 0 1 auto; min-width: 0; }\n.wb-ruleNote {\n  flex: 1 1 200px;\n  min-width: 150px;\n  max-width: 300px;\n  padding-top: 7px;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 1.5;\n}\n.wb-ruleValue .wb-val {\n  display: block;\n  padding-top: 6px;\n  font-size: 13px;\n  color: var(--ink);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-ruleValue .wb-val.wb-mono { font-family: var(--f-mono); font-size: 12px; }\n\n/* 长一点的技能说明是“读物”不是注脚：两行打住，剩下的自己展开。\n   它是配置页里唯一需要阅读的段落，所以给它一个窄栏和一个边界，\n   而不是让它铺满一行、把控件挤到下面。 */\n.wb-specNote {\n  position: relative;\n  max-width: 480px;\n  margin-top: 8px;\n  padding: 8px 10px 22px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--recess);\n}\n.wb-specNoteBody { margin: 0; color: var(--ink3); font-size: 12px; line-height: 1.6; }\n.wb-specNote[data-open=\"false\"] .wb-specNoteBody { max-height: 3.2em; overflow: hidden; }\n/* 收起来的那两行，最后半行淡出：看得出下面还有字，而不是被剪断 */\n.wb-specNote[data-open=\"false\"]::after {\n  content: '';\n  position: absolute;\n  left: 0.5px;\n  right: 0.5px;\n  bottom: 21px;\n  height: 22px;\n  border-radius: 0 0 7px 7px;\n  background: linear-gradient(to bottom, transparent, var(--recess));\n  pointer-events: none;\n}\n.wb-specNoteMore {\n  position: absolute;\n  right: 10px;\n  bottom: 3px;\n  padding: 2px 0;\n  border: 0;\n  background: none;\n  color: var(--accent);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n.wb-specNoteMore:hover { text-decoration: underline; }\n.wb-specNoteMore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }\n\n/* ----------------------------------------------------------------- 运行条 */\n.wb-runbar {\n  flex: none;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  height: 46px;\n  padding: 0 16px;\n  border-top: 0.5px solid var(--hairline);\n  background: var(--pane);\n}\n.wb-segBar { flex: none; display: flex; gap: 3px; }\n/* 运行条不只靠颜色区分状态：完成了是实心，排队是空心的点阵，失败是斜纹 */\n.wb-segBar i { display: block; width: 22px; height: 4px; border-radius: 2px; background: var(--divider); }\n.wb-segBar i[data-s=\"done\"] { background: var(--success); }\n.wb-segBar i[data-s=\"running\"] {\n  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, color-mix(in srgb, var(--accent) 38%, transparent) 4px 8px);\n}\n.wb-segBar i[data-s=\"failed\"] {\n  background: repeating-linear-gradient(45deg, var(--danger) 0 2px, transparent 2px 5px);\n  box-shadow: inset 0 0 0 0.5px var(--danger);\n}\n.wb-segBar i[data-s=\"queued\"] {\n  background: repeating-linear-gradient(90deg, var(--ink4) 0 1.5px, transparent 1.5px 4px);\n  opacity: .75;\n}\n/* 单独跑过的一步：段不满，是描边的。整条跑完的段才填实，\n   4px 高的条上只描一圈太淡，所以里面留一层很浅的绿 */\n.wb-segBar i[data-s=\"solo\"] {\n  background: color-mix(in srgb, var(--success) 22%, transparent);\n  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 58%, transparent);\n}\n.wb-runNoise { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }\n.wb-runNoise b { font-weight: 500; color: var(--ink); }\n.wb-runNoise .wb-timer { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }\n\n/* 点 */\n.wb-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--idle); }\n.wb-dot[data-s=\"done\"] { background: var(--success); }\n.wb-dot[data-s=\"running\"] { background: var(--accent); }\n.wb-dot[data-s=\"failed\"] { background: var(--danger); }\n.wb-dot[data-s=\"queued\"] { background: var(--idle); }\n.wb-dot[data-s=\"stopped\"] { background: var(--ink4); }\n/* 6px 上也看得出实心/空心 */\n.wb-dot[data-s=\"idle\"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink4); }\n/* 只跑过其中几步：空心绿。填满的绿点才是整条跑完 */\n.wb-dot[data-s=\"solo\"] { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--success) 70%, transparent); }\n.wb-dot[data-s=\"kept\"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink3); }\n\n/* ------------------------------------------------------------- 标题下拉菜单 */\n.wb-renameInput {\n  width: 190px;\n  max-width: 100%;\n  padding: 2px 6px;\n  border: 0.5px solid var(--accent);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink);\n  font: inherit;\n  font-size: 15px;\n  outline: none;\n}\n.wb-pickerUsed { flex: none; font-size: 11px; color: var(--ink4); }\n.wb-canvasMenu {\n  position: absolute;\n  top: calc(100% - 2px);\n  left: 18px;\n  z-index: 60;\n  width: min(330px, calc(100% - 36px));\n  max-height: min(440px, calc(100vh - 220px));\n  overflow-y: auto;\n  padding: 5px;\n  border-radius: 12px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n}\n.wb-menuSect {\n  padding: 6px 8px 4px;\n  color: var(--ink4);\n  font-size: 11px;\n  letter-spacing: .02em;\n}\n.wb-menuRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 7px 8px;\n  border: 0;\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-menuRow:hover { background: var(--hover); }\n.wb-menuRow[aria-current=\"true\"] { background: var(--hover-strong); }\n.wb-menuRowMain { flex: 1; min-width: 0; }\n.wb-menuRowTitle { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-menuRowSub { display: block; margin-top: 1px; color: var(--ink4); font-size: 11px; font-family: var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-menuRowTail { flex: none; display: flex; align-items: center; gap: 6px; color: var(--ink4); font-size: 11px; }\n.wb-menuRun {\n  flex: none;\n  width: 22px; height: 22px;\n  display: grid; place-items: center;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink3);\n  cursor: pointer;\n  opacity: 0;\n}\n.wb-menuRun svg { width: 11px; height: 11px; }\n.wb-menuRow:hover .wb-menuRun { opacity: 1; }\n.wb-menuRun:hover { background: var(--hover-strong); color: var(--ink); }\n.wb-menuSep { height: 0.5px; margin: 5px 8px; background: var(--divider); }\n\n/* ------------------------------------------------------------ 任务选择器 */\n.wb-pickerWrap { position: absolute; inset: 0; z-index: 80; display: flex; align-items: flex-start; justify-content: center; padding-top: 84px; }\n.wb-pickerScrim { position: absolute; inset: 0; background: var(--scrim); }\n.wb-picker {\n  position: relative;\n  width: min(400px, calc(100% - 32px));\n  max-height: min(430px, calc(100% - 140px));\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n.wb-pickerHead { flex: none; padding: 11px 12px 9px; border-bottom: 0.5px solid var(--divider); }\n.wb-pickerTitle { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; font-weight: 500; }\n.wb-pickerTitle span { flex: 1; min-width: 0; }\n.wb-pickerTitle em { font-style: normal; font-weight: 400; color: var(--ink4); font-size: 11px; }\n.wb-searchField {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  height: 30px;\n  padding: 0 9px;\n  border-radius: 8px;\n  background: var(--recess);\n  border: 0.5px solid var(--divider);\n}\n.wb-searchField svg { flex: none; width: 13px; height: 13px; color: var(--ink4); }\n.wb-searchField input {\n  flex: 1;\n  min-width: 0;\n  border: 0;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  outline: none;\n}\n.wb-searchField input::placeholder { color: var(--ink4); }\n.wb-pickerList { flex: 1; min-height: 0; overflow-y: auto; padding: 5px; }\n.wb-pickerRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.wb-pickerRow:hover { background: var(--hover); }\n.wb-pickerRow svg { width: 13px; height: 13px; color: var(--ink4); }\n.wb-pickerRow:hover svg { color: var(--accent); }\n.wb-pickerRowMain { flex: 1; min-width: 0; }\n.wb-pickerRowTitle { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-pickerRowDesc { display: block; margin-top: 1px; font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-pickerEmpty { padding: 16px 8px; text-align: center; color: var(--ink4); font-size: 12px; }\n/* 加了没加上：原因写在点它的地方，而不是让按钮看着像坏了 */\n.wb-pickerProblem {\n  margin: 6px 2px 2px;\n  padding: 6px 8px;\n  border-radius: 6px;\n  background: var(--err-bg, rgba(198, 40, 40, 0.08));\n  color: var(--err, #c62828);\n  font-size: 12px;\n  line-height: 18px;\n}\n\n/* ------------------------------------------------------------ 运行记录 */\n/*\n * 一条记录 = 一次流水线运行 = 它当时每一步的状态与产物快照。\n * 回看某一次，看到的是那天的文件，不是今天被改过的同一份——所以产物必须跟着\n * 那次运行存，而不是回读磁盘。\n */\n.wb-histBody { flex: 1; min-height: 0; overflow-y: auto; }\n\n.wb-histDay {\n  position: sticky;\n  top: 0;\n  z-index: 1;\n  padding: 9px 14px 6px;\n  background: var(--base);\n  font-size: 11px;\n  color: var(--ink4);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n/* 记录没写进去的时候说的那句话。运行本身可能已经成功，所以这是提醒，不是失败。 */\n.wb-histProblem {\n  margin: 0;\n  padding: 10px 14px;\n  font-size: 12px;\n  line-height: 19px;\n  color: var(--ink2);\n  background: color-mix(in srgb, var(--warn) 8%, transparent);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n.wb-histRow {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  width: 100%;\n  padding: 11px 14px;\n  font: inherit;\n  text-align: left;\n  background: transparent;\n  border: 0;\n  border-bottom: 0.5px solid var(--divider);\n  cursor: pointer;\n}\n.wb-histRow:hover { background: var(--hover); }\n.wb-histNo { flex: none; width: 28px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-histWhen { flex: none; width: 92px; font-size: 12px; }\n.wb-histSum {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  color: var(--ink3);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-histTook { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-histBadge { flex: none; width: 44px; font-size: 11px; }\n.wb-histBadge[data-s=\"ok\"] { color: rgb(34, 160, 90); }\n.wb-histBadge[data-s=\"fail\"] { color: var(--danger); }\n.wb-histBadge[data-s=\"running\"] { color: var(--accent); }\n.wb-histBadge[data-s=\"stopped\"] { color: var(--ink3); }\n.wb-histRow > svg { flex: none; width: 12px; height: 12px; color: var(--ink4); }\n\n/* 详情 */\n.wb-histTop {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 10px 14px;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-histTopWhen { font-size: 12px; font-weight: 500; }\n.wb-histTopMeta { min-width: 0; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-histReadonly {\n  flex: none;\n  margin-left: auto;\n  padding: 2px 7px;\n  border-radius: 20px;\n  background: var(--recess);\n  font-size: 11px;\n  color: var(--ink3);\n}\n\n/* 重生成那条运行带着\"要改什么\"，回看时它就是这次改动的由来 */\n.wb-histAsk {\n  padding: 9px 14px;\n  background: var(--accent-wash);\n  font-size: 12px;\n  line-height: 17px;\n  color: var(--ink2);\n  border-bottom: 0.5px solid var(--divider);\n}\n\n.wb-hStep {\n  position: relative;\n  border-bottom: 0.5px solid var(--divider);\n}\n.wb-hStep:last-child { border-bottom: 0; }\n/* 失败的那一步在快照里没有产物可读，但可以现在就重跑 */\n.wb-hStepRetry {\n  position: absolute;\n  top: 50%;\n  right: 12px;\n  transform: translateY(-50%);\n  padding: 2px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 6px;\n  background: var(--base);\n  color: var(--ink2);\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n.wb-hStepRetry:hover { background: var(--hover); color: var(--ink); }\n.wb-hStepMuted { padding-right: 82px; }\n.wb-hStepHead {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 11px 14px;\n  font: inherit;\n  text-align: left;\n  background: transparent;\n  border: 0;\n  cursor: pointer;\n}\n.wb-hStepHead:hover { background: var(--hover); }\n.wb-hStepNo { flex: none; width: 15px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n.wb-hStepName { flex: none; font-size: 13px; }\n.wb-hStepMeta { flex: 1; min-width: 0; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.wb-hStepTook { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n/* 这一步的产物是点开看的：箭头朝右表示\"进去\"，不是一个会展开的手风琴 */\n.wb-hStepHead > svg { flex: none; width: 12px; height: 12px; color: var(--ink4); transform: rotate(-90deg); transition: transform .14s; }\n.wb-hStepHead:hover > svg { transform: rotate(-90deg) translateY(-2px); }\n\n/* 返回箭头：chev 朝下，转 90° 朝左 */\n.wb-histBack svg { transform: rotate(90deg); }\n\n/* 没东西可点的那一步（还没跑）：同样的格子，但不是按钮 */\n.wb-hStepMuted { cursor: default; }\n.wb-hStepMuted:hover { background: transparent; }\n.wb-hStepMuted .wb-hStepName { color: var(--ink3); }\n\n.wb-hError {\n  padding: 9px 11px;\n  border-radius: 8px;\n  background: var(--danger-wash);\n  font-size: 12px;\n  color: var(--danger);\n}\n/* ------------------------------------------------------------ 阅读器 */\n/*\n * 读长文的唯一地方。\n *\n * 结果区那列最宽 690，去掉留白只剩 650——一份五万字的文档摆进去就是条窄带子，\n * 所以正文要在宽的场合读：从结果区打开读「现在这份」，从运行记录打开读「第 N 次那份」。\n * 两处是同一个阅读器，只是身份不同（live / snapshot），差别只在标题和一条只读提示。\n */\n.wb-zoomWrap { position: absolute; inset: 0; z-index: 78; display: flex; padding: 10px; }\n/* 阅读器会盖在运行记录上面（从历史里点开一步就是），所以它得在上一级 */\n/* 闃呰鍣ㄤ笌杩愯璁板綍涓嶅悓鏃跺嚭鐜帮紝涓嶉渶瑕侀澶栫殑灞傜骇 */\n.wb-zoomScrim { position: absolute; inset: 0; background: var(--scrim); }\n.wb-zoom {\n  position: relative;\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n/* 阅读器的头就是它的铭牌：读的是什么、谁的、从哪儿出来的，一行说完。\n\n   原来是「阅读结果 / 详细设计」两个小标题，正文里那张卡片页又把自己的标题和返回按钮\n   印一遍，于是同一个名字在一屏里出现两次，而真正的内容排在 96px 之后才开头。这里只留\n   一份，剩下的交给那一行。 */\n.wb-zoomHead {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 9px 14px;\n  border-bottom: 0.5px solid var(--divider);\n}\n/* 一行里最小的两样：它是什么（阅读结果）和它在哪儿（目录）。铭牌上它们是注脚，不是标题。\n\n   「阅读结果」和后面的名字只隔 8px 时读成一个词（阅读结果详细设计），所以中间落一条 1px\n   的竖线：它不是一个符号，是把注脚和名字分开的那面墙。 */\n.wb-zoomKicker { flex: none; font-size: 11px; line-height: 16px; color: var(--ink4); }\n.wb-zoomKicker::after {\n  content: '';\n  display: inline-block;\n  width: 1px;\n  height: 10px;\n  margin-left: 9px;\n  vertical-align: -1px;\n  background: var(--divider);\n}\n.wb-zoomMeta {\n  flex: 0 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 500;\n  line-height: 22px;\n  color: var(--ink);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n/* 技能是一个名字，所以是一个 chip；目录是一条路径，所以是 mono。都比它们的标题轻。 */\n.wb-zoomChip {\n  flex: none;\n  padding: 1px 7px;\n  border-radius: 6px;\n  background: color-mix(in srgb, var(--ink) 5%, transparent);\n  color: var(--ink3);\n  font-size: 11px;\n  line-height: 16px;\n}\n.wb-zoomPath {\n  flex: 0 1 auto;\n  min-width: 0;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink4);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-zoomHint { flex: none; margin-left: auto; font-size: 11px; color: var(--ink4); }\n\n/* 文件清单照旧横向排、长名省略号，只是宽裕了所以能放得更长 */\n.wb-zoomFiles { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px; border-bottom: 0.5px solid var(--divider); }\n.wb-zoomFiles:empty { display: none; }\n.wb-zFile {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  max-width: 380px;\n  min-width: 0;\n  padding: 6px 10px;\n  border: 0.5px solid var(--divider);\n  border-radius: 8px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n.wb-zFile svg { flex: none; width: 13px; height: 13px; color: var(--ink4); }\n.wb-zFile:hover { background: var(--hover); color: var(--ink); }\n.wb-zFile[aria-pressed=\"true\"] { background: var(--hover-strong); border-color: var(--hairline); color: var(--ink); }\n.wb-zFile[aria-pressed=\"true\"] svg { color: var(--accent); }\n.wb-zName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.wb-zFile[aria-pressed=\"true\"] .wb-zName { font-weight: 500; }\n.wb-zSize { flex: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }\n\n.wb-zoomBody { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 26px; }\n/* 历史快照：说清楚\"这不是现在磁盘上的那份\" */\n.wb-zoomWarn {\n  flex: none;\n  padding: 8px 18px;\n  border-bottom: 0.5px solid var(--divider);\n  background: var(--recess);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink3);\n}\n\n/* 面积大了一倍，正文也该松一档，不然字全挤在左边一小条里 */\n.wb-zoomBody .wb-doc { font-size: 13px; line-height: 22px; }\n.wb-zoomBody .wb-doc h5 { margin-bottom: 9px; font-size: 15px; line-height: 22px; }\n.wb-zoomBody .wb-doc h6 { margin: 16px 0 6px; font-size: 12px; }\n.wb-zoomBody .wb-doc p { margin-bottom: 11px; }\n.wb-zoomBody .wb-doc td { padding: 8px 14px 8px 0; }\n.wb-zoomBody .wb-doc td:last-child { padding-right: 0; }\n/* 结果区的表格是固定比例（给窄列用的），放大后按内容分 */\n.wb-zoomBody .wb-doc table { table-layout: auto; font-size: 13px; }\n.wb-zoomBody .wb-doc th:nth-child(1), .wb-zoomBody .wb-doc td:nth-child(1),\n.wb-zoomBody .wb-doc th:nth-child(2), .wb-zoomBody .wb-doc td:nth-child(2),\n.wb-zoomBody .wb-doc th:nth-child(3), .wb-zoomBody .wb-doc td:nth-child(3) { width: auto; }\n\n/* ------------------------------------------------------------ 审核（提要求重生成） */\n/* 和任务选择器同一套外壳：同一块面板里，两个浮层的形状不该有两套语言 */\n.wb-reviewWrap { position: absolute; inset: 0; z-index: 85; display: flex; align-items: flex-start; justify-content: center; padding-top: 84px; }\n.wb-reviewScrim { position: absolute; inset: 0; background: var(--scrim); }\n.wb-review {\n  position: relative;\n  width: min(420px, calc(100% - 32px));\n  display: flex;\n  flex-direction: column;\n  border-radius: 14px;\n  background: var(--base);\n  border: 0.5px solid var(--hairline);\n  box-shadow: var(--shadow-menu);\n  overflow: hidden;\n}\n.wb-reviewHead { padding: 12px 13px 10px; border-bottom: 0.5px solid var(--divider); }\n.wb-reviewTitle { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }\n.wb-reviewTitle span { flex: 1; min-width: 0; }\n.wb-reviewTitle em { font-style: normal; font-weight: 400; color: var(--ink4); font-size: 11px; }\n.wb-reviewWho {\n  margin-top: 5px;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink3);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.wb-reviewBody { padding: 11px 13px 0; }\n.wb-reviewArea {\n  display: block;\n  width: 100%;\n  min-height: 84px;\n  max-height: 180px;\n  padding: 9px 10px;\n  border: 0.5px solid var(--divider);\n  border-radius: 9px;\n  background: var(--recess);\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  line-height: 19px;\n  resize: vertical;\n  outline: none;\n}\n.wb-reviewArea::placeholder { color: var(--ink4); }\n.wb-reviewArea:focus { border-color: color-mix(in srgb, var(--accent) 42%, transparent); }\n.wb-reviewChips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }\n.wb-reviewChip {\n  padding: 4px 9px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 7px;\n  background: transparent;\n  color: var(--ink3);\n  font: inherit;\n  font-size: 12px;\n  cursor: pointer;\n}\n.wb-reviewChip:hover { background: var(--hover); color: var(--ink); }\n.wb-reviewNote { margin-top: 9px; font-size: 11px; line-height: 16px; color: var(--ink4); }\n/* 从历史快照点进来的：先讲清楚\"重做的是现在这一步，不是那条记录\" */\n.wb-reviewFrom {\n  margin: 0 0 9px;\n  padding: 7px 10px;\n  border-radius: 8px;\n  background: var(--recess);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink3);\n}\n.wb-zoomHead .wb-zoomReview { flex: none; height: 24px; padding: 0 9px; font-size: 12px; }\n.wb-reviewFoot {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  padding: 11px 13px;\n}\n.wb-reviewFoot .wb-spacer { flex: 1; }\n\n/* ============================ 断点（容器查询，按面板宽度） ============================ */\n/* 轨道宽度阶梯：面板越宽，轨道稍微放宽一点，但永远是配角；\n   低于 700 时轨道改成横向条，结果仍然占满整块。 */\n\n@container panel (min-width: 1200px) {\n  .wb-canvas { width: 312px; }\n  .wb-flow { padding: 14px 16px 18px; }\n}\n\n@container panel (min-width: 900px) and (max-width: 1199.98px) {\n  .wb-canvas { width: 280px; }\n}\n\n@container panel (min-width: 700px) and (max-width: 899.98px) {\n  .wb-canvas { width: 248px; }\n  .wb-flow { padding: 11px 12px 14px; }\n  .wb-canvasHead { padding: 11px 12px 9px; }\n}\n\n/* < 700：竖轨道放不下，改成顶部横向步骤条，结果独占整块 */\n@container panel (max-width: 699.98px) {\n  .wb-panes { flex-direction: column; }\n  .wb-canvas {\n    width: 100%;\n    border-right: 0;\n    border-bottom: 0.5px solid var(--divider);\n  }\n  .wb-canvasScroll { display: none; }\n  .wb-stepStrip { display: flex; }\n  .wb-canvasHead { padding: 10px 12px 8px; }\n  .wb-panelHead { height: 52px; padding: 0 14px; }\n  .wb-panelHead h1 { font-size: 17px; }\n  .wb-headLabel { display: none; }\n  /* 字没了，那个 96px 的最小宽度就只剩空白：按图标宽度收回原样，右半边照旧留着 */\n  .wb-runSplit .wb-btn.wb-primary { min-width: 0; padding: 0 9px; }\n  .wb-runbar { padding: 0 12px; gap: 8px; }\n  .wb-segBar i { width: 14px; }\n}\n\n/* ---------------------------------------------------------------- 步骤横条 */\n.wb-stepStrip {\n  display: none;\n  gap: 6px;\n  overflow-x: auto;\n  padding: 7px 12px;\n  scrollbar-width: none;\n}\n.wb-stepStrip::-webkit-scrollbar { display: none; }\n.wb-stepChip {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  height: 30px;\n  padding: 0 10px;\n  border: 0.5px solid var(--hairline);\n  border-radius: 8px;\n  background: var(--card-bg);\n  color: var(--ink2);\n  font: inherit;\n  font-size: 12px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.wb-stepChip b {\n  font-weight: 500;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  color: var(--ink4);\n}\n.wb-stepChip:hover { background: var(--hover); }\n.wb-stepChip[aria-selected=\"true\"] { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); }\n.wb-stepChip[aria-selected=\"true\"] b { color: var(--accent); }\n.wb-stepChip[data-s=\"failed\"] { color: var(--danger); }\n.wb-stepChip[data-s=\"failed\"] .wb-dot { background: var(--danger); }\n\n/* ---------------------------------------------------------------- 滚动条 */\n.wb-scroll::-webkit-scrollbar, .wb-canvasScroll::-webkit-scrollbar, .wb-inspScroll::-webkit-scrollbar,\n.wb-histBody::-webkit-scrollbar, .wb-zoomBody::-webkit-scrollbar,\n.wb-pickerList::-webkit-scrollbar, .wb-canvasMenu::-webkit-scrollbar { width: 9px; height: 9px; }\n.wb-scroll::-webkit-scrollbar-thumb, .wb-canvasScroll::-webkit-scrollbar-thumb, .wb-inspScroll::-webkit-scrollbar-thumb,\n.wb-histBody::-webkit-scrollbar-thumb, .wb-zoomBody::-webkit-scrollbar-thumb,\n.wb-pickerList::-webkit-scrollbar-thumb, .wb-canvasMenu::-webkit-scrollbar-thumb {\n  border: 2px solid transparent;\n  border-radius: 6px;\n  background: var(--scroll);\n  background-clip: content-box;\n}\n\n/* --------------------------------------------------------------------------\n   产出目录：卡上写的那一行路径\n   --------------------------------------------------------------------------\n   这一行不属于这一步，它属于这张卡——卡片的模板用 data-dsh-files 说自己的产物是\n   某个目录下的文件，路径里带花括号的部分是运行时才知道的名字。所以这里没有输入框：\n   值不是在这里填的，是运行前问一次，然后把名字换掉。\n   花括号那一段是整块里唯一有底色的东西：它是“运行时才定”的唯一记号，别处不再另标。 */\n.wb-outDir {\n  display: inline-flex;\n  align-items: baseline;\n  flex-wrap: wrap;\n  font-family: var(--f-mono);\n  font-size: 12px;\n  color: var(--ink);\n}\n.wb-tok {\n  display: inline-block;\n  padding: 0 5px;\n  border-radius: 5px;\n  background: var(--accent-wash);\n  color: var(--accent);\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 18px;\n  white-space: nowrap;\n}\n/* 这一行的“改动会波及别处”那句，跟在值下面，从值那一轨起 */\n.wb-ruleExtra {\n  margin-top: 4px;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 1.5;\n}\n/* 没有边框控件的行（产出目录这种只读值）：标签和注脚不能再用给输入框调的那 7px 下压，\n   否则它们比值低半个字。三样东西按同一条基线站好。 */\n.wb-ruleRow[data-plain=\"1\"] .wb-ruleLabel { padding-top: 0; line-height: 18px; }\n.wb-ruleRow[data-plain=\"1\"] .wb-ruleLine { align-items: baseline; }\n.wb-ruleRow[data-plain=\"1\"] .wb-ruleNote { padding-top: 0; line-height: 18px; }\n/* 值那一轨至少和下拉一样宽（200）：路径一短，注脚就往前凑，几行注脚起头对不齐 */\n.wb-ruleRow[data-plain=\"1\"] .wb-ruleValue { min-width: 200px; }\n\n/* 运行前取值：一行一个花括号名字，左边名字、中间输入、右边注脚（缺什么就写在那儿） */\n.wb-paramField {\n  display: grid;\n  grid-template-columns: 120px minmax(0, 1fr);\n  align-items: baseline;\n  column-gap: 12px;\n  row-gap: 2px;\n  padding: 6px 0;\n  border-bottom: 1px solid var(--hairline);\n}\n.wb-paramField:last-of-type { border-bottom: 0; }\n.wb-paramName {\n  font-family: var(--f-mono);\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--accent);\n}\n.wb-paramInput {\n  min-width: 0;\n  padding: 5px 8px;\n  border: 1px solid var(--divider);\n  border-radius: 6px;\n  background: #fff;\n  color: var(--ink);\n  font: inherit;\n  font-size: 12px;\n}\n.wb-paramInput:focus { outline: none; border-color: var(--accent); }\n.wb-paramInput[aria-invalid=\"true\"] { border-color: #c0392b; }\n.wb-paramNote {\n  grid-column: 2;\n  color: var(--ink4);\n  font-size: 11px;\n  line-height: 1.5;\n}\n.wb-paramNote[data-problem=\"value\"] { color: #c0392b; }\n/* 运行弹窗：参数 + 这一次运行的一句话 + 每一步收到的话。宽度按原型 640，预览要放得下两块共用 */\n.wb-reviewWrap[data-params] .wb-review { width: min(640px, calc(100% - 32px)); }\n.wb-reviewWrap[data-params] .wb-reviewBody {\n  max-height: min(62vh, 620px);\n  overflow-y: auto;\n  padding-bottom: 10px;\n}\n/* 运行指令：这一句每一步都收到，所以给它自己的块，不和参数挤在一行 */\n.wb-noteField {\n  display: block;\n  margin-top: 4px;\n  padding: 9px 0 0;\n  border-top: 1px solid var(--hairline);\n}\n.wb-noteHead {\n  display: flex;\n  align-items: baseline;\n  gap: 8px;\n  margin-bottom: 5px;\n}\n.wb-noteHead .wb-paramName { color: var(--ink2); font-family: inherit; font-size: 12px; font-weight: 500; }\n/* 右列：掖着「沿用上次」的 chip、一段话、一句说明、右下角计数 —— 原型 4.1 的次序 */\n.wb-noteMain { min-width: 0; }\n.wb-noteChipRow { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }\n.wb-noteChip {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  padding: 4px 8px;\n  border: .5px solid var(--divider);\n  border-radius: 999px;\n  background: var(--recess);\n  color: var(--ink2);\n  font-size: 11px;\n  line-height: 1;\n  font-weight: 500;\n}\n.wb-noteChipX {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--ink4);\n  font-size: 12px;\n  line-height: 1;\n  cursor: pointer;\n}\n.wb-noteChipX:hover { color: var(--ink); }\n.wb-noteLink {\n  padding: 0;\n  border: 0;\n  background: none;\n  color: var(--accent);\n  font-size: 12px;\n  line-height: 1;\n  cursor: pointer;\n}\n.wb-noteCount {\n  display: block;\n  margin-top: 3px;\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 1.4;\n  color: var(--ink4);\n  text-align: right;\n}\n.wb-noteInput {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  padding: 6px 9px;\n  border: 1px solid var(--divider);\n  border-radius: 7px;\n  background: var(--base);\n  color: var(--ink);\n  font: inherit;\n  font-size: 13px;\n  line-height: 1.5;\n  resize: vertical;\n  outline: none;\n}\n.wb-noteInput::placeholder { color: var(--ink4); }\n.wb-noteInput:focus { border-color: var(--accent); }\n.wb-noteMain .wb-paramNote { display: block; margin-top: 4px; }\n\n/* 每一步会读到什么：两块共用、一块这一步自己的，共用与自有用虚线隔开 */\n.wb-pv {\n  margin: 11px 0 0;\n  border: 1px solid var(--hairline);\n  border-radius: 9px;\n  background: var(--recess);\n  overflow: hidden;\n}\n.wb-pvHead {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 7px 9px;\n  border-bottom: 1px solid var(--divider);\n}\n.wb-pvTitle { font-size: 12px; color: var(--ink2); }\n.wb-pvTabs { display: flex; gap: 2px; margin-left: auto; flex-wrap: wrap; }\n.wb-pvTab {\n  padding: 4px 7px;\n  border: .5px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--ink4);\n  font-family: var(--f-mono);\n  font-size: 11.5px;\n  line-height: 1;\n  cursor: pointer;\n}\n.wb-pvTab:hover { color: var(--ink); }\n.wb-pvTab[aria-selected=\"true\"] {\n  border-color: var(--hairline);\n  background: var(--base);\n  color: var(--ink);\n}\n/* 一块一行：左边是这一块的标签（固定宽度，三块对齐），右边是它的内容 */\n.wb-pvBody { position: relative; padding: 9px 10px 10px 14px; display: grid; gap: 7px; }\n.wb-pvEmpty { margin: 0; font-size: 11px; line-height: 16px; color: var(--ink4); }\n.wb-blk {\n  position: relative;\n  display: grid;\n  grid-template-columns: 84px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n.wb-blkTag {\n  font-family: var(--f-mono);\n  font-size: 10.5px;\n  line-height: 17px;\n  color: var(--ink4);\n  white-space: nowrap;\n}\n.wb-blkBody {\n  font-family: var(--f-mono);\n  font-size: 11.5px;\n  line-height: 17px;\n  color: var(--ink);\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n.wb-blkBody[data-empty=\"1\"] { color: var(--ink4); }\n/* 新加的那一块：左边一道强调色 + 淡淡一层底色，一眼看出\"这句以前没有\"。\n   整行铺满预览（含两侧留白），像原型那样从左边缘读到右边缘。 */\n.wb-blkNew[data-new=\"1\"] {\n  margin: 0 -10px 0 -14px;\n  padding: 0 10px 0 14px;\n  border-radius: 0 5px 5px 0;\n  background: color-mix(in srgb, var(--accent) 7%, transparent);\n}\n.wb-blkNew[data-new=\"1\"]::before {\n  content: '';\n  position: absolute;\n  left: 0;\n  top: 0;\n  bottom: 0;\n  width: 2px;\n  border-radius: 1px;\n  background: var(--accent);\n}\n.wb-blkNew .wb-blkTag { color: var(--accent); }\n/* 共用的和这一步自己的，用一道虚线分开：上面每步一样，下面每步是各自的 */\n.wb-blkShare { padding-bottom: 7px; border-bottom: .5px dashed var(--divider); }\n.wb-pvFoot {\n  padding: 0 10px 9px 108px;\n  font-size: 11.5px;\n  line-height: 17px;\n  color: var(--ink4);\n}\n.wb-pvFoot b { font-weight: 600; color: var(--ink2); }\n/* 老卡片迁移提示（只在不改卡片的前提下说一句） */\n.wb-pvLegacy { display: block; margin-top: 4px; color: var(--ink3); }\n\n/* 运行记录里那一条「当时被告知的」：一个号、一句话，读记录时能看到 */\n.wb-histTold {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  margin: 0 0 8px;\n  padding: 7px 9px;\n  border: 1px solid var(--divider);\n  border-radius: 7px;\n  background: var(--recess);\n}\n.wb-histToldTag { font-size: 10px; color: var(--ink4); }\n.wb-histToldLine {\n  font-family: var(--f-mono);\n  font-size: 11px;\n  line-height: 16px;\n  color: var(--ink2);\n  overflow-wrap: anywhere;\n}\n\n/* 「沿用上次运行的指令」：预填的那句来自上一次运行，改一个字这条就消失 */\n.wb-noteKept {\n  padding: 1px 6px;\n  border: 1px solid var(--divider);\n  border-radius: 999px;\n  background: var(--recess);\n  color: var(--ink4);\n  font-size: 10px;\n  line-height: 14px;\n}\n/* Workbench card shell: the frame every card renders inside. */\n\n._card_13mto_3 {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  box-sizing: border-box;\n  height: 100%;\n  /* A card is an index entry, not a panel: with the name, the meta line, and the body\n     it carries it does not need the height an empty cell used to ask for, and the\n     shorter frame is what stops three cards from reading as three blanks. */\n  min-height: 168px;\n  padding: 16px 18px;\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 12px;\n  background: var(--dsw-alias-bg-layer-1);\n  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;\n}\n\n._spanWide_13mto_20 {\n  grid-column: span 2;\n}\n\n/* A card that opens something in full. The region is focusable, so it carries the\n   pointer and focus affordances a button would; it cannot BE a button, because the\n   card hosts its own controls in the head action area. */\n._activatable_13mto_27 {\n  cursor: pointer;\n}\n\n._activatable_13mto_27:hover {\n  border-color: var(--dsw-alias-brand-primary);\n  /* A lift, not a colour change: the card already changes border on hover, and the\n     shadow is what reads as \"this opens something\" before the pointer arrives. */\n  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 18%);\n  transform: translateY(-1px);\n}\n\n._activatable_13mto_27:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n._spanTall_13mto_44 {\n  grid-row: span 2;\n}\n\n._spanLarge_13mto_48 {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\n._head_13mto_53 {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  min-width: 0;\n}\n\n/* The card's monogram: the first character of the user's own name for the card, on a\n   tint that is stable per card.\n   \n   Three cards of one workbench differ only in their titles, and a title is read rather\n   than seen — so the grid needed one mark each that the eye can pick out before the\n   text is read. The hue comes from the card id (see the shell), never from the name: a\n   card keeps its colour when it is renamed. Tints are mixed from a single hue so the\n   mark works in both themes without a second set of tokens. */\n._mark_13mto_68 {\n  flex: none;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 9px;\n  background: color-mix(in srgb, hsl(var(--wb-hue, 250) 68% 52%) 16%, transparent);\n  color: color-mix(in srgb, hsl(var(--wb-hue, 250) 66% 42%) 78%, var(--dsw-alias-label-primary));\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 1;\n  user-select: none;\n}\n\n/* The title, the status, and the card's own controls share one line. Centring that\n   line is what puts them on a single baseline: the three boxes have different\n   heights, so top-aligning them left the status text and the button labels at\n   different offsets from the title. The subtitle sits below this line rather than\n   inside it, so a wrapping subtitle cannot drag the controls out of place. */\n._headRow_13mto_89 {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n._title_13mto_96 {\n  margin: 0;\n  flex: 1 1 auto;\n  min-width: 0;\n  font-size: 15px;\n  font-weight: 600;\n  line-height: 22px;\n  overflow-wrap: anywhere;\n}\n\n/* Everything the card states about itself that is not its name: the skill it runs and\n   the run it last finished. One row under the title, in the secondary colour, so the\n   title keeps the whole width and the facts line up across the grid. */\n._meta_13mto_109 {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 4px 10px;\n  min-width: 0;\n}\n\n/* The skill name is a chip rather than a second line of grey text: it is a fact about\n   the card, not a subtitle of its name, and the chip is what separates the two levels. */\n._subtitle_13mto_119 {\n  display: inline-block;\n  align-self: flex-start;\n  max-width: 100%;\n  padding: 1px 8px;\n  border-radius: 6px;\n  background: var(--dsw-alias-bg-layer-2);\n  font-size: 11px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n  overflow-wrap: anywhere;\n}\n\n._status_13mto_132 {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._headActions_13mto_142 {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  flex: none;\n}\n\n._iconButton_13mto_149 {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 24px;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  border-radius: 6px;\n  background: transparent;\n  color: var(--dsw-alias-label-secondary);\n  cursor: pointer;\n  opacity: 0;\n}\n\n/* The card's own controls and the host's icon controls are hidden until the card is\n   hovered or focused: at rest the title is the only thing on the line. */\n._card_13mto_3:hover ._iconButton_13mto_149,\n._card_13mto_3:focus-within ._iconButton_13mto_149 {\n  opacity: 1;\n}\n\n._iconButton_13mto_149:hover {\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n}\n\n._iconButton_13mto_149:focus-visible {\n  outline: 2px solid var(--dsw-alias-brand-primary);\n  outline-offset: 1px;\n}\n\n/* The reorder handle reveals with the other icon controls and sits in the tertiary\n   colour, so it reads as an affordance rather than as a peer of the card's own\n   actions. Hovering it brings it back to the primary label colour, and because it is\n   inside the card, focusing it from the keyboard reveals it too. */\n._handle_13mto_185 {\n  color: var(--dsw-alias-label-tertiary);\n  cursor: grab;\n  touch-action: none;\n}\n\n._handle_13mto_185:active {\n  cursor: grabbing;\n}\n\n._body_13mto_195 {\n  flex: 1 1 auto;\n  min-height: 0;\n  font-size: 13px;\n  line-height: 20px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._failure_13mto_203 {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 8px;\n  color: var(--dsw-alias-label-secondary);\n}\n\n._dragging_13mto_211 {\n  opacity: 0.6;\n}\n/*$vite$:1*/";
   if (typeof document !== 'undefined' && document.querySelector("style[data-plugin-css=\"dsh-workbench\"]") === null) {
     const tag = document.createElement('style');
     tag.dataset.pluginCss = "dsh-workbench";
@@ -210,6 +210,410 @@ window.__ModuleLoader__.load({
 		*/
 		function messageOf$3(error) {
 			return error instanceof Error ? error.message : String(error);
+		}
+		//#endregion
+		//#region src/skill-card-contract.ts
+		/** Private same-origin route serving the skill card's configuration and results. */
+		var WORKBENCH_SKILL_CARD_PATH = "/api/workbench/skill-card";
+		/** Session-scoped skill catalog route. */
+		var WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/catalog`;
+		/** Run control route: `POST` starts, `GET` polls, `DELETE` cancels. */
+		var WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`;
+		/**
+		* Stored-result edit route: `PUT` replaces one card's region HTML by hand.
+		*
+		* A route of its own rather than a fourth method on the run route: editing a result is
+		* not a run. It spends no model call, it has no phase to poll, and bending the run route
+		* into it would make every run precondition answer for an operation that does not run
+		* anything.
+		*/
+		var WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`;
+		/**
+		* Directory-check route: `GET path=…` answers whether one directory can be a workspace.
+		*
+		* One narrow read rather than a filesystem bridge: the client needs existence, kind, and
+		* writability for exactly one path, which is the card's own workspace. Answers exist
+		* because a run is gated on them: a card whose directory was moved has to be stopped
+		* before it starts, not after it fails.
+		*/
+		var WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
+		/**
+		* Document route: `GET cardId=…&path=…` lists one directory or reads one text file.
+		*
+		* The one route a card's own script calls. A template cannot read a filesystem — a page has
+		* no such API — so the documents a run wrote are read here, by the Host, through a read that
+		* is confined to the card's own workspace directory and refuses anything that is not text.
+		* `path` is relative to that directory (or absolute, and then it has to resolve inside it);
+		* an empty `path` names the directory itself.
+		*/
+		var WORKBENCH_SKILL_CARD_FILES_PATH = `${WORKBENCH_SKILL_CARD_PATH}/files`;
+		/** Maximum bytes of one template. */
+		var WORKBENCH_TEMPLATE_MAX_BYTES = 32768;
+		/** Maximum bytes of one stored result, counted over the structured value and the text output. */
+		var WORKBENCH_RESULT_MAX_BYTES = 65536;
+		/**
+		* Name of the comment that opens the region a child fills.
+		*
+		* A template is a whole document: styles and headings say how the result looks but
+		* nothing about what to report. The markers delimit the part that does, and the
+		* comments inside that part are the instruction.
+		*/
+		var WORKBENCH_REGION_BEGIN = "template-begin";
+		/** Name of the comment that closes the region a child fills. */
+		var WORKBENCH_REGION_END = "template-end";
+		/**
+		* Build the pattern matching one region marker comment.
+		*
+		* A fresh pattern per call: a shared global regex carries `lastIndex` between callers.
+		* @param name - marker name, without the comment delimiters.
+		* @returns the pattern.
+		*/
+		function regionMarkerPattern(name) {
+			return new RegExp(`<!--\\s*${name}\\s*-->`, "g");
+		}
+		/** How far into a result document a directory pointer may sit. */
+		var RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
+		/**
+		* Read the directory a document points at.
+		*
+		* The pointer is the template's own statement that this card's results are files in a
+		* directory, and it sits outside the region so a run cannot remove it. A run's stored region
+		* may carry one too — that is how results written before the pointer moved are still read.
+		*
+		* Comments are stripped first, because a template's own header explains the pointer by
+		* quoting it — `下面那个 data-dsh-files="docs/设计"` — and that quotation sits ahead of the
+		* element it describes. Read without stripping, the explanation wins: an author who edits
+		* the element sees no change anywhere, because the panel keeps listing the path the prose
+		* happens to mention. The template's own script reads the attribute off the element rather
+		* than out of the text, which is exactly how the card page and the panel came to disagree.
+		* @param document - a template, or a stored region.
+		* @returns the directory the document points at, or undefined when it points at none.
+		*/
+		function resultPointerPath(document) {
+			if (document === void 0) return void 0;
+			const withoutComments = document.replace(/<!--[\s\S]*?-->/g, "");
+			const path = RESULT_POINTER.exec(withoutComments)?.[1]?.trim();
+			return path === void 0 || path === "" ? void 0 : path;
+		}
+		/**
+		* The output contract every run asks its child for.
+		*
+		* One property: the child returns the filled region as HTML rather than a set of named
+		* values, because the template's own comments say what to produce. There is no field
+		* list left to validate against, so nothing about the result can fail on shape.
+		*/
+		var WORKBENCH_OUTPUT_SCHEMA = {
+			type: "object",
+			properties: { html: { type: "string" } },
+			required: ["html"],
+			additionalProperties: true
+		};
+		/**
+		* Attribute carrying the action key on a button a child authored.
+		*
+		* The key names a declaration the template holds, never a card or skill directly: the
+		* child may choose which declared target a row uses, but it cannot invent one.
+		*/
+		var WORKBENCH_ACTION_ATTRIBUTE = "data-dsh-action";
+		/** Attribute carrying that row's raw fields, as JSON, on the same button. */
+		var WORKBENCH_PAYLOAD_ATTRIBUTE = "data-dsh-row";
+		/** Action key grammar, the same shape as an MCP server name. */
+		var WORKBENCH_ACTION_KEY_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
+		/**
+		* Marker opening the block where a template declares its action targets.
+		*
+		* The declaration lives in the template, outside the filled region, because the region
+		* is rewritten by the child on every run. A target the child could author would be a
+		* target the child could invent.
+		*/
+		var WORKBENCH_ACTIONS_MARKER = "dsh-actions";
+		/**
+		* Skill name grammar, matching the skill registry's own rule exactly: kebab
+		* case, with no leading, trailing, or repeated hyphen.
+		*/
+		var WORKBENCH_SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+		/**
+		* Whether a value is a usable card name.
+		*
+		* Whitespace is not part of the name, and a name that is only whitespace is no
+		* name at all: the card falls back to its registered label instead.
+		* @param value - candidate name.
+		* @returns whether the value holds visible text within the length limit.
+		*/
+		function isWorkbenchCardName(value) {
+			return value.trim().length > 0 && value.length <= 60;
+		}
+		/**
+		* Whether a value is a usable card instruction.
+		*
+		* Whitespace is not part of it, and a value that is only whitespace is no instruction at
+		* all: the card then runs on its skill's own reading of the work, exactly as it did before
+		* this field existed.
+		* @param value - candidate instruction.
+		* @returns whether the value holds visible text within the length limit.
+		*/
+		function isWorkbenchCardInstruction(value) {
+			return value.trim().length > 0 && value.length <= 2e3;
+		}
+		/**
+		* Whether a value addresses a registered skill.
+		* @param value - candidate skill name.
+		* @returns whether the value is a kebab-case name within the length limit.
+		*/
+		function isWorkbenchSkillName(value) {
+			return value.length > 0 && value.length <= 64 && WORKBENCH_SKILL_NAME_PATTERN.test(value);
+		}
+		/**
+		* Whether a value is a usable card route.
+		* @param value - candidate value.
+		* @returns whether it holds two non-empty ids.
+		*/
+		function isWorkbenchCardModel(value) {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+			const provider = Reflect.get(value, "provider");
+			const model = Reflect.get(value, "model");
+			return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
+		}
+		/** A drive-qualified Windows path: `C:\…`, `C:/…`, and the bare drive root. */
+		var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+		/** A UNC share: `\\server\share`, or the forward-slash spelling of the same thing. */
+		var UNC_ABSOLUTE_PATH = /^[\\/]{2}[^\\/]/;
+		/** A POSIX absolute path, including the root itself. */
+		var POSIX_ABSOLUTE_PATH = /^\//;
+		/**
+		* Whether a value can be stored as a card's workspace path.
+		*
+		* The full absolute path is the whole of the value — never a workspace id — because the
+		* product decision is "whatever directory the user picks", which need not be a registered
+		* workspace at all. A relative path is refused rather than resolved against something:
+		* resolved against the session it would be a different directory per run, and resolved
+		* against the Host it would be a directory the user never saw.
+		* @param value - candidate path, as a picker reported it.
+		* @returns whether it is an absolute path within the length limit.
+		*/
+		function isWorkbenchWorkspacePath(value) {
+			if (value.length === 0 || value.length > 4096) return false;
+			if (value.includes("\0")) return false;
+			return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
+		}
+		/**
+		* How much instruction one card's runs need before they can start.
+		*
+		* A property of the skill rather than of a run: some skills work on their own — a
+		* directory reader, a status board — and some only make sense once told what to act on.
+		* Declaring it lets the card ask before it starts instead of running on an empty ask, and
+		* lets a card that needs nothing stay uncluttered.
+		*/
+		var WORKBENCH_INSTRUCTION_MODES = [
+			"none",
+			"optional",
+			"required"
+		];
+		/**
+		* Whether a value is an instruction mode a card may store.
+		* @param value - candidate value, read from storage or from a request body.
+		* @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
+		*/
+		function isWorkbenchInstructionMode(value) {
+			return typeof value === "string" && WORKBENCH_INSTRUCTION_MODES.includes(value);
+		}
+		/**
+		* Resolve the mode one card actually uses.
+		*
+		* The single place unset becomes a mode, for the same reason the sandbox mode has one: the
+		* settings page displays it, the run bar renders it, and the runner enforces it, so all
+		* three read the same answer.
+		* @param stored - the mode the card stores, when it stores one.
+		* @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
+		*/
+		function effectiveWorkbenchInstructionMode(stored) {
+			return stored ?? "none";
+		}
+		/**
+		* Longest sentence one whole run may carry, in characters.
+		*
+		* The same bound as an instruction, because it is the same kind of text: one person's sentence
+		* about what this run is for. It is a separate constant rather than sharing that one so the two
+		* can move apart — a pipeline's sentence is read by every step of it, and a deployment that
+		* wants a tighter bound on it should not have to tighten a card's field to get one.
+		*/
+		var WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH = 2e3;
+		/**
+		* Whether a value is a usable card workspace.
+		* @param value - candidate value.
+		* @returns whether it holds one absolute directory path.
+		*/
+		function isWorkbenchCardWorkspace(value) {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+			const path = Reflect.get(value, "path");
+			return typeof path === "string" && isWorkbenchWorkspacePath(path);
+		}
+		/**
+		* Every permission mode a card may run under.
+		*
+		* The upstream sandbox vocabulary, repeated here because this module carries no runtime
+		* dependency. A mode added upstream that this list does not know is refused at the schema
+		* and at the route rather than stored and later ignored.
+		*/
+		var WORKBENCH_SANDBOX_MODES = [
+			"read-only",
+			"workspace-write",
+			"danger-full-access"
+		];
+		/**
+		* Whether a value is a mode a card may store.
+		* @param value - candidate value, read from storage or from a request body.
+		* @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
+		*/
+		function isWorkbenchSandboxMode(value) {
+			return typeof value === "string" && WORKBENCH_SANDBOX_MODES.includes(value);
+		}
+		/**
+		* Resolve the mode one run actually uses.
+		*
+		* This is the single place unset becomes a mode. The configuration page displays it, the
+		* runner applies it and the card-agent cache keys on it, so all three read the same answer
+		* instead of each defaulting differently.
+		* @param stored - the mode the card stores, when it stores one.
+		* @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
+		*/
+		function effectiveWorkbenchSandboxMode(stored) {
+			return stored ?? "workspace-write";
+		}
+		/**
+		* What a value may be made of.
+		*
+		* A value ends up in a path, so it is held to what every filesystem takes without quoting:
+		* letters, digits, dot, underscore and hyphen. A space or a slash is refused rather than escaped,
+		* because a parameter is a name the user types, not a path they assemble.
+		*/
+		var PARAM_VALUE_PATTERN = /^[A-Za-z0-9._-]+$/;
+		/**
+		* One braced token in a directory: `{任务编号}` names `任务编号`.
+		*
+		* Braces nest nowhere, so anything between the first opening and the next closing brace is a
+		* name: `{v1.2}` and `{版本号}` are both names, and neither is a regular expression. The source is
+		* kept, not the compiled pattern: both callers build their own, so no `lastIndex` is carried from
+		* one path to the next.
+		*/
+		var PARAM_TOKEN_SOURCE = `\\{([^{}]{1,${String(20)}})\\}`;
+		/**
+		* Every value a pipeline needs, and which steps need it.
+		*
+		* The union, in step order: a card that names nothing adds nothing, and a name two cards share is
+		* asked once and substituted in both. This is the whole of "does this step need a parameter" —
+		* the answer is the card's, not the step's.
+		* @param paths - one entry per step, in step order; a step whose card writes no files passes
+		*   `undefined`, which is why the array is allowed to be sparse in meaning rather than in shape.
+		* @returns one entry per distinct name, ordered by where it first appears.
+		*/
+		function pipelineParamPlan(paths) {
+			const order = [];
+			const steps = /* @__PURE__ */ new Map();
+			paths.forEach((path, index) => {
+				for (const name of namesIn(path === void 0 ? "" : path)) {
+					const known = steps.get(name);
+					if (known === void 0) {
+						order.push(name);
+						steps.set(name, [index]);
+						continue;
+					}
+					if (known[known.length - 1] !== index) known.push(index);
+				}
+			});
+			return order.map((name) => ({
+				name,
+				steps: steps.get(name) ?? []
+			}));
+		}
+		/**
+		* The names a run still has to be told, in the order the plan states them.
+		* @param plan - what the pipeline needs.
+		* @param values - what the run holds.
+		* @returns the open names; empty means the run can start.
+		*/
+		function missingParamValues(plan, values) {
+			return plan.filter((param) => (values[param.name] ?? "").trim() === "").map((param) => param.name);
+		}
+		/** The pointer attribute as written, so it can be rewritten in place. */
+		var RESULT_POINTER_SOURCE = /(data-dsh-files\s*=\s*")([^"]{1,512})(")/gi;
+		/** A template's comments, which are documentation rather than instruction. */
+		var TEMPLATE_COMMENT_SOURCE = /(<!--[\s\S]*?-->)/;
+		/**
+		* A card's template whose result pointer states one directory already resolved.
+		*
+		* The substitution happens in the Host while a run is being prepared, so the template it worked
+		* from is not the template that is stored — and the stored one is what the page renders. A card's
+		* own script reads the pointer to list the directory its result lives in, which is why the rendered
+		* document has to carry the resolved path too: without it the script asks for `{任务编号}/docs`, the
+		* Host answers that no such directory exists, and the card prints an error under a result it wrote
+		* perfectly well.
+		*
+		* The resolved directory is used whole rather than a value per token, because that is exactly what
+		* the run recorded: one path, already resolved, and no second reading of the braces.
+		* @param template - the card's template as stored.
+		* @param path - the directory the run recorded, with the tokens already filled.
+		* @returns the template to render; the template unchanged when it names no pointer or the path is empty.
+		*/
+		function resolveTemplatePointer(template, path) {
+			if (path === "") return template;
+			return template.split(TEMPLATE_COMMENT_SOURCE).map((part, index) => index % 2 === 1 ? part : part.replace(RESULT_POINTER_SOURCE, (_whole, open, _path, close) => `${open}${path}${close}`)).join("");
+		}
+		/**
+		* A directory cut into the parts a panel draws differently.
+		*
+		* The token rule has to be applied by whoever renders the path, so it is applied here rather than
+		* in the panel: two readers of the same braces would eventually disagree about what is a name, and
+		* the panel that draws `{任务编号}` as a chip is the one place a mistake would be visible.
+		* @param path - the directory as the card writes it.
+		* @returns the parts in order; adjacent text is not merged, and an empty path has no parts.
+		*/
+		function paramPartsOf(path) {
+			const parts = [];
+			let at = 0;
+			for (const match of path.matchAll(new RegExp(PARAM_TOKEN_SOURCE, "g"))) {
+				const index = match.index ?? 0;
+				if (index > at) parts.push({
+					kind: "text",
+					text: path.slice(at, index)
+				});
+				parts.push({
+					kind: "name",
+					name: match[1] ?? ""
+				});
+				at = index + match[0].length;
+			}
+			if (at < path.length) parts.push({
+				kind: "text",
+				text: path.slice(at)
+			});
+			return parts;
+		}
+		/**
+		* Whether a value can be used, and why not when it cannot.
+		* @param value - what the user typed or the run remembered.
+		* @returns the reason it cannot be used, or `undefined` when it can.
+		*/
+		function paramValueProblem(value) {
+			const trimmed = value.trim();
+			if (trimmed === "") return "empty";
+			if (trimmed.length > 40) return "length";
+			return PARAM_VALUE_PATTERN.test(trimmed) ? void 0 : "charset";
+		}
+		/**
+		* The names in one path, deduplicated, in first-appearance order.
+		* @param path - the path to read.
+		* @returns the names it states.
+		*/
+		function namesIn(path) {
+			if (path === "") return [];
+			const found = [];
+			const pattern = new RegExp(PARAM_TOKEN_SOURCE, "g");
+			for (const match of path.matchAll(pattern)) {
+				const name = match[1];
+				if (name !== void 0 && !found.includes(name)) found.push(name);
+			}
+			return found;
 		}
 		//#endregion
 		//#region src/pipeline-contract.ts
@@ -541,6 +945,7 @@ window.__ModuleLoader__.load({
 			const only = typeof run.only === "number" && Number.isInteger(run.only) && run.only >= 0 ? run.only : void 0;
 			const from = typeof run.from === "number" && Number.isInteger(run.from) && run.from >= 0 ? run.from : void 0;
 			const instruction = typeof run.instruction === "string" ? run.instruction : void 0;
+			const params = decodeParams(run.params);
 			const steps = decodeSteps(run.steps);
 			if (steps === void 0) return void 0;
 			return {
@@ -553,8 +958,28 @@ window.__ModuleLoader__.load({
 				...only === void 0 ? {} : { only },
 				...from === void 0 ? {} : { from },
 				...instruction === void 0 ? {} : { instruction },
+				...params === void 0 ? {} : { params },
 				steps
 			};
+		}
+		/**
+		* Decode the values one record was told.
+		*
+		* A malformed map is dropped rather than failing the whole record: the step list is what makes a
+		* run legible, and a value that cannot be read should cost the prefill, not the history.
+		* @param value - the `params` field.
+		* @returns the values, or undefined when there are none to read.
+		*/
+		function decodeParams(value) {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
+			const values = {};
+			let any = false;
+			for (const [name, raw] of Object.entries(value)) {
+				if (typeof raw !== "string") continue;
+				values[name] = raw;
+				any = true;
+			}
+			return any ? values : void 0;
 		}
 		/**
 		* Decode one record's step list.
@@ -572,12 +997,14 @@ window.__ModuleLoader__.load({
 				const tookMs = typeof step.tookMs === "number" && Number.isFinite(step.tookMs) ? step.tookMs : void 0;
 				const failure = typeof step.failure === "string" ? step.failure : void 0;
 				const html = typeof step.html === "string" ? step.html : void 0;
+				const dir = typeof step.dir === "string" && step.dir !== "" ? step.dir : void 0;
 				steps.push({
 					cardId: step.cardId,
 					phase: step.phase,
 					...tookMs === void 0 ? {} : { tookMs },
 					...failure === void 0 ? {} : { failure },
-					...html === void 0 ? {} : { html }
+					...html === void 0 ? {} : { html },
+					...dir === void 0 ? {} : { dir }
 				});
 			}
 			return steps;
@@ -648,11 +1075,12 @@ window.__ModuleLoader__.load({
 			skillCardProblemRunFailed: "这次运行没有产出可用的结果",
 			skillCardProblemRunTimeout: "这次运行超过了时限，被宿主中止了；可以再跑一次",
 			skillCardProblemRunUnavailable: "当前 harness 不能运行卡片：卡片运行需要提供 startActivation（0.2.1-alpha.2 / beta 通道）或 start（0.2.0-rc.2 / 稳定通道）之一，已安装的 harness 两个都没有提供",
-			skillCardProblemWorkspaceMissing: "这张卡还没有选择工作目录，先选一个目录再运行",
+			skillCardProblemWorkspaceMissing: "这张卡没设工作目录：单独运行要先选一个；在设了目录的流水线里运行则不需要",
 			skillCardProblemWorkspaceInvalid: "工作目录不存在或不是文件夹",
 			skillCardWorkspace: "工作目录",
 			skillCardWorkspaceNotSet: "未选择",
 			skillCardChooseDirectory: "选择目录",
+			skillCardWorkspaceClear: "不指定",
 			skillCardWorkspacePickerUnavailable: "这个环境没有目录选择器，直接填完整路径就行",
 			skillCardWorkspacePathPlaceholder: "例如 D:\\Git\\my-project",
 			skillCardWorkspaceApply: "使用这个目录",
@@ -968,7 +1396,9 @@ window.__ModuleLoader__.load({
 			pipeCfgPermissionNoteReadOnly: "一个文件都不动",
 			pipeCfgPermissionNoteWorkspaceWrite: "只改工作目录里的文件",
 			pipeCfgPermissionNoteFullAccess: "也能改目录以外的文件",
-			pipeCfgWorkspaceNote: "每一步都在这里跑",
+			pipeCfgWorkspaceNote: "每一步都在这里跑，卡片自己的目录不动",
+			pipeCfgWorkspaceNone: "没设：每一步各用自己的卡片目录",
+			pipeCfgWorkspaceClear: "不指定",
 			pipeCfgWorkspacePick: "选择目录",
 			pipeCfgWriteFailed: "这一次没有写进去，再试一次",
 			pipeCfgPickerRefused: "目录选择器没有打开，这条路走不通",
@@ -988,6 +1418,11 @@ window.__ModuleLoader__.load({
 			pipeCfgFailure: "失败处理",
 			pipeCfgFailureStop: "停止后续步骤",
 			pipeCfgFailureNote: "失败即停，后面的步骤不跑",
+			pipeCfgResult: "产出目录",
+			pipeCfgResultFixed: "卡片「{card}」写死的，运行时不问",
+			pipeCfgResultAsked: "卡片「{card}」的，运行时问一次",
+			pipeCfgResultAskedMany: "卡片「{card}」的，运行时一起问",
+			pipeCfgResultShared: "改它就是改这个技能，另外 {count} 条流水线也变",
 			pipeCfgTemplate: "模板",
 			pipeCfgPreview: "预览",
 			pipeCfgSource: "源码",
@@ -1035,6 +1470,55 @@ window.__ModuleLoader__.load({
 			pipeChipTable: "表格换成三列",
 			pipeChipShorter: "篇幅再短一半",
 			pipeReviewWarn: "重新生成会覆盖这一步现在的产物，之前的结果仍留在运行记录里。",
+			pipeParamsTitle: "运行",
+			pipeParamsTitleOne: "重跑 · 第 {at} 步 {label}",
+			pipeParamsHead: "{count} 个步骤 · 从头跑一遍",
+			pipeParamsHeadFrom: "{count} 个步骤 · 从第 {at} 步起",
+			pipeParamsHeadOne: "1 个步骤 · 换新 1 份产物",
+			pipeParamsScope: "第 {from}–{to} 步",
+			pipeParamsScopeOne: "只跑第 {at} 步",
+			pipeParamsCount: "{count} 个参数",
+			pipeParamsPlaceholder: "任务编号，如 T202608242753-1",
+			pipeParamsHint: "第 {from}–{to} 步的产出目录要用它",
+			pipeParamsHintOne: "第 {at} 步的产出目录要用它",
+			pipeParamsUsedBy: "这些卡的目录里写着它：{cards}",
+			pipeParamsNote: "值只填进卡片自己写的目录，卡片本身不改；填过的值留给下一次运行。",
+			pipeParamsRoot: "以上都在 {path} 下。",
+			pipeParamsStart: "开始运行",
+			pipeParamsProblemEmpty: "不能为空",
+			pipeParamsProblemCharset: "只能用字母、数字、点、下划线、短横线",
+			pipeParamsProblemLength: "不超过 {max} 个字符",
+			pipeNoteLabel: "运行指令",
+			pipeNotePlaceholder: "比如：完成 {任务编号} 任务，从需求到交付",
+			pipeNoteHint: "{word}步都会收到 · 只对这一次运行有效",
+			pipeNoteHintOne: "只对这一次运行有效",
+			pipeNoteHintEmpty: "可以不填 · 填了{word}步都会收到",
+			pipeNoteHintEmptyOne: "可以不填 · 填了也会收到",
+			pipeNoteKept: "沿用上次运行的指令",
+			pipeNoteKeptClear: "不沿用这句",
+			pipeNoteEdit: "改",
+			pipeNoteCount: "{length} / {max}",
+			pipeNoteFoot: "每一步都会收到上面这一句，也都会收到自己卡片上的指令。",
+			pipeHistToldTitle: "这次运行被告知的",
+			pipeHistToldNoValues: "没有参数",
+			pipeHistToldNoDirective: "没有运行指令",
+			pipeNoteFootEmpty: "不填也能跑：每一步只拿到自己卡片上的指令，和今天一样。",
+			pipePvTitle: "每一步收到的话",
+			pipePvTabs: "按步骤看",
+			pipePvStepTab: "第 {at} 步",
+			pipePvValues: "运行参数",
+			pipePvNoValue: "（没填）",
+			pipePvNote: "运行指令",
+			pipePvCard: "这一步的指令",
+			pipePvCardNone: "（这一步没有指令）",
+			pipePvNothing: "什么都还没填：这次运行只有卡片自己的指令。",
+			pipePvFoot: "上面{which}每一步都一样，最后一块每步各是各的。",
+			pipePvFootTwo: "两块",
+			pipePvFootOne: "那块",
+			pipePvFootNone: "没有这一句时，每一步只拿到卡片上的指令。",
+			pipePvLegacy: "这张卡的指令里还写着 {value}：这个号现在从运行参数来，卡片里那句可以只留“做什么”。",
+			pipePvLegacyHead: "这张卡的指令里还写着 {value}",
+			pipePvLegacyRest: "，这个号现在从运行参数来 —— 卡片里那句可以只留“做什么”。",
 			pipeCancel: "取消",
 			pipeRegenerate: "重新生成"
 		};
@@ -1076,11 +1560,12 @@ window.__ModuleLoader__.load({
 			skillCardProblemRunFailed: "The run produced no usable result",
 			skillCardProblemRunTimeout: "This run passed its time limit and the host stopped it; running it again is the next step",
 			skillCardProblemRunUnavailable: "This harness cannot run cards: a card run needs one of startActivation (0.2.1-alpha.2, the beta channel) or start (0.2.0-rc.2, the stable channel), and the installed harness provides neither",
-			skillCardProblemWorkspaceMissing: "No workspace directory is selected for this card; choose one before running",
+			skillCardProblemWorkspaceMissing: "This card sets no working directory: running it alone needs one, running it in a pipeline that names a workspace does not",
 			skillCardProblemWorkspaceInvalid: "The workspace directory does not exist or is not a folder",
 			skillCardWorkspace: "Workspace",
 			skillCardWorkspaceNotSet: "Not selected",
 			skillCardChooseDirectory: "Choose directory",
+			skillCardWorkspaceClear: "Clear",
 			skillCardWorkspacePickerUnavailable: "This environment has no directory picker — type the full path instead",
 			skillCardWorkspacePathPlaceholder: "e.g. D:\\Git\\my-project",
 			skillCardWorkspaceApply: "Use this directory",
@@ -1396,7 +1881,9 @@ window.__ModuleLoader__.load({
 			pipeCfgPermissionNoteReadOnly: "Touches no file at all",
 			pipeCfgPermissionNoteWorkspaceWrite: "Changes files inside the workspace only",
 			pipeCfgPermissionNoteFullAccess: "May also change files outside the workspace",
-			pipeCfgWorkspaceNote: "Every step runs here",
+			pipeCfgWorkspaceNote: "Every step runs here; the cards keep their own directories",
+			pipeCfgWorkspaceNone: "Not set: each step uses its own card directory",
+			pipeCfgWorkspaceClear: "Clear",
 			pipeCfgWorkspacePick: "Choose",
 			pipeCfgWriteFailed: "That change did not land; try it again",
 			pipeCfgPickerRefused: "The directory chooser refused to open",
@@ -1416,6 +1903,11 @@ window.__ModuleLoader__.load({
 			pipeCfgFailure: "On failure",
 			pipeCfgFailureStop: "Stop the remaining steps",
 			pipeCfgFailureNote: "Stops here, so the steps after it do not run",
+			pipeCfgResult: "Output directory",
+			pipeCfgResultFixed: "Written into the card 「{card}」, so a run is not asked",
+			pipeCfgResultAsked: "Belongs to the card 「{card}», asked once per run",
+			pipeCfgResultAskedMany: "Belongs to the card 「{card}», asked together per run",
+			pipeCfgResultShared: "Editing it edits this skill, so {count} other pipelines change too",
 			pipeCfgTemplate: "Template",
 			pipeCfgPreview: "Preview",
 			pipeCfgSource: "Source",
@@ -1463,269 +1955,58 @@ window.__ModuleLoader__.load({
 			pipeChipTable: "Three-column table",
 			pipeChipShorter: "Half the length",
 			pipeReviewWarn: "Regenerating replaces the current output of this step; earlier results stay in the run history.",
+			pipeParamsTitle: "Run",
+			pipeParamsTitleOne: "Rerun · step {at} {label}",
+			pipeParamsHead: "{count} steps · the whole chain",
+			pipeParamsHeadFrom: "{count} steps · from step {at}",
+			pipeParamsHeadOne: "1 step · one fresh deliverable",
+			pipeParamsScope: "Steps {from}–{to}",
+			pipeParamsScopeOne: "Step {at} alone",
+			pipeParamsCount: "{count} value(s)",
+			pipeParamsPlaceholder: "Task number, e.g. T202608242753-1",
+			pipeParamsHint: "Steps {from}–{to} write their directories with it",
+			pipeParamsHintOne: "Step {at} writes its directory with it",
+			pipeParamsUsedBy: "Named by the directories of: {cards}",
+			pipeParamsNote: "A value only fills the directory the card itself writes; the card is not edited, and the value is offered again next run.",
+			pipeParamsRoot: "All of them under {path}.",
+			pipeParamsStart: "Start run",
+			pipeParamsProblemEmpty: "Cannot be empty",
+			pipeParamsProblemCharset: "Letters, digits, dots, underscores and hyphens only",
+			pipeParamsProblemLength: "At most {max} characters",
+			pipeNoteLabel: "Run instruction",
+			pipeNotePlaceholder: "e.g. Take {任务编号} from requirement to delivery",
+			pipeNoteHint: "All {count} steps receive it · for this run only",
+			pipeNoteHintOne: "For this run only",
+			pipeNoteHintEmpty: "Optional · fill it in and all {count} steps receive it",
+			pipeNoteHintEmptyOne: "Optional · fill it in and this step receives it",
+			pipeNoteKept: "Kept from the last run",
+			pipeNoteKeptClear: "Do not keep it",
+			pipeNoteEdit: "Edit",
+			pipeNoteCount: "{length} / {max}",
+			pipeNoteFoot: "Every step receives this sentence, and its own card’s instruction as well.",
+			pipeHistToldTitle: "What this run was told",
+			pipeHistToldNoValues: "No values",
+			pipeHistToldNoDirective: "No run instruction",
+			pipeNoteFootEmpty: "Leaving it empty runs exactly as today: each step reads only its own card’s instruction.",
+			pipePvTitle: "What every step receives",
+			pipePvTabs: "View by step",
+			pipePvStepTab: "Step {at}",
+			pipePvValues: "Run values",
+			pipePvNoValue: "(not filled)",
+			pipePvNote: "Run instruction",
+			pipePvCard: "This step’s instruction",
+			pipePvCardNone: "(this step has no instruction)",
+			pipePvNothing: "Nothing filled in yet: this run carries only the card’s own instruction.",
+			pipePvFoot: "Everything above the dashed rule is the same for every step; the last block is each step’s own.",
+			pipePvFootTwo: "two",
+			pipePvFootOne: "one",
+			pipePvFootNone: "Without that sentence each step reads only its own card’s instruction.",
+			pipePvLegacy: "This card’s instruction still spells out {value}. That number now comes from the run values, so the card’s sentence can keep just what it does.",
+			pipePvLegacyHead: "This card’s instruction still spells out {value}",
+			pipePvLegacyRest: " — that number now comes from the run values, so the card’s sentence can keep just what it does.",
 			pipeCancel: "Cancel",
 			pipeRegenerate: "Regenerate"
 		};
-		//#endregion
-		//#region src/skill-card-contract.ts
-		/** Private same-origin route serving the skill card's configuration and results. */
-		var WORKBENCH_SKILL_CARD_PATH = "/api/workbench/skill-card";
-		/** Session-scoped skill catalog route. */
-		var WORKBENCH_SKILL_CARD_CATALOG_PATH = `${WORKBENCH_SKILL_CARD_PATH}/catalog`;
-		/** Run control route: `POST` starts, `GET` polls, `DELETE` cancels. */
-		var WORKBENCH_SKILL_CARD_RUN_PATH = `${WORKBENCH_SKILL_CARD_PATH}/run`;
-		/**
-		* Stored-result edit route: `PUT` replaces one card's region HTML by hand.
-		*
-		* A route of its own rather than a fourth method on the run route: editing a result is
-		* not a run. It spends no model call, it has no phase to poll, and bending the run route
-		* into it would make every run precondition answer for an operation that does not run
-		* anything.
-		*/
-		var WORKBENCH_SKILL_CARD_RESULT_PATH = `${WORKBENCH_SKILL_CARD_PATH}/result`;
-		/**
-		* Directory-check route: `GET path=…` answers whether one directory can be a workspace.
-		*
-		* One narrow read rather than a filesystem bridge: the client needs existence, kind, and
-		* writability for exactly one path, which is the card's own workspace. Answers exist
-		* because a run is gated on them: a card whose directory was moved has to be stopped
-		* before it starts, not after it fails.
-		*/
-		var WORKBENCH_SKILL_CARD_DIRECTORY_PATH = `${WORKBENCH_SKILL_CARD_PATH}/directory`;
-		/**
-		* Document route: `GET cardId=…&path=…` lists one directory or reads one text file.
-		*
-		* The one route a card's own script calls. A template cannot read a filesystem — a page has
-		* no such API — so the documents a run wrote are read here, by the Host, through a read that
-		* is confined to the card's own workspace directory and refuses anything that is not text.
-		* `path` is relative to that directory (or absolute, and then it has to resolve inside it);
-		* an empty `path` names the directory itself.
-		*/
-		var WORKBENCH_SKILL_CARD_FILES_PATH = `${WORKBENCH_SKILL_CARD_PATH}/files`;
-		/** Maximum bytes of one template. */
-		var WORKBENCH_TEMPLATE_MAX_BYTES = 32768;
-		/** Maximum bytes of one stored result, counted over the structured value and the text output. */
-		var WORKBENCH_RESULT_MAX_BYTES = 65536;
-		/**
-		* Name of the comment that opens the region a child fills.
-		*
-		* A template is a whole document: styles and headings say how the result looks but
-		* nothing about what to report. The markers delimit the part that does, and the
-		* comments inside that part are the instruction.
-		*/
-		var WORKBENCH_REGION_BEGIN = "template-begin";
-		/** Name of the comment that closes the region a child fills. */
-		var WORKBENCH_REGION_END = "template-end";
-		/**
-		* Build the pattern matching one region marker comment.
-		*
-		* A fresh pattern per call: a shared global regex carries `lastIndex` between callers.
-		* @param name - marker name, without the comment delimiters.
-		* @returns the pattern.
-		*/
-		function regionMarkerPattern(name) {
-			return new RegExp(`<!--\\s*${name}\\s*-->`, "g");
-		}
-		/** How far into a result document a directory pointer may sit. */
-		var RESULT_POINTER = /data-dsh-files\s*=\s*"([^"]{1,512})"/i;
-		/**
-		* Read the directory a document points at.
-		*
-		* The pointer is the template's own statement that this card's results are files in a
-		* directory, and it sits outside the region so a run cannot remove it. A run's stored region
-		* may carry one too — that is how results written before the pointer moved are still read.
-		*
-		* Comments are stripped first, because a template's own header explains the pointer by
-		* quoting it — `下面那个 data-dsh-files="docs/设计"` — and that quotation sits ahead of the
-		* element it describes. Read without stripping, the explanation wins: an author who edits
-		* the element sees no change anywhere, because the panel keeps listing the path the prose
-		* happens to mention. The template's own script reads the attribute off the element rather
-		* than out of the text, which is exactly how the card page and the panel came to disagree.
-		* @param document - a template, or a stored region.
-		* @returns the directory the document points at, or undefined when it points at none.
-		*/
-		function resultPointerPath(document) {
-			if (document === void 0) return void 0;
-			const withoutComments = document.replace(/<!--[\s\S]*?-->/g, "");
-			const path = RESULT_POINTER.exec(withoutComments)?.[1]?.trim();
-			return path === void 0 || path === "" ? void 0 : path;
-		}
-		/**
-		* The output contract every run asks its child for.
-		*
-		* One property: the child returns the filled region as HTML rather than a set of named
-		* values, because the template's own comments say what to produce. There is no field
-		* list left to validate against, so nothing about the result can fail on shape.
-		*/
-		var WORKBENCH_OUTPUT_SCHEMA = {
-			type: "object",
-			properties: { html: { type: "string" } },
-			required: ["html"],
-			additionalProperties: true
-		};
-		/**
-		* Attribute carrying the action key on a button a child authored.
-		*
-		* The key names a declaration the template holds, never a card or skill directly: the
-		* child may choose which declared target a row uses, but it cannot invent one.
-		*/
-		var WORKBENCH_ACTION_ATTRIBUTE = "data-dsh-action";
-		/** Attribute carrying that row's raw fields, as JSON, on the same button. */
-		var WORKBENCH_PAYLOAD_ATTRIBUTE = "data-dsh-row";
-		/** Action key grammar, the same shape as an MCP server name. */
-		var WORKBENCH_ACTION_KEY_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
-		/**
-		* Marker opening the block where a template declares its action targets.
-		*
-		* The declaration lives in the template, outside the filled region, because the region
-		* is rewritten by the child on every run. A target the child could author would be a
-		* target the child could invent.
-		*/
-		var WORKBENCH_ACTIONS_MARKER = "dsh-actions";
-		/**
-		* Skill name grammar, matching the skill registry's own rule exactly: kebab
-		* case, with no leading, trailing, or repeated hyphen.
-		*/
-		var WORKBENCH_SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-		/**
-		* Whether a value is a usable card name.
-		*
-		* Whitespace is not part of the name, and a name that is only whitespace is no
-		* name at all: the card falls back to its registered label instead.
-		* @param value - candidate name.
-		* @returns whether the value holds visible text within the length limit.
-		*/
-		function isWorkbenchCardName(value) {
-			return value.trim().length > 0 && value.length <= 60;
-		}
-		/**
-		* Whether a value is a usable card instruction.
-		*
-		* Whitespace is not part of it, and a value that is only whitespace is no instruction at
-		* all: the card then runs on its skill's own reading of the work, exactly as it did before
-		* this field existed.
-		* @param value - candidate instruction.
-		* @returns whether the value holds visible text within the length limit.
-		*/
-		function isWorkbenchCardInstruction(value) {
-			return value.trim().length > 0 && value.length <= 2e3;
-		}
-		/**
-		* Whether a value addresses a registered skill.
-		* @param value - candidate skill name.
-		* @returns whether the value is a kebab-case name within the length limit.
-		*/
-		function isWorkbenchSkillName(value) {
-			return value.length > 0 && value.length <= 64 && WORKBENCH_SKILL_NAME_PATTERN.test(value);
-		}
-		/**
-		* Whether a value is a usable card route.
-		* @param value - candidate value.
-		* @returns whether it holds two non-empty ids.
-		*/
-		function isWorkbenchCardModel(value) {
-			if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-			const provider = Reflect.get(value, "provider");
-			const model = Reflect.get(value, "model");
-			return typeof provider === "string" && provider.length > 0 && typeof model === "string" && model.length > 0;
-		}
-		/** A drive-qualified Windows path: `C:\…`, `C:/…`, and the bare drive root. */
-		var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
-		/** A UNC share: `\\server\share`, or the forward-slash spelling of the same thing. */
-		var UNC_ABSOLUTE_PATH = /^[\\/]{2}[^\\/]/;
-		/** A POSIX absolute path, including the root itself. */
-		var POSIX_ABSOLUTE_PATH = /^\//;
-		/**
-		* Whether a value can be stored as a card's workspace path.
-		*
-		* The full absolute path is the whole of the value — never a workspace id — because the
-		* product decision is "whatever directory the user picks", which need not be a registered
-		* workspace at all. A relative path is refused rather than resolved against something:
-		* resolved against the session it would be a different directory per run, and resolved
-		* against the Host it would be a directory the user never saw.
-		* @param value - candidate path, as a picker reported it.
-		* @returns whether it is an absolute path within the length limit.
-		*/
-		function isWorkbenchWorkspacePath(value) {
-			if (value.length === 0 || value.length > 4096) return false;
-			if (value.includes("\0")) return false;
-			return WINDOWS_ABSOLUTE_PATH.test(value) || UNC_ABSOLUTE_PATH.test(value) || POSIX_ABSOLUTE_PATH.test(value);
-		}
-		/**
-		* How much instruction one card's runs need before they can start.
-		*
-		* A property of the skill rather than of a run: some skills work on their own — a
-		* directory reader, a status board — and some only make sense once told what to act on.
-		* Declaring it lets the card ask before it starts instead of running on an empty ask, and
-		* lets a card that needs nothing stay uncluttered.
-		*/
-		var WORKBENCH_INSTRUCTION_MODES = [
-			"none",
-			"optional",
-			"required"
-		];
-		/**
-		* Whether a value is an instruction mode a card may store.
-		* @param value - candidate value, read from storage or from a request body.
-		* @returns whether it is one of {@link WORKBENCH_INSTRUCTION_MODES}.
-		*/
-		function isWorkbenchInstructionMode(value) {
-			return typeof value === "string" && WORKBENCH_INSTRUCTION_MODES.includes(value);
-		}
-		/**
-		* Resolve the mode one card actually uses.
-		*
-		* The single place unset becomes a mode, for the same reason the sandbox mode has one: the
-		* settings page displays it, the run bar renders it, and the runner enforces it, so all
-		* three read the same answer.
-		* @param stored - the mode the card stores, when it stores one.
-		* @returns the stored mode, or {@link WORKBENCH_DEFAULT_INSTRUCTION_MODE}.
-		*/
-		function effectiveWorkbenchInstructionMode(stored) {
-			return stored ?? "none";
-		}
-		/**
-		* Whether a value is a usable card workspace.
-		* @param value - candidate value.
-		* @returns whether it holds one absolute directory path.
-		*/
-		function isWorkbenchCardWorkspace(value) {
-			if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-			const path = Reflect.get(value, "path");
-			return typeof path === "string" && isWorkbenchWorkspacePath(path);
-		}
-		/**
-		* Every permission mode a card may run under.
-		*
-		* The upstream sandbox vocabulary, repeated here because this module carries no runtime
-		* dependency. A mode added upstream that this list does not know is refused at the schema
-		* and at the route rather than stored and later ignored.
-		*/
-		var WORKBENCH_SANDBOX_MODES = [
-			"read-only",
-			"workspace-write",
-			"danger-full-access"
-		];
-		/**
-		* Whether a value is a mode a card may store.
-		* @param value - candidate value, read from storage or from a request body.
-		* @returns whether it is one of {@link WORKBENCH_SANDBOX_MODES}.
-		*/
-		function isWorkbenchSandboxMode(value) {
-			return typeof value === "string" && WORKBENCH_SANDBOX_MODES.includes(value);
-		}
-		/**
-		* Resolve the mode one run actually uses.
-		*
-		* This is the single place unset becomes a mode. The configuration page displays it, the
-		* runner applies it and the card-agent cache keys on it, so all three read the same answer
-		* instead of each defaulting differently.
-		* @param stored - the mode the card stores, when it stores one.
-		* @returns the stored mode, or {@link WORKBENCH_DEFAULT_SANDBOX_MODE}.
-		*/
-		function effectiveWorkbenchSandboxMode(stored) {
-			return stored ?? "workspace-write";
-		}
 		//#endregion
 		//#region src/client/skill-card/files-wire.ts
 		/**
@@ -3310,14 +3591,23 @@ window.__ModuleLoader__.load({
 		}
 		/**
 		* Splice one result's HTML into its template's region.
+		*
+		* The directory the run recorded goes into the template's pointer first. The stored template names
+		* `{任务编号}` because it is written once and run for many task numbers, and the document's own
+		* script reads that pointer to list the files the result holds — a document rendered from the
+		* stored text alone would ask for a folder called `{任务编号}` and print an error under a result that
+		* was written correctly. A caller with no recorded directory (a preview, a record from before the
+		* field existed) gets the template exactly as it was.
 		* @param template - the template as stored.
 		* @param html - the region content the result carries.
+		* @param directory - the directory the run resolved its pointer to, when one was recorded.
 		* @returns the document to render; the template unchanged when it has no region.
 		*/
-		function filledTemplate(template, html) {
-			const region = findRegion(template);
-			if (region === void 0) return template;
-			return template.slice(0, region.start) + withoutScripts(html) + template.slice(region.end);
+		function filledTemplate(template, html, directory) {
+			const resolved = directory === void 0 ? template : resolveTemplatePointer(template, directory);
+			const region = findRegion(resolved);
+			if (region === void 0) return resolved;
+			return resolved.slice(0, region.start) + withoutScripts(html) + resolved.slice(region.end);
 		}
 		/**
 		* Remove the script elements one region fragment carries.
@@ -4250,16 +4540,19 @@ window.__ModuleLoader__.load({
 				revision
 			]);
 			/**
-			* Store one confirmed directory as this card's workspace.
-			* @param path - the directory, already checked.
+			* Store one confirmed directory as this card's workspace, or stop naming one.
+			*
+			* `null` is the contract's way of clearing a field, and it is the same write: a card that stops
+			* naming a directory is a change like any other, not a removal of the card.
+			* @param workspace - the directory, already checked, or null to clear it.
 			*/
-			const writeWorkspace = (0, react.useCallback)((path) => {
+			const writeWorkspace = (0, react.useCallback)((workspace) => {
 				setWorkspaceTypedProblem(void 0);
 				const send = (baseRevision) => {
 					api.write({
 						baseRevision,
 						cardId,
-						workspace: { path }
+						workspace
 					}).then(applyWrite);
 				};
 				if (revision !== void 0) {
@@ -4293,9 +4586,12 @@ window.__ModuleLoader__.load({
 						setPickerRefused(true);
 						return;
 					}
-					writeWorkspace(picked.path);
+					writeWorkspace({ path: picked.path });
 				});
 			}, [workspacePicker, writeWorkspace]);
+			const clearWorkspace = (0, react.useCallback)(() => {
+				writeWorkspace(null);
+			}, [writeWorkspace]);
 			const setWorkspace = (0, react.useCallback)((path) => {
 				const trimmed = path.trim();
 				if (!isWorkbenchWorkspacePath(trimmed)) {
@@ -4315,7 +4611,7 @@ window.__ModuleLoader__.load({
 						setWorkspaceTypedProblem("not-directory");
 						return;
 					}
-					writeWorkspace(trimmed);
+					writeWorkspace({ path: trimmed });
 				});
 			}, [api, writeWorkspace]);
 			const choosePermission = (0, react.useCallback)((mode) => {
@@ -4651,6 +4947,7 @@ window.__ModuleLoader__.load({
 				chooseModel,
 				chooseWorkspace,
 				setWorkspace,
+				clearWorkspace,
 				choosePermission,
 				chooseInstructionMode,
 				saveTemplate,
@@ -4672,6 +4969,7 @@ window.__ModuleLoader__.load({
 				chooseModel,
 				chooseWorkspace,
 				setWorkspace,
+				clearWorkspace,
 				choosePermission,
 				chooseInstructionMode,
 				saveTemplate,
@@ -5144,10 +5442,17 @@ window.__ModuleLoader__.load({
 		* @param props - the card view, the translator, and the two ways of naming a directory.
 		* @returns the field.
 		*/
-		function WorkspaceField({ view, t, onChooseWorkspace, onSetWorkspace }) {
+		function WorkspaceField({ view, t, onChooseWorkspace, onSetWorkspace, onClearWorkspace }) {
 			const field = view.workspaceField;
 			const stored = field.kind === "missing" ? "" : field.path;
 			const problem = view.workspaceTypedProblem;
+			const clear = field.kind !== "missing" && onClearWorkspace !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				variant: "ghost",
+				size: "sm",
+				onClick: onClearWorkspace,
+				"data-workspace-clear": "",
+				children: t("skillCardWorkspaceClear")
+			}) : null;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 					className: skill_card_module_default.fieldLabel,
@@ -5155,33 +5460,40 @@ window.__ModuleLoader__.load({
 				}),
 				view.canChooseWorkspace ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: skill_card_module_default.workspaceRow,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: classes(skill_card_module_default.workspaceValue, field.kind === "invalid" || problem !== void 0 ? skill_card_module_default.workspaceValueInvalid : void 0),
-						"data-workspace-field": field.kind,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: skill_card_module_default.workspaceLeaf,
-							"data-workspace-leaf": "",
-							children: field.kind === "missing" ? t("skillCardWorkspaceNotSet") : field.leaf
-						}), field.kind === "missing" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: skill_card_module_default.workspacePath,
-							"data-workspace-path": "",
-							title: field.path,
-							children: field.path
-						})]
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
-						variant: "ghost",
-						size: "sm",
-						onClick: onChooseWorkspace,
-						"data-workspace-pick": "",
-						children: t("skillCardChooseDirectory")
-					})]
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(WorkspacePathField, {
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: classes(skill_card_module_default.workspaceValue, field.kind === "invalid" || problem !== void 0 ? skill_card_module_default.workspaceValueInvalid : void 0),
+							"data-workspace-field": field.kind,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: skill_card_module_default.workspaceLeaf,
+								"data-workspace-leaf": "",
+								children: field.kind === "missing" ? t("skillCardWorkspaceNotSet") : field.leaf
+							}), field.kind === "missing" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: skill_card_module_default.workspacePath,
+								"data-workspace-path": "",
+								title: field.path,
+								children: field.path
+							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							variant: "ghost",
+							size: "sm",
+							onClick: onChooseWorkspace,
+							"data-workspace-pick": "",
+							children: t("skillCardChooseDirectory")
+						}),
+						clear
+					]
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(WorkspacePathField, {
 					value: stored,
 					fieldKind: field.kind,
 					problem,
 					t,
 					onCommit: onSetWorkspace
-				}),
+				}), clear === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: skill_card_module_default.workspaceRow,
+					children: clear
+				})] }),
 				field.kind === "invalid" && field.checked ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 					className: skill_card_module_default.fieldNote,
 					"data-workspace-invalid": "",
@@ -5489,7 +5801,7 @@ window.__ModuleLoader__.load({
 		* @param props - the card, its view, the mode, the recent asks, and the two ways out.
 		* @returns the dialog.
 		*/
-		function RunPrompt({ cardId, title, view, mode, recent, t, onChooseWorkspace, onSetWorkspace, onRun, onCancel }) {
+		function RunPrompt({ cardId, title, view, mode, recent, t, onChooseWorkspace, onSetWorkspace, onClearWorkspace, onRun, onCancel }) {
 			const [text, setText] = (0, react.useState)(() => readDraft(cardId));
 			const [refused, setRefused] = (0, react.useState)(false);
 			const empty = text.trim() === "";
@@ -5528,7 +5840,8 @@ window.__ModuleLoader__.load({
 						view,
 						t,
 						onChooseWorkspace,
-						onSetWorkspace
+						onSetWorkspace,
+						onClearWorkspace
 					}), field.kind === "missing" && view.canChooseWorkspace ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: skill_card_module_default.fieldNote,
 						"data-dialog-workspace-missing": "",
@@ -5604,6 +5917,9 @@ window.__ModuleLoader__.load({
 				},
 				onSetWorkspace: (path) => {
 					actions.setWorkspace(path);
+				},
+				onClearWorkspace: () => {
+					actions.clearWorkspace();
 				},
 				onRun: (instruction) => {
 					setAsking(false);
@@ -6242,7 +6558,7 @@ window.__ModuleLoader__.load({
 				});
 			}
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ShadowHtml, {
-				html: filledTemplate(view.template, filled),
+				html: filledTemplate(view.template, filled, view.result.directory),
 				className: skill_card_module_default.template,
 				onAction,
 				cardId,
@@ -6868,12 +7184,22 @@ window.__ModuleLoader__.load({
 				steps,
 				updatedAt: Date.now()
 			} : pipeline)), [mutate]);
+			const setWorkspace = (0, react.useCallback)(async (id, workspace) => await mutate((current) => current.map((pipeline) => {
+				if (pipeline.id !== id) return pipeline;
+				const { workspace: _previous, ...rest } = pipeline;
+				return {
+					...rest,
+					...workspace === void 0 ? {} : { workspace },
+					updatedAt: Date.now()
+				};
+			})), [mutate]);
 			return {
 				...state,
 				create,
 				rename,
 				remove,
 				setSteps,
+				setWorkspace,
 				reload
 			};
 		}
@@ -6953,7 +7279,10 @@ window.__ModuleLoader__.load({
 				const started = await seams.start(index, step, {
 					...sessionId === void 0 ? {} : { sessionId },
 					terminal: index === to,
-					...step.instruction === void 0 ? {} : { instruction: step.instruction }
+					...step.instruction === void 0 ? {} : { instruction: step.instruction },
+					...seams.params === void 0 ? {} : { params: seams.params },
+					...seams.directive === void 0 ? {} : { directive: seams.directive },
+					...seams.workspace === void 0 ? {} : { workspace: seams.workspace.path }
 				});
 				if (started.status === "refused") {
 					const failed = settledOutcome(index, {
@@ -7080,10 +7409,12 @@ window.__ModuleLoader__.load({
 			*/
 			const finish = (0, react.useCallback)(async (pipeline, result, ask, from, startedAt) => {
 				const products = /* @__PURE__ */ new Map();
+				const directories = /* @__PURE__ */ new Map();
 				const read = await api.read();
 				if (read.status === "ok") for (const stored of read.snapshot.results) {
 					const html = htmlOf(stored.structured);
 					if (html !== void 0 && !products.has(stored.cardId)) products.set(stored.cardId, html);
+					if (stored.directory !== void 0 && !directories.has(stored.cardId)) directories.set(stored.cardId, stored.directory);
 				}
 				const steps = [];
 				result.steps.forEach((outcome, index) => {
@@ -7092,12 +7423,14 @@ window.__ModuleLoader__.load({
 					if (cardId === void 0) return;
 					const phase = outcome.phase === "done" ? "done" : outcome.phase === "failed" ? "failed" : "stopped";
 					const html = products.get(cardId);
+					const dir = directories.get(cardId);
 					steps.push({
 						cardId,
 						phase,
 						...outcome.tookMs === void 0 ? {} : { tookMs: outcome.tookMs },
 						...outcome.failure === void 0 ? {} : { failure: outcome.failure },
-						...html === void 0 ? {} : { html }
+						...html === void 0 ? {} : { html },
+						...dir === void 0 ? {} : { dir }
 					});
 				});
 				const draft = {
@@ -7109,6 +7442,8 @@ window.__ModuleLoader__.load({
 					...ask.scope === "full" ? {} : { only: from },
 					...ask.scope === "full" && from > 0 ? { from } : {},
 					...ask.instruction === void 0 ? {} : { instruction: ask.instruction },
+					...ask.params === void 0 || Object.keys(ask.params).length === 0 ? {} : { params: ask.params },
+					...ask.directive === void 0 ? {} : { directive: ask.directive },
 					steps
 				};
 				await record.current?.(draft);
@@ -7139,6 +7474,9 @@ window.__ModuleLoader__.load({
 					now: () => Date.now(),
 					signal: controller.signal,
 					...ask.resume === void 0 ? {} : { resume: ask.resume },
+					...ask.params === void 0 ? {} : { params: ask.params },
+					...ask.directive === void 0 ? {} : { directive: ask.directive },
+					...pipeline.workspace === void 0 ? {} : { workspace: pipeline.workspace },
 					onStep: (index, outcome) => {
 						if (outcome.phase !== "running") inflight.current = void 0;
 						if (token.current !== mine) return;
@@ -7175,6 +7513,9 @@ window.__ModuleLoader__.load({
 								}
 							},
 							...seam.instruction === void 0 ? {} : { instruction: seam.instruction },
+							...seam.params === void 0 || Object.keys(seam.params).length === 0 ? {} : { params: seam.params },
+							...seam.directive === void 0 ? {} : { directive: seam.directive },
+							...seam.workspace === void 0 ? {} : { workspace: seam.workspace },
 							outputSchema: WORKBENCH_OUTPUT_SCHEMA
 						});
 						if (result.status === "ok") {
@@ -7223,17 +7564,23 @@ window.__ModuleLoader__.load({
 				scopeSessionId,
 				finish
 			]);
-			const runAll = (0, react.useCallback)((pipeline, from = 0, resume) => {
+			const runAll = (0, react.useCallback)((pipeline, from = 0, resume, params, directive) => {
 				const at = from < 0 || from >= pipeline.steps.length ? 0 : from;
 				start(pipeline, at, pipeline.steps.length - 1, {
 					scope: "full",
-					...at > 0 && resume !== void 0 ? { resume } : {}
+					...at > 0 && resume !== void 0 ? { resume } : {},
+					...params === void 0 ? {} : { params },
+					...directive === void 0 ? {} : { directive }
 				});
 			}, [start]);
-			const runOne = (0, react.useCallback)((pipeline, index) => {
-				start(pipeline, index, index, { scope: "single" });
+			const runOne = (0, react.useCallback)((pipeline, index, params, directive) => {
+				start(pipeline, index, index, {
+					scope: "single",
+					...params === void 0 ? {} : { params },
+					...directive === void 0 ? {} : { directive }
+				});
 			}, [start]);
-			const refine = (0, react.useCallback)((pipeline, index, instruction) => {
+			const refine = (0, react.useCallback)((pipeline, index, instruction, params) => {
 				(async () => {
 					const read = await api.read();
 					if (read.status !== "ok") return;
@@ -7244,7 +7591,8 @@ window.__ModuleLoader__.load({
 					start(pipeline, index, index, {
 						scope: "refine",
 						instruction,
-						previous
+						previous,
+						...params === void 0 ? {} : { params }
 					});
 				})();
 			}, [api, start]);
@@ -7429,6 +7777,7 @@ window.__ModuleLoader__.load({
 			tplRegionTag: "wb-tplRegionTag",
 			tplRegionText: "wb-tplRegionText",
 			tplPreviewFrame: "wb-tplPreviewFrame",
+			tok: "wb-tok",
 			dot: "wb-dot",
 			emptyFlow: "wb-emptyFlow",
 			emptyMark: "wb-emptyMark",
@@ -7448,6 +7797,9 @@ window.__ModuleLoader__.load({
 			histReadonly: "wb-histReadonly",
 			histRow: "wb-histRow",
 			histSum: "wb-histSum",
+			histTold: "wb-histTold",
+			histToldLine: "wb-histToldLine",
+			histToldTag: "wb-histToldTag",
 			histTook: "wb-histTook",
 			histTop: "wb-histTop",
 			histTopMeta: "wb-histTopMeta",
@@ -7486,6 +7838,16 @@ window.__ModuleLoader__.load({
 			metrics: "wb-metrics",
 			mono: "wb-mono",
 			node: "wb-node",
+			noteCount: "wb-noteCount",
+			noteField: "wb-noteField",
+			noteHead: "wb-noteHead",
+			noteMain: "wb-noteMain",
+			noteChipRow: "wb-noteChipRow",
+			noteChip: "wb-noteChip",
+			noteChipX: "wb-noteChipX",
+			noteLink: "wb-noteLink",
+			noteInput: "wb-noteInput",
+			noteKept: "wb-noteKept",
 			nodeDur: "wb-nodeDur",
 			nodeFoot: "wb-nodeFoot",
 			nodeIndex: "wb-nodeIndex",
@@ -7516,6 +7878,21 @@ window.__ModuleLoader__.load({
 			pickerWrap: "wb-pickerWrap",
 			pipelineView: "wb-pipelineView",
 			primary: "wb-primary",
+			/** 运行弹窗里「每一步会读到」的预览：标签页、代码块、块与块之间的分隔。 */
+			pv: "wb-pv",
+			pvBody: "wb-pvBody",
+			pvEmpty: "wb-pvEmpty",
+			pvFoot: "wb-pvFoot",
+			pvHead: "wb-pvHead",
+			pvLegacy: "wb-pvLegacy",
+			pvTab: "wb-pvTab",
+			pvTabs: "wb-pvTabs",
+			pvTitle: "wb-pvTitle",
+			blk: "wb-blk",
+			blkBody: "wb-blkBody",
+			blkNew: "wb-blkNew",
+			blkShare: "wb-blkShare",
+			blkTag: "wb-blkTag",
 			renameInput: "wb-renameInput",
 			/** 「运行」跑起来之后的那一态：同一个按钮，描一圈红、换方块记号。 */
 			stop: "wb-stop",
@@ -7545,7 +7922,9 @@ window.__ModuleLoader__.load({
 			reviewWrap: "wb-reviewWrap",
 			revised: "wb-revised",
 			root: "wb-root",
+			outDir: "wb-outDir",
 			ruleBody: "wb-ruleBody",
+			ruleExtra: "wb-ruleExtra",
 			ruleLabel: "wb-ruleLabel",
 			ruleLine: "wb-ruleLine",
 			ruleNote: "wb-ruleNote",
@@ -7604,6 +7983,10 @@ window.__ModuleLoader__.load({
 			zoomScrim: "wb-zoomScrim",
 			zoomWarn: "wb-zoomWarn",
 			zoomWrap: "wb-zoomWrap",
+			paramField: "wb-paramField",
+			paramInput: "wb-paramInput",
+			paramName: "wb-paramName",
+			paramNote: "wb-paramNote",
 			zSize: "wb-zSize"
 		};
 		//#endregion
@@ -7701,7 +8084,8 @@ window.__ModuleLoader__.load({
 		* @param product - what the run's own region produced.
 		* @returns the directory to list, or undefined when this result is not a directory's files.
 		*/
-		function resultDirectory(template, product) {
+		function resultDirectory(template, product, recorded) {
+			if (recorded !== void 0 && recorded !== "") return recorded;
 			const fromTemplate = resultPointerPath(template);
 			if (fromTemplate !== void 0) return fromTemplate;
 			return product.kind === "directory" ? product.path : void 0;
@@ -8134,6 +8518,26 @@ window.__ModuleLoader__.load({
 			"danger-full-access"
 		];
 		/**
+		* 几步，用中文说：两三步是最常见的，读起来比「3 步」像人话。
+		* @param count - how many steps the run covers.
+		* @returns the counting word, or the digits once it stops being worth spelling out.
+		*/
+		function saySteps(count) {
+			return [
+				"零",
+				"一",
+				"两",
+				"三",
+				"四",
+				"五",
+				"六",
+				"七",
+				"八",
+				"九",
+				"十"
+			][count] ?? String(count);
+		}
+		/**
 		* Render the pipeline workbench.
 		* @param props - stored pipelines, run engine, cards, transport, card views, and `t`.
 		* @returns the two-column surface with its overlays.
@@ -8166,6 +8570,22 @@ window.__ModuleLoader__.load({
 			const [historyAt, setHistoryAt] = (0, react.useState)(void 0);
 			const [review, setReview] = (0, react.useState)(void 0);
 			const [reviewText, setReviewText] = (0, react.useState)("");
+			/**
+			* The run dialog: what the click is about to start, while it is being told what to do.
+			*
+			* Opened by every way a run starts, including a pipeline whose cards write no tokens — the
+			* dialog is where the run's own sentence is typed, so a run that needs no values still has
+			* something to ask. Confirming an empty form is one keypress; the alternative was a run whose
+			* steps each had to be told the task number separately.
+			*/
+			const [ask, setAsk] = (0, react.useState)(void 0);
+			const [askValues, setAskValues] = (0, react.useState)({});
+			/** The sentence typed for this run: one sentence, every step of the run. */
+			const [askNote, setAskNote] = (0, react.useState)("");
+			/** Which step's prompt the preview is showing; an index into the run's cover. */
+			const [askTab, setAskTab] = (0, react.useState)(0);
+			/** The sentence box, so the 「改」 link beside the kept chip can put the caret in it. */
+			const askBox = (0, react.useRef)(null);
 			const active = (0, react.useMemo)(() => pickOpenPipeline(pipelines.pipelines, activeId), [activeId, pipelines.pipelines]);
 			const activeKey = active?.id;
 			(0, react.useEffect)(() => {
@@ -8242,7 +8662,7 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				setRunMenu(false);
 			}, [active?.id]);
-			const anyOverlay = reader !== void 0 || historyOpen || review !== void 0 || picker !== void 0 || menuOpen || runMenu || stepMenu !== void 0;
+			const anyOverlay = reader !== void 0 || historyOpen || review !== void 0 || picker !== void 0 || menuOpen || runMenu || stepMenu !== void 0 || ask !== void 0;
 			(0, react.useEffect)(() => {
 				if (!anyOverlay) return;
 				const onKey = (event) => {
@@ -8255,6 +8675,7 @@ window.__ModuleLoader__.load({
 					setRunMenu(false);
 					setStepMenu(void 0);
 					setConfirmRemove(void 0);
+					setAsk(void 0);
 				};
 				document.addEventListener("keydown", onKey);
 				return () => {
@@ -8306,6 +8727,14 @@ window.__ModuleLoader__.load({
 				labelOf,
 				resultOf
 			]);
+			/**
+			* What the cards this pipeline arranges name between braces, in step order.
+			*
+			* The union, taken once: a name two cards share is one question, and a card whose template has
+			* no pointer contributes nothing. This is the whole of "what does this pipeline need to be told"
+			* — there is no per-pipeline switch and no per-step field to keep in step with it.
+			*/
+			const paramPlan = (0, react.useMemo)(() => pipelineParamPlan(stepViews.map((step) => step.card === void 0 ? void 0 : resultPointerPath(step.card.template))), [stepViews]);
 			const rememberedStep = active === void 0 ? 0 : stepMemory[active.id] ?? 0;
 			const wantedIndex = focus?.kind === "step" ? focus.index : rememberedStep;
 			const selectedIndex = stepViews.length === 0 ? 0 : Math.min(Math.max(wantedIndex, 0), stepViews.length - 1);
@@ -8313,7 +8742,7 @@ window.__ModuleLoader__.load({
 			const readerStep = reader === void 0 ? void 0 : stepViews.find((entry) => entry.cardId === reader.cardId);
 			const readerLabel = readerStep?.label ?? (reader === void 0 ? "" : labelOf(reader.cardId));
 			const readerSkill = readerStep?.skill ?? stepViews[0]?.skill;
-			const readerPath = (readerStep?.card?.workspace ?? stepViews[0]?.card?.workspace)?.path;
+			const readerPath = active?.workspace?.path ?? readerStep?.card?.workspace?.path ?? stepViews[0]?.card?.workspace?.path;
 			const activePipelineId = active?.id;
 			(0, react.useEffect)(() => {
 				if (activePipelineId === void 0 || stepViews.length === 0) return;
@@ -8481,20 +8910,43 @@ window.__ModuleLoader__.load({
 				reload,
 				t
 			]);
-			const chooseWorkspaceForSteps = (0, react.useCallback)(() => {
-				if (workspacePicker === void 0) return;
+			/**
+			* Ask for the directory this pipeline runs in, and store it on the pipeline.
+			*
+			* Written to the pipeline rather than onto its cards. The old path copied the chosen folder into
+			* every step's card, which made the directory belong to the cards: a card arranged by two
+			* pipelines then carried one pipeline's folder into the other, and "the pipeline runs here" was
+			* never actually stored anywhere.
+			*/
+			const choosePipelineWorkspace = (0, react.useCallback)(() => {
+				if (workspacePicker === void 0 || active === void 0) return;
+				const pipeline = active;
 				workspacePicker.pick().then((picked) => {
 					if (picked.status === "cancelled") return;
 					if (picked.status === "unavailable") {
 						setConfigProblem(t("pipeCfgPickerRefused"));
 						return;
 					}
-					applyPatch({ workspace: { path: picked.path } });
+					props.pipelines.setWorkspace(pipeline.id, { path: picked.path }).then((written) => {
+						setConfigProblem(written ? void 0 : t("pipeCfgWriteFailed"));
+					});
 				});
 			}, [
-				applyPatch,
+				active,
+				props.pipelines,
 				t,
 				workspacePicker
+			]);
+			/** Stop naming a directory: every step goes back to its own card's. */
+			const clearPipelineWorkspace = (0, react.useCallback)(() => {
+				if (active === void 0) return;
+				props.pipelines.setWorkspace(active.id, void 0).then((written) => {
+					setConfigProblem(written ? void 0 : t("pipeCfgWriteFailed"));
+				});
+			}, [
+				active,
+				props.pipelines,
+				t
 			]);
 			const commitStepRename = (0, react.useCallback)((cardId, name) => {
 				setStepRename(void 0);
@@ -8579,9 +9031,136 @@ window.__ModuleLoader__.load({
 				setRunMenu(false);
 				if (active === void 0 || running) return;
 				if (!canStartAt(phases, at)) return;
-				const prior = at > 0 ? chain?.steps[at - 1]?.sessionId : void 0;
-				run.runAll(active, at, prior);
+				openAsk(at, "full", paramsFrom(at, "full"));
 			};
+			/**
+			* Run one step on its own, through the same dialog.
+			*
+			* The step's own button is the other way a run starts, and it asks the same questions: a card
+			* whose directory writes `{任务编号}` needs the number here too, and a rerun of one step is
+			* still a run of this task, so the sentence is offered back rather than left blank.
+			* @param at - zero-based step to run.
+			*/
+			const startOne = (at) => {
+				if (active === void 0 || running) return;
+				openAsk(at, "single", paramsFrom(at, "single"));
+			};
+			/**
+			* The values one run would need, out of the pipeline's own plan.
+			*
+			* Read from the plan rather than from the steps: a name two cards share is one value, and a step
+			* whose card writes no files contributes nothing — the question "does this run need values" has
+			* one answer, and it is this list being empty.
+			* @param at - zero-based step the run starts at.
+			* @param scope - whether the run covers the chain from `at`, or that step alone.
+			* @returns the names still to be filled, in the order the plan states them.
+			*/
+			const paramsFrom = (at, scope) => {
+				return paramPlan.filter((param) => param.steps.some((step) => scope === "single" ? step === at : step >= at));
+			};
+			/**
+			* Open the run dialog for one run, seeded from the last run of this pipeline.
+			*
+			* Seeded rather than blank because a pipeline is usually run for the same task twice — a step
+			* that failed, a late edit — and retyping the number and the sentence is the friction this
+			* removes. The seed is only a starting value: every field is editable, and nothing is
+			* remembered until the run starts. Never written onto a card: the sentence belongs to the run
+			* that was told it, which is why the record is where it comes back from.
+			* @param at - zero-based step the run starts at.
+			* @param scope - whether the run covers the chain from `at`, or that step alone.
+			* @param needed - the names this run has to be told; empty when it needs no values.
+			*/
+			const openAsk = (at, scope, needed) => {
+				const last = history[0];
+				const seeded = {};
+				for (const param of needed) {
+					const value = last?.params?.[param.name];
+					if (value !== void 0) seeded[param.name] = value;
+				}
+				setAskValues(seeded);
+				setAskNote(last?.directive ?? "");
+				setAskTab(0);
+				setAsk({
+					at,
+					scope
+				});
+			};
+			/** Why a value cannot be used, as the sentence the dialog states under its field. */
+			const valueProblem = (name) => {
+				const problem = paramValueProblem(askValues[name] ?? "");
+				if (problem === void 0) return void 0;
+				if (problem === "empty") return t("pipeParamsProblemEmpty");
+				if (problem === "charset") return t("pipeParamsProblemCharset");
+				return t("pipeParamsProblemLength", { max: 40 });
+			};
+			/**
+			* The steps one run's dialog covers, by index, in step order.
+			*
+			* The same cover the start applies — a whole run from `at`, or that step alone — so the tabs
+			* the dialog offers are exactly the steps this run will touch.
+			* @param at - zero-based step the run starts at.
+			* @param scope - whether the run covers the chain from `at`, or that step alone.
+			* @returns the covered step indices.
+			*/
+			const coverOf = (at, scope) => stepViews.map((_step, index) => index).filter((index) => scope === "single" ? index === at : index >= at);
+			const askCover = ask === void 0 ? [] : coverOf(ask.at, ask.scope);
+			const askValuesSent = {};
+			if (ask !== void 0) for (const param of paramsFrom(ask.at, ask.scope)) {
+				const value = (askValues[param.name] ?? "").trim();
+				if (value !== "") askValuesSent[param.name] = value;
+			}
+			const askNoteSent = askNote.trim();
+			const askKept = askNoteSent !== "" && history[0]?.directive === askNoteSent;
+			const askNoteShown = Object.entries(askValuesSent).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), askNoteSent);
+			const askTabAt = askCover.length === 0 ? 0 : Math.min(Math.max(askTab, 0), askCover.length - 1);
+			const askStepAt = askCover[askTabAt];
+			/**
+			* 这一步会收到哪句话。
+			*
+			* 步骤自己写了就用它的；步骤没写，跑起来用的是**卡片自己存的那句**（runner 就是这么取的：
+			* 请求里没有 instruction 时退回卡片配置）。所以这里也退回卡片，否则预览会在一块空着的
+			* 「（这一步没有指令）」下面，实际却把卡片那句送进去了 —— 预览就成了谎话。
+			*/
+			const askCardInstruction = (() => {
+				if (askStepAt === void 0) return void 0;
+				const step = active?.steps[askStepAt];
+				const own = step?.instruction;
+				const stored = cards.find((entry) => entry.cardId === step?.cardId)?.instruction;
+				const trimmed = (own === void 0 || own.trim() === "" ? stored : own)?.trim();
+				return trimmed === void 0 || trimmed === "" ? void 0 : trimmed;
+			})();
+			/** The number this card's instruction still repeats, now that the run supplies it. */
+			const askLegacyValue = askCardInstruction === void 0 ? void 0 : Object.values(askValuesSent).find((value) => askCardInstruction.includes(value));
+			/** 这一步自己的指令按同一个替换规则显示：卡片里写了花括号，这里就先替它填上。 */
+			const askCardShown = askCardInstruction === void 0 ? void 0 : Object.entries(askValuesSent).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), askCardInstruction);
+			const askHasValues = ask !== void 0 && paramsFrom(ask.at, ask.scope).length > 0;
+			/** 一块值一行「名字 值」，没填的先写（没填）—— 起步按钮那时是灰的。 */
+			const askValueLines = ask === void 0 ? "" : paramsFrom(ask.at, ask.scope).map((param) => `${param.name} ${askValuesSent[param.name] ?? t("pipePvNoValue")}`).join("\n");
+			const askTitle = ask !== void 0 && ask.scope === "single" ? t("pipeParamsTitleOne", {
+				at: ask.at + 1,
+				label: stepViews[ask.at]?.label ?? ""
+			}) : active === void 0 ? t("pipeParamsTitle") : `${t("pipeParamsTitle")} · ${active.name}`;
+			const askCountLine = ask === void 0 ? "" : ask.scope === "single" ? t("pipeParamsHeadOne") : ask.at === 0 ? t("pipeParamsHead", { count: stepCount }) : t("pipeParamsHeadFrom", {
+				count: askCover.length,
+				at: ask.at + 1
+			});
+			/** 「三步」用中文数字说，跟原型一致；十步以上退回阿拉伯数字。 */
+			const askStepsWord = saySteps(askCover.length);
+			const askOneStep = askCover.length === 1;
+			const askNoteHint = askNoteSent === "" ? askOneStep ? t("pipeNoteHintEmptyOne") : t("pipeNoteHintEmpty", {
+				count: askCover.length,
+				word: askStepsWord
+			}) : askOneStep ? t("pipeNoteHintOne") : t("pipeNoteHint", {
+				count: askCover.length,
+				word: askStepsWord
+			});
+			/** 2 行起，最多长到 5 行：通常一句话，但允许写一段。 */
+			const askNoteRows = Math.min(5, Math.max(2, askNote.split("\n").length));
+			const askParamHint = ask === void 0 || askCover.length === 1 ? t("pipeParamsHintOne", { at: (ask?.at ?? 0) + 1 }) : t("pipeParamsHint", {
+				from: ask.at + 1,
+				to: stepCount
+			});
+			const askFoot = askLegacyValue !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: t("pipePvLegacyHead", { value: askLegacyValue }) }), t("pipePvLegacyRest")] }) : askNoteSent !== "" ? t("pipePvFoot", { which: askHasValues ? t("pipePvFootTwo") : t("pipePvFootOne") }) : askHasValues ? t("pipePvFootNone") : void 0;
 			/**
 			* How any stored pipeline stands, for the menu rows.
 			*
@@ -9237,7 +9816,7 @@ window.__ModuleLoader__.load({
 															run.stop();
 															return;
 														}
-														if (active !== void 0) run.runOne(active, selected.index);
+														startOne(selected.index);
 													},
 													children: [soloRunning ? MARK.stop : selected.phase === "done" ? MARK.replay : MARK.play, soloRunning ? stopping ? t("pipeStopping") : t("pipeStop") : selected.phase === "done" ? t("pipeRunAgainOne") : t("pipeRunOne")]
 												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
@@ -9425,9 +10004,14 @@ window.__ModuleLoader__.load({
 												shared: stepViews[0]?.card,
 												models: modelGroups,
 												skills: catalog,
+												elsewhere: active === void 0 ? 0 : props.pipelines.pipelines.filter((entry) => entry.id !== active.id && entry.steps.some((entryStep) => entryStep.cardId === selected.cardId)).length,
+												pipelineWorkspace: active?.workspace,
 												onPickWorkspace: workspacePicker === void 0 || !canPickWorkspace ? void 0 : () => {
-													chooseWorkspaceForSteps();
+													choosePipelineWorkspace();
 												},
+												onClearWorkspace: canPickWorkspace ? () => {
+													clearPipelineWorkspace();
+												} : void 0,
 												problem: configProblem,
 												t,
 												onSaveTemplate: (html) => {
@@ -9462,7 +10046,7 @@ window.__ModuleLoader__.load({
 												},
 												busy: running,
 												onRun: () => {
-													if (active !== void 0) run.runOne(active, selected.index);
+													startOne(selected.index);
 												}
 											})
 										})
@@ -9640,7 +10224,26 @@ window.__ModuleLoader__.load({
 											children: t(runStateOf(entry.phase).key)
 										})
 									]
-								}, `hist-${String(entry.no)}`)) }) : (history[historyAt]?.steps ?? []).map((step, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								}, `hist-${String(entry.no)}`)) }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: css.histTold,
+									"data-hist-told": "",
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: css.histToldTag,
+											children: t("pipeHistToldTitle")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: css.histToldLine,
+											"data-hist-values": "",
+											children: Object.entries(history[historyAt]?.params ?? {}).map(([name, value]) => `${name}: ${value}`).join(" · ") || t("pipeHistToldNoValues")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: css.histToldLine,
+											"data-hist-directive": "",
+											children: history[historyAt]?.directive ?? t("pipeHistToldNoDirective")
+										})
+									]
+								}), (history[historyAt]?.steps ?? []).map((step, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 									className: css.hStep,
 									children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 										type: "button",
@@ -9669,7 +10272,7 @@ window.__ModuleLoader__.load({
 											})
 										]
 									})
-								}, `hist-step-${String(at)}`))]
+								}, `hist-step-${String(at)}`))] })]
 							})]
 						})]
 					}) : null,
@@ -9755,9 +10358,249 @@ window.__ModuleLoader__.load({
 												setReviewText("");
 												if (active === void 0 || at < 0 || instruction === "") return;
 												setReader(void 0);
-												run.refine(active, at, instruction);
+												run.refine(active, at, instruction, history[0]?.params);
 											},
 											children: t("pipeRegenerate")
+										})
+									]
+								})
+							]
+						})]
+					}),
+					ask === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: css.reviewWrap,
+						"data-params": "",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: css.reviewScrim,
+							onClick: () => {
+								setAsk(void 0);
+							}
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: css.review,
+							role: "dialog",
+							"aria-modal": "true",
+							"aria-labelledby": "pipe-params-title",
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: css.reviewHead,
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: css.reviewTitle,
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											id: "pipe-params-title",
+											children: askTitle
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("em", { children: askCountLine })]
+									})
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: css.reviewBody,
+									children: [
+										paramsFrom(ask.at, ask.scope).map((param) => {
+											const problem = valueProblem(param.name);
+											return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+												className: css.paramField,
+												"data-param": param.name,
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: css.paramName,
+														children: param.name
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+														className: css.paramInput,
+														type: "text",
+														value: askValues[param.name] ?? "",
+														maxLength: 40,
+														placeholder: t("pipeParamsPlaceholder"),
+														"aria-invalid": problem !== void 0,
+														"data-param-input": param.name,
+														onChange: (event) => {
+															const value = event.target.value;
+															setAskValues((previous) => ({
+																...previous,
+																[param.name]: value
+															}));
+														}
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: css.paramNote,
+														"data-problem": problem === void 0 ? "none" : "value",
+														children: problem ?? askParamHint
+													})
+												]
+											}, param.name);
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+											className: css.paramField,
+											"data-note-field": "",
+											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: css.paramName,
+												children: t("pipeNoteLabel")
+											}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: css.noteMain,
+												children: [
+													askKept ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+														className: css.noteChipRow,
+														"data-note-kept": "",
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+															className: css.noteChip,
+															children: [t("pipeNoteKept"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+																type: "button",
+																className: css.noteChipX,
+																"aria-label": t("pipeNoteKeptClear"),
+																"data-note-chip-x": "",
+																onClick: () => {
+																	setAskNote("");
+																},
+																children: "×"
+															})]
+														}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+															type: "button",
+															className: css.noteLink,
+															"data-note-edit": "",
+															onClick: () => {
+																askBox.current?.focus();
+															},
+															children: t("pipeNoteEdit")
+														})]
+													}) : null,
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
+														ref: askBox,
+														className: css.noteInput,
+														value: askNote,
+														rows: askNoteRows,
+														maxLength: WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH,
+														placeholder: t("pipeNotePlaceholder"),
+														"data-note-input": "",
+														onChange: (event) => {
+															setAskNote(event.target.value);
+														}
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: css.paramNote,
+														"data-note-hint": "",
+														children: askNoteHint
+													}),
+													askNote.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: css.noteCount,
+														"data-note-count": "",
+														children: t("pipeNoteCount", {
+															length: askNote.length,
+															max: WORKBENCH_RUN_DIRECTIVE_MAX_LENGTH
+														})
+													})
+												]
+											})]
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+											className: css.pv,
+											"data-preview": "",
+											children: [
+												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+													className: css.pvHead,
+													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: css.pvTitle,
+														children: t("pipePvTitle")
+													}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+														className: css.pvTabs,
+														role: "tablist",
+														"aria-label": t("pipePvTabs"),
+														children: askCover.map((index, at) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+															type: "button",
+															role: "tab",
+															className: css.pvTab,
+															"aria-selected": at === askTabAt,
+															"data-pv-tab": index,
+															onClick: () => {
+																setAskTab(at);
+															},
+															children: t("pipePvStepTab", { at: index + 1 })
+														}, index))
+													})]
+												}),
+												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+													className: css.pvBody,
+													children: [
+														askHasValues ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+															className: `${css.blk} ${askNoteSent === "" ? "" : css.blkShare}`,
+															"data-pv-block": "values",
+															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.blkTag,
+																children: t("pipePvValues")
+															}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.blkBody,
+																children: askValueLines
+															})]
+														}) : null,
+														askNoteSent === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+															className: `${css.blk} ${css.blkShare} ${css.blkNew}`,
+															"data-pv-block": "note",
+															"data-new": "1",
+															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.blkTag,
+																children: t("pipePvNote")
+															}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.blkBody,
+																children: askNoteShown
+															})]
+														}),
+														/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+															className: css.blk,
+															"data-pv-block": "card",
+															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.blkTag,
+																children: t("pipePvCard")
+															}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																className: css.blkBody,
+																"data-empty": askCardShown === void 0 ? "1" : "0",
+																children: askCardShown ?? t("pipePvCardNone")
+															})]
+														})
+													]
+												}),
+												askFoot === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+													className: css.pvFoot,
+													"data-pv-foot": "",
+													children: askFoot
+												})
+											]
+										})
+									]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: css.reviewFoot,
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: css.spacer }),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: `${css.btn} ${css.ghost}`,
+											onClick: () => {
+												setAsk(void 0);
+											},
+											children: t("pipeCancel")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: `${css.btn} ${css.primary}`,
+											"data-params-start": "",
+											disabled: missingParamValues(paramsFrom(ask.at, ask.scope), askValues).length > 0,
+											onClick: () => {
+												if (active === void 0) return;
+												const values = {};
+												for (const param of paramsFrom(ask.at, ask.scope)) {
+													const value = (askValues[param.name] ?? "").trim();
+													if (value !== "") values[param.name] = value;
+												}
+												const at = ask.at;
+												const scope = ask.scope;
+												const note = askNote.trim();
+												const directive = note === "" ? void 0 : note;
+												setAsk(void 0);
+												if (scope === "single") {
+													run.runOne(active, at, values, directive);
+													return;
+												}
+												run.runAll(active, at, at > 0 ? chain?.steps[at - 1]?.sessionId : void 0, values, directive);
+											},
+											children: t("pipeParamsStart")
 										})
 									]
 								})
@@ -10112,6 +10955,7 @@ window.__ModuleLoader__.load({
 			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: css.ruleRow,
+				...props.plain === true ? { "data-plain": "1" } : {},
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: css.ruleLabel,
 					children: props.label
@@ -10127,10 +10971,31 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		}
+		/**
+		* A result directory with its braced names drawn as chips.
+		*
+		* The chip is the only device this panel uses to say "this part is filled at run time", so the
+		* braces are shown rather than swallowed: `{任务编号}` is the name a run is asked for, and a reader
+		* who later sees `T2026…/docs` in the result has already seen where it came from.
+		* @param props - the path as the card writes it.
+		* @returns the path, name by name.
+		*/
+		function ResultPath(props) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: css.outDir,
+				"data-cfg-result": "",
+				children: paramPartsOf(props.path).map((part, index) => part.kind === "name" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: css.tok,
+					children: `{${part.name}}`
+				}, index) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: part.text }, index))
+			});
+		}
 		/** What one step's config panel shows: what it is, and what its document looks like. */
 		function ConfigPanel(props) {
-			const { step, shared, models, skills, t, onSaveTemplate, onPatch, onStepPatch, onPickWorkspace, problem } = props;
+			const { step, shared, pipelineWorkspace, models, skills, t, onSaveTemplate, onPatch, onStepPatch, onPickWorkspace, onClearWorkspace, problem, elsewhere } = props;
 			const template = step.card?.template;
+			const resultPath = resultPointerPath(template);
+			const paramCount = resultPath === void 0 ? 0 : paramPartsOf(resultPath).filter((part) => part.kind === "name").length;
 			const mine = step.card;
 			const [draft, setDraft] = (0, react.useState)(template ?? "");
 			(0, react.useEffect)(() => {
@@ -10209,24 +11074,35 @@ window.__ModuleLoader__.load({
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigRow, {
 							label: t("pipeCfgWorkspace"),
-							control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-								type: "button",
-								className: css.rulePath,
-								"data-cfg-workspace": "",
-								"aria-label": t("pipeCfgWorkspacePick"),
-								disabled: onPickWorkspace === void 0,
-								onClick: () => {
-									onPickWorkspace?.();
-								},
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: `${css.rulePathText} ${shared?.workspace === void 0 ? "" : css.mono}`,
-									children: shared?.workspace?.path ?? t("pipeCfgNoWorkspace")
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: css.rulePathPick,
-									children: onPickWorkspace === void 0 ? t("pipeCfgWorkspaceNoPicker") : t("pipeCfgWorkspacePick")
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: css.ruleLine,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: css.rulePath,
+									"data-cfg-workspace": "",
+									"aria-label": t("pipeCfgWorkspacePick"),
+									disabled: onPickWorkspace === void 0,
+									onClick: () => {
+										onPickWorkspace?.();
+									},
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: `${css.rulePathText} ${pipelineWorkspace === void 0 ? "" : css.mono}`,
+										children: pipelineWorkspace?.path ?? t("pipeCfgNoWorkspace")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: css.rulePathPick,
+										children: onPickWorkspace === void 0 ? t("pipeCfgWorkspaceNoPicker") : t("pipeCfgWorkspacePick")
+									})]
+								}), pipelineWorkspace === void 0 || onClearWorkspace === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: `${css.btn} ${css.ghost}`,
+									"data-cfg-workspace-clear": "",
+									onClick: () => {
+										onClearWorkspace();
+									},
+									children: t("pipeCfgWorkspaceClear")
 								})]
 							}),
-							note: t("pipeCfgWorkspaceNote")
+							note: pipelineWorkspace === void 0 ? t("pipeCfgWorkspaceNone") : t("pipeCfgWorkspaceNote")
 						})
 					]
 				}),
@@ -10300,6 +11176,17 @@ window.__ModuleLoader__.load({
 								children: t("pipeCfgFailureStop")
 							}),
 							note: t("pipeCfgFailureNote")
+						}),
+						resultPath === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigRow, {
+							plain: true,
+							label: t("pipeCfgResult"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ResultPath, { path: resultPath }),
+							note: paramCount === 0 ? t("pipeCfgResultFixed", { card: step.label }) : paramCount === 1 ? t("pipeCfgResultAsked", { card: step.label }) : t("pipeCfgResultAskedMany", { card: step.label }),
+							below: elsewhere === 0 ? void 0 : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: css.ruleExtra,
+								"data-cfg-result-shared": "",
+								children: t("pipeCfgResultShared", { count: elsewhere })
+							})
 						})
 					]
 				}),
@@ -10426,7 +11313,7 @@ window.__ModuleLoader__.load({
 			});
 			const product = step.product;
 			const summary = product.kind === "inline" && product.text !== "" ? product.text : t("pipeInlineProduct");
-			const dir = resultDirectory(template, product);
+			const dir = resultDirectory(template, product, step.result.directory);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: css.resBlock,
 				children: [
@@ -11723,7 +12610,7 @@ window.__ModuleLoader__.load({
 		* @returns the editor element.
 		*/
 		function SkillCardSettings(props) {
-			const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseInstructionMode, onChooseWorkspace, onSetWorkspace, onSave, onRename, onClose, onDelete } = props;
+			const { view, t, onChoose, onChooseModel, onChoosePermission, onChooseInstructionMode, onChooseWorkspace, onSetWorkspace, onClearWorkspace, onSave, onRename, onClose, onDelete } = props;
 			const [draft, setDraft] = (0, react.useState)(view.template ?? "");
 			const [name, setName] = (0, react.useState)(view.name ?? "");
 			const [builderOpen, setBuilderOpen] = (0, react.useState)(false);
@@ -12060,7 +12947,8 @@ window.__ModuleLoader__.load({
 											view,
 											t,
 											onChooseWorkspace,
-											onSetWorkspace
+											onSetWorkspace,
+											onClearWorkspace
 										})
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -13321,6 +14209,9 @@ window.__ModuleLoader__.load({
 						t,
 						onChooseWorkspace: actions.chooseWorkspace,
 						onSetWorkspace: actions.setWorkspace,
+						onClearWorkspace: () => {
+							actions.clearWorkspace();
+						},
 						onRun: (instruction) => {
 							actions.run(instruction);
 							setPrompt(void 0);
@@ -13385,6 +14276,9 @@ window.__ModuleLoader__.load({
 					onChooseInstructionMode: actions.chooseInstructionMode,
 					onChooseWorkspace: actions.chooseWorkspace,
 					onSetWorkspace: actions.setWorkspace,
+					onClearWorkspace: () => {
+						actions.clearWorkspace();
+					},
 					onSave: actions.saveTemplate,
 					onRename: actions.rename,
 					onClose: onBack,

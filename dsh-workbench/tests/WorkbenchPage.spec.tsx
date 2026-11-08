@@ -162,6 +162,8 @@ function props(options: {
   cardMovedSinceLoad?: boolean
   /** The same, for the pipeline store: another window stored the pipelines this page holds. */
   pipelineMovedSinceLoad?: boolean
+  /** Whether pipeline writes land; false models a store that refuses the change. */
+  pipelineWriteFails?: boolean
   /** The directory chooser this page offers; the default answers one path. */
   picker?: WorkbenchWorkspacePicker
   /**
@@ -219,6 +221,9 @@ function props(options: {
       },
       async write(patch: WorkbenchPipelinePatch) {
         writes.push(patch)
+        if (options.pipelineWriteFails === true) {
+          return { status: 'failed' as const, reason: 'the pipeline store is not here' }
+        }
         if (options.pipelineMovedSinceLoad === true && writes.length === 1) {
           // Stored elsewhere since this page's read: the base it names is no longer current.
           snapshot = { ...snapshot, revision: `${snapshot.revision}+other` }
@@ -336,6 +341,24 @@ async function renderPage(options: Parameters<typeof props>[0] = {}) {
 // Which pipeline the page opens is remembered between mounts, so one case's switch would
 // otherwise decide the next case's first pipeline.
 beforeEach(() => { globalThis.localStorage.clear() })
+
+/**
+ * Press a run control and confirm the dialog it opens.
+ *
+ * Every way a run starts opens the run dialog first: it is where the sentence for the whole run
+ * is typed, so a pipeline whose cards write no tokens is asked about that sentence too. A test
+ * that pressed the button and expected a request would be testing the flow before this existed.
+ * @param control - the run control, or its selector.
+ */
+async function startRun(control: string | HTMLElement): Promise<void> {
+  fireEvent.click(typeof control === 'string' ? document.querySelector(control) as HTMLElement : control)
+  const confirm = await waitFor(() => {
+    const found = document.querySelector('[data-params-start]')
+    if (found === null) throw new Error('the run dialog did not open')
+    return found as HTMLElement
+  })
+  fireEvent.click(confirm)
+}
 
 describe('WorkbenchPage', () => {
   it('opens on a stored pipeline with its steps on the canvas', async () => {
@@ -698,7 +721,7 @@ describe('WorkbenchPage', () => {
   })
 
   it('asks the platform for a directory rather than reading a typed path', async () => {
-    const { cardWrites } = await renderPage()
+    const { cardWrites, writes } = await renderPage()
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
@@ -708,9 +731,27 @@ describe('WorkbenchPage', () => {
     expect(row.tagName).toBe('BUTTON')
     expect(row.disabled).toBe(false)
     fireEvent.click(row)
-    await waitFor(() => { expect(cardWrites).toHaveLength(2) })
-    // Whatever the chooser answered is what every step's card stores.
-    expect(cardWrites.map(patch => patch.workspace)).toEqual([{ path: PICKED_PATH }, { path: PICKED_PATH }])
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    // The chosen directory is stored on the pipeline, which is what runs there — not copied
+    // onto its cards. A card arranged by two pipelines used to carry one pipeline's folder
+    // into the other, and no write onto a card could undo that.
+    expect(writes[0]?.pipelines[0]?.workspace).toEqual({ path: PICKED_PATH })
+    expect(cardWrites).toHaveLength(0)
+  })
+
+  it('stops naming a directory and goes back to each card’s own', async () => {
+    const { writes } = await renderPage({
+      pipelines: [pipeline({ workspace: { path: PICKED_PATH } })],
+    })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const clear = document.querySelector('[data-cfg-workspace-clear]') as HTMLButtonElement | null
+    expect(clear).not.toBeNull()
+    fireEvent.click(clear as HTMLButtonElement)
+    await waitFor(() => { expect(writes).toHaveLength(1) })
+    // Cleared by dropping the field, not by storing an empty path.
+    expect(writes[0]?.pipelines[0]).not.toHaveProperty('workspace')
   })
 
   it('shows the picked directory the panel stored', async () => {
@@ -726,7 +767,8 @@ describe('WorkbenchPage', () => {
   })
 
   it('says why a config change did not land instead of failing silently', async () => {
-    await renderPage({ cardWriteLands: false })
+    // The directory row writes the pipeline, so this is the store that has to refuse it.
+    await renderPage({ pipelineWriteFails: true })
     await screen.findByText(en.pipeAddStep)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
     fireEvent.click(screen.getByText(en.pipeTabConfig))
@@ -1229,7 +1271,8 @@ describe('WorkbenchPage', () => {
         poll: async () => ({ status: 'ok', state: settled }),
       },
     })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await screen.findByText(en.pipeRunAll)
+    await startRun('[data-run-all]')
     await waitFor(() => { expect(starts).toHaveLength(2) })
     // The first step opens the chain; the second joins the session the first settled in.
     expect(starts[0]?.mode).toEqual({ kind: 'step', terminal: false, join: false, handoff: { pipelineId: 'pipeline-1', step: 0, scope: 'full' } })
@@ -1242,6 +1285,246 @@ describe('WorkbenchPage', () => {
       expect(document.querySelector('[data-run-noise]')?.textContent)
         .toContain(en.pipeAllDoneAt.replace('{count}', '2').replace('{took}', ''))
     })
+  })
+
+  it('asks once per run for the sentence that says which task it is, and gives it to every step', async () => {
+    // The feature: nobody has to type the task number into each card. It is typed once, here,
+    // and every step's prompt receives it — beside its own instruction, never instead of it.
+    const starts: WorkbenchRunRequest[] = []
+    const store: WorkbenchPipelineRun[] = []
+    const settled = {
+      status: 'ok' as const,
+      state: {
+        cardId: 'a-card',
+        phase: 'settled' as const,
+        retried: false,
+        result: {
+          runId: 'run-1', skill: 's', executedAt: 1, stopReason: 'completed',
+          structured: { html: '<b>ok</b>' }, sessionId: 'session-chain',
+        },
+      } as WorkbenchRunState,
+    }
+    await renderPage({
+      runs: store,
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card', instruction: '写任务分析' }, { cardId: 'b-card', instruction: '写详细设计' }] })],
+      run: {
+        start: async (request) => {
+          starts.push(request)
+          return { status: 'ok', state: { cardId: request.cardId, phase: 'running', retried: false } as WorkbenchRunState }
+        },
+        poll: async () => settled,
+      },
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    const note = await waitFor(() => {
+      const found = document.querySelector('[data-note-input]')
+      if (found === null) throw new Error('the run dialog asked nothing')
+      return found as HTMLTextAreaElement
+    })
+    expect(note.maxLength).toBe(2_000)
+    fireEvent.change(note, { target: { value: '完成 T202608242753 任务，从需求到交付' } })
+    // The preview names the card's own sentence for the step on show, so "the card's words are
+    // still there" is something the person starting the run can see before starting it.
+    expect(document.querySelector('[data-pv-block="card"]')?.textContent).toContain('写任务分析')
+    // A sentence that names a value is shown filled in: what the child will read, not what was
+    // typed. This case typed no token, so the braces are not in it either way.
+    expect(document.querySelector('[data-pv-block="note"]')?.textContent)
+      .toContain('完成 T202608242753 任务，从需求到交付')
+    fireEvent.click(document.querySelector('[data-pv-tab="1"]') as HTMLElement)
+    expect(document.querySelector('[data-pv-block="card"]')?.textContent).toContain('写详细设计')
+    fireEvent.click(document.querySelector('[data-params-start]') as HTMLElement)
+    await waitFor(() => { expect(starts).toHaveLength(2) })
+    // One sentence, every step.
+    expect(starts.map(request => request.directive))
+      .toEqual(['完成 T202608242753 任务，从需求到交付', '完成 T202608242753 任务，从需求到交付'])
+    // And the record keeps it: the run says what it was told, not only where it wrote.
+    await waitFor(() => { expect(store.length).toBe(1) })
+    expect(store[0]?.directive).toBe('完成 T202608242753 任务，从需求到交付')
+  })
+
+  it('opens the run dialog for a pipeline with no values, and sends no sentence when it is left blank', async () => {
+    // Every start asks, because the dialog is where the sentence is typed; a run whose field was
+    // left alone must still be exactly the run it was before the field existed.
+    const starts: WorkbenchRunRequest[] = []
+    await renderPage({
+      run: {
+        start: async (request) => {
+          starts.push(request)
+          return { status: 'ok', state: { cardId: request.cardId, phase: 'running', retried: false } as WorkbenchRunState }
+        },
+        poll: async () => ({
+          status: 'ok',
+          state: {
+            cardId: 'a-card',
+            phase: 'settled',
+            retried: false,
+            result: { runId: 'run-1', skill: 's', executedAt: 1, stopReason: 'completed', structured: { html: '<b>ok</b>' }, sessionId: 's1' },
+          } as WorkbenchRunState,
+        }),
+      },
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    const dialog = await waitFor(() => {
+      const found = document.querySelector('[data-params]')
+      if (found === null) throw new Error('no run dialog')
+      return found as HTMLElement
+    })
+    // No tokens in these cards, so there is nothing to fill — the sentence is the only question.
+    expect(dialog.querySelectorAll('[data-param-input]')).toHaveLength(0)
+    expect(dialog.querySelector('[data-pv-block="values"]')).toBeNull()
+    // 什么都没填：框下面说的是"可以不填"，预览脚下没有可说的（原型里那句只在有话说时出现）。
+    expect(dialog.querySelector('[data-note-hint]')?.textContent).toBe(en.pipeNoteHintEmpty.replace('{count}', '2'))
+    expect(dialog.querySelector('[data-pv-foot]')).toBeNull()
+    fireEvent.click(document.querySelector('[data-params-start]') as HTMLElement)
+    await waitFor(() => { expect(starts.length).toBeGreaterThan(0) })
+    expect(starts[0]).not.toHaveProperty('directive')
+  })
+
+  it('offers the last run’s sentence back, and says where it came from', async () => {
+    // A pipeline is usually run for the same task twice — a step failed, a late edit — so the
+    // field is seeded from the record. The chip is what keeps a seeded field from looking like
+    // something the user typed.
+    await renderPage({
+      runs: [{
+        no: 1,
+        pipelineId: 'pipeline-1',
+        startedAt: 1,
+        tookMs: 10,
+        phase: 'settled',
+        scope: 'full',
+        directive: '完成 T1 任务',
+        steps: [{ cardId: 'a-card', phase: 'done' }],
+      }],
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card', instruction: '写任务分析' }] })],
+      results: [result('a-card')],
+    })
+    await screen.findByText(en.pipeRunAgain)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    const note = await waitFor(() => {
+      const found = document.querySelector('[data-note-input]')
+      if (found === null) throw new Error('no run dialog')
+      return found as HTMLTextAreaElement
+    })
+    expect(note.value).toBe('完成 T1 任务')
+    expect(document.querySelector('[data-note-kept]')?.textContent).toContain(en.pipeNoteKept)
+    // One keystroke makes it this run's own sentence, and the line stops claiming otherwise.
+    fireEvent.change(note, { target: { value: '完成 T2 任务' } })
+    expect(document.querySelector('[data-note-kept]')).toBeNull()
+  })
+
+  it('says in the record what the run was told, not only where it wrote', async () => {
+    // 验收 8：刷新之后仍然读得到。记录是唯一还留着这件事的地方——卡片上没有它，文件夹名说不出它。
+    await renderPage({
+      runs: [{
+        no: 1,
+        pipelineId: 'pipeline-1',
+        startedAt: 1,
+        tookMs: 10,
+        phase: 'settled',
+        scope: 'full',
+        directive: '完成 T202608242753 任务',
+        params: { 任务编号: 'T202608242753' },
+        steps: [{ cardId: 'a-card', phase: 'done', dir: 'T202608242753/docs/任务分析' }],
+      }],
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card', instruction: '写任务分析' }] })],
+      results: [result('a-card')],
+    })
+    await screen.findByText(en.pipeRunAgain)
+    fireEvent.click(document.querySelector('[data-canvas-meta]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-hist-run="0"]') as HTMLElement)
+    const told = await waitFor(() => {
+      const found = document.querySelector('[data-hist-told]')
+      if (found === null) throw new Error('the record detail says nothing about what it was told')
+      return found as HTMLElement
+    })
+    expect(told.querySelector('[data-hist-directive]')?.textContent).toBe('完成 T202608242753 任务')
+    expect(told.querySelector('[data-hist-values]')?.textContent).toBe('任务编号: T202608242753')
+  })
+
+  it('says when a card’s own instruction still spells out the value the run now supplies', async () => {
+    // 老卡片的迁移提示：只说不改。卡片里那句「分析 T202608242753」现在有一半是运行参数说的，
+    // 提示告诉用户可以去卡片里只留"做什么"——但这一轮不动那张卡片。
+    await renderPage({
+      cardViews: [
+        { ...CARD_VIEWS[0], template: '<html><body><div data-dsh-files="{任务编号}/docs/任务分析"></div></body></html>' },
+        { ...CARD_VIEWS[1], instruction: '按 T202608242753 的结论写详细设计' },
+      ],
+      pipelines: [pipeline({
+        steps: [
+          { cardId: 'a-card', instruction: '分析 T202608242753，输出任务分析' },
+          { cardId: 'b-card', instruction: '写详细设计' },
+        ],
+      })],
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    const input = await waitFor(() => {
+      const found = document.querySelector('[data-param-input]')
+      if (found === null) throw new Error('no value field')
+      return found as HTMLInputElement
+    })
+    // Nothing to say before a value exists: the card cannot "still spell out" a number nobody typed.
+    expect(document.querySelector('[data-pv-foot]')?.textContent).toBe(en.pipePvFootNone)
+    fireEvent.change(input, { target: { value: 'T202608242753' } })
+    expect(document.querySelector('[data-pv-foot]')?.textContent)
+      .toBe(`${en.pipePvLegacyHead.replace('{value}', 'T202608242753')}${en.pipePvLegacyRest}`)
+    // 迁移提示说的是"这张卡"，不是"这一版有没有多填"——卡片的字一个都没改。
+    expect(document.querySelector('[data-pv-block="card"]')?.textContent).toContain('分析 T202608242753，输出任务分析')
+    // The second step's own sentence does not repeat the number, so its view has nothing to say.
+    fireEvent.click(document.querySelector('[data-pv-tab="1"]') as HTMLElement)
+    expect(document.querySelector('[data-pv-foot]')?.textContent).toBe(en.pipePvFootNone)
+  })
+
+  it('shows the sentence a step will really read when the step itself names none', async () => {
+    // 步骤上没写指令时，跑起来用的是卡片存的那句（runner 的取法）。预览必须跟着走，
+    // 否则它在「（这一步没有指令）」下面，实际却把那句送进去了。
+    await renderPage({
+      cardViews: [
+        { ...CARD_VIEWS[0], instruction: '卡片上的那句：做任务分析' },
+        { ...CARD_VIEWS[1], instruction: '卡片上的那句：写详细设计' },
+      ],
+      pipelines: [pipeline({
+        steps: [
+          { cardId: 'a-card' },
+          { cardId: 'b-card', instruction: '步骤自己写的那句' },
+        ],
+      })],
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await waitFor(() => { expect(document.querySelector('[data-pv-block="card"]')).not.toBeNull() })
+    const cardBlock = (): string => document.querySelector('[data-pv-block="card"]')?.textContent ?? ''
+    // 步骤没写 → 显示卡片那句
+    expect(cardBlock()).toBe(`${en.pipePvCard}卡片上的那句：做任务分析`)
+    // 步骤写了 → 用步骤的，卡片那句不越位
+    fireEvent.click(document.querySelector('[data-pv-tab="1"]') as HTMLElement)
+    expect(cardBlock()).toBe(`${en.pipePvCard}步骤自己写的那句`)
+  })
+
+  it('shows a sentence that names a value with the value already in it', async () => {
+    // The box takes what the person types; the preview takes what the step will read. Typing
+    // {任务编号} and seeing the number is the difference between a token and an answer.
+    await renderPage({
+      cardViews: [{ ...CARD_VIEWS[0], template: '<html><body><div data-dsh-files="{任务编号}/docs/任务分析"></div></body></html>' }],
+      pipelines: [pipeline({ steps: [{ cardId: 'a-card', instruction: '写任务分析' }] })],
+    })
+    await screen.findByText(en.pipeRunAll)
+    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    const input = await waitFor(() => {
+      const found = document.querySelector('[data-param-input]')
+      if (found === null) throw new Error('no value field')
+      return found as HTMLInputElement
+    })
+    fireEvent.change(input, { target: { value: 'T202608242753' } })
+    const note = document.querySelector('[data-note-input]') as HTMLTextAreaElement
+    fireEvent.change(note, { target: { value: '完成 {任务编号} 任务，从需求到交付' } })
+    const shown = document.querySelector('[data-pv-block="note"]')?.textContent ?? ''
+    expect(shown).toContain('完成 T202608242753 任务，从需求到交付')
+    expect(shown).not.toContain('{任务编号}')
+    // The field itself keeps what was typed: it is the sentence, not a rendering of it.
+    expect(note.value).toBe('完成 {任务编号} 任务，从需求到交付')
   })
 
   it('does not call the pipeline done because one step ran alone', async () => {
@@ -1265,7 +1548,7 @@ describe('WorkbenchPage', () => {
     })
     await screen.findByText(en.pipeRunAll)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
-    fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
+    await startRun('[data-run-one]')
     // The step did finish; the pipeline only ran one step of itself, and says so.
     await waitFor(() => {
       expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_solo)
@@ -1284,7 +1567,7 @@ describe('WorkbenchPage', () => {
     expect(screen.getByTitle(en.pipeRunOfSingleTitle.replace('{no}', '1'))).toBeDefined()
     // Run does what the bar just said: it starts at step 2, and it continues the session
     // step 1 settled in rather than opening a cold one.
-    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await startRun('[data-run-all]')
     await waitFor(() => { expect(starts).toHaveLength(2) })
     expect(starts[1]?.cardId).toBe('b-card')
     expect(starts[1]?.sessionId).toBe('session-one')
@@ -1332,7 +1615,7 @@ describe('WorkbenchPage', () => {
     // The step has a product already, so the run button reads as a re-run: pressing it is
     // the same act, and what it stores is what this test is about.
     await screen.findByText(en.pipeRunAgain)
-    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await startRun('[data-run-all]')
     await waitFor(() => { expect(store.length).toBe(1) })
     // What it stored is the run, not a printout of the panel: which pipeline, how it ended,
     // and the region each step left behind at that moment.
@@ -1386,7 +1669,7 @@ describe('WorkbenchPage', () => {
     // The step already holds a product, so the button offers a re-run; the run is the same
     // one either way, and the label is a statement about what it will replace.
     await screen.findByText(en.pipeRunAgain)
-    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await startRun('[data-run-all]')
     await waitFor(() => {
       expect(document.querySelector('[data-step-index="0"]')?.getAttribute('data-s')).toBe('running')
     })
@@ -1430,7 +1713,8 @@ describe('WorkbenchPage', () => {
         }),
       },
     })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await screen.findByText(en.pipeRunAll)
+    await startRun('[data-run-all]')
     await waitFor(() => {
       expect(document.querySelector('[data-canvas-state]')?.textContent).toBe(en.pipeStand_done)
     })
@@ -1498,7 +1782,7 @@ describe('WorkbenchPage', () => {
     })
     await screen.findByText(en.pipeRunAll)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
-    fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
+    await startRun('[data-run-one]')
     await waitFor(() => { expect(starts).toHaveLength(1) })
     // A step run on its own is a chain of one: it opens the session and closes it, and it
     // says it covers that step alone — the request is the only place that fact is recorded.
@@ -1520,7 +1804,8 @@ describe('WorkbenchPage', () => {
         }),
       },
     })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await screen.findByText(en.pipeRunAll)
+    await startRun('[data-run-all]')
     await waitFor(() => {
       expect(document.querySelector('[data-run-noise]')?.textContent).toBe(
         en.pipeFailedAt.replace('{done}', '0').replace('{count}', '2').replace('{at}', '1'),
@@ -1574,7 +1859,7 @@ describe('WorkbenchPage', () => {
     })
     await screen.findByText(en.pipeRunAll)
     const button = document.querySelector('[data-run-all]') as HTMLButtonElement
-    fireEvent.click(button)
+    await startRun(button)
     // 同一个按钮、同一个位置：跑起来之后它就是停止，字换成两个字的停止，标记从三角换成方块，
     // 描一圈红。没有第四个按钮，也没有换位置。
     await waitFor(() => { expect(button.textContent).toBe(en.pipeStop) })
@@ -1613,7 +1898,7 @@ describe('WorkbenchPage', () => {
       },
     })
     await screen.findByText(en.pipeRunAll)
-    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await startRun('[data-run-all]')
     await waitFor(() => {
       expect(document.querySelector('[data-panel="activity"] [data-kind="tool"]')?.textContent).toContain('read')
     })
@@ -1646,7 +1931,8 @@ describe('WorkbenchPage', () => {
         },
       },
     })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await screen.findByText(en.pipeRunAll)
+    await startRun('[data-run-all]')
     const button = document.querySelector('[data-run-all]') as HTMLButtonElement
     await waitFor(() => { expect(button.textContent).toBe(en.pipeStop) })
     fireEvent.click(button)
@@ -1683,7 +1969,8 @@ describe('WorkbenchPage', () => {
         cancel: async (cardId) => { cancels.push(cardId) },
       },
     })
-    fireEvent.click(await screen.findByText(en.pipeRunAll))
+    await screen.findByText(en.pipeRunAll)
+    await startRun('[data-run-all]')
     const button = document.querySelector('[data-run-all]') as HTMLButtonElement
     await waitFor(() => { expect(button.textContent).toBe(en.pipeStop) })
     fireEvent.click(button)
@@ -1712,7 +1999,7 @@ describe('WorkbenchPage', () => {
     })
     await screen.findByText(en.pipeRunAll)
     fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
-    fireEvent.click(document.querySelector('[data-run-one]') as HTMLElement)
+    await startRun('[data-run-one]')
     const runOne = document.querySelector('[data-run-one]') as HTMLButtonElement
     await waitFor(() => { expect(runOne.textContent).toBe(en.pipeStop) })
     expect(runOne.getAttribute('data-stop')).toBe('1')
@@ -1764,7 +2051,7 @@ describe('WorkbenchPage', () => {
     // 重跑不丢东西那句就在菜单里，因为它要回答的正是"我按下去了，上一次的东西还在吗"。
     expect(document.querySelector('[data-run-menu]')?.textContent).toContain(en.pipeRunScopeNote)
     // 从头重跑：整条从第一步起，冷启动，不接第二步的会话。
-    fireEvent.click(rows[1] as HTMLElement)
+    await startRun(rows[1] as HTMLElement)
     await waitFor(() => { expect(starts).toHaveLength(1) })
     expect(starts[0]?.cardId).toBe('a-card')
     expect(starts[0]?.sessionId).toBeUndefined()
@@ -1791,7 +2078,7 @@ describe('WorkbenchPage', () => {
     // 整条跑过：按钮说的是「重跑」，而且默认就是从第一步重来，不是没有动作。
     await screen.findByText(en.pipeRunAgain)
     expect(document.querySelector('[data-run-all]')?.getAttribute('data-word')).toBe('again')
-    fireEvent.click(document.querySelector('[data-run-all]') as HTMLElement)
+    await startRun('[data-run-all]')
     // 跑起来之后只剩一个出口（停止），所以那道缝跟着消失了。
     await waitFor(() => { expect(document.querySelector('[data-run-scope]')).toBeNull() })
     expect(document.querySelector('[data-run-split]')?.getAttribute('data-caret')).toBe('0')
@@ -1829,7 +2116,7 @@ describe('WorkbenchPage', () => {
     fireEvent.click(document.querySelector('[data-step-menu-btn]') as HTMLElement)
     const rerun = document.querySelector('[data-rerun-step]') as HTMLButtonElement
     expect(rerun.disabled).toBe(false)
-    fireEvent.click(rerun)
+    await startRun(rerun)
     await waitFor(() => { expect(starts).toHaveLength(1) })
     expect(starts[0]?.cardId).toBe('b-card')
     // 这是一次整条运行，只是从第二步起：记录要写明起点，否则它和整条跑一遍的记录一模一样，

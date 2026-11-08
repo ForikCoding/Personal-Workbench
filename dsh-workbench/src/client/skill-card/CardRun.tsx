@@ -211,6 +211,7 @@ export function RunPrompt({
   t,
   onChooseWorkspace,
   onSetWorkspace,
+  onClearWorkspace,
   onRun,
   onCancel,
 }: {
@@ -227,6 +228,8 @@ export function RunPrompt({
   readonly onChooseWorkspace: () => void
   /** Store a directory typed into the field this build offers instead of a chooser. */
   readonly onSetWorkspace: (path: string) => void
+  /** Stop naming a directory for this card, from inside the dialog that runs it. */
+  readonly onClearWorkspace?: (() => void) | undefined
   readonly onRun: (instruction?: string) => void
   readonly onCancel: () => void
 }): ReactNode {
@@ -283,6 +286,7 @@ export function RunPrompt({
           t={t}
           onChooseWorkspace={onChooseWorkspace}
           onSetWorkspace={onSetWorkspace}
+          onClearWorkspace={onClearWorkspace}
         />
         {field.kind === 'missing' && view.canChooseWorkspace
           ? (
@@ -396,6 +400,7 @@ export function CardRunButton({
             t={t}
             onChooseWorkspace={() => { actions.chooseWorkspace() }}
             onSetWorkspace={(path) => { actions.setWorkspace(path) }}
+          onClearWorkspace={() => { actions.clearWorkspace() }}
             onRun={(instruction) => {
               setAsking(false)
               actions.run(instruction)

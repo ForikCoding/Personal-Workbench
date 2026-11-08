@@ -216,3 +216,86 @@ describe('tookOf', () => {
     expect(tookOf(125_000)).toBe('2m05s')
   })
 })
+
+describe('the pipeline’s directory', () => {
+  it('hands the pipeline directory to every step it starts', async () => {
+    // The pipeline owns the directory, so a chain cannot start anywhere else: the seam is where
+    // the run is told, and a step that read its own card instead would silently ignore it.
+    const built = seams()
+    const seen: (string | undefined)[] = []
+    await runSteps(STEPS, 0, 2, {
+      ...built.seams,
+      workspace: { path: 'D:\\Git\\my-project' },
+      async start(index, step, ask) {
+        seen.push(ask.workspace)
+        return await built.seams.start(index, step, ask)
+      },
+    })
+    expect(seen).toEqual(['D:\\Git\\my-project', 'D:\\Git\\my-project', 'D:\\Git\\my-project'])
+  })
+
+  it('tells the run nothing when the pipeline names no directory', async () => {
+    const built = seams()
+    const seen: (string | undefined)[] = []
+    await runSteps(STEPS, 0, 0, {
+      ...built.seams,
+      async start(index, step, ask) {
+        seen.push(ask.workspace)
+        return await built.seams.start(index, step, ask)
+      },
+    })
+    expect(seen).toEqual([undefined])
+  })
+})
+
+describe('the run’s own sentence', () => {
+  it('reaches every step it starts, word for word', async () => {
+    // One run, one sentence, every step: the sentence says which task this is, and a step that
+    // received it only for some steps would be a chain about two different tasks.
+    const built = seams()
+    const seen: (string | undefined)[] = []
+    await runSteps(STEPS, 0, 2, {
+      ...built.seams,
+      directive: '完成 T202608242753 任务，从需求到交付',
+      async start(index, step, ask) {
+        seen.push(ask.directive)
+        return await built.seams.start(index, step, ask)
+      },
+    })
+    expect(seen).toEqual([
+      '完成 T202608242753 任务，从需求到交付',
+      '完成 T202608242753 任务，从需求到交付',
+      '完成 T202608242753 任务，从需求到交付',
+    ])
+  })
+
+  it('travels beside a step’s instruction instead of replacing it', async () => {
+    const built = seams()
+    const seen: { instruction?: string; directive?: string }[] = []
+    await runSteps([{ cardId: 'card-a', instruction: '写任务分析' }, { cardId: 'card-b', instruction: '写详细设计' }], 0, 1, {
+      ...built.seams,
+      directive: '完成 T1 任务',
+      async start(index, step, ask) {
+        seen.push({ ...ask.instruction === undefined ? {} : { instruction: ask.instruction }, ...ask.directive === undefined ? {} : { directive: ask.directive } })
+        return await built.seams.start(index, step, ask)
+      },
+    })
+    expect(seen).toEqual([
+      { instruction: '写任务分析', directive: '完成 T1 任务' },
+      { instruction: '写详细设计', directive: '完成 T1 任务' },
+    ])
+  })
+
+  it('says nothing when the run gave no sentence', async () => {
+    const built = seams()
+    const seen: (string | undefined)[] = []
+    await runSteps(STEPS, 0, 0, {
+      ...built.seams,
+      async start(index, step, ask) {
+        seen.push(ask.directive)
+        return await built.seams.start(index, step, ask)
+      },
+    })
+    expect(seen).toEqual([undefined])
+  })
+})

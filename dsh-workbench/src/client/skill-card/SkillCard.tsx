@@ -330,7 +330,9 @@ function cardContent(
   // the directory it reads is the card's own.
   return (
     <ShadowHtml
-      html={filledTemplate(view.template, filled)}
+      // The pointer this record's run resolved, so the document's own script lists the folder the
+      // result is actually in rather than the template's `{任务编号}`.
+      html={filledTemplate(view.template, filled, view.result.directory)}
       className={css.template}
       onAction={onAction}
       cardId={cardId}

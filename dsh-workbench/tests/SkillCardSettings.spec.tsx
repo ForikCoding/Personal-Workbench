@@ -92,6 +92,7 @@ function setup(
   onChooseInstructionMode: ReturnType<typeof vi.fn>
   onChooseWorkspace: ReturnType<typeof vi.fn>
   onSetWorkspace: ReturnType<typeof vi.fn>
+  onClearWorkspace: ReturnType<typeof vi.fn>
   onRename: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
   onDelete: ReturnType<typeof vi.fn>
@@ -103,6 +104,7 @@ function setup(
   const onChooseInstructionMode = vi.fn()
   const onChooseWorkspace = vi.fn()
   const onSetWorkspace = vi.fn()
+  const onClearWorkspace = vi.fn()
   const onRename = vi.fn()
   const onClose = vi.fn()
   const onDelete = vi.fn()
@@ -117,6 +119,7 @@ function setup(
       onChooseInstructionMode={onChooseInstructionMode}
       onChooseWorkspace={onChooseWorkspace}
       onSetWorkspace={onSetWorkspace}
+      onClearWorkspace={onClearWorkspace}
       onRename={onRename}
       onClose={onClose}
       onDelete={onDelete}
@@ -131,6 +134,7 @@ function setup(
     onChooseInstructionMode,
     onChooseWorkspace,
     onSetWorkspace,
+    onClearWorkspace,
     onRename,
     onClose,
     onDelete,
@@ -973,6 +977,38 @@ describe('the workspace field', () => {
     fireEvent.change(input, { target: { value: 'D:\\Git\\other' } })
     fireEvent.click(container.querySelector('[data-workspace-apply]') as HTMLButtonElement)
     expect(onSetWorkspace).toHaveBeenCalledWith('D:\\Git\\other')
+  })
+
+  it('clears the directory instead of making the user point at another one', () => {
+    // A card pointed at the wrong folder had no way back to "this card says nothing": the only
+    // control was another picker press, which is a different statement. The button is drawn
+    // beside the picker, while there is something to clear.
+    const { container, onClearWorkspace } = setup({ skill: 'git-repo', workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' } }, zhT)
+    const clear = container.querySelector('[data-workspace-clear]') as HTMLButtonElement
+    expect(clear.textContent).toBe(zh.skillCardWorkspaceClear)
+    fireEvent.click(clear)
+    expect(onClearWorkspace).toHaveBeenCalledOnce()
+  })
+
+  it('offers no clear control on a card that names no directory', () => {
+    // Nothing to clear: a button that writes "the same nothing again" reads as broken.
+    const { container } = setup({ skill: 'git-repo' }, zhT)
+    expect(container.querySelector('[data-workspace-leaf]')?.textContent).toBe(zh.skillCardWorkspaceNotSet)
+    expect(container.querySelector('[data-workspace-clear]')).toBeNull()
+  })
+
+  it('offers the clear control on a build with no picker too', () => {
+    // The typed branch is where a wrong path is likeliest, and emptying the box is refused as an
+    // invalid path rather than read as "no directory" — so this branch needs the button as well.
+    const { container, onClearWorkspace } = setup({
+      skill: 'git-repo',
+      canChooseWorkspace: false,
+      workspaceField: { kind: 'ready', ...WORKSPACE, leaf: 'Personal-Workbench' },
+    }, zhT)
+    const clear = container.querySelector('[data-workspace-clear]') as HTMLButtonElement
+    expect(clear).not.toBeNull()
+    fireEvent.click(clear)
+    expect(onClearWorkspace).toHaveBeenCalledOnce()
   })
 
   it('says why a typed path was not taken', () => {

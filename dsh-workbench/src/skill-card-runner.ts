@@ -29,7 +29,9 @@ import type {
 import {
   effectiveWorkbenchInstructionMode,
   effectiveWorkbenchSandboxMode,
+  resultPointerPath,
 } from './skill-card-contract.ts'
+import { resolveTemplateParams } from './pipeline-params.ts'
 import type { WorkbenchActivityEvent } from './skill-card-activity.ts'
 import { activityEntriesFor, withActivityEntries } from './skill-card-activity.ts'
 import type {
@@ -47,6 +49,7 @@ import type {
 } from './skill-card-host.ts'
 import { WorkbenchSandboxModeError } from './skill-card-host.ts'
 import type { WorkbenchDirectoryProbe } from './skill-card-directory.ts'
+import type { WorkbenchRunShare } from './skill-card-prompt.ts'
 import {
   describeDuration,
   renderWorkbenchBarePrompt,
@@ -270,6 +273,14 @@ interface RunRecord {
   readonly bare: boolean
   /** Directory this run happens in: its own, or the card's stored one. */
   readonly workspace: string
+  /**
+   * Directory this run's product covers, from the resolved template pointer.
+   *
+   * Absent for a bare run and for a card whose template names no directory. Kept on the run so
+   * the settled record can state it: the pointer a card writes may name a value the run was
+   * told, and only the run holds that value.
+   */
+  readonly directory?: string
   /** Which pipeline and step this run is, when it is one, for the note it leaves. */
   readonly handoff?: WorkbenchPipelineHandoff
   /**
@@ -351,6 +362,15 @@ type RunInput =
     readonly model?: WorkbenchCardModel
     /** What the user told this run to do; absent for a run that carries none. */
     readonly instruction?: string
+    /**
+     * The sentence given once for the whole run this step belongs to; absent when none was.
+     *
+     * Travels beside the instruction rather than into it: both reach the prompt, and a step
+     * that received one merged sentence could not tell which part of it was its card's work.
+     */
+    readonly directive?: string
+    /** The values the run was given, by name; absent when it was given none. */
+    readonly values?: Readonly<Record<string, string>>
     /** The row that triggered this run, when a click did. */
     readonly payload?: Record<string, unknown>
     readonly outputSchema: unknown
@@ -392,6 +412,25 @@ type RunInput =
     /** The row that triggered this run, when a click did. */
     readonly payload?: Record<string, unknown>
   }
+
+/**
+ * What one step of a run shares with the whole run, in the shape the prompt takes.
+ *
+ * `undefined` when the run told its steps nothing, which is what keeps the prompt of such a run
+ * byte-for-byte the one this feature started from.
+ * @param input - the card run about to be attempted.
+ * @returns the run's values and sentence, or undefined when it gave neither.
+ */
+function shareOf(input: {
+  readonly directive?: string
+  readonly values?: Readonly<Record<string, string>>
+}): WorkbenchRunShare | undefined {
+  if (input.directive === undefined && input.values === undefined) return undefined
+  return {
+    ...input.values === undefined ? {} : { values: input.values },
+    ...input.directive === undefined ? {} : { directive: input.directive },
+  }
+}
 
 /** Outcome of one child execution. */
 type AttemptOutcome =
@@ -618,6 +657,8 @@ export class WorkbenchSkillCardRunner {
     // session and is not known until that session is resolved, so the closures take it as a
     // parameter rather than reading it here.
     let inputOf: (agent: WorkbenchAgent, scope: WorkbenchAgent | undefined) => RunInput
+    /** Where this run's product goes, once the template has been resolved. */
+    let directory: string | undefined
     if (mode.kind === 'bare') {
       inputOf = (agent, scope) => ({
         kind: 'bare',
@@ -628,10 +669,18 @@ export class WorkbenchSkillCardRunner {
         ...request.payload === undefined ? {} : { payload: request.payload },
       })
     } else {
-      const template = selection.template
-      if (template === undefined) {
+      const storedTemplate = selection.template
+      if (storedTemplate === undefined) {
         return reject('template-missing', `no template is stored for skill "${skill}"`)
       }
+      // The run's own values, put into the pointer the template writes — and only there: the
+      // template is a document, and a brace elsewhere in it is a rule or a string, not a path.
+      //
+      // The resolved pointer is also what the record keeps: the template will still say
+      // `{任务编号}` tomorrow, so a reader asking "which folder was this about" has to be
+      // answered by the run rather than by the card.
+      const template = resolveTemplateParams(storedTemplate, request.params ?? {})
+      directory = resultPointerPath(template)
       inputOf = mode.kind === 'refine'
         ? (agent, scope) => ({
             kind: 'refine',
@@ -653,6 +702,8 @@ export class WorkbenchSkillCardRunner {
             template,
             ...pinned,
             ...carried === undefined ? {} : { instruction: carried },
+            ...request.directive === undefined ? {} : { directive: request.directive },
+            ...request.params === undefined ? {} : { values: request.params },
             ...handoffNote === undefined ? {} : { handoff: handoffNote },
             ...request.payload === undefined ? {} : { payload: request.payload },
             outputSchema: request.outputSchema,
@@ -823,6 +874,9 @@ export class WorkbenchSkillCardRunner {
       // Where this run happens, kept on the run so its record states it rather than the
       // card's directory — which for an invocation from another card is another folder.
       workspace: workspacePath,
+      // Where its product goes, resolved from the template with this run's values, for the
+      // same reason: the card's pointer is not the run's directory once it names a token.
+      ...directory === undefined ? {} : { directory },
       ...mode.kind === 'step' && mode.handoff !== undefined ? { handoff: mode.handoff } : {},
       ...provenance === undefined ? {} : { pipeline: provenance },
       session,
@@ -1473,6 +1527,10 @@ await this.finish(run, outcome)
                 // The directory a relative deliverable resolves against: the same one the
                 // panel reads the card's result from, so the two cannot name different paths.
                 resolvedCwd,
+                // What the run told every step of it. Passed whole rather than pre-joined into
+                // one string: the prompt states the values and the sentence as two blocks, and
+                // deciding which words surround them belongs to the module that writes them.
+                shareOf(input),
               )
             : input.kind === 'refine'
               ? renderWorkbenchRefinePrompt(
@@ -1612,9 +1670,13 @@ await this.finish(run, outcome)
     // ran out of time. Both the run and its stored record carry that, so the page can name
     // it after a reload instead of falling back to whatever the stop reason happened to be.
     const code = run.timedOut ? 'run-timeout' as const : 'run-failed' as const
+    // The directory this run's product covers, as the run resolved it. Written here rather than
+    // in the record the attempt builds, because the pointer is the run's: the same card, run
+    // twice for two task numbers, must not have its first record answer with the second's folder.
+    const addressed = run.directory === undefined ? traced : { ...traced, directory: run.directory }
     const record = outcome.kind === 'unusable'
-      ? { ...traced, failure: outcome.failure, failureCode: code }
-      : traced
+      ? { ...addressed, failure: outcome.failure, failureCode: code }
+      : addressed
     run.result = record
     run.phase = 'settled'
     if (outcome.kind === 'unusable') {

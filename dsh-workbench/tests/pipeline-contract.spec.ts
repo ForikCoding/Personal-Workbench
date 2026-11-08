@@ -6,6 +6,7 @@ import {
   WORKBENCH_PIPELINE_MAX_PIPELINES,
   WORKBENCH_PIPELINE_MAX_STEPS,
   WORKBENCH_PIPELINE_NAME_MAX_LENGTH,
+  WORKBENCH_PIPELINE_RUN_DIR_MAX_LENGTH,
   WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH,
   WORKBENCH_PIPELINE_STEP_INSTRUCTION_MAX_LENGTH,
   isWorkbenchPipelineId,
@@ -190,5 +191,113 @@ describe('pipeline execution contract', () => {
   it('refuses more steps than a pipeline may have', () => {
     const steps = Array.from({ length: WORKBENCH_PIPELINE_MAX_STEPS + 1 }, () => ({ cardId: 'card-1', phase: 'done' }))
     expectRefused(draft({ steps }), 'is not a pipeline')
+  })
+})
+
+describe('pipeline execution values', () => {
+  function draft(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      pipelineId: 'pipeline-1',
+      startedAt: 1_000,
+      tookMs: 2_000,
+      phase: 'settled',
+      scope: 'full',
+      steps: [{ cardId: 'card-1', phase: 'done' }],
+      ...overrides,
+    }
+  }
+
+  function expectRefused(value: unknown, fragment: string): void {
+    const parsed = parseWorkbenchPipelineRunDraft(value)
+    expect('status' in parsed).toBe(true)
+    if (!('status' in parsed)) return
+    expect(parsed.reason).toContain(fragment)
+  }
+
+  it('keeps the values a run was told', () => {
+    const parsed = parseWorkbenchPipelineRunDraft(draft({ params: { '\u4efb\u52a1\u7f16\u53f7': 'T202608242753-1' } }))
+    expect(parsed).toEqual(draft({ params: { '\u4efb\u52a1\u7f16\u53f7': 'T202608242753-1' } }))
+  })
+
+  it('leaves the field out when the run was told nothing', () => {
+    const parsed = parseWorkbenchPipelineRunDraft(draft())
+    expect(parsed).not.toHaveProperty('params')
+    expect(parseWorkbenchPipelineRunDraft(draft({ params: {} }))).not.toHaveProperty('params')
+  })
+
+  it('trims a value, because whitespace is not part of a name', () => {
+    expect(parseWorkbenchPipelineRunDraft(draft({ params: { '\u4efb\u52a1\u7f16\u53f7': ' T1 ' } })))
+      .toEqual(draft({ params: { '\u4efb\u52a1\u7f16\u53f7': 'T1' } }))
+  })
+
+  it('refuses a value that cannot be one path segment', () => {
+    expectRefused(draft({ params: { x: '' } }), 'is empty')
+    expectRefused(draft({ params: { x: 'a/b' } }), 'is charset')
+    expectRefused(draft({ params: { x: 'y'.repeat(41) } }), 'is length')
+    expectRefused(draft({ params: { x: 7 } }), 'must be a string')
+    expectRefused(draft({ params: [] }), 'params must be an object')
+  })
+
+  it('refuses a name a template could not have written', () => {
+    expectRefused(draft({ params: { '{x}': 'T1' } }), 'is not a token name')
+    expectRefused(draft({ params: { ['z'.repeat(21)]: 'T1' } }), 'is not a token name')
+  })
+
+  it('keeps the sentence a run was given once for all of its steps', () => {
+    expect(parseWorkbenchPipelineRunDraft(draft({ directive: '完成 T1 任务，从需求到交付' })))
+      .toEqual(draft({ directive: '完成 T1 任务，从需求到交付' }))
+  })
+
+  it('reads an emptied sentence as none at all', () => {
+    expect(parseWorkbenchPipelineRunDraft(draft({ directive: '   ' }))).not.toHaveProperty('directive')
+    expect(parseWorkbenchPipelineRunDraft(draft({ directive: '' }))).not.toHaveProperty('directive')
+    expect(parseWorkbenchPipelineRunDraft(draft())).not.toHaveProperty('directive')
+  })
+
+  it('trims the sentence it stores, so the record is what the prompt saw', () => {
+    expect(parseWorkbenchPipelineRunDraft(draft({ directive: '  完成 T1 任务  ' })))
+      .toEqual(draft({ directive: '完成 T1 任务' }))
+  })
+
+  it('refuses a sentence that is not text, or is longer than a run may carry', () => {
+    expectRefused(draft({ directive: 7 }), 'directive must be a string')
+    expectRefused(draft({ directive: 'x'.repeat(2_001) }), 'directive is longer than')
+  })
+
+  it('keeps where a step wrote, and refuses a directory that says nothing', () => {
+    expect(parseWorkbenchPipelineRunDraft(draft({ steps: [{ cardId: 'card-1', phase: 'done', dir: 'T1/docs' }] })))
+      .toEqual(draft({ steps: [{ cardId: 'card-1', phase: 'done', dir: 'T1/docs' }] }))
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'done', dir: '' }] }), 'dir must be a non-empty string')
+    expectRefused(draft({ steps: [{ cardId: 'card-1', phase: 'done', dir: 7 }] }), 'dir must be a non-empty string')
+    expectRefused(
+      draft({ steps: [{ cardId: 'card-1', phase: 'done', dir: 'd'.repeat(WORKBENCH_PIPELINE_RUN_DIR_MAX_LENGTH + 1) }] }),
+      'dir is longer than',
+    )
+  })
+})
+
+describe('pipeline workspace', () => {
+  it('stores the directory the pipeline runs in', () => {
+    const parsed = parseWorkbenchPipelines([pipeline({ workspace: { path: 'D:\\Git\\my-project' } })])
+    expect(parsed).toEqual([{ ...pipeline(), workspace: { path: 'D:\\Git\\my-project' } }])
+  })
+
+  it('leaves the field out when the pipeline names no directory', () => {
+    // The absence is what "each step uses its own card" means, so a stored `{}` would be a third
+    // spelling of it.
+    const parsed = parseWorkbenchPipelines([pipeline()])
+    expect(parsed).toEqual([pipeline()])
+    expect((parsed as readonly WorkbenchPipeline[])[0]).not.toHaveProperty('workspace')
+  })
+
+  it('refuses a directory that is not an absolute path', () => {
+    expectRefused([pipeline({ workspace: { path: 'relative/dir' } } as never)], 'not an absolute directory')
+    expectRefused([pipeline({ workspace: { path: '' } } as never)], 'not an absolute directory')
+    expectRefused([pipeline({ workspace: 'D:\\x' } as never)], 'not an absolute directory')
+  })
+
+  it('keeps only the path, whatever else the row carried', () => {
+    const parsed = parseWorkbenchPipelines([pipeline({ workspace: { path: 'D:\\Git\\x', name: 'x' } } as never)])
+    expect((parsed as readonly WorkbenchPipeline[])[0]?.workspace).toEqual({ path: 'D:\\Git\\x' })
   })
 })

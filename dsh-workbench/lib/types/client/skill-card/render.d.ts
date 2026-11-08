@@ -84,11 +84,19 @@ export declare function documentText(html: string): string;
 export declare function resultHeadline(html: string): string | undefined;
 /**
  * Splice one result's HTML into its template's region.
+ *
+ * The directory the run recorded goes into the template's pointer first. The stored template names
+ * `{任务编号}` because it is written once and run for many task numbers, and the document's own
+ * script reads that pointer to list the files the result holds — a document rendered from the
+ * stored text alone would ask for a folder called `{任务编号}` and print an error under a result that
+ * was written correctly. A caller with no recorded directory (a preview, a record from before the
+ * field existed) gets the template exactly as it was.
  * @param template - the template as stored.
  * @param html - the region content the result carries.
+ * @param directory - the directory the run resolved its pointer to, when one was recorded.
  * @returns the document to render; the template unchanged when it has no region.
  */
-export declare function filledTemplate(template: string, html: string): string;
+export declare function filledTemplate(template: string, html: string, directory?: string): string;
 /**
  * Remove the script elements one region fragment carries.
  *

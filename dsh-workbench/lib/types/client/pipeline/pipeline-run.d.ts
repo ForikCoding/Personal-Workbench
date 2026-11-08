@@ -12,7 +12,7 @@
  * @module dsh-workbench/client/pipeline/pipeline-run
  */
 import type { WorkbenchPipeline, WorkbenchPipelineRun, WorkbenchPipelineRunDraft, WorkbenchPipelineStep } from '../../pipeline-contract.ts';
-import type { WorkbenchActivityEntry, WorkbenchRunState } from '../../skill-card-contract.ts';
+import type { WorkbenchActivityEntry, WorkbenchCardWorkspace, WorkbenchRunState } from '../../skill-card-contract.ts';
 import type { WorkbenchSkillCardApi } from '../skill-card/api.ts';
 import type { PipelineRunEntry } from './pipeline-view.ts';
 /** How one step of a chain stands. */
@@ -48,6 +48,14 @@ export interface ChainStepOutcome {
  * moment the button was pressed would claim the work had ended before it had.
  */
 export type ChainPhase = 'running' | 'stopping' | 'settled' | 'failed' | 'stopped';
+/**
+ * The values a run of a pipeline was told.
+ *
+ * Carried by the chain rather than per step: one run of a pipeline asks once, and every step
+ * substitutes the same values into its own card's directory. Absent for a pipeline whose cards
+ * write no tokens, which is most of them.
+ */
+export type ChainParams = Readonly<Record<string, string>>;
 /** One chain, as the canvas draws it. */
 export interface PipelineChain {
     /** Pipeline the chain belongs to. */
@@ -106,6 +114,9 @@ export interface ChainSeams {
         readonly sessionId?: string;
         readonly terminal: boolean;
         readonly instruction?: string;
+        readonly params?: Readonly<Record<string, string>>;
+        readonly directive?: string;
+        readonly workspace?: string;
     }): Promise<ChainStartOutcome>;
     /**
      * Wait for one step's run to reach a terminal phase.
@@ -136,6 +147,29 @@ export interface ChainSeams {
      * honest answer when nobody knows where the earlier step ran.
      */
     readonly resume?: string;
+    /**
+     * Values every step of this chain substitutes into its card's directory.
+     *
+     * Passed through unchanged: the panel asked once for the run, and a step that resolved them
+     * itself would be a second reading of the same card's tokens.
+     */
+    readonly params?: ChainParams;
+    /**
+     * The sentence given once for this run, carried by every step of it.
+     *
+     * Beside {@link params} rather than inside them: a value is substituted into a directory,
+     * this is stated to the child. Also carried rather than asked per step, for the same reason
+     * the values are — one run, one answer, and every step sees the same words.
+     */
+    readonly directive?: string;
+    /**
+     * The directory the pipeline says every step runs in.
+     *
+     * Read from the pipeline, not from the step's card: the card's own directory is what this
+     * overrides for the length of the run, and a step that resolved it itself would be a second
+     * answer to a question the pipeline already answered.
+     */
+    readonly workspace?: WorkbenchCardWorkspace;
 }
 /** How a chain ended. */
 export interface ChainResult {
@@ -198,14 +232,19 @@ export interface PipelineRunFace {
      * @param pipeline - the pipeline to run.
      * @param from - first step to run; absent starts at the first step.
      * @param resume - session the step before `from` settled in, when the run continues it.
+     * @param params - values every step of this run substitutes into its own directory.
+     * @param directive - the sentence typed once for this whole run, when one was.
      */
-    runAll(pipeline: WorkbenchPipeline, from?: number, resume?: string): void;
+    runAll(pipeline: WorkbenchPipeline, from?: number, resume?: string, params?: ChainParams, directive?: string): void;
     /**
      * Run one step on its own, in a session of its own.
      * @param pipeline - the pipeline the step belongs to.
      * @param index - the step index.
+     * @param params - values the step's own directory names, when it names any.
+     * @param directive - the sentence typed once for this run, when one was. A single-step run
+     *   states it too: it is the same task, and a document written by this step has to name it.
      */
-    runOne(pipeline: WorkbenchPipeline, index: number): void;
+    runOne(pipeline: WorkbenchPipeline, index: number, params?: ChainParams, directive?: string): void;
     /**
      * Stop the run in flight, whether it is a chain or one step.
      *
@@ -219,8 +258,10 @@ export interface PipelineRunFace {
      * @param pipeline - the pipeline the step belongs to.
      * @param index - the step index.
      * @param instruction - what to change.
+     * @param params - the values the run being revised used, so the revision lands in the same
+     *   directory rather than in a path still carrying `{任务编号}`.
      */
-    refine(pipeline: WorkbenchPipeline, index: number, instruction: string): void;
+    refine(pipeline: WorkbenchPipeline, index: number, instruction: string, params?: ChainParams): void;
     /**
      * The runs this page has seen for one pipeline, newest first.
      * @param pipelineId - the pipeline to read.

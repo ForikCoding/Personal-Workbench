@@ -141,6 +141,7 @@ function decodeRun(value: unknown): WorkbenchPipelineRun | undefined {
   const only = typeof run.only === 'number' && Number.isInteger(run.only) && run.only >= 0 ? run.only : undefined
   const from = typeof run.from === 'number' && Number.isInteger(run.from) && run.from >= 0 ? run.from : undefined
   const instruction = typeof run.instruction === 'string' ? run.instruction : undefined
+  const params = decodeParams(run.params)
   const steps = decodeSteps(run.steps)
   if (steps === undefined) return undefined
   return {
@@ -153,8 +154,29 @@ function decodeRun(value: unknown): WorkbenchPipelineRun | undefined {
     ...only === undefined ? {} : { only },
     ...from === undefined ? {} : { from },
     ...instruction === undefined ? {} : { instruction },
+    ...params === undefined ? {} : { params },
     steps,
   }
+}
+
+/**
+ * Decode the values one record was told.
+ *
+ * A malformed map is dropped rather than failing the whole record: the step list is what makes a
+ * run legible, and a value that cannot be read should cost the prefill, not the history.
+ * @param value - the `params` field.
+ * @returns the values, or undefined when there are none to read.
+ */
+function decodeParams(value: unknown): Readonly<Record<string, string>> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const values: Record<string, string> = {}
+  let any = false
+  for (const [name, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw !== 'string') continue
+    values[name] = raw
+    any = true
+  }
+  return any ? values : undefined
 }
 
 /**
@@ -164,7 +186,7 @@ function decodeRun(value: unknown): WorkbenchPipelineRun | undefined {
  */
 function decodeSteps(value: unknown): WorkbenchPipelineRun['steps'] | undefined {
   if (!Array.isArray(value)) return undefined
-  const steps: { cardId: string; phase: 'done' | 'failed' | 'stopped'; tookMs?: number; failure?: string; html?: string }[] = []
+  const steps: { cardId: string; phase: 'done' | 'failed' | 'stopped'; tookMs?: number; failure?: string; html?: string; dir?: string }[] = []
   for (const entry of value) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined
     const step = entry as Record<string, unknown>
@@ -173,12 +195,14 @@ function decodeSteps(value: unknown): WorkbenchPipelineRun['steps'] | undefined 
     const tookMs = typeof step.tookMs === 'number' && Number.isFinite(step.tookMs) ? step.tookMs : undefined
     const failure = typeof step.failure === 'string' ? step.failure : undefined
     const html = typeof step.html === 'string' ? step.html : undefined
+    const dir = typeof step.dir === 'string' && step.dir !== '' ? step.dir : undefined
     steps.push({
       cardId: step.cardId,
       phase: step.phase,
       ...tookMs === undefined ? {} : { tookMs },
       ...failure === undefined ? {} : { failure },
       ...html === undefined ? {} : { html },
+      ...dir === undefined ? {} : { dir },
     })
   }
   return steps

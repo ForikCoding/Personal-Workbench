@@ -65,7 +65,7 @@ export declare function dayOf(at: number, now: number): string;
  * @param product - what the run's own region produced.
  * @returns the directory to list, or undefined when this result is not a directory's files.
  */
-export declare function resultDirectory(template: string | undefined, product: StepProduct): string | undefined;
+export declare function resultDirectory(template: string | undefined, product: StepProduct, recorded?: string): string | undefined;
 /**
  * A byte count as the row beside a file name shows it.
  *
@@ -126,6 +126,8 @@ export interface PipelineRunStep {
     readonly failure?: string;
     /** The region it stored, captured when the run settled. */
     readonly html?: string;
+    /** The directory this step wrote to, with the run's values resolved. */
+    readonly dir?: string;
 }
 /** What one execution of a pipeline did, kept for the session. */
 export interface PipelineRunEntry {
@@ -152,6 +154,22 @@ export interface PipelineRunEntry {
     readonly from?: number;
     /** What the review asked for, when the run was one. */
     readonly instruction?: string;
+    /**
+     * The values this run was told, by name.
+     *
+     * The next run of the same pipeline opens on these, and 运行记录 can say which task number a
+     * run covered. Absent for a pipeline whose cards name none, and for records written before the
+     * field existed.
+     */
+    readonly params?: Readonly<Record<string, string>>;
+    /**
+     * The sentence this run was given once for all of its steps.
+     *
+     * Not {@link instruction}: that one is a review's request about one step's product. This one is
+     * what the run dialog collected before the chain started, and it is what the next run's dialog
+     * offers back so nobody retypes the task it was about.
+     */
+    readonly directive?: string;
     /** One entry per step the run touched, in step order. */
     readonly steps: readonly PipelineRunStep[];
 }

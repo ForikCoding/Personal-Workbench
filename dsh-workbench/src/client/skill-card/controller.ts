@@ -436,6 +436,15 @@ export interface WorkbenchCardActions {
    */
   setWorkspace(path: string): void
   /**
+   * Stop naming a directory for this card.
+   *
+   * The counterpart of {@link setWorkspace}: a card can point at the wrong folder, and the way
+   * back to "this card says nothing about where it runs" must not be "type another path". What
+   * that state means is the other half's business — a pipeline may name the directory, and a run
+   * with nothing to run in is refused with its own reason rather than running somewhere else.
+   */
+  clearWorkspace(): void
+  /**
    * Store the permission mode this card's runs use.
    *
    * A run rebuilt from a changed mode is a different run: the Host disposes the card's
@@ -1152,13 +1161,16 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
   }, [api, applyWrite, cardId, revision])
 
   /**
-   * Store one confirmed directory as this card's workspace.
-   * @param path - the directory, already checked.
+   * Store one confirmed directory as this card's workspace, or stop naming one.
+   *
+   * `null` is the contract's way of clearing a field, and it is the same write: a card that stops
+   * naming a directory is a change like any other, not a removal of the card.
+   * @param workspace - the directory, already checked, or null to clear it.
    */
-  const writeWorkspace = useCallback((path: string): void => {
+  const writeWorkspace = useCallback((workspace: { path: string } | null): void => {
     setWorkspaceTypedProblem(undefined)
     const send = (baseRevision: string): void => {
-      void api.write({ baseRevision, cardId, workspace: { path } }).then(applyWrite)
+      void api.write({ baseRevision, cardId, workspace }).then(applyWrite)
     }
     if (revision !== undefined) {
       send(revision)
@@ -1191,9 +1203,16 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         setPickerRefused(true)
         return
       }
-      writeWorkspace(picked.path)
+      writeWorkspace({ path: picked.path })
     })
   }, [workspacePicker, writeWorkspace])
+
+  const clearWorkspace = useCallback(() => {
+    // One click, no confirmation: the field says what it stored, and the picker that named it is
+    // right there — a dialog asking "really stop pointing at this folder?" would cost more than
+    // the undo it protects.
+    writeWorkspace(null)
+  }, [writeWorkspace])
 
   const setWorkspace = useCallback((path: string) => {
     const trimmed = path.trim()
@@ -1218,7 +1237,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
         setWorkspaceTypedProblem('not-directory')
         return
       }
-      writeWorkspace(trimmed)
+      writeWorkspace({ path: trimmed })
     })
   }, [api, writeWorkspace])
 
@@ -1548,6 +1567,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseModel,
       chooseWorkspace,
       setWorkspace,
+      clearWorkspace,
       choosePermission,
       chooseInstructionMode,
       saveTemplate,
@@ -1570,6 +1590,7 @@ export function useSkillCard(options: WorkbenchSkillCardOptions): {
       chooseModel,
       chooseWorkspace,
       setWorkspace,
+      clearWorkspace,
       choosePermission,
       chooseInstructionMode,
       saveTemplate,

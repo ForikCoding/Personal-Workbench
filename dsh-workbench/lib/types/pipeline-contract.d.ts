@@ -9,6 +9,7 @@
  * what the user arranged, never what happened.
  * @module dsh-workbench/pipeline-contract
  */
+import type { WorkbenchCardWorkspace } from './skill-card-contract.ts';
 /** Private route this plugin serves pipeline definitions on. */
 export declare const WORKBENCH_PIPELINE_PATH = "/api/workbench/pipeline";
 /** Version of the pipeline wire contract; a client reading another version refuses it. */
@@ -45,6 +46,18 @@ export interface WorkbenchPipeline {
     readonly name: string;
     /** Ordered steps; empty is a legal draft, not an error. */
     readonly steps: readonly WorkbenchPipelineStep[];
+    /**
+     * The directory every step of this pipeline runs in.
+     *
+     * The pipeline owns this, not the cards: one card can be a step of two pipelines working on
+     * different checkouts, and a directory written onto the cards would quietly make those two share
+     * one. When set, this is the directory a run is told; a step's own card directory stays where it
+     * is and is not consulted.
+     *
+     * Absent means the pipeline says nothing about where it runs, and each step falls back to its own
+     * card — which is what every pipeline written before this field existed does.
+     */
+    readonly workspace?: WorkbenchCardWorkspace;
     /** When this definition last changed, in milliseconds since the epoch. */
     readonly updatedAt: number;
 }
@@ -54,6 +67,8 @@ export interface WorkbenchPipelineRecord {
     readonly name: string;
     /** Ordered steps. */
     readonly steps: readonly WorkbenchPipelineStep[];
+    /** The directory every step of it runs in, when it names one. */
+    readonly workspace?: WorkbenchCardWorkspace;
     /** When this definition last changed. */
     readonly updatedAt: number;
 }
@@ -129,12 +144,28 @@ export declare const WORKBENCH_PIPELINE_RUN_MAX_BODY_BYTES: number;
 export declare const WORKBENCH_PIPELINE_RUN_STEP_HTML_MAX_LENGTH = 96000;
 /** How one step of an execution ended. A record is only written once a step is over. */
 export type WorkbenchPipelineRunStepPhase = 'done' | 'failed' | 'stopped';
+/**
+ * Ceiling on the directory one step records.
+ *
+ * The pointer a card's template carries is already bounded by one; this is the same bound on
+ * what a run resolved it to, so a value cannot make a record longer than a record may be.
+ */
+export declare const WORKBENCH_PIPELINE_RUN_DIR_MAX_LENGTH = 512;
 /** One step of one execution, as it stood when the run settled. */
 export interface WorkbenchPipelineRunStep {
     /** The card this step ran. */
     readonly cardId: string;
     /** How it ended. */
     readonly phase: WorkbenchPipelineRunStepPhase;
+    /**
+     * The directory this step's card wrote to, with the run's values put in place.
+     *
+     * The card's template states the pointer, and a pointer may name values the run was told
+     * (`{任务编号}/docs/任务分析`). What the template says is therefore not where the files are;
+     * this is. Recorded here rather than re-derived from today's template, because the template can
+     * be edited after the run and yesterday's product would then be looked for in today's folder.
+     */
+    readonly dir?: string;
     /** How long it took. */
     readonly tookMs?: number;
     /** Why it failed, when it did. */
@@ -169,6 +200,26 @@ export interface WorkbenchPipelineRun {
     readonly from?: number;
     /** What the review asked for, when the run was one. */
     readonly instruction?: string;
+    /**
+     * The sentence the run was given once for all of its steps.
+     *
+     * Not {@link instruction}: that one is a review's request, addressed at a single step's product.
+     * This one is the answer to "which task is this run", typed in the run dialog before the chain
+     * starts, delivered to every step's prompt as `<pipeline_instruction>`, and repeated here so
+     * the record says what the run was told rather than what its folders happen to be named.
+     *
+     * Absent for a run that was told nothing — every run started before this field existed, and
+     * every run whose dialog was left blank.
+     */
+    readonly directive?: string;
+    /**
+     * The values this run was told, by name.
+     *
+     * Kept for two readers: the record is what makes a run legible afterwards ("which task number
+     * did this cover"), and the next run of the same pipeline opens on these values instead of
+     * asking for them again. Absent when the pipeline's cards named nothing.
+     */
+    readonly params?: Readonly<Record<string, string>>;
     /** One entry per step the run touched, in step order. */
     readonly steps: readonly WorkbenchPipelineRunStep[];
 }

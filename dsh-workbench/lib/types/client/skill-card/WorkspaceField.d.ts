@@ -39,9 +39,16 @@ export declare function WorkspacePathField({ value, fieldKind, problem, t, onCom
  * @param props - the card view, the translator, and the two ways of naming a directory.
  * @returns the field.
  */
-export declare function WorkspaceField({ view, t, onChooseWorkspace, onSetWorkspace, }: {
+export declare function WorkspaceField({ view, t, onChooseWorkspace, onSetWorkspace, onClearWorkspace, }: {
     readonly view: WorkbenchCardView;
     readonly t: (key: WorkbenchLocaleKey) => string;
     readonly onChooseWorkspace: () => void;
     readonly onSetWorkspace: (path: string) => void;
+    /**
+     * Stop naming a directory for this card.
+     *
+     * Absent when the screen has nothing to write with, and then no control is drawn — a clear
+     * button that cannot clear is worse than the missing answer it offers.
+     */
+    readonly onClearWorkspace?: (() => void) | undefined;
 }): ReactNode;

@@ -110,15 +110,32 @@ export function WorkspaceField({
   t,
   onChooseWorkspace,
   onSetWorkspace,
+  onClearWorkspace,
 }: {
   readonly view: WorkbenchCardView
   readonly t: (key: WorkbenchLocaleKey) => string
   readonly onChooseWorkspace: () => void
   readonly onSetWorkspace: (path: string) => void
+  /**
+   * Stop naming a directory for this card.
+   *
+   * Absent when the screen has nothing to write with, and then no control is drawn — a clear
+   * button that cannot clear is worse than the missing answer it offers.
+   */
+  readonly onClearWorkspace?: (() => void) | undefined
 }): ReactNode {
   const field = view.workspaceField
   const stored = field.kind === 'missing' ? '' : field.path
   const problem = view.workspaceTypedProblem
+  // Clearing is offered only while there is something to clear. On an empty card it would be a
+  // control that does nothing, which reads as broken rather than as idle.
+  const clear = field.kind !== 'missing' && onClearWorkspace !== undefined
+    ? (
+      <Button variant="ghost" size="sm" onClick={onClearWorkspace} data-workspace-clear="">
+        {t('skillCardWorkspaceClear')}
+      </Button>
+      )
+    : null
   return (
     <>
       <p className={css.fieldLabel}>{t('skillCardWorkspace')}</p>
@@ -146,16 +163,23 @@ export function WorkspaceField({
             <Button variant="ghost" size="sm" onClick={onChooseWorkspace} data-workspace-pick="">
               {t('skillCardChooseDirectory')}
             </Button>
+            {clear}
           </div>
         )
         : (
-          <WorkspacePathField
-            value={stored}
-            fieldKind={field.kind}
-            problem={problem}
-            t={t}
-            onCommit={onSetWorkspace}
-          />
+          <>
+            <WorkspacePathField
+              value={stored}
+              fieldKind={field.kind}
+              problem={problem}
+              t={t}
+              onCommit={onSetWorkspace}
+            />
+            {/* The typed branch needs it as much as the picker's: a build with no chooser is
+                exactly where a wrong path is likeliest, and emptying the box and pressing 应用
+                is refused as an invalid path rather than read as "no directory". */}
+            {clear === null ? null : <div className={css.workspaceRow}>{clear}</div>}
+          </>
         )}
       {field.kind === 'invalid' && field.checked ? (
         <p className={css.fieldNote} data-workspace-invalid="">{t('skillCardProblemWorkspaceInvalid')}</p>
