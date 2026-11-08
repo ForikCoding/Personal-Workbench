@@ -36,6 +36,29 @@ export function permissionLabelKey(mode: WorkbenchSandboxMode): WorkbenchLocaleK
 }
 
 /**
+ * Locale key for the one line saying what each mode actually allows.
+ *
+ * The three modes do not promise the same thing, so one sentence covering all of them is
+ * always wrong for two of them: "writes stay inside the workspace" is false for read-only
+ * (nothing is written) and false for full access (writes go wherever). The note follows the
+ * value, the way the label does.
+ */
+const PERMISSION_NOTE_KEYS: Record<WorkbenchSandboxMode, WorkbenchLocaleKey> = {
+  'read-only': 'pipeCfgPermissionNoteReadOnly',
+  'workspace-write': 'pipeCfgPermissionNoteWorkspaceWrite',
+  'danger-full-access': 'pipeCfgPermissionNoteFullAccess',
+}
+
+/**
+ * Read the locale key explaining one permission mode to the user.
+ * @param mode - the mode in force.
+ * @returns the dictionary key holding the one-line explanation.
+ */
+export function permissionNoteKey(mode: WorkbenchSandboxMode): WorkbenchLocaleKey {
+  return PERMISSION_NOTE_KEYS[mode]
+}
+
+/**
  * Locale key for each instruction mode's label.
  *
  * Exhaustive for the same reason as the permissions above: a mode added to the contract

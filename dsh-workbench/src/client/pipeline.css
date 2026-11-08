@@ -1095,25 +1095,28 @@
 .wb-actDur { margin-top: 1px; font-family: var(--f-mono); font-size: 11px; color: var(--ink4); }
 
 /* 配置面板 */
-.wb-configPanel { padding: 12px 16px 18px; }
+.wb-configPanel { padding: 14px 16px 20px; }
 /* 配置分三层：整条流水线 / 这一步 / 模板。三层之间一条发丝线。 */
-.wb-cfgBlock + .wb-cfgBlock { margin-top: 16px; padding-top: 14px; border-top: 0.5px solid var(--divider); }
+.wb-cfgBlock + .wb-cfgBlock { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--divider); }
 .wb-cfgBlockHead {
   display: flex;
-  align-items: center;
+  /* 和标签的第一行字对齐，不和整行垂直居中 */
+  align-items: baseline;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   font-size: 12px;
   font-weight: 500;
   color: var(--ink);
 }
 .wb-cfgBlockHead > em { min-width: 0; font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-cfgBlockHead .wb-segTiny { margin-left: auto; }
-/* 真下拉，不是长得像下拉的死按钮 */
+/* 真下拉，不是长得像下拉的死按钮。宽度统一 200：几行下拉的注脚
+   因此落在同一条竖线上，而不是跟着选项长短各走各的 */
 .wb-ruleSelect {
   display: block;
-  max-width: 240px;
-  padding: 4px 8px;
+  width: 200px;
+  max-width: 100%;
+  padding: 5px 9px;
   border: 0.5px solid var(--hairline);
   border-radius: 7px;
   background: var(--card-bg);
@@ -1140,9 +1143,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  max-width: 420px;
-  padding: 6px 10px;
+  width: 480px;
+  max-width: 100%;
+  padding: 7px 10px;
   border: 0.5px solid var(--hairline);
   border-radius: 7px;
   background: var(--card-bg);
@@ -1162,9 +1165,9 @@
 .wb-ruleInput,
 .wb-ruleArea {
   display: block;
-  width: 100%;
-  max-width: 420px;
-  padding: 5px 8px;
+  width: 480px;
+  max-width: 100%;
+  padding: 6px 9px;
   border: 0.5px solid var(--hairline);
   border-radius: 7px;
   background: var(--card-bg);
@@ -1173,25 +1176,45 @@
   font-size: 12px;
 }
 .wb-ruleInput { font-family: var(--f-mono); }
-.wb-ruleArea { max-width: 100%; line-height: 1.5; resize: vertical; }
+.wb-ruleArea { line-height: 1.55; resize: vertical; }
 .wb-ruleInput:hover,
 .wb-ruleArea:hover { border-color: var(--hairline-strong, var(--divider)); }
 .wb-ruleInput:focus-visible,
 .wb-ruleArea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* ---- 一行三轨：标签 / 控件 / 注脚 --------------------------------
+   控件是这一行里唯一像“东西”的东西，注脚永远待在自己的窄道上。
+   以前注脚铺在控件底下、占满整行，于是每一行都因为“解释”变高，
+   解释本身读起来又和内容一样重——一段技能描述甚至能占掉半屏。
+   现在行的行高只由控件决定。窄到放不下三轨时，注脚折到控件下方，
+   仍和控件共享同一条左边缘：行还是那一行，只是折了一下。 */
 .wb-ruleRow {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
+  align-items: flex-start;
+  gap: 0 14px;
   padding: 10px 0;
   border-bottom: 0.5px solid var(--divider);
 }
 .wb-ruleRow:last-child { border-bottom: 0; }
-.wb-ruleLabel { flex: none; width: 76px; color: var(--ink3); font-size: 12px; }
-.wb-ruleValue { flex: 1; min-width: 0; }
+/* 和控件第一行字对齐，而不是和整行垂直居中：内容再高，标签也不会浮在中间 */
+.wb-ruleLabel { flex: 0 0 84px; padding-top: 7px; color: var(--ink3); font-size: 12px; }
+.wb-ruleBody { flex: 1; min-width: 0; }
+/* 控件和它的注脚是一对：注脚跟在控件右边，隔着固定 16px。
+   窄到放不下才折到控件下方，仍然从控件那条左边缘起。 */
+.wb-ruleLine { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 3px 16px; }
+.wb-ruleValue { flex: 0 1 auto; min-width: 0; }
+.wb-ruleNote {
+  flex: 1 1 200px;
+  min-width: 150px;
+  max-width: 300px;
+  padding-top: 7px;
+  color: var(--ink4);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .wb-ruleValue .wb-val {
   display: block;
+  padding-top: 6px;
   font-size: 13px;
   color: var(--ink);
   white-space: nowrap;
@@ -1199,7 +1222,47 @@
   text-overflow: ellipsis;
 }
 .wb-ruleValue .wb-val.wb-mono { font-family: var(--f-mono); font-size: 12px; }
-.wb-ruleValue .wb-hint { display: block; margin-top: 1px; color: var(--ink4); font-size: 11px; }
+
+/* 长一点的技能说明是“读物”不是注脚：两行打住，剩下的自己展开。
+   它是配置页里唯一需要阅读的段落，所以给它一个窄栏和一个边界，
+   而不是让它铺满一行、把控件挤到下面。 */
+.wb-specNote {
+  position: relative;
+  max-width: 480px;
+  margin-top: 8px;
+  padding: 8px 10px 22px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--recess);
+}
+.wb-specNoteBody { margin: 0; color: var(--ink3); font-size: 12px; line-height: 1.6; }
+.wb-specNote[data-open="false"] .wb-specNoteBody { max-height: 3.2em; overflow: hidden; }
+/* 收起来的那两行，最后半行淡出：看得出下面还有字，而不是被剪断 */
+.wb-specNote[data-open="false"]::after {
+  content: '';
+  position: absolute;
+  left: 0.5px;
+  right: 0.5px;
+  bottom: 21px;
+  height: 22px;
+  border-radius: 0 0 7px 7px;
+  background: linear-gradient(to bottom, transparent, var(--recess));
+  pointer-events: none;
+}
+.wb-specNoteMore {
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.wb-specNoteMore:hover { text-decoration: underline; }
+.wb-specNoteMore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 /* ----------------------------------------------------------------- 运行条 */
 .wb-runbar {

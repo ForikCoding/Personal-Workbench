@@ -280,6 +280,8 @@ function props(options: {
                 // Stored the way the host stores it, so a panel that re-reads sees the change.
                 ...patch.workspace === undefined || patch.workspace === null ? {} : { workspace: patch.workspace },
                 ...patch.instruction === undefined || patch.instruction === null ? {} : { instruction: patch.instruction },
+                ...patch.permission === undefined || patch.permission === null ? {} : { permission: patch.permission },
+                ...patch.model === undefined || patch.model === null ? {} : { model: patch.model },
                 templateSkills: [],
               },
             ],
@@ -579,14 +581,18 @@ describe('WorkbenchPage', () => {
     const row = document.querySelector('[data-cfg-permission]') as HTMLSelectElement
     expect(row).not.toBeNull()
     expect(row.value).toBe('workspace-write')
+    // The note says what the mode in force allows.
+    expect(screen.getByText(en.pipeCfgPermissionNoteWorkspaceWrite)).toBeTruthy()
     fireEvent.change(row, { target: { value: 'read-only' } })
     await waitFor(() => { expect(cardWrites).toHaveLength(2) })
     expect(cardWrites.map(patch => [patch.cardId, patch.permission])).toEqual([
       ['a-card', 'read-only'],
       ['b-card', 'read-only'],
     ])
-    // The row says what the mode means, and the label is the product's own name for it.
-    expect(screen.getByText(en.pipeCfgPermissionNote)).toBeTruthy()
+    // And it follows the value: "writes stay inside the workspace" was never true of
+    // read-only, which is what one fixed sentence for all three modes claimed.
+    await waitFor(() => { expect(screen.getByText(en.pipeCfgPermissionNoteReadOnly)).toBeTruthy() })
+    expect(screen.queryByText(en.pipeCfgPermissionNoteWorkspaceWrite)).toBeNull()
   })
 
   it('points every step at one model, and can put them back on the session', async () => {
@@ -599,7 +605,10 @@ describe('WorkbenchPage', () => {
     expect(row).not.toBeNull()
     // Nothing chosen yet: the first option is the one that means "follow the session".
     expect(row.value).toBe('')
-    expect(screen.getByText(en.pipeCfgModelInheritNote)).toBeTruthy()
+    expect((row.options[0] as HTMLOptionElement).textContent).toBe(en.pipeCfgModelInherit)
+    // And no margin note: the value already says "follows the session", and the block head
+    // already says this row reaches every step. A sentence repeating either is in the way.
+    expect((row.closest('.wb-ruleRow') as HTMLElement).querySelector('.wb-ruleNote')).toBeNull()
     // The option value is the stored pair, not a "provider/model" string: a provider id
     // may itself contain a slash, so the value has to be decodable without guessing.
     fireEvent.change(row, { target: { value: JSON.stringify(['deepseek', 'deepseek-reasoner']) } })
@@ -626,10 +635,46 @@ describe('WorkbenchPage', () => {
     expect(row.value).toBe('review')
     expect((document.querySelector('[data-panel="config"]') as HTMLElement).textContent)
       .toContain('Review a change')
+    // One line is a footnote: it stays beside the select, and there is nothing to open.
+    expect(document.querySelector('[data-cfg-skill-spec]')).toBeNull()
     fireEvent.change(row, { target: { value: 'design-doc' } })
     await waitFor(() => { expect(cardWrites).toHaveLength(1) })
     expect(cardWrites[0]?.cardId).toBe('b-card')
     expect(cardWrites[0]?.skill).toBe('design-doc')
+  })
+
+  it('keeps a long skill description folded until it is asked for', async () => {
+    // A real skill describes itself in a paragraph, and that paragraph used to be a footnote:
+    // it set the height of its row, pushed every control below it out of view, and read as
+    // loudly as the controls themselves.
+    const long = '按 UF3.0 工具链产出可直接开工的详细设计文档：先定生成与手写边界，再写 hep 元数据改动'
+      + '（heptabledesign 表列、hep.biz 接口出入参），最后只保留必须手写的业务代码；交付一份'
+      + '详细设计文档，含方案总览、改动清单、表结构设计、接口设计、手写代码设计。'
+    await renderPage({
+      catalog: async () => ({
+        status: 'ok' as const,
+        entries: [{ name: 'git-repo', description: long, userInvocable: true }],
+      }),
+    })
+    await screen.findByText(en.pipeAddStep)
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(screen.getByText(en.pipeTabConfig))
+    const spec = document.querySelector('[data-cfg-skill-spec]') as HTMLElement
+    expect(spec).not.toBeNull()
+    // Closed by default, and still in the document: the two lines shown are the opening of
+    // the real text, not a summary written for the panel.
+    expect(spec.getAttribute('data-open')).toBe('false')
+    expect(spec.textContent).toContain(long)
+    // It is not in the margin as well: a paragraph is not a footnote, it is the block below.
+    expect((spec.closest('.wb-ruleRow') as HTMLElement).querySelector('.wb-ruleNote')).toBeNull()
+    const more = document.querySelector('[data-cfg-skill-more]') as HTMLButtonElement
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(more)
+    await waitFor(() => {
+      expect((document.querySelector('[data-cfg-skill-spec]') as HTMLElement).getAttribute('data-open')).toBe('true')
+    })
+    // The button says what it will do next, so the state is readable without the block.
+    expect((document.querySelector('[data-cfg-skill-more]') as HTMLElement).textContent).toBe(en.pipeCfgSkillLess)
   })
 
   it('edits the instruction of the step being edited', async () => {

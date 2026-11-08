@@ -359,8 +359,9 @@ export declare const zh: {
     pipeCfgPipelineNote: string;
     pipeCfgModel: string;
     pipeCfgModelInherit: string;
-    pipeCfgModelInheritNote: string;
-    pipeCfgPermissionNote: string;
+    pipeCfgPermissionNoteReadOnly: string;
+    pipeCfgPermissionNoteWorkspaceWrite: string;
+    pipeCfgPermissionNoteFullAccess: string;
     pipeCfgWorkspaceNote: string;
     pipeCfgWorkspacePick: string;
     pipeCfgWriteFailed: string;
@@ -369,6 +370,8 @@ export declare const zh: {
     pipeCfgInstruction: string;
     pipeCfgInstructionNote: string;
     pipeCfgSkillNoNote: string;
+    pipeCfgSkillMore: string;
+    pipeCfgSkillLess: string;
     pipeCfgPermission: string;
     pipeCfgWorkspace: string;
     pipeCfgNoWorkspace: string;

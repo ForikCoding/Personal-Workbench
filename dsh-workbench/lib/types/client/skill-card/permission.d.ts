@@ -19,6 +19,12 @@ import type { WorkbenchLocaleKey } from '../locales.ts';
  */
 export declare function permissionLabelKey(mode: WorkbenchSandboxMode): WorkbenchLocaleKey;
 /**
+ * Read the locale key explaining one permission mode to the user.
+ * @param mode - the mode in force.
+ * @returns the dictionary key holding the one-line explanation.
+ */
+export declare function permissionNoteKey(mode: WorkbenchSandboxMode): WorkbenchLocaleKey;
+/**
  * Read the locale key naming one instruction mode.
  * @param mode - the mode to name.
  * @returns the dictionary key holding its label.

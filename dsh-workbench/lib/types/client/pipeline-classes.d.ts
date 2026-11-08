@@ -161,7 +161,10 @@ export declare const css: {
     readonly reviewWrap: "wb-reviewWrap";
     readonly revised: "wb-revised";
     readonly root: "wb-root";
+    readonly ruleBody: "wb-ruleBody";
     readonly ruleLabel: "wb-ruleLabel";
+    readonly ruleLine: "wb-ruleLine";
+    readonly ruleNote: "wb-ruleNote";
     readonly ruleRow: "wb-ruleRow";
     readonly ruleSelect: "wb-ruleSelect";
     readonly ruleInput: "wb-ruleInput";
@@ -171,6 +174,9 @@ export declare const css: {
     readonly rulePathText: "wb-rulePathText";
     readonly rulePathPick: "wb-rulePathPick";
     readonly ruleValue: "wb-ruleValue";
+    readonly specNote: "wb-specNote";
+    readonly specNoteBody: "wb-specNoteBody";
+    readonly specNoteMore: "wb-specNoteMore";
     readonly runbar: "wb-runbar";
     readonly runMenu: "wb-runMenu";
     readonly runMenuRow: "wb-runMenuRow";

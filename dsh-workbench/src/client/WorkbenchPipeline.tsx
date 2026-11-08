@@ -52,7 +52,7 @@ import type {
   WorkbenchFilesRead,
   WorkbenchSkillCardApi,
 } from './skill-card/api.ts'
-import { permissionLabelKey } from './skill-card/permission.ts'
+import { permissionLabelKey, permissionNoteKey } from './skill-card/permission.ts'
 import { resultHtml } from './skill-card/render.ts'
 import type { WorkbenchLocaleKey } from './locales.ts'
 import { modelKey, parseModelKey, type WorkbenchModelGroup } from './skill-card/model.ts'
@@ -2092,6 +2092,39 @@ function ActivityPanel(props: {
   )
 }
 
+/** Past this length a skill's description stops being a footnote and becomes something you open. */
+const SKILL_NOTE_MAX = 60
+
+/**
+ * One config row: the label, the control, and at most one line explaining it.
+ *
+ * The note sits on the control's own first line, 16px to its right, and folds under the
+ * control only when the panel is too narrow for both. The row's height therefore follows the
+ * control; a note never decides it. `below` is for the one thing a note cannot be: a paragraph.
+ * @param props - the row's label, control, note and the block below the line.
+ * @returns the row.
+ */
+function ConfigRow(props: {
+  readonly label: string
+  readonly control: ReactNode
+  readonly note?: string | undefined
+  readonly below?: ReactNode
+}): ReactNode {
+  const note = props.note === undefined || props.note === '' ? null : <span className={css.ruleNote}>{props.note}</span>
+  return (
+    <div className={css.ruleRow}>
+      <span className={css.ruleLabel}>{props.label}</span>
+      <div className={css.ruleBody}>
+        <div className={css.ruleLine}>
+          <span className={css.ruleValue}>{props.control}</span>
+          {note}
+        </div>
+        {props.below}
+      </div>
+    </div>
+  )
+}
+
 /** What one step's config panel shows: what it is, and what its document looks like. */
 function ConfigPanel(props: {
   readonly step: StepView
@@ -2137,6 +2170,15 @@ function ConfigPanel(props: {
   // every step's card, which is what "change once, every step follows" promises.
   const model = shared?.model
   const permission = shared?.permission ?? 'workspace-write'
+  // The description the row would otherwise have to spend a paragraph on. Closed again when the
+  // panel moves to another step: a reader that stayed open would carry one step's text to the
+  // next step's panel, where it says nothing about what is selected there.
+  const [specOpen, setSpecOpen] = useState(false)
+  useEffect(() => { setSpecOpen(false) }, [step.cardId])
+  const skillText = mine?.skill === undefined
+    ? t('pipeCfgSkillNoNote')
+    : (skills.find(entry => entry.name === mine.skill)?.description ?? t('pipeCfgSkillNoNote'))
+  const skillLong = skillText.length > SKILL_NOTE_MAX
   return (
     <>
       <div className={css.cfgBlock}>
@@ -2146,41 +2188,40 @@ function ConfigPanel(props: {
         </div>
         {/* A write that did not land says so here, in the block it was made in. */}
         {problem === undefined ? null : <p className={css.cfgProblem} data-cfg-problem>{problem}</p>}
-        <div className={css.ruleRow}>
-          <span className={css.ruleLabel}>{t('pipeCfgModel')}</span>
-          <span className={css.ruleValue}>
-            {models.length === 0
-              ? (
-                <span className={css.val}>
-                  {model === undefined ? t('pipeCfgModelInherit') : `${model.provider}/${model.model}`}
-                </span>
-                )
-              : (
-                <select
-                  className={css.ruleSelect}
-                  data-cfg-model=""
-                  aria-label={t('pipeCfgModel')}
-                  value={model === undefined ? '' : modelKey(model)}
-                  onChange={(event) => {
-                    onPatch({ model: event.target.value === '' ? null : parseModelKey(event.target.value) ?? null })
-                  }}
-                >
-                  <option value="">{t('pipeCfgModelInherit')}</option>
-                  {models.map(group => (
-                    <optgroup key={group.id} label={group.name}>
-                      {group.models.map(entry => (
-                        <option key={entry.id} value={modelKey({ provider: group.id, model: entry.id })}>{entry.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                )}
-            {model === undefined ? <span className={css.hint}>{t('pipeCfgModelInheritNote')}</span> : null}
-          </span>
-        </div>
-        <div className={css.ruleRow}>
-          <span className={css.ruleLabel}>{t('pipeCfgPermission')}</span>
-          <span className={css.ruleValue}>
+        {/* No note on this row: the select already says 跟随会话 when it inherits, and the block
+            head says the row reaches every step. A sentence repeating either is in the way. */}
+        <ConfigRow
+          label={t('pipeCfgModel')}
+          control={models.length === 0
+            ? (
+              <span className={css.val}>
+                {model === undefined ? t('pipeCfgModelInherit') : `${model.provider}/${model.model}`}
+              </span>
+              )
+            : (
+              <select
+                className={css.ruleSelect}
+                data-cfg-model=""
+                aria-label={t('pipeCfgModel')}
+                value={model === undefined ? '' : modelKey(model)}
+                onChange={(event) => {
+                  onPatch({ model: event.target.value === '' ? null : parseModelKey(event.target.value) ?? null })
+                }}
+              >
+                <option value="">{t('pipeCfgModelInherit')}</option>
+                {models.map(group => (
+                  <optgroup key={group.id} label={group.name}>
+                    {group.models.map(entry => (
+                      <option key={entry.id} value={modelKey({ provider: group.id, model: entry.id })}>{entry.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              )}
+        />
+        <ConfigRow
+          label={t('pipeCfgPermission')}
+          control={(
             <select
               className={css.ruleSelect}
               data-cfg-permission=""
@@ -2197,14 +2238,14 @@ function ConfigPanel(props: {
                 <option key={mode} value={mode}>{t(permissionLabelKey(mode))}</option>
               ))}
             </select>
-            <span className={css.hint}>{t('pipeCfgPermissionNote')}</span>
-          </span>
-        </div>
-        <div className={css.ruleRow}>
-          <span className={css.ruleLabel}>{t('pipeCfgWorkspace')}</span>
-          <span className={css.ruleValue}>
-            {/* The platform's own chooser, opened from a row that shows the confirmed path.
-                There is no text field: a typed path is a directory no chooser ever confirmed. */}
+          )}
+          note={t(permissionNoteKey(permission))}
+        />
+        {/* The platform's own chooser, opened from a row that shows the confirmed path.
+            There is no text field: a typed path is a directory no chooser ever confirmed. */}
+        <ConfigRow
+          label={t('pipeCfgWorkspace')}
+          control={(
             <button
               type="button"
               className={css.rulePath}
@@ -2218,9 +2259,9 @@ function ConfigPanel(props: {
               </span>
               <span className={css.rulePathPick}>{onPickWorkspace === undefined ? t('pipeCfgWorkspaceNoPicker') : t('pipeCfgWorkspacePick')}</span>
             </button>
-            <span className={css.hint}>{t('pipeCfgWorkspaceNote')}</span>
-          </span>
-        </div>
+          )}
+          note={t('pipeCfgWorkspaceNote')}
+        />
       </div>
 
       <div className={css.cfgBlock}>
@@ -2228,9 +2269,12 @@ function ConfigPanel(props: {
           <span>{t('pipeCfgStep')}</span>
           <em>{t('pipeCfgStepNote', { at: step.index + 1 })}</em>
         </div>
-        <div className={css.ruleRow}>
-          <span className={css.ruleLabel}>{t('pipeCfgSkill')}</span>
-          <span className={css.ruleValue}>
+        {/* A skill's description is the one paragraph on this panel, and it is as long as the
+            skill's author made it. One line of it belongs in the margin; the rest is something
+            the user asks for, in a bounded block, instead of a wall that sets the panel's height. */}
+        <ConfigRow
+          label={t('pipeCfgSkill')}
+          control={(
             <select
               className={css.ruleSelect}
               data-cfg-skill=""
@@ -2246,16 +2290,32 @@ function ConfigPanel(props: {
                 <option key={entry.name} value={entry.name}>{entry.name}</option>
               ))}
             </select>
-            <span className={css.hint}>{mine?.skill === undefined ? t('pipeCfgSkillNoNote') : (skills.find(entry => entry.name === mine.skill)?.description ?? t('pipeCfgSkillNoNote'))}</span>
-          </span>
-        </div>
-        <div className={css.ruleRow}>
-          <span className={css.ruleLabel}>{t('pipeCfgInstruction')}</span>
-          <span className={css.ruleValue}>
-            {/* A text box, because the instruction is the user's own sentence. Committed on
-                blur for the same reason as the directory: a write per keystroke would rewrite
-                the card on every letter. Keyed by the step: an uncontrolled box keeps the text
-                it was born with, so without the key it showed the step the panel opened on. */}
+          )}
+          note={skillLong ? undefined : skillText}
+          below={skillLong
+            ? (
+              <div className={css.specNote} data-cfg-skill-spec="" data-open={specOpen ? 'true' : 'false'}>
+                <p className={css.specNoteBody}>{skillText}</p>
+                <button
+                  type="button"
+                  className={css.specNoteMore}
+                  data-cfg-skill-more=""
+                  aria-expanded={specOpen}
+                  onClick={() => { setSpecOpen(open => !open) }}
+                >
+                  {specOpen ? t('pipeCfgSkillLess') : t('pipeCfgSkillMore')}
+                </button>
+              </div>
+              )
+            : undefined}
+        />
+        {/* A text box, because the instruction is the user's own sentence. Committed on
+            blur for the same reason as the directory: a write per keystroke would rewrite
+            the card on every letter. Keyed by the step: an uncontrolled box keeps the text
+            it was born with, so without the key it showed the step the panel opened on. */}
+        <ConfigRow
+          label={t('pipeCfgInstruction')}
+          control={(
             <textarea
               key={step.cardId}
               className={css.ruleArea}
@@ -2270,16 +2330,14 @@ function ConfigPanel(props: {
                 onStepPatch({ instruction: next === '' ? null : next })
               }}
             />
-            <span className={css.hint}>{t('pipeCfgInstructionNote')}</span>
-          </span>
-        </div>
-        <div className={css.ruleRow}>
-          <span className={css.ruleLabel}>{t('pipeCfgFailure')}</span>
-          <span className={css.ruleValue}>
-            <span className={css.val}>{t('pipeCfgFailureStop')}</span>
-            <span className={css.hint}>{t('pipeCfgFailureNote')}</span>
-          </span>
-        </div>
+          )}
+          note={t('pipeCfgInstructionNote')}
+        />
+        <ConfigRow
+          label={t('pipeCfgFailure')}
+          control={<span className={css.val}>{t('pipeCfgFailureStop')}</span>}
+          note={t('pipeCfgFailureNote')}
+        />
       </div>
 
       <div className={css.cfgBlock}>
