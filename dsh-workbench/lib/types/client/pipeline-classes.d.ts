@@ -211,9 +211,11 @@ export declare const css: {
     readonly zoomBody: "wb-zoomBody";
     readonly zoomFiles: "wb-zoomFiles";
     readonly zoomHead: "wb-zoomHead";
+    readonly zoomChip: "wb-zoomChip";
     readonly zoomHint: "wb-zoomHint";
     readonly zoomKicker: "wb-zoomKicker";
     readonly zoomMeta: "wb-zoomMeta";
+    readonly zoomPath: "wb-zoomPath";
     readonly zoomReview: "wb-zoomReview";
     readonly zoomScrim: "wb-zoomScrim";
     readonly zoomWarn: "wb-zoomWarn";

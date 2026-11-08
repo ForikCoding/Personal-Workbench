@@ -1014,6 +1014,30 @@ describe('WorkbenchPage', () => {
     await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
   })
 
+  it('names the reader on one line and mounts the page inside it bare', async () => {
+    // The reader is the page's host, so it is also the page's nameplate: what is being read,
+    // whose card it is, and where it came out. The page inside draws none of its own — its
+    // title and its way back were the second statement of both, and the first 96px of a
+    // document that the reader exists to show.
+    await renderPage({ results: [result('a-card', '<p>fresh</p>')] })
+    fireEvent.click(document.querySelector('[data-step-index="0"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-insp-tab="result"]') as HTMLElement)
+    const open = await waitFor(() => {
+      const found = document.querySelector('[data-open-result]')
+      if (found === null) throw new Error('no product row yet')
+      return found as HTMLElement
+    })
+    fireEvent.click(open)
+    await waitFor(() => { expect(document.querySelector('[data-reader]')).not.toBeNull() })
+    const reader = document.querySelector('[data-reader]') as HTMLElement
+    expect(reader.querySelector('.wb-zoomMeta')?.textContent).toBe('A card')
+    expect(reader.querySelector('.wb-zoomChip')?.textContent).toBe('git-repo')
+    expect(reader.querySelector('.wb-zoomPath')?.textContent).toBe('/work')
+    // Mounted bare: no nameplate of its own, so no title and no second way back.
+    expect(reader.querySelector('header')).toBeNull()
+    expect(reader.querySelector('[aria-label="' + en.skillCardBack + '"]')).toBeNull()
+  })
+
   it('draws one row per file the result directory holds, with each file’s size', async () => {
     // The template says where this card's results live; the listing says what is in there.
     // Together they are the three rows the prototype draws instead of one row for the folder.

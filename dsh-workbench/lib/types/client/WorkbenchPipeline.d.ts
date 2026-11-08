@@ -43,7 +43,13 @@ export interface WorkbenchPipelineProps {
      * @param onBack - what its back control returns to.
      * @returns the view.
      */
-    readonly renderCard: (cardId: string, view: CardView, onBack: () => void, openFile?: string) => ReactNode;
+    /**
+     * Mount one of a card's own full-panel views.
+     *
+     * `head` decides whether the page draws its own nameplate: the reader names the step and
+     * closes itself, so the page inside it is mounted bare.
+     */
+    readonly renderCard: (cardId: string, view: CardView, onBack: () => void, openFile?: string, head?: 'full' | 'bare') => ReactNode;
     /** Create a new single card, from the menu's own entry. */
     readonly onCreateCard: () => void;
     /**

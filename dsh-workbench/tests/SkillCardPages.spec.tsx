@@ -104,7 +104,7 @@ describe('skill card configuration page', () => {
     expect(container.querySelector('textarea')).not.toBeNull()
   })
 
-  it('names the card in the head, and keeps the way back above that name', async () => {
+  it('names the card on one nameplate, with the way back as its first control', async () => {
     // The name used to be in the fields only, which left the page titled by the panel's
     // own header — the home page's title over a configuration form. The head now says
     // which card this is; it reads the same stored name the field edits, so the two can
@@ -123,12 +123,17 @@ describe('skill card configuration page', () => {
       },
     })} />)
     const head = container.querySelector('header') as HTMLElement
-    // The way back sits above the title, as in the two views beside this one: the title
-    // and everything under it start on the page's one left edge.
-    expect(head.firstElementChild?.querySelector('button')?.textContent).toBe('skillCardBack')
+    // One nameplate: the way back is the control that opens it — icon only, named for
+    // assistive technology — and the title follows it on the same line, so the head costs
+    // a line instead of three tiers and the document under it starts that much sooner.
+    const back = head.firstElementChild as HTMLElement
+    expect(back.tagName).toBe('BUTTON')
+    expect(back.getAttribute('aria-label')).toBe('skillCardBack')
+    expect(back.textContent).toBe('')
     await waitFor(() => {
       expect(head.querySelector('h2')?.textContent).toBe('我的任务')
     })
+    expect(head.querySelector('h2')?.previousElementSibling).toBe(back)
     // The facts the head carries are the ones it can state without a second control:
     // which kind of page this is, the skill, and what a run may write.
     expect(head.textContent).toContain('skillCardSettings')

@@ -88,7 +88,19 @@ export interface WorkbenchPipelineProps {
    * @param onBack - what its back control returns to.
    * @returns the view.
    */
-  readonly renderCard: (cardId: string, view: CardView, onBack: () => void, openFile?: string) => ReactNode
+  /**
+   * Mount one of a card's own full-panel views.
+   *
+   * `head` decides whether the page draws its own nameplate: the reader names the step and
+   * closes itself, so the page inside it is mounted bare.
+   */
+  readonly renderCard: (
+    cardId: string,
+    view: CardView,
+    onBack: () => void,
+    openFile?: string,
+    head?: 'full' | 'bare',
+  ) => ReactNode
   /** Create a new single card, from the menu's own entry. */
   readonly onCreateCard: () => void
   /**
@@ -489,6 +501,15 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
   const wantedIndex = focus?.kind === 'step' ? focus.index : rememberedStep
   const selectedIndex = stepViews.length === 0 ? 0 : Math.min(Math.max(wantedIndex, 0), stepViews.length - 1)
   const selected = stepViews[selectedIndex]
+  // What the reader's nameplate says. Read from the step whose result it shows, not from the
+  // selection: the panel behind can move on while the reader is open, and the head has to keep
+  // naming the document under it. The pipeline's own card answers for a step that has none.
+  const readerStep = reader === undefined
+    ? undefined
+    : stepViews.find(entry => entry.cardId === reader.cardId)
+  const readerLabel = readerStep?.label ?? (reader === undefined ? '' : labelOf(reader.cardId))
+  const readerSkill = readerStep?.skill ?? stepViews[0]?.skill
+  const readerPath = (readerStep?.card?.workspace ?? stepViews[0]?.card?.workspace)?.path
   // One write point, whatever made the step selected — a click on the node, a run, an add, a
   // removal. This panel is unmounted every time the page moves on, so the selection has to be
   // written out on the way rather than held in state.
@@ -1710,9 +1731,16 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
           <div className={css.zoomWrap} data-reader={reader.cardId}>
             <div className={css.zoomScrim} onClick={() => { setReader(undefined) }} />
             <div className={css.zoom} role="dialog" aria-modal="true" aria-labelledby="pipe-zoom-title">
+              {/* The head is the reader's whole nameplate: what you are reading, whose it is,
+                  and where it came out. The page inside is mounted bare — its own title and
+                  its own way back would be the second statement of both. */}
               <div className={css.zoomHead}>
-                <span className={css.zoomKicker} id="pipe-zoom-title">{t('pipeReaderTitle')}</span>
-                <span className={css.zoomMeta}>{labelOf(reader.cardId)}</span>
+                <span className={css.zoomKicker}>{t('pipeReaderTitle')}</span>
+                <span className={css.zoomMeta} id="pipe-zoom-title">{readerLabel}</span>
+                {readerSkill === undefined ? null : <span className={css.zoomChip}>{readerSkill}</span>}
+                {readerPath === undefined
+                  ? null
+                  : <span className={css.zoomPath} title={readerPath}>{readerPath}</span>}
                 <span className={css.zoomHint}>{t('pipeEscHint')}</span>
                 <button
                   type="button"
@@ -1733,7 +1761,7 @@ export function WorkbenchPipeline(props: WorkbenchPipelineProps): ReactNode {
                 </button>
               </div>
               <div className={css.zoomBody}>
-                {renderCard(reader.cardId, 'result', () => { setReader(undefined) }, reader.file)}
+                {renderCard(reader.cardId, 'result', () => { setReader(undefined) }, reader.file, 'bare')}
               </div>
             </div>
           </div>

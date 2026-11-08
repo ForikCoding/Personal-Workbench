@@ -82,16 +82,16 @@ interface PageHeadProps {
 function PageHead({ onBack, title, meta, t }: PageHeadProps): ReactNode {
   return (
     <header className={css.pageHead}>
-      <div className={css.pageHeadBar}>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<IconChevronLeftOutlineRegular />}
-          onClick={onBack}
-        >
-          {t('skillCardBack')}
-        </Button>
-      </div>
+      {/* Icon only, named for assistive technology: on a nameplate the way back is a
+          control beside the title, not a line above it. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className={css.pageHeadBack}
+        aria-label={t('skillCardBack')}
+        icon={<IconChevronLeftOutlineRegular />}
+        onClick={onBack}
+      />
       {title === undefined ? null : <h2 className={css.pageHeadTitle}>{title}</h2>}
       {meta === undefined ? null : <div className={css.pageHeadMeta}>{meta}</div>}
     </header>
@@ -300,6 +300,15 @@ export interface SkillCardPageProps {
   readonly api: WorkbenchSkillCardApi
   /** Card being shown. */
   readonly cardId: string
+  /**
+   * How much of the page's own head to draw; the full nameplate when absent.
+   *
+   * `bare` is for a host that already names this page and already offers a way out. The
+   * pipeline's reader is one: its head says which step is being read and closes on ✕, Esc
+   * or the scrim, so the page's title and its back button were a second statement of both
+   * — and, on a page whose content is a document, the first 96px of the reading.
+   */
+  readonly head?: 'full' | 'bare' | undefined
   /**
    * The run a result view opens, when it is not the card's latest.
    *
@@ -762,7 +771,7 @@ function RunHistoryRow({
  * @returns the result page.
  */
 export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
-  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t, documents, openFile } = props
+  const { api, cardId, runSessionId, pickerSessionId, models, workspacePicker, fallbackTitle, onBack, openCard, t, documents, openFile, head } = props
   // The face's own naming rule, reused so an action declaration can address this card
   // by the title the user actually reads on it.
   const cardTitle = useCallback(
@@ -902,21 +911,25 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
   }, [editing])
   return (
     <section className={css.pageView} ref={pageRoot}>
-      <PageHead
-        onBack={onBack}
-        title={view.name ?? fallbackTitle}
-        t={t}
-        meta={(
-          <>
-            {view.skill === undefined ? null : <span className={css.pageHeadChip}>{view.skill}</span>}
-            {/* Where this result came out, in the head rather than under the document: it is
-                one of the facts that name the result, alongside the skill that made it, and a
-                line after the document put it below whatever length that document happened to
-                have. */}
-            <RunWorkspaceLine view={view} t={t} />
-          </>
-        )}
-      />
+      {head === 'bare'
+        ? null
+        : (
+          <PageHead
+            onBack={onBack}
+            title={view.name ?? fallbackTitle}
+            t={t}
+            meta={(
+              <>
+                {view.skill === undefined ? null : <span className={css.pageHeadChip}>{view.skill}</span>}
+                {/* Where this result came out, in the head rather than under the document: it is
+                    one of the facts that name the result, alongside the skill that made it, and a
+                    line after the document put it below whatever length that document happened to
+                    have. */}
+                <RunWorkspaceLine view={view} t={t} />
+              </>
+            )}
+          />
+          )}
       {/* A refinement's failure is stated under the composer, which sits on this same page:
           saying it here as well put the same sentence on screen twice. What the page itself
           owed the user was a panel that named the run instead of reading "not run yet", and
@@ -942,8 +955,13 @@ export function SkillCardResultPage(props: SkillCardPageProps): ReactNode {
             {/* The rendered document is the content, and content without a frame reads as
                 the page's own. The surface is only a frame now — border, radius and
                 padding — and the padding is what keeps the document off that border: it
-                carried a heading row until the product owner removed it as noise. */}
-            <section className={css.resultSurface} data-result-surface="">
+                carried a heading row until the product owner removed it as noise. A host
+                that already draws a frame (the reader) gets the same slot unframed, so the
+                document does not sit in a card inside a card. */}
+            <section
+              className={head === 'bare' ? css.resultBare : css.resultSurface}
+              data-result-surface=""
+            >
               {/* The editor takes the surface's content slot, and the thing being edited
                   is the same thing that was rendered a moment ago. */}
               {editing

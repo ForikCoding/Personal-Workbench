@@ -114,14 +114,15 @@
   min-width: 0;
 }
 
-/* The head every full-panel view opens with, in tiers: the way back, then the title
-   with its own controls, then the facts about the view.
+/* The nameplate every full-panel view opens with: the way back, what this is, and the
+   facts that name it — one line, one left edge, one type scale.
 
-   The crumb used to sit inline before the title, so the heading started one button's
-   width in from the page's left edge while every row of the list under it started at
-   that edge: two left margins on one page, and the list appeared to hang out to the left
-   of the title it belongs to. Above the title, the crumb reads as a margin note and the
-   title, the meta, and the rows all share one left edge. */
+   It used to be three tiers: a bar for the way back, the title at display size, then a
+   line of facts under it. On a page whose content is a document that spent about 96px
+   and two competing scales before the document began — the chrome shouted louder than
+   the thing it introduced, and the title was stated a second time by whatever the reader
+   had already said above it. A nameplate at the content's own scale gives the display
+   scale back to the document. */
 .pageHead {
   /* Pinned: these views grow with the document under them, and the way back and the card's
      name used to scroll out of sight within one long report. The scrollport is the workbench
@@ -130,52 +131,59 @@
   top: 0;
   z-index: 2;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
   min-width: 0;
-  /* The head is opaque because the document scrolls under it, and the hairline is what
-     separates the two once it is pinned. */
-  padding: 4px 0 10px;
+  /* Opaque because the document scrolls under it, and the hairline is what separates the
+     two once it is pinned. */
+  padding: 5px 0 7px;
   background: var(--dsw-alias-bg-base);
   border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
-.pageHeadBar {
-  display: flex;
-  align-items: center;
+/* Icon only: the chevron is the control and its accessible name is the word it used to
+   print, so the way back costs 22px of a line instead of a bar of its own. */
+.pageHeadBack {
+  flex: none;
+  justify-content: center;
   /* Cancels the button's own inset so the chevron's edge, not its padding, lands on the
      page's left edge. */
-  margin-left: -6px;
+  margin-left: -4px;
+  color: var(--dsw-alias-label-tertiary);
 }
 
+/* A nameplate, not a headline. It stays the largest thing in the head and the smallest
+   thing on the page: the document owns the display scale. One line, ellipsis rather than
+   wrapping, so a long card name never turns the nameplate back into a tower. */
 .pageHeadTitle {
   margin: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 28px;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-
-/* The facts under the title, separated by a middot: three values set in the same grey
-   with nothing between them read as one sentence, and the eye cannot tell where the
-   count ends and the moment begins. */
+/* The facts beside the title, at caption scale, separated by a middot: the skill is a chip
+   because it is a name, a path stays a path. */
 .pageHeadMeta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   min-width: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
   line-height: 18px;
 }
 
 .pageHeadMeta > * + *::before {
   content: '·';
-  margin: 0 8px;
+  margin: 0 7px;
   color: var(--dsw-alias-label-caption);
 }
 
@@ -434,6 +442,18 @@
   padding: 12px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-md);
+  min-width: 0;
+}
+
+/* The same slot with no frame of its own.
+
+   For a host that already draws one: the reader is a bordered surface with its own padding,
+   so the frame here put a card inside a card and 12px of padding between the reader's edge
+   and the document's. The page keeps its frame when it is the page; the reader lets the
+   document sit on its own surface. */
+.resultBare {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 

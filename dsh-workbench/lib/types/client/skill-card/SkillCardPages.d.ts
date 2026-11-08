@@ -25,6 +25,15 @@ export interface SkillCardPageProps {
     /** Card being shown. */
     readonly cardId: string;
     /**
+     * How much of the page's own head to draw; the full nameplate when absent.
+     *
+     * `bare` is for a host that already names this page and already offers a way out. The
+     * pipeline's reader is one: its head says which step is being read and closes on ✕, Esc
+     * or the scrim, so the page's title and its back button were a second statement of both
+     * — and, on a page whose content is a document, the first 96px of the reading.
+     */
+    readonly head?: 'full' | 'bare' | undefined;
+    /**
      * The run a result view opens, when it is not the card's latest.
      *
      * A run-history row opens its own run by this id; absent means the latest. The run

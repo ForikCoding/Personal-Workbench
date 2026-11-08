@@ -362,6 +362,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
     view: 'config' | 'runs' | 'result',
     onBack: () => void,
     openFile?: string,
+    head?: 'full' | 'bare',
   ): ReactNode => {
     // The inspector's three tabs are the card's own views, mounted rather than
     // reimplemented: the result view keeps its preview, its source and its 重新生成, and
@@ -380,6 +381,7 @@ export function WorkbenchPage(props: WorkbenchPageProps): ReactNode {
       t,
       ...skillCards.documents === undefined ? {} : { documents: skillCards.documents },
       ...openFile === undefined ? {} : { openFile },
+      ...head === undefined ? {} : { head },
       onBack,
     }
     if (view === 'result') return <SkillCardResultPage {...page} />

@@ -179,19 +179,19 @@ describe('the run-history page', () => {
       .map(day => day?.textContent)).toEqual(['2024-01-02'])
   })
 
-  it('heads the page with the way back above the title, not beside it', async () => {
-    // Inline, the back control indented the heading by its own width while every row
-    // below started on the page's left edge: the list hung out to the left of the title
-    // it belonged to. The crumb is a tier of its own, so the title and the rows share
-    // one left edge.
+  it('heads the page with one nameplate, the way back first', async () => {
+    // The way back used to be a tier of its own above the title, which cost three lines of
+    // chrome before a page whose content is a document began. It is an icon control now,
+    // first on the nameplate, and the title and the facts follow it on that one line.
     const { container } = render(<SkillCardRunsPage {...props({ api: pageApi({ results: [result()] }) })} />)
     await loaded(container)
     const head = container.querySelector('header') as HTMLElement
-    const back = [...head.querySelectorAll('button')].find(button => button.textContent === zh.skillCardBack)
+    const back = [...head.querySelectorAll('button')]
+      .find(button => button.getAttribute('aria-label') === zh.skillCardBack)
     expect(back).toBeTruthy()
-    // The crumb row is the head's first child, and the title is not in it.
-    expect(head.firstElementChild?.contains(back ?? null)).toBe(true)
-    expect(head.firstElementChild?.querySelector('h2')).toBeNull()
+    expect(head.firstElementChild).toBe(back)
+    expect(back?.textContent).toBe('')
+    expect(head.querySelector('h2')?.previousElementSibling).toBe(back)
     expect(head.querySelector('h2')?.textContent).toBe('技能卡')
     // The skill and the run facts share the line under the title, separated by the sheet.
     expect(head.textContent).toContain(zh.runHistoryCount.replace('{count}', '1'))
